@@ -17,6 +17,7 @@ interface CalendarViewProps {
   startHour?: number;
   endHour?: number;
   defaultDuration?: number; // in hours
+  collections?: any[];
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({
@@ -31,10 +32,28 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   startHour = 8,
   endHour = 20,
   defaultDuration = 1,
+  collections = [],
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 6));
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
+  const [viewMode, setViewMode] = useState<'month' | 'week'>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = window.localStorage.getItem('calendarViewMode');
+        if (saved === 'month' || saved === 'week') return saved;
+      }
+    } catch {}
+    return 'month';
+  });
+
+  const setViewModePersist = (mode: 'month' | 'week') => {
+    setViewMode(mode);
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('calendarViewMode', mode);
+      }
+    } catch {}
+  };
 
   const dateProps = collection.properties.filter((p: any) => p.type === 'date' || p.type === 'date_range');
   let dateFieldId = dateProperty || dateProps[0]?.id;
@@ -107,7 +126,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           <div className="flex items-center gap-3">
             <div className="flex gap-1 bg-neutral-800/50 rounded-lg p-1">
               <button
-                onClick={() => setViewMode('month')}
+                onClick={() => setViewModePersist('month')}
                 className={cn(
                   'px-3 py-1.5 text-sm font-medium transition-colors',
                   viewMode === 'month' ? 'bg-violet-500/30 text-violet-200' : 'text-neutral-400 hover:text-white'
@@ -116,7 +135,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 Mois
               </button>
               <button
-                onClick={() => setViewMode('week')}
+                onClick={() => setViewModePersist('week')}
                 className={cn(
                   'px-3 py-1.5 text-sm font-medium transition-colors',
                   viewMode === 'week' ? 'bg-violet-500/30 text-violet-200' : 'text-neutral-400 hover:text-white'
@@ -200,6 +219,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             startHour={startHour}
             endHour={endHour}
             defaultDuration={defaultDuration}
+            collections={collections}
           />
         )}
       </div>

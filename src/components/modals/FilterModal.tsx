@@ -4,14 +4,15 @@ import ShinyButton from '@/components/ShinyButton';
 
 interface FilterModalProps {
   properties: any[];
+  collections: any[];
   onClose: () => void;
-  onAdd: (property: string, operator: string, value: string) => void;
+  onAdd: (property: string, operator: string, value: any) => void;
 }
 
-const FilterModal: React.FC<FilterModalProps> = ({ properties, onClose, onAdd }) => {
+const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onClose, onAdd }) => {
   const [property, setProperty] = useState('');
   const [operator, setOperator] = useState('equals');
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState<any>('');
   const operators = [
     { value: 'equals', label: 'Est égal à' },
     { value: 'contains', label: 'Contient' },
@@ -37,9 +38,100 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, onClose, onAdd })
               <option key={op.value} value={op.value}>{op.label}</option>
             ))}
           </select>
-          {!['is_empty', 'is_not_empty'].includes(operator) && (
-            <input type="text" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Valeur" className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none" />
-          )}
+          {!['is_empty', 'is_not_empty'].includes(operator) && (() => {
+            const selectedProp = properties.find((p: any) => p.id === property);
+            // Relation: construire options depuis la collection cible
+            if (selectedProp?.type === 'relation') {
+              const relation = selectedProp.relation || {};
+              const targetCollectionId = relation.targetCollectionId;
+              const relationType = relation.type || 'many_to_many';
+              const targetCollection = (collections || []).find((c: any) => c.id === targetCollectionId);
+              const targetItems = targetCollection?.items || [];
+              const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
+              const nameField = targetCollection?.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
+
+              if (isSourceMany) {
+                const currentValues = Array.isArray(value) ? value : [];
+                const size = Math.min(targetItems.length || 5, 8);
+                return (
+                  <select
+                    multiple
+                    value={currentValues}
+                    onChange={(e) => {
+                      const opts = Array.from(e.target.selectedOptions).map(o => o.value);
+                      setValue(opts);
+                    }}
+                    size={size}
+                    className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none min-h-[120px]"
+                  >
+                    {targetItems.map((ti: any) => {
+                      const label = nameField ? ti[nameField.id] || 'Sans titre' : ti.name || 'Sans titre';
+                      return <option key={ti.id} value={ti.id}>{label}</option>;
+                    })}
+                  </select>
+                );
+              } else {
+                return (
+                  <select
+                    value={typeof value === 'string' ? value : ''}
+                    onChange={(e) => setValue(e.target.value)}
+                    className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                  >
+                    <option value="">Sélectionner...</option>
+                    {targetItems.map((ti: any) => {
+                      const label = nameField ? ti[nameField.id] || 'Sans titre' : ti.name || 'Sans titre';
+                      return <option key={ti.id} value={ti.id}>{label}</option>;
+                    })}
+                  </select>
+                );
+              }
+            }
+            if (selectedProp?.type === 'select') {
+              return (
+                <select
+                  value={typeof value === 'string' ? value : ''}
+                  onChange={(e) => setValue(e.target.value)}
+                  className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                >
+                  <option value="">Sélectionner...</option>
+                  {(selectedProp.options || []).map((opt: any) => {
+                    const optValue = typeof opt === 'string' ? opt : opt.value;
+                    return <option key={optValue} value={optValue}>{optValue}</option>;
+                  })}
+                </select>
+              );
+            }
+            if (selectedProp?.type === 'multi_select') {
+              const currentValues = Array.isArray(value) ? value : [];
+              const size = Math.min((selectedProp.options || []).length || 5, 8);
+              return (
+                <select
+                  multiple
+                  value={currentValues}
+                  onChange={(e) => {
+                    const opts = Array.from(e.target.selectedOptions).map(o => o.value);
+                    setValue(opts);
+                  }}
+                  size={size}
+                  className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none min-h-[120px]"
+                >
+                  {(selectedProp.options || []).map((opt: any) => {
+                    const optValue = typeof opt === 'string' ? opt : opt.value;
+                    return <option key={optValue} value={optValue}>{optValue}</option>;
+                  })}
+                </select>
+              );
+            }
+            return (
+              <input
+                type="text"
+                value={typeof value === 'string' ? value : ''}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder="Valeur"
+                className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+              />
+            );
+          })()}
         </div>
         <div className="flex gap-3 mt-8">
           <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>

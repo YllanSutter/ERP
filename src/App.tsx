@@ -392,12 +392,42 @@ const App = () => {
   };
 
   const deleteItem = (itemId: string) => {
-    const updatedCollections = collections.map(col => {
+    // 1) Remove the item from its source collection
+    let updatedCollections = collections.map(col => {
       if (col.id === activeCollection) {
         return { ...col, items: col.items.filter((i: any) => i.id !== itemId) };
       }
       return col;
     });
+
+    // 2) Cleanup relations in other collections that point to the deleted item's collection
+    updatedCollections = updatedCollections.map(col => {
+      const newItems = (col.items || []).map((it: any) => {
+        let next = { ...it };
+        (col.properties || []).forEach((prop: any) => {
+          if (prop.type !== 'relation') return;
+          const relation = prop.relation || {};
+          const targetCollectionId = relation.targetCollectionId;
+          const relationType = relation.type || 'many_to_many';
+          const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
+
+          // Only relations that target the active (deleted item) collection
+          if (targetCollectionId === activeCollection) {
+            const val = next[prop.id];
+            if (isSourceMany) {
+              const arr = Array.isArray(val) ? val : [];
+              const filtered = arr.filter((id: string) => id !== itemId);
+              if (filtered.length !== arr.length) next[prop.id] = filtered;
+            } else {
+              if (val === itemId) next[prop.id] = null;
+            }
+          }
+        });
+        return next;
+      });
+      return { ...col, items: newItems };
+    });
+
     setCollections(updatedCollections);
   };
 
@@ -406,20 +436,37 @@ const App = () => {
     let filtered = [...currentCollection.items];
     currentViewConfig.filters.forEach((filter: any) => {
       filtered = filtered.filter(item => {
-        const value = item[filter.property];
+        const prop = (currentCollection.properties || []).find((p: any) => p.id === filter.property);
+        const itemVal = item[filter.property];
+        const fVal = filter.value;
+        const isArrayVal = Array.isArray(itemVal);
+
         switch (filter.operator) {
           case 'equals':
-            return value === filter.value;
+            if (isArrayVal) {
+              if (Array.isArray(fVal)) {
+                // Matches any selected value
+                return fVal.some((v: any) => itemVal.includes(v));
+              }
+              return itemVal.includes(fVal);
+            }
+            return itemVal === fVal;
           case 'contains':
-            return value?.toString().toLowerCase().includes(filter.value.toLowerCase());
+            if (isArrayVal) {
+              if (Array.isArray(fVal)) {
+                return fVal.some((fv: any) => itemVal.some((v: any) => String(v).toLowerCase().includes(String(fv).toLowerCase())));
+              }
+              return itemVal.some((v: any) => String(v).toLowerCase().includes(String(fVal).toLowerCase()));
+            }
+            return String(itemVal || '').toLowerCase().includes(String(fVal || '').toLowerCase());
           case 'greater':
-            return Number(value) > Number(filter.value);
+            return Number(itemVal) > Number(fVal);
           case 'less':
-            return Number(value) < Number(filter.value);
+            return Number(itemVal) < Number(fVal);
           case 'is_empty':
-            return !value || value === '';
+            return isArrayVal ? itemVal.length === 0 : (!itemVal || itemVal === '');
           case 'is_not_empty':
-            return value && value !== '';
+            return isArrayVal ? itemVal.length > 0 : (itemVal && itemVal !== '');
           default:
             return true;
         }
@@ -448,7 +495,7 @@ const App = () => {
     setShowNewViewModal(false);
   };
 
-  const addFilter = (property: string, operator: string, value: string) => {
+  const addFilter = (property: string, operator: string, value: any) => {
     const updatedViews = { ...views } as Record<string, any[]>;
     const viewIndex = updatedViews[activeCollection].findIndex(v => v.id === activeView);
     updatedViews[activeCollection][viewIndex].filters.push({ property, operator, value });
@@ -716,7 +763,29 @@ const App = () => {
 
               {currentViewConfig?.filters.map((filter: any, idx: number) => (
                 <motion.div key={idx} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-2 px-3 py-1.5 bg-violet-500/20 text-violet-200 rounded-lg text-sm border border-violet-500/30">
-                  <span>{currentCollection?.properties.find((p: any) => p.id === filter.property)?.name} {filter.operator} {filter.value}</span>
+                  <span>
+                    {currentCollection?.properties.find((p: any) => p.id === filter.property)?.name} {filter.operator}{' '}
+                    {(() => {
+                      const prop = currentCollection?.properties.find((p: any) => p.id === filter.property);
+                      if (prop?.type === 'relation') {
+                        const targetCol = collections.find((c: any) => c.id === prop.relation?.targetCollectionId);
+                        if (!targetCol) return filter.value;
+                        const nameField = targetCol.properties.find((p: any) => p.name === 'Nom' || p.id === 'name') || { id: 'name' };
+                        if (Array.isArray(filter.value)) {
+                          return filter.value
+                            .map((id: string) => {
+                              const item = targetCol.items.find((i: any) => i.id === id);
+                              return item ? (item[nameField.id] || item.name || id) : id;
+                            })
+                            .join(', ');
+                        } else {
+                          const item = targetCol.items.find((i: any) => i.id === filter.value);
+                          return item ? (item[nameField.id] || item.name || filter.value) : filter.value;
+                        }
+                      }
+                      return filter.value;
+                    })()}
+                  </span>
                   <button onClick={() => removeFilter(idx)} className="hover:bg-violet-500/30 rounded p-0.5">
                     <X size={14} />
                   </button>
@@ -795,6 +864,7 @@ const App = () => {
                 onViewDetail={(item: any) => { setSelectedItem(item); setShowItemDetail(true); }}
                 dateProperty={currentViewConfig?.dateProperty}
                 hiddenFields={currentViewConfig?.hiddenFields || []}
+                collections={collections}
                 onChangeDateProperty={(propId: string) => {
                   const updatedViews = { ...views } as Record<string, any[]>;
                   const viewIndex = updatedViews[activeCollection].findIndex(v => v.id === activeView);
@@ -821,7 +891,14 @@ const App = () => {
       {showNewPropertyModal && <NewPropertyModal onClose={() => setShowNewPropertyModal(false)} onSave={addProperty} collections={collections} currentCollection={activeCollection} />}
       {showEditPropertyModal && editingProperty && <EditPropertyModal onClose={() => { setShowEditPropertyModal(false); setEditingProperty(null); }} onSave={updateProperty} property={editingProperty} />}
       {showNewItemModal && <NewItemModal collection={currentCollection!} collections={collections} onClose={() => { setShowNewItemModal(false); setEditingItem(null); }} onSave={saveItem} editingItem={editingItem} />}
-      {showFilterModal && <FilterModal properties={currentCollection?.properties || []} onClose={() => setShowFilterModal(false)} onAdd={addFilter} />}
+      {showFilterModal && (
+        <FilterModal
+          properties={currentCollection?.properties || []}
+          collections={collections}
+          onClose={() => setShowFilterModal(false)}
+          onAdd={addFilter}
+        />
+      )}
       {showGroupModal && <GroupModal properties={currentCollection?.properties || []} onClose={() => setShowGroupModal(false)} onAdd={addGroup} />}
       {showNewViewModal && <NewViewModal collection={currentCollection} onClose={() => setShowNewViewModal(false)} onSave={addView} />}
     </div>

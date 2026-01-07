@@ -18,6 +18,7 @@ interface WeekViewProps {
   startHour?: number;
   endHour?: number;
   defaultDuration?: number; // in hours
+  collections?: any[];
 }
 
 const WeekView: React.FC<WeekViewProps> = ({
@@ -34,9 +35,62 @@ const WeekView: React.FC<WeekViewProps> = ({
   startHour = 8,
   endHour = 20,
   defaultDuration = 1,
+  collections = [],
 }) => {
   const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+
+  // Generate consistent color for each item based on its ID
+  const getItemColor = (itemId: string) => {
+    let hash = 0;
+    for (let i = 0; i < itemId.length; i++) {
+      hash = itemId.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = Math.abs(hash % 360);
+    return {
+      border: `hsl(${hue}, 70%, 50%)`,
+      bg: `hsl(${hue}, 70%, 15%)`,
+      hover: `hsl(${hue}, 70%, 20%)`,
+      text: `hsl(${hue}, 70%, 80%)`,
+    };
+  };
+
+  // Get visible relation/select fields
+  const visibleMetaFields = collection.properties.filter(
+    (p: any) => (p.type === 'relation' || p.type === 'select') && !hiddenFields.includes(p.id)
+  );
+
+  // Format field value for display
+  const formatFieldValue = (item: any, prop: any) => {
+    const value = item[prop.id];
+    if (!value) return '';
+
+    if (prop.type === 'select') {
+      return value;
+    }
+
+    if (prop.type === 'relation') {
+      const targetCol = collections.find((c: any) => c.id === prop.relation?.targetCollectionId);
+      if (!targetCol) return '';
+      
+      const nameField = targetCol.properties.find((p: any) => p.name === 'Nom' || p.id === 'name') || { id: 'name' };
+      
+      if (Array.isArray(value)) {
+        return value
+          .map((id: string) => {
+            const linkedItem = targetCol.items.find((i: any) => i.id === id);
+            return linkedItem ? (linkedItem[nameField.id] || linkedItem.name || '') : '';
+          })
+          .filter(Boolean)
+          .join(', ');
+      } else {
+        const linkedItem = targetCol.items.find((i: any) => i.id === value);
+        return linkedItem ? (linkedItem[nameField.id] || linkedItem.name || '') : '';
+      }
+    }
+
+    return '';
+  };
 
   // Get week days
   const getWeekDays = () => {
@@ -166,7 +220,117 @@ const WeekView: React.FC<WeekViewProps> = ({
     return events;
   }, [items, weekDays]);
 
+  // Detect overlapping events and calculate columns
+  const getEventLayout = (dayEvents: any[], multiDayIndex: number) => {
+    const breakStart = 12;
+    const breakEnd = 13;
+    const workHoursPerDay = 7;
+
+    // Calculate time range for each event
+    const eventsWithTime = dayEvents.map(({ item, style, multiDayIndex: mdi }) => {
+      let dayStartTime: number;
+      let dayDuration: number;
+      let hoursAlreadyUsed = mdi * workHoursPerDay;
+      
+      if (mdi === 0) {
+        dayStartTime = style.startTimeInHours;
+        const hoursUntilBreak = breakStart - dayStartTime;
+        const hoursAfterBreak = endHour - breakEnd;
+        const maxWorkHoursToday = (dayStartTime < breakStart) 
+          ? hoursUntilBreak + hoursAfterBreak 
+          : hoursAfterBreak;
+        dayDuration = Math.min(style.durationHours, maxWorkHoursToday, workHoursPerDay);
+      } else {
+        dayStartTime = style.startTimeInHours;
+        const remainingHours = style.durationHours - hoursAlreadyUsed;
+        const hoursUntilBreak = breakStart - dayStartTime;
+        const hoursAfterBreak = endHour - breakEnd;
+        const maxWorkHoursToday = (dayStartTime < breakStart) 
+          ? hoursUntilBreak + hoursAfterBreak 
+          : hoursAfterBreak;
+        dayDuration = Math.min(remainingHours, maxWorkHoursToday, workHoursPerDay);
+      }
+
+      let dayEndTime = dayStartTime + dayDuration;
+
+      return {
+        item,
+        style,
+        multiDayIndex: mdi,
+        startTime: dayStartTime,
+        endTime: dayEndTime,
+        column: 0,
+        totalColumns: 1,
+      };
+    });
+
+    // Detect overlaps and assign columns
+    const checkOverlap = (a: any, b: any) => {
+      return a.startTime < b.endTime && b.startTime < a.endTime;
+    };
+
+    eventsWithTime.forEach((event, i) => {
+      const overlapping = eventsWithTime.filter((other, j) => i !== j && checkOverlap(event, other));
+      
+      if (overlapping.length > 0) {
+        // Find columns already used by overlapping events
+        const usedColumns = new Set(overlapping.map(e => e.column));
+        
+        // Assign first available column
+        let column = 0;
+        while (usedColumns.has(column)) {
+          column++;
+        }
+        event.column = column;
+        
+        // Calculate total columns needed for this group
+        const maxColumn = Math.max(column, ...overlapping.map(e => e.column));
+        const totalColumns = maxColumn + 1;
+        
+        // Update all overlapping events
+        event.totalColumns = totalColumns;
+        overlapping.forEach(e => {
+          e.totalColumns = Math.max(e.totalColumns, totalColumns);
+        });
+      }
+    });
+
+    return eventsWithTime;
+  };
+
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
+
+  // Reduce duration for a specific item by given hours; delete if duration hits 0
+  const reduceDuration = (item: any, hoursToRemove: number) => {
+    if (hoursToRemove <= 0) return;
+    const durationKey = `${dateField.id}_duration`;
+    const itemValue = item[dateField.id];
+
+    if (dateField.type === 'date') {
+      const currentDuration = item[durationKey] || dateField.defaultDuration || defaultDuration;
+      const newDuration = Math.max(0, currentDuration - hoursToRemove);
+      if (newDuration <= 0) {
+        onDelete(item.id);
+      } else {
+        onEdit({ ...item, [durationKey]: newDuration });
+      }
+    } else if (dateField.type === 'date_range' && itemValue && itemValue.start && itemValue.end) {
+      const startDate = new Date(itemValue.start);
+      const endDate = new Date(itemValue.end);
+      const totalDuration = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+      const newTotal = Math.max(0, totalDuration - hoursToRemove);
+      if (newTotal <= 0) {
+        onDelete(item.id);
+      } else {
+        const newEnd = new Date(startDate);
+        newEnd.setHours(newEnd.getHours() + newTotal);
+        onEdit({
+          ...item,
+          [dateField.id]: { ...itemValue, end: newEnd.toISOString() },
+        });
+      }
+    }
+  };
 
   return (
     <div className="space-y-4 overflow-x-auto">
@@ -207,6 +371,7 @@ const WeekView: React.FC<WeekViewProps> = ({
         {weekDays.map((date, dayIndex) => {
           const dateStr = toDateKey(date);
           const dayEvents = eventsByDay[dateStr] || [];
+          const layoutEvents = getEventLayout(dayEvents, 0);
 
           return (
             <div key={dayIndex} className="relative">
@@ -223,42 +388,20 @@ const WeekView: React.FC<WeekViewProps> = ({
               })}
               
               {/* Render events positioned absolutely */}
-              {dayEvents.map(({ item, style, multiDayIndex }) => {
+              {layoutEvents.map(({ item, style, multiDayIndex, startTime: dayStartTime, endTime: dayEndTime, column, totalColumns }) => {
                 const breakStart = 12;
                 const breakEnd = 13;
                 const workHoursPerDay = 7; // 7h max par jour
                 
-                // Calculer les heures pour ce jour spécifique dans l'événement multi-jours
-                let dayStartTime: number;
-                let dayDuration: number;
-                let hoursAlreadyUsed = multiDayIndex * workHoursPerDay;
+                // Calculate day duration (already done in getEventLayout)
+                const dayDuration = dayEndTime - dayStartTime;
                 
-                if (multiDayIndex === 0) {
-                  // Premier jour : commence à l'heure de début réelle
-                  dayStartTime = style.startTimeInHours;
-                  // Calculer combien d'heures on peut mettre aujourd'hui
-                  const hoursUntilEndOfDay = endHour - dayStartTime;
-                  const hoursUntilBreak = breakStart - dayStartTime;
-                  const hoursAfterBreak = endHour - breakEnd;
-                  const maxWorkHoursToday = (dayStartTime < breakStart) 
-                    ? hoursUntilBreak + hoursAfterBreak 
-                    : hoursAfterBreak;
-                  dayDuration = Math.min(style.durationHours, maxWorkHoursToday, workHoursPerDay);
-                } else {
-                  // Jours suivants : commence à la même heure que le jour 1
-                  dayStartTime = style.startTimeInHours;
-                  const remainingHours = style.durationHours - hoursAlreadyUsed;
-                  // Calculer le max d'heures possibles aujourd'hui avec la pause
-                  const hoursUntilBreak = breakStart - dayStartTime;
-                  const hoursAfterBreak = endHour - breakEnd;
-                  const maxWorkHoursToday = (dayStartTime < breakStart) 
-                    ? hoursUntilBreak + hoursAfterBreak 
-                    : hoursAfterBreak;
-                  dayDuration = Math.min(remainingHours, maxWorkHoursToday, workHoursPerDay);
-                }
+                // Calculate width and left position for overlapping events
+                const widthPercent = (1 / totalColumns) * 100;
+                const leftPercent = column * widthPercent;
                 
-                // Calculer l'heure de fin pour ce jour (sans compter la pause)
-                let dayEndTime = dayStartTime + dayDuration;
+                // Get item color
+                const colors = getItemColor(item.id);
                 
                 // Vérifier si l'événement chevauche la pause aujourd'hui
                 const hasBreakThisDay = dayStartTime < breakStart && dayEndTime > breakStart;
@@ -286,29 +429,41 @@ const WeekView: React.FC<WeekViewProps> = ({
                         <motion.div
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className={cn(
-                            'absolute left-0 right-0 border-l-4 border-violet-500 bg-violet-500/10 p-1.5 cursor-pointer hover:bg-violet-500/20 transition-colors group text-xs overflow-hidden z-10',
-                            'text-violet-200'
-                          )}
+                          className="absolute p-1.5 cursor-pointer transition-colors group text-xs overflow-hidden z-10 rounded-sm"
                           style={{
                             top: `${topOffsetBefore}px`,
                             height: `${heightPxBefore}px`,
+                            left: `${leftPercent}%`,
+                            width: `${widthPercent}%`,
                             minHeight: '24px',
+                            borderLeft: `4px solid ${colors.border}`,
+                            backgroundColor: colors.bg,
+                            color: colors.text,
                           }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.hover}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.bg}
                           onClick={() => onViewDetail(item)}
                         >
                           <div className="font-medium truncate">{getNameValue(item)}</div>
-                          <div className="text-[10px] text-violet-300/70">
+                          <div className="text-[10px] opacity-70">
                             {(() => {
                               const startH = Math.floor(dayStartTime);
                               const startM = Math.round((dayStartTime - startH) * 60);
                               return `${startH.toString().padStart(2, '0')}:${startM.toString().padStart(2, '0')} - 12:00`;
                             })()}
                           </div>
+                          {visibleMetaFields.map((field: any) => {
+                            const val = formatFieldValue(item, field);
+                            return val ? (
+                              <div key={field.id} className="text-[9px] opacity-60 truncate">
+                                {field.name}: {val}
+                              </div>
+                            ) : null;
+                          })}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              onDelete(item.id);
+                              reduceDuration(item, beforeBreakDuration);
                             }}
                             className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
                           >
@@ -322,19 +477,23 @@ const WeekView: React.FC<WeekViewProps> = ({
                         <motion.div
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className={cn(
-                            'absolute left-0 right-0 border-l-4 border-violet-500 bg-violet-500/10 p-1.5 cursor-pointer hover:bg-violet-500/20 transition-colors group text-xs overflow-hidden z-10',
-                            'text-violet-200'
-                          )}
+                          className="absolute p-1.5 cursor-pointer transition-colors group text-xs overflow-hidden z-10 rounded-sm"
                           style={{
                             top: `${topOffsetAfter}px`,
                             height: `${heightPxAfter}px`,
+                            left: `${leftPercent}%`,
+                            width: `${widthPercent}%`,
                             minHeight: '24px',
+                            borderLeft: `4px solid ${colors.border}`,
+                            backgroundColor: colors.bg,
+                            color: colors.text,
                           }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.hover}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.bg}
                           onClick={() => onViewDetail(item)}
                         >
                           <div className="font-medium truncate">{getNameValue(item)}</div>
-                          <div className="text-[10px] text-violet-300/70">
+                          <div className="text-[10px] opacity-70">
                             {(() => {
                               const endTimeWithBreak = breakEnd + afterBreakDuration;
                               const endH = Math.floor(endTimeWithBreak);
@@ -342,10 +501,18 @@ const WeekView: React.FC<WeekViewProps> = ({
                               return `13:00 - ${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')} (${Math.floor(style.durationHours)}h total)`;
                             })()}
                           </div>
+                          {visibleMetaFields.map((field: any) => {
+                            const val = formatFieldValue(item, field);
+                            return val ? (
+                              <div key={field.id} className="text-[9px] opacity-60 truncate">
+                                {field.name}: {val}
+                              </div>
+                            ) : null;
+                          })}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              onDelete(item.id);
+                              reduceDuration(item, afterBreakDuration);
                             }}
                             className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
                           >
@@ -366,20 +533,24 @@ const WeekView: React.FC<WeekViewProps> = ({
                     key={`${item.id}-${multiDayIndex}`}
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={cn(
-                      'absolute left-1 right-1 rounded-lg border-l-4 border-violet-500 bg-violet-500/10 p-1.5 cursor-pointer hover:bg-violet-500/20 transition-colors group text-xs overflow-hidden z-10',
-                      dayDuration > 2 ? 'text-violet-200' : 'text-violet-300'
-                    )}
+                    className="absolute rounded-sm p-1.5 cursor-pointer transition-colors group text-xs overflow-hidden z-10"
                     style={{
                       top: `${topOffset}px`,
                       height: `${heightPx}px`,
+                      left: `${leftPercent}%`,
+                      width: `${widthPercent}%`,
                       minHeight: '24px',
+                      borderLeft: `4px solid ${colors.border}`,
+                      backgroundColor: colors.bg,
+                      color: colors.text,
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.hover}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.bg}
                     onClick={() => onViewDetail(item)}
                   >
                     <div className="font-medium truncate">{getNameValue(item)}</div>
                     {dayDuration > 1 && (
-                      <div className="text-[10px] text-violet-300/70">
+                      <div className="text-[10px] opacity-70">
                         {(() => {
                           const startH = Math.floor(dayStartTime);
                           const startM = Math.round((dayStartTime - startH) * 60);
@@ -389,10 +560,18 @@ const WeekView: React.FC<WeekViewProps> = ({
                         })()}
                       </div>
                     )}
+                    {visibleMetaFields.map((field: any) => {
+                      const val = formatFieldValue(item, field);
+                      return val ? (
+                        <div key={field.id} className="text-[9px] opacity-60 truncate">
+                          {field.name}: {val}
+                        </div>
+                      ) : null;
+                    })}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        onDelete(item.id);
+                        reduceDuration(item, dayDuration);
                       }}
                       className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
