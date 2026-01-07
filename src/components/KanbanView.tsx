@@ -14,9 +14,12 @@ interface KanbanViewProps {
   groupBy?: string;
   hiddenFields?: string[];
   onChangeGroupBy?: (groupBy: string) => void;
+  collections?: any[];
+  onRelationChange?: (property: any, item: any, value: any) => void;
+  onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
 }
 
-const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDelete, onViewDetail, groupBy, hiddenFields = [], onChangeGroupBy }) => {
+const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDelete, onViewDetail, groupBy, hiddenFields = [], onChangeGroupBy, collections = [], onRelationChange, onNavigateToCollection }) => {
   const [draggedItem, setDraggedItem] = useState<any>(null);
 
   // Find available select properties
@@ -175,6 +178,10 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                               value={item[prop.id]}
                               onChange={(val) => onEdit({...item, [prop.id]: val})}
                               size="sm"
+                              collections={collections}
+                              currentItem={item}
+                              onRelationChange={onRelationChange}
+                              onNavigateToCollection={onNavigateToCollection}
                             />
                           </div>
                         ))}

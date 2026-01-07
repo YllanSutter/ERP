@@ -221,9 +221,63 @@ const App = () => {
   };
 
   const addProperty = (property: any) => {
+    // Ajout standard ou relation
+    if (property.type !== 'relation') {
+      const updatedCollections = collections.map(col => {
+        if (col.id === activeCollection) {
+          return { ...col, properties: [...col.properties, { ...property, id: property.name.toLowerCase().replace(/\s+/g, '_') }] };
+        }
+        return col;
+      });
+      setCollections(updatedCollections);
+      setShowNewPropertyModal(false);
+      return;
+    }
+
+    // Gestion des propriétés de relation: créer le champ source et le champ cible réciproque
+    const sourceCollection = collections.find(c => c.id === activeCollection);
+    const targetCollection = collections.find(c => c.id === property.relation?.targetCollectionId);
+    if (!sourceCollection || !targetCollection) {
+      alert('Collection cible introuvable pour la relation');
+      return;
+    }
+    const sourcePropId = property.name.toLowerCase().replace(/\s+/g, '_');
+    const reciprocalName = `${sourceCollection.name}`;
+    const targetPropId = `${reciprocalName.toLowerCase().replace(/\s+/g, '_')}_lié`;
+
+    const relationType = property.relation?.type || 'many_to_many';
+    const reciprocalType = relationType === 'one_to_many' ? 'many_to_one' : relationType === 'many_to_one' ? 'one_to_many' : relationType;
+
+    const sourceProp = {
+      ...property,
+      id: sourcePropId,
+      relation: {
+        targetCollectionId: targetCollection.id,
+        type: relationType,
+        targetFieldId: targetPropId
+      }
+    };
+
+    const targetProp = {
+      name: sourceCollection.name,
+      type: 'relation',
+      icon: property.icon || 'Link',
+      color: property.color || '#8b5cf6',
+      id: targetPropId,
+      relation: {
+        targetCollectionId: sourceCollection.id,
+        type: reciprocalType,
+        targetFieldId: sourcePropId
+      }
+    };
+
     const updatedCollections = collections.map(col => {
-      if (col.id === activeCollection) {
-        return { ...col, properties: [...col.properties, { ...property, id: property.name.toLowerCase().replace(/\s+/g, '_') }] };
+      if (col.id === sourceCollection.id) {
+        return { ...col, properties: [...col.properties, sourceProp] };
+      }
+      if (col.id === targetCollection.id) {
+        const exists = col.properties.some((p: any) => p.id === targetPropId);
+        return exists ? col : { ...col, properties: [...col.properties, targetProp] };
       }
       return col;
     });
@@ -247,30 +301,127 @@ const App = () => {
   };
 
   const saveItem = (item: any) => {
-    const updatedCollections = collections.map(col => {
+    let newItem = { ...item };
+    if (!editingItem && !item.id) {
+      newItem.id = Date.now().toString();
+    }
+
+    let updatedCollections = collections.map(col => {
       if (col.id === activeCollection) {
         if (editingItem || item.id) {
-          // Update existing item
-          return { ...col, items: col.items.map((i: any) => i.id === item.id ? item : i) };
+          return { ...col, items: col.items.map((i: any) => i.id === newItem.id ? newItem : i) };
         }
-        // Add new item
-        return { ...col, items: [...col.items, { ...item, id: Date.now().toString() }] };
+        return { ...col, items: [...col.items, newItem] };
       }
       return col;
     });
+
+    const sourceCollection = collections.find(c => c.id === activeCollection)!;
+    const relationProps = (sourceCollection.properties || []).filter((p: any) => p.type === 'relation');
+    relationProps.forEach((prop: any) => {
+      const afterVal = newItem[prop.id];
+      if (afterVal && (Array.isArray(afterVal) ? afterVal.length > 0 : true)) {
+        updatedCollections = applyRelationChangeInternal(updatedCollections, sourceCollection, newItem, prop, afterVal, null);
+      }
+    });
+
     setCollections(updatedCollections);
     setShowNewItemModal(false);
     setEditingItem(null);
   };
 
   const updateItem = (item: any) => {
-    const updatedCollections = collections.map(col => {
+    const sourceCollection = collections.find(c => c.id === activeCollection)!;
+    const prevItem = sourceCollection.items.find((i: any) => i.id === item.id) || {};
+
+    let updatedCollections = collections.map(col => {
       if (col.id === activeCollection) {
         return { ...col, items: col.items.map((i: any) => i.id === item.id ? item : i) };
       }
       return col;
     });
+
+    const relationProps = (sourceCollection.properties || []).filter((p: any) => p.type === 'relation');
+    relationProps.forEach((prop: any) => {
+      const beforeVal = prevItem[prop.id];
+      const afterVal = item[prop.id];
+      if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
+        updatedCollections = applyRelationChangeInternal(updatedCollections, sourceCollection, item, prop, afterVal, beforeVal);
+      }
+    });
+
     setCollections(updatedCollections);
+  };
+
+  const applyRelationChangeInternal = (
+    stateCollections: any[],
+    sourceCollection: any,
+    sourceItem: any,
+    prop: any,
+    newVal: any,
+    oldVal: any
+  ) => {
+    const relation = prop.relation || {};
+    const targetCollectionId = relation.targetCollectionId;
+    const targetFieldId = relation.targetFieldId;
+    const relationType = relation.type || 'many_to_many';
+
+    const targetCollection = stateCollections.find((c: any) => c.id === targetCollectionId);
+    if (!targetCollection) return stateCollections;
+
+    const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
+    const isTargetMany = relationType === 'many_to_many' ? true : relationType === 'one_to_many' ? false : true; // one_to_one => false
+
+    const oldIds = isSourceMany ? (Array.isArray(oldVal) ? oldVal : []) : (oldVal ? [oldVal] : []);
+    const newIds = isSourceMany ? (Array.isArray(newVal) ? newVal : []) : (newVal ? [newVal] : []);
+
+    const removed = oldIds.filter((id: string) => !newIds.includes(id));
+    const added = newIds.filter((id: string) => !oldIds.includes(id));
+
+    let updatedTargetItems = (targetCollection.items || []).map((ti: any) => {
+      if (added.includes(ti.id)) {
+        if (isTargetMany) {
+          const arr = Array.isArray(ti[targetFieldId]) ? ti[targetFieldId] : [];
+          if (!arr.includes(sourceItem.id)) ti[targetFieldId] = [...arr, sourceItem.id];
+        } else {
+          ti[targetFieldId] = sourceItem.id;
+        }
+      }
+      return ti;
+    });
+
+    updatedTargetItems = updatedTargetItems.map((ti: any) => {
+      if (removed.includes(ti.id)) {
+        if (isTargetMany) {
+          const arr = Array.isArray(ti[targetFieldId]) ? ti[targetFieldId] : [];
+          ti[targetFieldId] = arr.filter((sid: string) => sid !== sourceItem.id);
+        } else {
+          if (ti[targetFieldId] === sourceItem.id) ti[targetFieldId] = null;
+        }
+      }
+      return ti;
+    });
+
+    if (relationType === 'one_to_one') {
+      const keepId = newIds[0] || null;
+      if (keepId) {
+        updatedTargetItems = updatedTargetItems.map((ti: any) => {
+          if (ti.id !== keepId && ti[targetFieldId] === sourceItem.id) {
+            ti[targetFieldId] = null;
+          }
+          return ti;
+        });
+      }
+    }
+
+    const updatedCollections2 = stateCollections.map((c: any) => {
+      if (c.id === targetCollectionId) {
+        return { ...c, items: updatedTargetItems };
+      }
+      return c;
+    });
+
+    return updatedCollections2;
   };
 
   const deleteItem = (itemId: string) => {
@@ -656,6 +807,14 @@ const App = () => {
                 onToggleField={toggleFieldVisibility}
                 onDeleteProperty={deleteProperty}
                 onEditProperty={(prop: any) => { setEditingProperty(prop); setShowEditPropertyModal(true); }}
+                collections={collections}
+                onRelationChange={(prop: any, item: any, val: any) => {
+                  const updatedItem = { ...item, [prop.id]: val };
+                  updateItem(updatedItem);
+                }}
+                onNavigateToCollection={(collectionId: string, linkedIds?: string[]) => {
+                  setActiveCollection(collectionId);
+                }}
               />
             )}
             {currentViewConfig?.type === 'kanban' && (
@@ -672,6 +831,14 @@ const App = () => {
                   const viewIndex = updatedViews[activeCollection].findIndex(v => v.id === activeView);
                   updatedViews[activeCollection][viewIndex].groupBy = groupBy;
                   setViews(updatedViews);
+                }}
+                collections={collections}
+                onRelationChange={(prop: any, item: any, val: any) => {
+                  const updatedItem = { ...item, [prop.id]: val };
+                  updateItem(updatedItem);
+                }}
+                onNavigateToCollection={(collectionId: string, linkedIds?: string[]) => {
+                  setActiveCollection(collectionId);
                 }}
               />
             )}
@@ -709,7 +876,7 @@ const App = () => {
       {showNewCollectionModal && <NewCollectionModal onClose={() => setShowNewCollectionModal(false)} onSave={addCollection} />}
       {showNewPropertyModal && <NewPropertyModal onClose={() => setShowNewPropertyModal(false)} onSave={addProperty} collections={collections} currentCollection={activeCollection} />}
       {showEditPropertyModal && editingProperty && <EditPropertyModal onClose={() => { setShowEditPropertyModal(false); setEditingProperty(null); }} onSave={updateProperty} property={editingProperty} />}
-      {showNewItemModal && <NewItemModal collection={currentCollection!} onClose={() => { setShowNewItemModal(false); setEditingItem(null); }} onSave={saveItem} editingItem={editingItem} />}
+      {showNewItemModal && <NewItemModal collection={currentCollection!} collections={collections} onClose={() => { setShowNewItemModal(false); setEditingItem(null); }} onSave={saveItem} editingItem={editingItem} />}
       {showFilterModal && <FilterModal properties={currentCollection?.properties || []} onClose={() => setShowFilterModal(false)} onAdd={addFilter} />}
       {showGroupModal && <GroupModal properties={currentCollection?.properties || []} onClose={() => setShowGroupModal(false)} onAdd={addGroup} />}
       {showNewViewModal && <NewViewModal collection={currentCollection} onClose={() => setShowNewViewModal(false)} onSave={addView} />}
@@ -738,7 +905,7 @@ const formatValue = (value: any, type: string) => {
   }
 };
 
-const TableView = ({ collection, items, onEdit, onDelete, hiddenFields, onToggleField, onDeleteProperty, onEditProperty, onViewDetail }: any) => {
+const TableView = ({ collection, items, onEdit, onDelete, hiddenFields, onToggleField, onDeleteProperty, onEditProperty, onViewDetail, collections, onRelationChange, onNavigateToCollection }: any) => {
   const visibleProperties = collection.properties.filter((p: any) => !hiddenFields.includes(p.id));
   
   return (
@@ -803,6 +970,10 @@ const TableView = ({ collection, items, onEdit, onDelete, hiddenFields, onToggle
                       size="md"
                       isNameField={prop.id === 'name' || prop.name === 'Nom'}
                       onViewDetail={prop.id === 'name' || prop.name === 'Nom' ? () => onViewDetail(item) : undefined}
+                      collections={collections}
+                      currentItem={item}
+                      onRelationChange={onRelationChange}
+                      onNavigateToCollection={onNavigateToCollection}
                     />
                   </td>
                 ))}
@@ -867,6 +1038,8 @@ const NewPropertyModal = ({ onClose, onSave, collections, currentCollection }: a
   const [newOptionIcon, setNewOptionIcon] = useState<string>('Tag');
     const [showIconPopover, setShowIconPopover] = useState(false);
     const [showColorPopover, setShowColorPopover] = useState(false);
+  const [relationTarget, setRelationTarget] = useState('');
+  const [relationType, setRelationType] = useState('many_to_many');
 
   const addOption = () => {
     if (newOptionValue.trim()) {
@@ -885,6 +1058,13 @@ const NewPropertyModal = ({ onClose, onSave, collections, currentCollection }: a
     const property: any = { name, type, icon: 'Tag', color: '#8b5cf6' };
     if (type === 'select' || type === 'multi_select') {
       property.options = options;
+    }
+    if (type === 'relation') {
+      if (!relationTarget) {
+        alert('Veuillez choisir une collection cible');
+        return;
+      }
+      property.relation = { targetCollectionId: relationTarget, type: relationType };
     }
     onSave(property);
   };
@@ -910,6 +1090,35 @@ const NewPropertyModal = ({ onClose, onSave, collections, currentCollection }: a
               <option key={key} value={key}>{label}</option>
             ))}
           </select>
+          {type === 'relation' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-300 mb-2">Collection liée</label>
+                <select 
+                  value={relationTarget}
+                  onChange={(e) => setRelationTarget(e.target.value)}
+                  className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                >
+                  <option value="">Sélectionner...</option>
+                  {(collections || []).filter((c: any) => c.id !== currentCollection).map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-300 mb-2">Type de relation</label>
+                <select 
+                  value={relationType}
+                  onChange={(e) => setRelationType(e.target.value)}
+                  className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                >
+                  <option value="one_to_one">One to One</option>
+                  <option value="one_to_many">One to Many</option>
+                  <option value="many_to_many">Many to Many</option>
+                </select>
+              </div>
+            </div>
+          )}
           {(type === 'select' || type === 'multi_select') && (
             <div className="space-y-3">
               <label className="block text-sm font-medium text-neutral-300">Options</label>
@@ -1131,7 +1340,7 @@ const EditPropertyModal = ({ onClose, onSave, property }: any) => {
   );
 };
 
-const NewItemModal = ({ collection, onClose, onSave, editingItem }: any) => {
+const NewItemModal = ({ collection, onClose, onSave, editingItem, collections }: any) => {
   const [formData, setFormData] = useState(editingItem || {});
   const handleChange = (propId: string, value: any) => {
     setFormData({ ...formData, [propId]: value });
@@ -1186,6 +1395,56 @@ const NewItemModal = ({ collection, onClose, onSave, editingItem }: any) => {
                   })}
                 </select>
               )}
+              {prop.type === 'relation' && (() => {
+                const relation = prop.relation || {};
+                const targetCollection = (collections || []).find((c: any) => c.id === relation.targetCollectionId);
+                const targetItems = targetCollection?.items || [];
+                const isSourceMany = relation.type === 'one_to_many' || relation.type === 'many_to_many';
+                if (!targetCollection) return <div className="text-sm text-neutral-500">Collection liée introuvable</div>;
+                if (!isSourceMany) {
+                  return (
+                    <select value={formData[prop.id] || ''} onChange={(e) => handleChange(prop.id, e.target.value || null)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none">
+                      <option value="">Aucun</option>
+                      {targetItems.map((ti: any) => (
+                        <option key={ti.id} value={ti.id}>{(() => {
+                          const nf = targetCollection.properties.find((p: any) => p.id === 'name' || p.name === 'Nom');
+                          return nf ? ti[nf.id] || 'Sans titre' : ti.name || 'Sans titre';
+                        })()}</option>
+                      ))}
+                    </select>
+                  );
+                }
+                const selectedIds = Array.isArray(formData[prop.id]) ? formData[prop.id] : [];
+                return (
+                  <div className="space-y-2">
+                    {targetItems.map((ti: any) => {
+                      const checked = selectedIds.includes(ti.id);
+                      const label = (() => {
+                        const nf = targetCollection.properties.find((p: any) => p.id === 'name' || p.name === 'Nom');
+                        return nf ? ti[nf.id] || 'Sans titre' : ti.name || 'Sans titre';
+                      })();
+                      return (
+                        <label key={ti.id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = e.target.checked
+                                ? [...selectedIds, ti.id]
+                                : selectedIds.filter((id: string) => id !== ti.id);
+                              handleChange(prop.id, next);
+                            }}
+                          />
+                          <span>{label}</span>
+                        </label>
+                      );
+                    })}
+                    {targetItems.length === 0 && (
+                      <div className="text-xs text-neutral-500">Aucun élément dans la collection liée</div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </div>
