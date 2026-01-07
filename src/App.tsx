@@ -1,18 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Filter, Layers, Table, Layout, X, ChevronDown, Edit2, Trash2, Eye, EyeOff, Calendar as CalendarIcon, ArrowRight, Settings } from 'lucide-react';
+import { Plus, Filter, Layers, Table, Layout, X, Settings, Calendar as CalendarIcon } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import KanbanView from '@/components/KanbanView';
 import CalendarView from '@/components/CalendarView';
-import EditableProperty from '@/components/EditableProperty';
-import IconPicker from '@/components/IconPicker';
-import ColorPicker from '@/components/ColorPicker';
+import TableView from '@/components/TableView';
+import ShinyButton from '@/components/ShinyButton';
+import NewCollectionModal from '@/components/modals/NewCollectionModal';
+import NewPropertyModal from '@/components/modals/NewPropertyModal';
+import EditPropertyModal from '@/components/modals/EditPropertyModal';
+import NewItemModal from '@/components/modals/NewItemModal';
+import FilterModal from '@/components/modals/FilterModal';
+import GroupModal from '@/components/modals/GroupModal';
+import ItemDetailModal from '@/components/modals/ItemDetailModal';
+import NewViewModal from '@/components/modals/NewViewModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -28,20 +30,6 @@ const PROPERTY_TYPES = {
   EMAIL: 'email',
   PHONE: 'phone',
   RELATION: 'relation'
-};
-
-const PropertyTypeLabels = {
-  text: 'Texte',
-  number: 'Nombre',
-  select: 'Sélection',
-  multi_select: 'Multi-sélection',
-  date: 'Date',
-  date_range: 'Période',
-  checkbox: 'Case à cocher',
-  url: 'URL',
-  email: 'Email',
-  phone: 'Téléphone',
-  relation: 'Relation'
 };
 
 const defaultCollections = [
@@ -93,23 +81,6 @@ const defaultViews = {
   sites: [{ id: 'default', name: 'Toutes les données', type: 'table', filters: [], groups: [], hiddenFields: [] }]
 };
 
-const ShinyButton = ({ children, className, onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) => {
-  return (
-    <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={onClick}
-      className={cn(
-        "group relative isolate overflow-hidden rounded-full bg-gradient-to-r from-violet-600 to-cyan-600 px-6 py-2 text-sm font-medium text-white transition-all",
-        "shadow-[0_0_20px_-5px_rgba(139,92,246,0.3)] hover:shadow-[0_0_25px_-5px_rgba(139,92,246,0.5)]",
-        className
-      )}
-    >
-      <span className="relative z-10 flex items-center gap-2">{children}</span>
-    </motion.button>
-  );
-};
-
 const App = () => {
   const [collections, setCollections] = useState<any[]>(defaultCollections);
   const [views, setViews] = useState<Record<string, any[]>>(defaultViews);
@@ -131,7 +102,6 @@ const App = () => {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
 
-  // Load state from API
   useEffect(() => {
     const loadState = async () => {
       try {
@@ -160,7 +130,6 @@ const App = () => {
     loadState();
   }, []);
 
-  // Persist state to API
   useEffect(() => {
     if (!isLoaded) return;
     const saveState = async () => {
@@ -221,8 +190,7 @@ const App = () => {
   };
 
   const addProperty = (property: any) => {
-    // Ajout standard ou relation
-    if (property.type !== 'relation') {
+    if (property.type !== PROPERTY_TYPES.RELATION) {
       const updatedCollections = collections.map(col => {
         if (col.id === activeCollection) {
           return { ...col, properties: [...col.properties, { ...property, id: property.name.toLowerCase().replace(/\s+/g, '_') }] };
@@ -234,7 +202,6 @@ const App = () => {
       return;
     }
 
-    // Gestion des propriétés de relation: créer le champ source et le champ cible réciproque
     const sourceCollection = collections.find(c => c.id === activeCollection);
     const targetCollection = collections.find(c => c.id === property.relation?.targetCollectionId);
     if (!sourceCollection || !targetCollection) {
@@ -300,59 +267,6 @@ const App = () => {
     setEditingProperty(null);
   };
 
-  const saveItem = (item: any) => {
-    let newItem = { ...item };
-    if (!editingItem && !item.id) {
-      newItem.id = Date.now().toString();
-    }
-
-    let updatedCollections = collections.map(col => {
-      if (col.id === activeCollection) {
-        if (editingItem || item.id) {
-          return { ...col, items: col.items.map((i: any) => i.id === newItem.id ? newItem : i) };
-        }
-        return { ...col, items: [...col.items, newItem] };
-      }
-      return col;
-    });
-
-    const sourceCollection = collections.find(c => c.id === activeCollection)!;
-    const relationProps = (sourceCollection.properties || []).filter((p: any) => p.type === 'relation');
-    relationProps.forEach((prop: any) => {
-      const afterVal = newItem[prop.id];
-      if (afterVal && (Array.isArray(afterVal) ? afterVal.length > 0 : true)) {
-        updatedCollections = applyRelationChangeInternal(updatedCollections, sourceCollection, newItem, prop, afterVal, null);
-      }
-    });
-
-    setCollections(updatedCollections);
-    setShowNewItemModal(false);
-    setEditingItem(null);
-  };
-
-  const updateItem = (item: any) => {
-    const sourceCollection = collections.find(c => c.id === activeCollection)!;
-    const prevItem = sourceCollection.items.find((i: any) => i.id === item.id) || {};
-
-    let updatedCollections = collections.map(col => {
-      if (col.id === activeCollection) {
-        return { ...col, items: col.items.map((i: any) => i.id === item.id ? item : i) };
-      }
-      return col;
-    });
-
-    const relationProps = (sourceCollection.properties || []).filter((p: any) => p.type === 'relation');
-    relationProps.forEach((prop: any) => {
-      const beforeVal = prevItem[prop.id];
-      const afterVal = item[prop.id];
-      if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
-        updatedCollections = applyRelationChangeInternal(updatedCollections, sourceCollection, item, prop, afterVal, beforeVal);
-      }
-    });
-
-    setCollections(updatedCollections);
-  };
-
   const applyRelationChangeInternal = (
     stateCollections: any[],
     sourceCollection: any,
@@ -370,7 +284,7 @@ const App = () => {
     if (!targetCollection) return stateCollections;
 
     const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
-    const isTargetMany = relationType === 'many_to_many' ? true : relationType === 'one_to_many' ? false : true; // one_to_one => false
+    const isTargetMany = relationType === 'many_to_many' ? true : relationType === 'one_to_many' ? false : true;
 
     const oldIds = isSourceMany ? (Array.isArray(oldVal) ? oldVal : []) : (oldVal ? [oldVal] : []);
     const newIds = isSourceMany ? (Array.isArray(newVal) ? newVal : []) : (newVal ? [newVal] : []);
@@ -424,6 +338,59 @@ const App = () => {
     return updatedCollections2;
   };
 
+  const saveItem = (item: any) => {
+    let newItem = { ...item };
+    if (!editingItem && !item.id) {
+      newItem.id = Date.now().toString();
+    }
+
+    let updatedCollections = collections.map(col => {
+      if (col.id === activeCollection) {
+        if (editingItem || item.id) {
+          return { ...col, items: col.items.map((i: any) => i.id === newItem.id ? newItem : i) };
+        }
+        return { ...col, items: [...col.items, newItem] };
+      }
+      return col;
+    });
+
+    const sourceCollection = collections.find(c => c.id === activeCollection)!;
+    const relationProps = (sourceCollection.properties || []).filter((p: any) => p.type === 'relation');
+    relationProps.forEach((prop: any) => {
+      const afterVal = newItem[prop.id];
+      if (afterVal && (Array.isArray(afterVal) ? afterVal.length > 0 : true)) {
+        updatedCollections = applyRelationChangeInternal(updatedCollections, sourceCollection, newItem, prop, afterVal, null);
+      }
+    });
+
+    setCollections(updatedCollections);
+    setShowNewItemModal(false);
+    setEditingItem(null);
+  };
+
+  const updateItem = (item: any) => {
+    const sourceCollection = collections.find(c => c.id === activeCollection)!;
+    const prevItem = sourceCollection.items.find((i: any) => i.id === item.id) || {};
+
+    let updatedCollections = collections.map(col => {
+      if (col.id === activeCollection) {
+        return { ...col, items: col.items.map((i: any) => i.id === item.id ? item : i) };
+      }
+      return col;
+    });
+
+    const relationProps = (sourceCollection.properties || []).filter((p: any) => p.type === 'relation');
+    relationProps.forEach((prop: any) => {
+      const beforeVal = prevItem[prop.id];
+      const afterVal = item[prop.id];
+      if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
+        updatedCollections = applyRelationChangeInternal(updatedCollections, sourceCollection, item, prop, afterVal, beforeVal);
+      }
+    });
+
+    setCollections(updatedCollections);
+  };
+
   const deleteItem = (itemId: string) => {
     const updatedCollections = collections.map(col => {
       if (col.id === activeCollection) {
@@ -459,21 +426,6 @@ const App = () => {
       });
     });
     return filtered;
-  };
-
-  const getGroupedItems = () => {
-    const filtered = getFilteredItems();
-    if (!currentViewConfig?.groups.length) {
-      return { 'all': filtered };
-    }
-    const grouped: Record<string, any[]> = {};
-    const groupBy = currentViewConfig.groups[0];
-    filtered.forEach(item => {
-      const key = item[groupBy] || 'Sans valeur';
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(item);
-    });
-    return grouped;
   };
 
   const addView = (name: string, type: string, config?: any) => {
@@ -574,7 +526,6 @@ const App = () => {
         }
       `}</style>
 
-      {/* Header */}
       <motion.div 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -593,7 +544,6 @@ const App = () => {
       </motion.div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
         <motion.div 
           initial={{ x: -100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
@@ -632,9 +582,7 @@ const App = () => {
           })}
         </motion.div>
 
-        {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Toolbar */}
           <motion.div 
             initial={{ y: -10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -652,7 +600,6 @@ const App = () => {
               </ShinyButton>
             </div>
 
-            {/* View Tabs */}
             <div className="flex items-center gap-2 mb-4">
               {currentViews.map((view, i) => (
                 <motion.div key={view.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.05 * i }} className="relative group">
@@ -692,7 +639,6 @@ const App = () => {
               </motion.button>
             </div>
 
-            {/* Controls */}
             <div className="flex items-center gap-2 flex-wrap">
               <button onClick={() => setShowFilterModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm">
                 <Filter size={14} />
@@ -706,8 +652,7 @@ const App = () => {
                 <Plus size={14} />
                 Propriété
               </button>
-              
-              {/* Settings Popover */}
+
               <div className="relative z-[1000]" ref={settingsRef}>
                 <button 
                   onClick={() => setShowViewSettings(!showViewSettings)} 
@@ -758,7 +703,7 @@ const App = () => {
                                 className="ml-auto text-neutral-500 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
                                 title="Modifier la propriété"
                               >
-                                <Edit2 size={14} />
+                                <Icons.Edit2 size={14} />
                               </button>
                             </div>
                           );
@@ -789,7 +734,6 @@ const App = () => {
             </div>
           </motion.div>
 
-          {/* Data Views */}
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -880,777 +824,6 @@ const App = () => {
       {showFilterModal && <FilterModal properties={currentCollection?.properties || []} onClose={() => setShowFilterModal(false)} onAdd={addFilter} />}
       {showGroupModal && <GroupModal properties={currentCollection?.properties || []} onClose={() => setShowGroupModal(false)} onAdd={addGroup} />}
       {showNewViewModal && <NewViewModal collection={currentCollection} onClose={() => setShowNewViewModal(false)} onSave={addView} />}
-    </div>
-  );
-};
-
-const formatValue = (value: any, type: string) => {
-  if (!value) return '-';
-  switch (type) {
-    case 'date':
-      return new Date(value).toLocaleDateString('fr-FR');
-    case 'date_range':
-      if (value.start && value.end) {
-        return `${new Date(value.start).toLocaleDateString('fr-FR')} - ${new Date(value.end).toLocaleDateString('fr-FR')}`;
-      }
-      return '-';
-    case 'checkbox':
-      return value ? '✓' : '✗';
-    case 'url':
-      return <a href={value} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">{value}</a>;
-    case 'multi_select':
-      return Array.isArray(value) ? value.join(', ') : value;
-    default:
-      return value;
-  }
-};
-
-const TableView = ({ collection, items, onEdit, onDelete, hiddenFields, onToggleField, onDeleteProperty, onEditProperty, onViewDetail, collections, onRelationChange, onNavigateToCollection }: any) => {
-  const visibleProperties = collection.properties.filter((p: any) => !hiddenFields.includes(p.id));
-  
-  return (
-    <div className="bg-neutral-900/40 border border-white/5 rounded-lg overflow-hidden backdrop-blur">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-neutral-900/60 border-b border-white/5">
-            <tr>
-              {visibleProperties.map((prop: any) => {
-                const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
-                return (
-                  <th key={prop.id} className="px-6 py-3 text-left text-xs font-medium text-neutral-400 uppercase tracking-wider">
-                    <div className="flex items-center gap-2">
-                      <PropIcon size={14} style={{ color: prop.color || '#8b5cf6' }} />
-                      {prop.name}
-                      <div className="flex gap-1 opacity-0 hover:opacity-100 transition-all duration-500">
-                        <button
-                          onClick={() => onEditProperty(prop)}
-                          className="text-neutral-600 hover:text-cyan-400"
-                          title="Modifier la propriété"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => onToggleField(prop.id)}
-                          className="text-neutral-600 hover:text-neutral-400"
-                          title="Masquer la colonne"
-                        >
-                          <EyeOff size={14} />
-                        </button>
-                        {prop.id !== 'name' && (
-                          <button
-                            onClick={() => onDeleteProperty(prop.id)}
-                            className="text-neutral-600 hover:text-red-500"
-                            title="Supprimer la propriété"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </th>
-                );
-              })}
-              <th className="px-6 py-3 text-right text-xs font-medium text-neutral-400 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {items.map((item: any) => (
-              <motion.tr 
-                key={item.id} 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="hover:bg-white/5 transition-colors"
-              >
-                {visibleProperties.map((prop: any) => (
-                  <td key={prop.id} className="px-6 py-4 whitespace-nowrap text-sm text-neutral-300">
-                    <EditableProperty
-                      property={prop}
-                      value={item[prop.id]}
-                      onChange={(val) => onEdit({...item, [prop.id]: val})}
-                      size="md"
-                      isNameField={prop.id === 'name' || prop.name === 'Nom'}
-                      onViewDetail={prop.id === 'name' || prop.name === 'Nom' ? () => onViewDetail(item) : undefined}
-                      collections={collections}
-                      currentItem={item}
-                      onRelationChange={onRelationChange}
-                      onNavigateToCollection={onNavigateToCollection}
-                    />
-                  </td>
-                ))}
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                  <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-400">
-                    <Trash2 size={16} />
-                  </button>
-                </td>
-              </motion.tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
-
-const NewCollectionModal = ({ onClose, onSave }: any) => {
-  const [name, setName] = useState('');
-  const [icon, setIcon] = useState('Folder');
-  const [color, setColor] = useState('#8b5cf6');
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-[500px] max-h-[90vh] overflow-y-auto backdrop-blur">
-        <h3 className="text-xl font-bold mb-6">Nouvelle collection</h3>
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-2">Nom</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
-              placeholder="Nom de la collection"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-3">Icône</label>
-            <IconPicker value={icon} onChange={setIcon} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-3">Couleur</label>
-            <ColorPicker value={color} onChange={setColor} />
-          </div>
-        </div>
-        <div className="flex gap-3 mt-8">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors">Annuler</button>
-          <ShinyButton onClick={() => name && onSave(name, icon, color)} className="flex-1">Créer</ShinyButton>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const NewPropertyModal = ({ onClose, onSave, collections, currentCollection }: any) => {
-  const [name, setName] = useState('');
-  const [type, setType] = useState('text');
-  const [options, setOptions] = useState<Array<{value: string, color: string}>>([]);
-  const [newOptionValue, setNewOptionValue] = useState('');
-  const [newOptionColor, setNewOptionColor] = useState('#8b5cf6');
-  const [newOptionIcon, setNewOptionIcon] = useState<string>('Tag');
-    const [showIconPopover, setShowIconPopover] = useState(false);
-    const [showColorPopover, setShowColorPopover] = useState(false);
-  const [relationTarget, setRelationTarget] = useState('');
-  const [relationType, setRelationType] = useState('many_to_many');
-
-  const addOption = () => {
-    if (newOptionValue.trim()) {
-      setOptions([...options, { value: newOptionValue.trim(), color: newOptionColor, icon: newOptionIcon } as any]);
-      setNewOptionValue('');
-      setNewOptionColor('#8b5cf6');
-      setNewOptionIcon('Tag');
-    }
-  };
-
-  const removeOption = (index: number) => {
-    setOptions(options.filter((_, i) => i !== index));
-  };
-
-  const handleSave = () => {
-    const property: any = { name, type, icon: 'Tag', color: '#8b5cf6' };
-    if (type === 'select' || type === 'multi_select') {
-      property.options = options;
-    }
-    if (type === 'relation') {
-      if (!relationTarget) {
-        alert('Veuillez choisir une collection cible');
-        return;
-      }
-      property.relation = { targetCollectionId: relationTarget, type: relationType };
-    }
-    onSave(property);
-  };
-  
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-[500px] max-h-[90vh] overflow-y-auto backdrop-blur">
-        <h3 className="text-xl font-bold mb-6">Nouvelle propriété</h3>
-        <div className="space-y-4">
-          <input 
-            type="text" 
-            value={name} 
-            onChange={(e) => setName(e.target.value)} 
-            placeholder="Nom" 
-            className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none" 
-          />
-          <select 
-            value={type} 
-            onChange={(e) => setType(e.target.value)} 
-            className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
-          >
-            {Object.entries(PropertyTypeLabels).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
-          {type === 'relation' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-2">Collection liée</label>
-                <select 
-                  value={relationTarget}
-                  onChange={(e) => setRelationTarget(e.target.value)}
-                  className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
-                >
-                  <option value="">Sélectionner...</option>
-                  {(collections || []).filter((c: any) => c.id !== currentCollection).map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-2">Type de relation</label>
-                <select 
-                  value={relationType}
-                  onChange={(e) => setRelationType(e.target.value)}
-                  className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
-                >
-                  <option value="one_to_one">One to One</option>
-                  <option value="one_to_many">One to Many</option>
-                  <option value="many_to_many">Many to Many</option>
-                </select>
-              </div>
-            </div>
-          )}
-          {(type === 'select' || type === 'multi_select') && (
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-neutral-300">Options</label>
-              <div className="space-y-2">
-                {options.map((opt: any, index) => {
-                  const optValue = typeof opt === 'string' ? opt : opt.value;
-                  const optColor = typeof opt === 'string' ? '#8b5cf6' : (opt.color || '#8b5cf6');
-                  const iconName = typeof opt === 'string' ? null : (opt.icon || null);
-                  const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
-                  return (
-                    <div key={index} className="flex items-center gap-2">
-                      {OptIcon && <OptIcon size={16} />}
-                      <div className="w-6 h-6 rounded border border-white/20" style={{ backgroundColor: optColor }} />
-                      <span className="flex-1 text-sm text-neutral-300">{optValue}</span>
-                      <button
-                        onClick={() => removeOption(index)}
-                        className="p-1 hover:bg-red-500/20 rounded text-red-400"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex flex-col gap-3">
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    value={newOptionValue}
-                    onChange={(e) => setNewOptionValue(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addOption()}
-                    placeholder="Nouvelle option"
-                    className="flex-1 px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white text-sm placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
-                  />
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setShowIconPopover((v) => !v)}
-                      className="px-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300 text-sm"
-                      title="Choisir une icône"
-                    >Icône</button>
-                    {showIconPopover && (
-                      <div className="absolute z-[1000] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
-                        <IconPicker value={newOptionIcon} onChange={(val) => { setNewOptionIcon(val); setShowIconPopover(false); }} mode="all" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setShowColorPopover((v) => !v)}
-                      className="px-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300 text-sm"
-                      title="Choisir une couleur"
-                    >Couleur</button>
-                    {showColorPopover && (
-                      <div className="absolute z-[1000] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
-                        <ColorPicker value={newOptionColor} onChange={(val) => { setNewOptionColor(val); setShowColorPopover(false); }} />
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={addOption}
-                    className="px-3 py-2 bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/50 rounded-lg text-violet-300 text-sm transition-colors"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="flex gap-3 mt-8">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton onClick={handleSave} className="flex-1">Créer</ShinyButton>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const EditPropertyModal = ({ onClose, onSave, property }: any) => {
-  const [name, setName] = useState(property.name);
-  const [icon, setIcon] = useState(property.icon || 'Tag');
-  const [color, setColor] = useState(property.color || '#8b5cf6');
-  const [options, setOptions] = useState<Array<{value: string, color: string, icon?: string}>>(
-    property.options || []
-  );
-  const [newOptionValue, setNewOptionValue] = useState('');
-  const [newOptionColor, setNewOptionColor] = useState('#8b5cf6');
-  const [newOptionIcon, setNewOptionIcon] = useState<string>('Tag');
-  const [showIconPopover, setShowIconPopover] = useState(false);
-  const [showColorPopover, setShowColorPopover] = useState(false);
-
-  const addOption = () => {
-    if (newOptionValue.trim()) {
-      setOptions([...options, { value: newOptionValue.trim(), color: newOptionColor, icon: newOptionIcon }]);
-      setNewOptionValue('');
-      setNewOptionColor('#8b5cf6');
-      setNewOptionIcon('Tag');
-    }
-  };
-
-  const removeOption = (index: number) => {
-    setOptions(options.filter((_, i) => i !== index));
-  };
-
-  const handleSave = () => {
-    const updatedProperty: any = { 
-      ...property, 
-      name, 
-      icon, 
-      color 
-    };
-    if (property.type === 'select' || property.type === 'multi_select') {
-      updatedProperty.options = options;
-    }
-    onSave(updatedProperty);
-  };
-  
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-[500px] max-h-[90vh] overflow-y-auto backdrop-blur">
-        <h3 className="text-xl font-bold mb-6">Modifier la propriété</h3>
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-2">Nom</label>
-            <input 
-              type="text" 
-              value={name} 
-              onChange={(e) => setName(e.target.value)} 
-              className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none" 
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-3">Icône</label>
-            <IconPicker value={icon} onChange={setIcon} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-3">Couleur</label>
-            <ColorPicker value={color} onChange={setColor} />
-          </div>
-          {(property.type === 'select' || property.type === 'multi_select') && (
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-neutral-300">Options</label>
-              <div className="space-y-2">
-                {options.map((opt: any, index) => {
-                  const optValue = typeof opt === 'string' ? opt : opt.value;
-                  const optColor = typeof opt === 'string' ? '#8b5cf6' : (opt.color || '#8b5cf6');
-                  const iconName = typeof opt === 'string' ? null : (opt.icon || null);
-                  const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
-                  return (
-                    <div key={index} className="flex items-center gap-2">
-                      {OptIcon && <OptIcon size={16} />}
-                      <div className="w-6 h-6 rounded border border-white/20" style={{ backgroundColor: optColor }} />
-                      <span className="flex-1 text-sm text-neutral-300">{optValue}</span>
-                      <button
-                        onClick={() => removeOption(index)}
-                        className="p-1 hover:bg-red-500/20 rounded text-red-400"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex flex-col gap-3">
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    value={newOptionValue}
-                    onChange={(e) => setNewOptionValue(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addOption()}
-                    placeholder="Nouvelle option"
-                    className="flex-1 px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white text-sm placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
-                  />
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setShowIconPopover((v) => !v)}
-                      className="px-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300 text-sm"
-                      title="Choisir une icône"
-                    >Icône</button>
-                    {showIconPopover && (
-                      <div className="absolute z-[1000] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
-                        <IconPicker value={newOptionIcon} onChange={(val) => { setNewOptionIcon(val); setShowIconPopover(false); }} mode="all" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setShowColorPopover((v) => !v)}
-                      className="px-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300 text-sm"
-                      title="Choisir une couleur"
-                    >Couleur</button>
-                    {showColorPopover && (
-                      <div className="absolute z-[1000] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
-                        <ColorPicker value={newOptionColor} onChange={(val) => { setNewOptionColor(val); setShowColorPopover(false); }} />
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={addOption}
-                    className="px-3 py-2 bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/50 rounded-lg text-violet-300 text-sm transition-colors"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="flex gap-3 mt-8">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton onClick={handleSave} className="flex-1">Enregistrer</ShinyButton>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const NewItemModal = ({ collection, onClose, onSave, editingItem, collections }: any) => {
-  const [formData, setFormData] = useState(editingItem || {});
-  const handleChange = (propId: string, value: any) => {
-    setFormData({ ...formData, [propId]: value });
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-[600px] max-h-[80vh] overflow-y-auto backdrop-blur">
-        <h3 className="text-xl font-bold mb-6">{editingItem ? 'Modifier' : 'Nouveau'} {collection.name}</h3>
-        <div className="space-y-4">
-          {collection.properties.map((prop: any) => (
-            <div key={prop.id}>
-              <label className="block text-sm font-medium text-neutral-300 mb-2">
-                {prop.name} {prop.required && <span className="text-red-500">*</span>}
-              </label>
-              {prop.type === 'text' && <input type="text" value={formData[prop.id] || ''} onChange={(e) => handleChange(prop.id, e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none" />}
-              {prop.type === 'number' && <input type="number" value={formData[prop.id] || ''} onChange={(e) => handleChange(prop.id, e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none" />}
-              {prop.type === 'email' && <input type="email" value={formData[prop.id] || ''} onChange={(e) => handleChange(prop.id, e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none" />}
-              {prop.type === 'url' && <input type="url" value={formData[prop.id] || ''} onChange={(e) => handleChange(prop.id, e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none" />}
-              {prop.type === 'phone' && <input type="tel" value={formData[prop.id] || ''} onChange={(e) => handleChange(prop.id, e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none" />}
-              {prop.type === 'date' && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className={cn(
-                      "w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none flex items-center gap-2",
-                      !formData[prop.id] && "text-neutral-500"
-                    )}>
-                      <CalendarIcon size={16} className="opacity-50" />
-                      {formData[prop.id] ? format(new Date(formData[prop.id]), 'dd MMM yyyy', { locale: fr }) : 'Choisir une date'}
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-neutral-900 border-neutral-700" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={formData[prop.id] ? new Date(formData[prop.id]) : undefined}
-                      onSelect={(date) => handleChange(prop.id, date ? format(date, 'yyyy-MM-dd') : '')}
-                      initialFocus
-                      className="bg-neutral-900 text-white"
-                    />
-                  </PopoverContent>
-                </Popover>
-              )}
-              {prop.type === 'checkbox' && <input type="checkbox" checked={formData[prop.id] || false} onChange={(e) => handleChange(prop.id, e.target.checked)} className="w-5 h-5" />}
-              {prop.type === 'select' && (
-                <select value={formData[prop.id] || ''} onChange={(e) => handleChange(prop.id, e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none">
-                  <option value="">Sélectionner...</option>
-                  {prop.options?.map((opt: any) => {
-                    const optValue = typeof opt === 'string' ? opt : opt.value;
-                    return (
-                      <option key={optValue} value={optValue}>{optValue}</option>
-                    );
-                  })}
-                </select>
-              )}
-              {prop.type === 'relation' && (() => {
-                const relation = prop.relation || {};
-                const targetCollection = (collections || []).find((c: any) => c.id === relation.targetCollectionId);
-                const targetItems = targetCollection?.items || [];
-                const isSourceMany = relation.type === 'one_to_many' || relation.type === 'many_to_many';
-                if (!targetCollection) return <div className="text-sm text-neutral-500">Collection liée introuvable</div>;
-                if (!isSourceMany) {
-                  return (
-                    <select value={formData[prop.id] || ''} onChange={(e) => handleChange(prop.id, e.target.value || null)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none">
-                      <option value="">Aucun</option>
-                      {targetItems.map((ti: any) => (
-                        <option key={ti.id} value={ti.id}>{(() => {
-                          const nf = targetCollection.properties.find((p: any) => p.id === 'name' || p.name === 'Nom');
-                          return nf ? ti[nf.id] || 'Sans titre' : ti.name || 'Sans titre';
-                        })()}</option>
-                      ))}
-                    </select>
-                  );
-                }
-                const selectedIds = Array.isArray(formData[prop.id]) ? formData[prop.id] : [];
-                return (
-                  <div className="space-y-2">
-                    {targetItems.map((ti: any) => {
-                      const checked = selectedIds.includes(ti.id);
-                      const label = (() => {
-                        const nf = targetCollection.properties.find((p: any) => p.id === 'name' || p.name === 'Nom');
-                        return nf ? ti[nf.id] || 'Sans titre' : ti.name || 'Sans titre';
-                      })();
-                      return (
-                        <label key={ti.id} className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              const next = e.target.checked
-                                ? [...selectedIds, ti.id]
-                                : selectedIds.filter((id: string) => id !== ti.id);
-                              handleChange(prop.id, next);
-                            }}
-                          />
-                          <span>{label}</span>
-                        </label>
-                      );
-                    })}
-                    {targetItems.length === 0 && (
-                      <div className="text-xs text-neutral-500">Aucun élément dans la collection liée</div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3 mt-8">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton onClick={() => onSave(formData)} className="flex-1">{editingItem ? 'Modifier' : 'Créer'}</ShinyButton>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const FilterModal = ({ properties, onClose, onAdd }: any) => {
-  const [property, setProperty] = useState('');
-  const [operator, setOperator] = useState('equals');
-  const [value, setValue] = useState('');
-  const operators = [
-    { value: 'equals', label: 'Est égal à' },
-    { value: 'contains', label: 'Contient' },
-    { value: 'greater', label: 'Supérieur à' },
-    { value: 'less', label: 'Inférieur à' },
-    { value: 'is_empty', label: 'Est vide' },
-    { value: 'is_not_empty', label: "N'est pas vide" },
-  ];
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-96 backdrop-blur">
-        <h3 className="text-xl font-bold mb-6">Ajouter un filtre</h3>
-        <div className="space-y-4">
-          <select value={property} onChange={(e) => setProperty(e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none">
-            <option value="">Sélectionner...</option>
-            {properties.map((prop: any) => (
-              <option key={prop.id} value={prop.id}>{prop.name}</option>
-            ))}
-          </select>
-          <select value={operator} onChange={(e) => setOperator(e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none">
-            {operators.map((op) => (
-              <option key={op.value} value={op.value}>{op.label}</option>
-            ))}
-          </select>
-          {!['is_empty', 'is_not_empty'].includes(operator) && (
-            <input type="text" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Valeur" className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none" />
-          )}
-        </div>
-        <div className="flex gap-3 mt-8">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton onClick={() => property && onAdd(property, operator, value)} className="flex-1">Ajouter</ShinyButton>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const GroupModal = ({ properties, onClose, onAdd }: any) => {
-  const [property, setProperty] = useState('');
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-96 backdrop-blur">
-        <h3 className="text-xl font-bold mb-6">Grouper par</h3>
-        <select value={property} onChange={(e) => setProperty(e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none mb-6">
-          <option value="">Sélectionner...</option>
-          {properties.filter((p: any) => p.type === 'select').map((prop: any) => (
-            <option key={prop.id} value={prop.id}>{prop.name}</option>
-          ))}
-        </select>
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton onClick={() => property && onAdd(property)} className="flex-1">Grouper</ShinyButton>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const ItemDetailModal = ({ item, collection, onClose, onEdit, onDelete }: any) => {
-  const getNameValue = () => {
-    const nameField = collection.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
-    return nameField ? item[nameField.id] : item.name || 'Sans titre';
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]" onClick={onClose}>
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        onClick={(e) => e.stopPropagation()}
-        className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-[700px] max-h-[80vh] overflow-y-auto backdrop-blur"
-      >
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex-1">
-            <h3 className="text-2xl font-bold text-white mb-2">{getNameValue()}</h3>
-            <p className="text-sm text-neutral-500">{collection.name}</p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="space-y-6">
-          {collection.properties.map((prop: any) => {
-            const value = item[prop.id];
-            if (!value) return null;
-
-            return (
-              <div key={prop.id} className="border-b border-white/5 pb-4">
-                <label className="block text-xs font-semibold text-neutral-500 uppercase mb-2">
-                  {prop.name}
-                </label>
-                <div className="text-base text-white">
-                  {formatValue(value, prop.type)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex gap-3 mt-8 pt-6 border-t border-white/10">
-          <button
-            onClick={onEdit}
-            className="flex-1 px-4 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 rounded-lg transition-colors font-medium"
-          >
-            Modifier
-          </button>
-          <button
-            onClick={onDelete}
-            className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-200 rounded-lg transition-colors font-medium"
-          >
-            Supprimer
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const NewViewModal = ({ onClose, onSave, collection }: any) => {
-  const [name, setName] = useState('');
-  const [type, setType] = useState('table');
-  const [groupBy, setGroupBy] = useState('');
-  const [dateProperty, setDateProperty] = useState('');
-  
-  const viewTypes = [
-    { value: 'table', label: 'Tableau' },
-    { value: 'kanban', label: 'Kanban' },
-    { value: 'calendar', label: 'Calendrier' }
-  ];
-
-  const selectProps = collection?.properties.filter((p: any) => p.type === 'select') || [];
-  const dateProps = collection?.properties.filter((p: any) => p.type === 'date' || p.type === 'date_range') || [];
-
-  const handleSave = () => {
-    const config: any = { name, type };
-    if (type === 'kanban' && groupBy) config.groupBy = groupBy;
-    if (type === 'calendar' && dateProperty) config.dateProperty = dateProperty;
-    onSave(name, type, config);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-96 max-h-[80vh] overflow-y-auto backdrop-blur">
-        <h3 className="text-xl font-bold mb-6">Nouvelle vue</h3>
-        <div className="space-y-4">
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom de la vue" className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none" />
-          <div className="space-y-2">
-            {viewTypes.map(vt => (
-              <button
-                key={vt.value}
-                onClick={() => setType(vt.value)}
-                className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all", type === vt.value ? 'border-violet-500 bg-violet-500/20' : 'border-white/10 hover:border-white/20')}
-              >
-                <span className="font-medium">{vt.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {type === 'kanban' && selectProps.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-neutral-300 mb-2">Grouper par</label>
-              <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none">
-                <option value="">Sélectionner une propriété...</option>
-                {selectProps.map((prop: any) => (
-                  <option key={prop.id} value={prop.id}>{prop.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {type === 'calendar' && dateProps.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-neutral-300 mb-2">Propriété date</label>
-              <select value={dateProperty} onChange={(e) => setDateProperty(e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none">
-                <option value="">Sélectionner une propriété...</option>
-                {dateProps.map((prop: any) => (
-                  <option key={prop.id} value={prop.id}>{prop.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-        <div className="flex gap-3 mt-8">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton onClick={handleSave} className="flex-1">Créer</ShinyButton>
-        </div>
-      </motion.div>
     </div>
   );
 };
