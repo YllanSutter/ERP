@@ -38,26 +38,69 @@ const NewItemModal: React.FC<NewItemModalProps> = ({ collection, onClose, onSave
               {prop.type === 'url' && <input type="url" value={formData[prop.id] || ''} onChange={(e) => handleChange(prop.id, e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none" />}
               {prop.type === 'phone' && <input type="tel" value={formData[prop.id] || ''} onChange={(e) => handleChange(prop.id, e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none" />}
               {prop.type === 'date' && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className={cn(
-                      'w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none flex items-center gap-2',
-                      !formData[prop.id] && 'text-neutral-500'
-                    )}>
-                      <CalendarIcon size={16} className="opacity-50" />
-                      {formData[prop.id] ? format(new Date(formData[prop.id]), 'dd MMM yyyy', { locale: fr }) : 'Choisir une date'}
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-neutral-900 border-neutral-700" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={formData[prop.id] ? new Date(formData[prop.id]) : undefined}
-                      onSelect={(date) => handleChange(prop.id, date ? format(date, 'yyyy-MM-dd') : '')}
-                      initialFocus
-                      className="bg-neutral-900 text-white"
-                    />
-                  </PopoverContent>
-                </Popover>
+                <div className="space-y-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button className={cn(
+                        'w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none flex items-center gap-2',
+                        !formData[prop.id] && 'text-neutral-500'
+                      )}>
+                        <CalendarIcon size={16} className="opacity-50" />
+                        {formData[prop.id] ? format(new Date(formData[prop.id]), 'dd MMM yyyy HH:mm', { locale: fr }) : 'Choisir une date et heure'}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-neutral-900 border-neutral-700 z-[250]" align="start">
+                      <div className="flex flex-col">
+                        <Calendar
+                          mode="single"
+                          selected={formData[prop.id] ? new Date(formData[prop.id]) : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              // Preserve time if exists, otherwise set to 09:00
+                              const existingDate = formData[prop.id] ? new Date(formData[prop.id]) : null;
+                              if (existingDate) {
+                                date.setHours(existingDate.getHours(), existingDate.getMinutes());
+                              } else {
+                                date.setHours(9, 0);
+                              }
+                              handleChange(prop.id, date.toISOString());
+                            }
+                          }}
+                          initialFocus
+                          className="bg-neutral-900 text-white"
+                        />
+                        <div className="p-3 border-t border-white/10 space-y-3">
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure de début</label>
+                            <input
+                              type="time"
+                              value={formData[prop.id] ? format(new Date(formData[prop.id]), 'HH:mm') : '09:00'}
+                              onChange={(e) => {
+                                const currentDate = formData[prop.id] ? new Date(formData[prop.id]) : new Date();
+                                const [hours, minutes] = e.target.value.split(':');
+                                currentDate.setHours(parseInt(hours), parseInt(minutes));
+                                handleChange(prop.id, currentDate.toISOString());
+                              }}
+                              className="w-full px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-400 mb-1.5">Durée (heures)</label>
+                            <input
+                              type="number"
+                              value={formData[`${prop.id}_duration`] || prop.defaultDuration || 1}
+                              onChange={(e) => handleChange(`${prop.id}_duration`, parseFloat(e.target.value) || 1)}
+                              min="0.25"
+                              step="0.25"
+                              placeholder="1"
+                              className="w-full px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               )}
               {prop.type === 'checkbox' && <input type="checkbox" checked={formData[prop.id] || false} onChange={(e) => handleChange(prop.id, e.target.checked)} className="w-5 h-5" />}
               {prop.type === 'select' && (
@@ -92,33 +135,27 @@ const NewItemModal: React.FC<NewItemModalProps> = ({ collection, onClose, onSave
                 }
                 const selectedIds = Array.isArray(formData[prop.id]) ? formData[prop.id] : [];
                 return (
-                  <div className="space-y-2">
+                  <select 
+                    multiple 
+                    value={selectedIds} 
+                    onChange={(e) => {
+                      const options = Array.from(e.target.selectedOptions);
+                      const values = options.map(opt => opt.value);
+                      handleChange(prop.id, values);
+                    }} 
+                    className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none min-h-[120px]"
+                    size={Math.min(targetItems.length, 8)}
+                  >
                     {targetItems.map((ti: any) => {
-                      const checked = selectedIds.includes(ti.id);
                       const label = (() => {
                         const nf = targetCollection.properties.find((p: any) => p.id === 'name' || p.name === 'Nom');
                         return nf ? ti[nf.id] || 'Sans titre' : ti.name || 'Sans titre';
                       })();
                       return (
-                        <label key={ti.id} className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              const next = e.target.checked
-                                ? [...selectedIds, ti.id]
-                                : selectedIds.filter((id: string) => id !== ti.id);
-                              handleChange(prop.id, next);
-                            }}
-                          />
-                          <span>{label}</span>
-                        </label>
+                        <option key={ti.id} value={ti.id}>{label}</option>
                       );
                     })}
-                    {targetItems.length === 0 && (
-                      <div className="text-xs text-neutral-500">Aucun élément dans la collection liée</div>
-                    )}
-                  </div>
+                  </select>
                 );
               })()}
             </div>

@@ -94,10 +94,12 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
     );
   }
 
-  // Date - toujours affiché
+  // Date - toujours affiché avec heure et durée
   if (property.type === 'date') {
     const [open, setOpen] = useState(false);
     const selectedDate = value ? new Date(value) : undefined;
+    const durationKey = `${property.id}_duration`;
+    const currentDuration = currentItem?.[durationKey] || property.defaultDuration || 1;
     
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -111,20 +113,63 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
             )}
           >
             <CalendarIcon size={14} className="opacity-50" />
-            {value ? format(selectedDate!, 'dd MMM yyyy', { locale: fr }) : 'Choisir une date'}
+            {value ? format(selectedDate!, 'dd MMM yyyy HH:mm', { locale: fr }) : 'Choisir une date et heure'}
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0 bg-neutral-900 border-neutral-700" align="start">
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={(date) => {
-              onChange(date ? format(date, 'yyyy-MM-dd') : '');
-              setOpen(false);
-            }}
-            initialFocus
-            className="bg-neutral-900 text-white"
-          />
+          <div className="flex flex-col">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => {
+                if (date) {
+                  // Preserve time if exists, otherwise set to 09:00
+                  const existingDate = value ? new Date(value) : null;
+                  if (existingDate) {
+                    date.setHours(existingDate.getHours(), existingDate.getMinutes());
+                  } else {
+                    date.setHours(9, 0);
+                  }
+                  onChange(date.toISOString());
+                }
+              }}
+              initialFocus
+              className="bg-neutral-900 text-white"
+            />
+            <div className="p-3 border-t border-white/10 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure de début</label>
+                <input
+                  type="time"
+                  value={value ? format(new Date(value), 'HH:mm') : '09:00'}
+                  onChange={(e) => {
+                    const currentDate = value ? new Date(value) : new Date();
+                    const [hours, minutes] = e.target.value.split(':');
+                    currentDate.setHours(parseInt(hours), parseInt(minutes));
+                    onChange(currentDate.toISOString());
+                  }}
+                  className="w-full px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none text-sm"
+                />
+              </div>
+              {onRelationChange && currentItem && (
+                <div>
+                  <label className="block text-xs font-medium text-neutral-400 mb-1.5">Durée (heures)</label>
+                  <input
+                    type="number"
+                    value={currentDuration}
+                    onChange={(e) => {
+                      const newDuration = parseFloat(e.target.value) || 1;
+                      onRelationChange(property, { ...currentItem, [durationKey]: newDuration }, value);
+                    }}
+                    min="0.25"
+                    step="0.25"
+                    placeholder="1"
+                    className="w-full px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none text-sm"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
         </PopoverContent>
       </Popover>
     );

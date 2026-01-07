@@ -2,11 +2,17 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 
-const formatValue = (value: any, type: string) => {
+const formatValue = (value: any, type: string, item?: any, propId?: string) => {
   if (!value) return '-';
   switch (type) {
     case 'date':
-      return new Date(value).toLocaleDateString('fr-FR');
+      const duration = item && propId ? item[`${propId}_duration`] : null;
+      return (
+        <div>
+          <div>{new Date(value).toLocaleString('fr-FR')}</div>
+          {duration && <div className="text-xs text-neutral-500 mt-1">Durée: {duration}h</div>}
+        </div>
+      );
     case 'date_range':
       if (value.start && value.end) {
         return `${new Date(value.start).toLocaleDateString('fr-FR')} - ${new Date(value.end).toLocaleDateString('fr-FR')}`;
@@ -66,7 +72,7 @@ const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ item, collection, onC
                   {prop.name}
                 </label>
                 <div className="text-base text-white">
-                  {formatValue(value, prop.type)}
+                  {formatValue(value, prop.type, item, prop.id)}
                 </div>
               </div>
             );

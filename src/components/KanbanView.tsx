@@ -157,7 +157,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                   >
                     {/* Title with Grip */}
                     <div className="flex gap-2 items-start">
-                      <GripHorizontal size={14} className="text-neutral-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1" />
+                      <GripHorizontal size={14} className="text-neutral-600  transition-opacity flex-shrink-0 mt-1" />
                       <button
                         onClick={() => onViewDetail(item)}
                         className="font-medium text-cyan-400 hover:text-cyan-300 hover:underline text-sm flex-1 line-clamp-2 text-left"

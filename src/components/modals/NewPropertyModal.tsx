@@ -32,11 +32,15 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
   const [options, setOptions] = useState<OptionType[]>([]);
   const [relationTarget, setRelationTarget] = useState('');
   const [relationType, setRelationType] = useState('many_to_many');
+  const [defaultDuration, setDefaultDuration] = useState(1);
 
   const handleSave = () => {
     const property: any = { name, type, icon: 'Tag', color: '#8b5cf6' };
     if (type === 'select' || type === 'multi_select') {
       property.options = options;
+    }
+    if (type === 'date' || type === 'date_range') {
+      property.defaultDuration = defaultDuration;
     }
     if (type === 'relation') {
       if (!relationTarget) {
@@ -69,6 +73,21 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
               <option key={key} value={key}>{label}</option>
             ))}
           </select>
+          {(type === 'date' || type === 'date_range') && (
+            <div>
+              <label className="block text-sm font-medium text-neutral-300 mb-2">Durée par défaut (heures)</label>
+              <input
+                type="number"
+                value={defaultDuration}
+                onChange={(e) => setDefaultDuration(parseFloat(e.target.value) || 1)}
+                min="0.25"
+                step="0.25"
+                className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                placeholder="1"
+              />
+              <p className="text-xs text-neutral-500 mt-1">Durée par défaut des événements dans le calendrier</p>
+            </div>
+          )}
           {type === 'relation' && (
             <div className="space-y-4">
               <div>
