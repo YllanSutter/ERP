@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
 import EditableProperty from '@/components/EditableProperty';
 import { cn } from '@/lib/utils';
+import DraggableList from '@/components/DraggableList';
 
 interface TableViewProps {
   collection: any;
@@ -10,6 +11,8 @@ interface TableViewProps {
   onEdit: (item: any) => void;
   onDelete: (id: string) => void;
   hiddenFields: string[];
+  orderedProperties: any[];
+  onReorderItems: (items: any[]) => void;
   onToggleField: (fieldId: string) => void;
   onDeleteProperty: (propId: string) => void;
   onEditProperty: (prop: any) => void;
@@ -25,6 +28,8 @@ const TableView: React.FC<TableViewProps> = ({
   onEdit,
   onDelete,
   hiddenFields,
+  orderedProperties,
+  onReorderItems,
   onToggleField,
   onDeleteProperty,
   onEditProperty,
@@ -33,7 +38,7 @@ const TableView: React.FC<TableViewProps> = ({
   onRelationChange,
   onNavigateToCollection,
 }) => {
-  const visibleProperties = collection.properties.filter((p: any) => !hiddenFields.includes(p.id));
+  const visibleProperties = orderedProperties.filter((p: any) => !hiddenFields.includes(p.id));
 
   return (
     <div className="bg-neutral-900/40 border border-white/5 rounded-lg overflow-hidden backdrop-blur">
@@ -80,13 +85,17 @@ const TableView: React.FC<TableViewProps> = ({
               <th className="px-6 py-3 text-right text-xs font-medium text-neutral-400 uppercase">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
-            {items.map((item: any) => (
+          <DraggableList
+            items={items}
+            getId={(it) => it.id}
+            onReorder={onReorderItems}
+            renderContainer={(children) => <tbody className="divide-y divide-white/5">{children}</tbody>}
+            renderItem={(item: any, { isDragging }) => (
               <motion.tr
                 key={item.id}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="hover:bg-white/5 transition-colors"
+                className={cn("hover:bg-white/5 transition-colors", isDragging && "bg-white/10")}
               >
                 {visibleProperties.map((prop: any) => (
                   <td key={prop.id} className="px-6 py-4 whitespace-nowrap text-sm text-neutral-300">
@@ -105,13 +114,16 @@ const TableView: React.FC<TableViewProps> = ({
                   </td>
                 ))}
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                  <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-400">
-                    <Icons.Trash2 size={16} />
-                  </button>
+                  <div className="flex items-center justify-end gap-3 text-neutral-500">
+                    <Icons.GripVertical size={16} className="cursor-grab" />
+                    <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-400">
+                      <Icons.Trash2 size={16} />
+                    </button>
+                  </div>
                 </td>
               </motion.tr>
-            ))}
-          </tbody>
+            )}
+          />
         </table>
       </div>
     </div>

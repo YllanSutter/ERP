@@ -14,6 +14,7 @@ import NewItemModal from '@/components/modals/NewItemModal';
 import FilterModal from '@/components/modals/FilterModal';
 import GroupModal from '@/components/modals/GroupModal';
 import NewViewModal from '@/components/modals/NewViewModal';
+import DraggableList from '@/components/DraggableList';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -578,6 +579,40 @@ const App = () => {
     setViews(updatedViews);
   };
 
+  const getOrderedProperties = () => {
+    const props = currentCollection?.properties || [];
+    const order = currentViewConfig?.fieldOrder && currentViewConfig.fieldOrder.length
+      ? currentViewConfig.fieldOrder
+      : props.map((p: any) => p.id);
+    const ordered = order
+      .map((id: string) => props.find((p: any) => p.id === id))
+      .filter(Boolean) as any[];
+    const missing = props.filter((p: any) => !order.includes(p.id));
+    return [...ordered, ...missing];
+  };
+
+  const moveFieldInView = (fieldId: string, delta: number) => {
+    const props = currentCollection?.properties || [];
+    const currentOrder = currentViewConfig?.fieldOrder && currentViewConfig.fieldOrder.length
+      ? [...currentViewConfig.fieldOrder]
+      : props.map((p: any) => p.id);
+    const idx = currentOrder.indexOf(fieldId);
+    const target = idx + delta;
+    if (idx === -1 || target < 0 || target >= currentOrder.length) return;
+    const nextOrder = [...currentOrder];
+    const [item] = nextOrder.splice(idx, 1);
+    nextOrder.splice(target, 0, item);
+    const updatedViews = { ...views } as Record<string, any[]>;
+    const viewIndex = updatedViews[activeCollection].findIndex(v => v.id === activeView);
+    updatedViews[activeCollection][viewIndex] = {
+      ...updatedViews[activeCollection][viewIndex],
+      fieldOrder: nextOrder
+    };
+    setViews(updatedViews);
+  };
+
+  const orderedProperties = getOrderedProperties();
+
   return (
     <div className="h-screen flex flex-col bg-[#030303] text-white">
       <style>{`
@@ -747,37 +782,57 @@ const App = () => {
                         </button>
                       </div>
                       <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {currentCollection?.properties.map((prop: any) => {
-                          const isHidden = currentViewConfig?.hiddenFields?.includes(prop.id);
-                          const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
-                          return (
-                            <div key={prop.id} className="flex items-center gap-3 text-sm text-neutral-300 p-2 rounded transition-colors hover:bg-white/5">
-                              <div className="relative flex items-center">
-                                <input
-                                  type="checkbox"
-                                  checked={!isHidden}
-                                  onChange={() => toggleFieldVisibility(prop.id)}
-                                  className="peer h-4 w-4 appearance-none rounded border-2 border-white/20 bg-neutral-800 checked:bg-gradient-to-r checked:from-violet-500 checked:to-cyan-500 checked:border-transparent transition-all cursor-pointer"
-                                />
-                                <svg className="absolute left-0.5 top-0.5 h-3 w-3 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
+                        <DraggableList
+                          items={orderedProperties}
+                          getId={(p) => p.id}
+                          onReorder={(next) => {
+                            const nextOrder = next.map((p: any) => p.id);
+                            const updatedViews = { ...views } as Record<string, any[]>;
+                            const viewIndex = updatedViews[activeCollection].findIndex(v => v.id === activeView);
+                            updatedViews[activeCollection][viewIndex] = {
+                              ...updatedViews[activeCollection][viewIndex],
+                              fieldOrder: nextOrder
+                            };
+                            setViews(updatedViews);
+                          }}
+                          renderItem={(prop: any, { isDragging }) => {
+                            const isHidden = currentViewConfig?.hiddenFields?.includes(prop.id);
+                            const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
+                            return (
+                              <div className={cn(
+                                "flex items-center gap-3 text-sm text-neutral-300 p-2 rounded transition-colors hover:bg-white/5",
+                                isDragging && "border border-cyan-500/60"
+                              )}>
+                                <div className="text-neutral-500 cursor-grab">
+                                  <Icons.GripVertical size={16} />
+                                </div>
+                                <div className="relative flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={!isHidden}
+                                    onChange={() => toggleFieldVisibility(prop.id)}
+                                    className="peer h-4 w-4 appearance-none rounded border-2 border-white/20 bg-neutral-800 checked:bg-gradient-to-r checked:from-violet-500 checked:to-cyan-500 checked:border-transparent transition-all cursor-pointer"
+                                  />
+                                  <svg className="absolute left-0.5 top-0.5 h-3 w-3 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <PropIcon size={14} style={{ color: prop.color || '#8b5cf6' }} />
+                                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: prop.color || '#8b5cf6' }} />
+                                  <span>{prop.name}</span>
+                                </div>
+                                <button
+                                  onClick={() => { setEditingProperty(prop); setShowEditPropertyModal(true); }}
+                                  className="ml-auto text-neutral-500 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
+                                  title="Modifier la propriété"
+                                >
+                                  <Icons.Edit2 size={14} />
+                                </button>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <PropIcon size={14} style={{ color: prop.color || '#8b5cf6' }} />
-                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: prop.color || '#8b5cf6' }} />
-                                <span>{prop.name}</span>
-                              </div>
-                              <button
-                                onClick={() => { setEditingProperty(prop); setShowEditPropertyModal(true); }}
-                                className="ml-auto text-neutral-500 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
-                                title="Modifier la propriété"
-                              >
-                                <Icons.Edit2 size={14} />
-                              </button>
-                            </div>
-                          );
-                        })}
+                            );
+                          }}
+                        />
                       </div>
                     </motion.div>
                   )}
@@ -849,6 +904,16 @@ const App = () => {
                 onDelete={deleteItem}
                 onViewDetail={(item: any) => { setEditingItem(item); setShowNewItemModal(true); }}
                 hiddenFields={currentViewConfig?.hiddenFields || []}
+                orderedProperties={orderedProperties}
+                onReorderItems={(nextItems: any[]) => {
+                  const updatedCollections = collections.map((col) => {
+                    if (col.id === activeCollection) {
+                      return { ...col, items: nextItems };
+                    }
+                    return col;
+                  });
+                  setCollections(updatedCollections);
+                }}
                 onToggleField={toggleFieldVisibility}
                 onDeleteProperty={deleteProperty}
                 onEditProperty={(prop: any) => { setEditingProperty(prop); setShowEditPropertyModal(true); }}
