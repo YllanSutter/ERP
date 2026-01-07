@@ -26,6 +26,7 @@ interface WeekViewProps {
   endHour?: number;
   defaultDuration?: number; // in hours
   collections?: any[];
+  onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number) => void;
 }
 
 const WeekView: React.FC<WeekViewProps> = ({
@@ -43,9 +44,12 @@ const WeekView: React.FC<WeekViewProps> = ({
   endHour = 20,
   defaultDuration = 1,
   collections = [],
+  onEventDrop,
 }) => {
   const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+
+  const [dragPreview, setDragPreview] = React.useState<{ dayIndex: number; hour: number; height: number } | null>(null);
 
   // Get visible relation/select fields
   const visibleMetaFields = collection.properties.filter(
@@ -148,7 +152,7 @@ const WeekView: React.FC<WeekViewProps> = ({
             <div
               key={idx}
               className={cn(
-                'text-center py-3 rounded-lg border px-2',
+                'text-center py-3 border px-2',
                 isToday ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-white/10 bg-neutral-800/30'
               )}
             >
@@ -178,8 +182,96 @@ const WeekView: React.FC<WeekViewProps> = ({
           const dayEvents = eventsByDay[dateStr] || [];
           const layoutEvents = getEventLayoutLocal(dayEvents, 0);
 
+          const handleDayDragOver = (e: React.DragEvent) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            const dragData = e.dataTransfer.getData('application/json');
+            if (!dragData) return;
+            
+            try {
+              const data = JSON.parse(dragData);
+              const height = data.__dragHeight || 100;
+              
+              const container = e.currentTarget as HTMLElement;
+              const rect = container.getBoundingClientRect();
+              const dropY = e.clientY - rect.top;
+              const hourHeight = rect.height / (endHour - startHour);
+              const hourOffset = dropY / hourHeight;
+              const hour = Math.max(startHour, Math.min(endHour - 1, Math.floor(startHour + hourOffset)));
+              
+              // Position l'indicateur au-dessus du curseur de la hauteur de l'événement
+              const previewTopOffset = (dropY - height / 2);
+              
+              setDragPreview({ dayIndex, hour, height: previewTopOffset });
+            } catch (e) {
+              // Silently fail if data parsing fails
+            }
+          };
+
+          const handleDayDragLeave = () => {
+            setDragPreview(null);
+          };
+
+          const handleDayDrop = (e: React.DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const dragData = e.dataTransfer.getData('application/json');
+            if (!dragData) return;
+            
+            try {
+              const data = JSON.parse(dragData);
+              // Nettoyer les données de drag avant de les utiliser
+              const item = { ...data };
+              delete item.__dragHeight;
+              
+              // Utiliser l'heure du preview pour être cohérent
+              if (dragPreview && dragPreview.dayIndex === dayIndex) {
+                const newMinutes = Math.round(((dragPreview.hour - Math.floor(dragPreview.hour)) * 60));
+                if (onEventDrop) {
+                  onEventDrop(item, date, dragPreview.hour, newMinutes);
+                }
+              } else {
+                // Fallback si le preview n'est pas disponible
+                const container = e.currentTarget as HTMLElement;
+                const rect = container.getBoundingClientRect();
+                const dropY = e.clientY - rect.top;
+                const hourHeight = rect.height / (endHour - startHour);
+                const hourOffset = dropY / hourHeight;
+                const newHour = Math.max(startHour, Math.min(endHour - 1, Math.floor(startHour + hourOffset)));
+                const newMinutes = Math.round(((startHour + hourOffset) % 1) * 60);
+                
+                if (onEventDrop) {
+                  onEventDrop(item, date, newHour, newMinutes);
+                }
+              }
+            } catch (e) {
+              console.error('Error parsing drag data:', e);
+            } finally {
+              setDragPreview(null);
+            }
+          };
+
           return (
-            <div key={dayIndex} className="relative">
+            <div 
+              key={dayIndex} 
+              className="relative"
+              onDragOver={handleDayDragOver}
+              onDragLeave={handleDayDragLeave}
+              onDrop={handleDayDrop}
+            >
+              {/* Drag preview indicator */}
+              {dragPreview && dragPreview.dayIndex === dayIndex && (
+                <div
+                  className="absolute left-0 right-0 bg-blue-500/40 border-2 border-blue-500 pointer-events-none z-50 rounded-sm"
+                  style={{
+                    top: `${dragPreview.height}px`,
+                    height: '100px',
+                  }}
+                />
+              )}
+
               {hours.map((hour) => {
                 return (
                   <div
@@ -218,6 +310,8 @@ const WeekView: React.FC<WeekViewProps> = ({
                     getNameValue={getNameValue}
                     onViewDetail={onViewDetail}
                     onReduceDuration={reduceDuration}
+                    onEventDrop={onEventDrop}
+                    weekDayDate={weekDays[dayIndex]}
                   />
                 );
               })}

@@ -24,6 +24,7 @@ interface DayViewProps {
   endHour?: number;
   defaultDuration?: number; // in hours
   collections?: any[];
+  onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number) => void;
 }
 
 const DayView: React.FC<DayViewProps> = ({
@@ -41,6 +42,7 @@ const DayView: React.FC<DayViewProps> = ({
   endHour = 20,
   defaultDuration = 1,
   collections = [],
+  onEventDrop,
 }) => {
   const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
@@ -188,6 +190,8 @@ const DayView: React.FC<DayViewProps> = ({
                         getNameValue={getNameValue}
                         onViewDetail={onViewDetail}
                         onReduceDuration={reduceDuration}
+                        onEventDrop={onEventDrop}
+                        weekDayDate={currentDate}
                     />
                     );
                 })}

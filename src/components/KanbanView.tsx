@@ -171,7 +171,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                       {collection.properties
                         .filter((prop: any) => !hiddenFields.includes(prop.id) && prop.id !== 'name')
                         .map((prop: any) => (
-                          <div key={prop.id} className="text-xs">
+                          <div key={prop.id} className="text-xs flex justify-between items-center">
                             <span className="text-neutral-500 block mb-1">{prop.name}:</span>
                             <EditableProperty
                               property={prop}

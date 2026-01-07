@@ -84,6 +84,27 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   const getNameValue = (item: any) => getNameValueUtil(item, collection);
 
+  const handleEventDrop = (item: any, newDate: Date, newHours?: number, newMinutes?: number) => {
+    const updatedItem = { ...item };
+    const newDateTime = new Date(newDate);
+    
+    if (newHours !== undefined) {
+      newDateTime.setHours(newHours);
+    } else if (item[dateField?.id]) {
+      const originalDate = new Date(item[dateField?.id]);
+      newDateTime.setHours(originalDate.getHours(), originalDate.getMinutes());
+    } else {
+      newDateTime.setHours(9, 0);
+    }
+    
+    if (newMinutes !== undefined) {
+      newDateTime.setMinutes(newMinutes);
+    }
+    
+    updatedItem[dateField?.id] = newDateTime.toISOString();
+    onEdit(updatedItem);
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       {/* Calendar Header */}
@@ -187,6 +208,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             endHour={endHour}
             defaultDuration={defaultDuration}
             collections={collections}
+            onEventDrop={handleEventDrop}
           />
         ) : (
           <DayView
@@ -204,6 +226,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             endHour={endHour}
             defaultDuration={defaultDuration}
             collections={collections}
+            onEventDrop={handleEventDrop}
           />
         )}
       </div>
