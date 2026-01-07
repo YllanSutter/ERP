@@ -29,7 +29,7 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
           const iconName = opt ? getOptionIcon(opt) : null;
           const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
           return (
-            <span key={val} className="px-2 py-0.5 text-xs rounded bg-white/10 border border-white/10 inline-flex items-center gap-2" style={{ borderColor: `${color}55` }}>
+            <span key={val} className="px-2 py-0.5 text-xs rounded bg-white/10  inline-flex items-center gap-2" style={{ backgroundColor: `${color}15` }}>
               {OptIcon && <OptIcon size={12} />}
               <span>{val}</span>
             </span>

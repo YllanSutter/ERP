@@ -18,10 +18,23 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
   const [newOptionIcon, setNewOptionIcon] = useState<string>(defaultIcon);
   const [showIconPopover, setShowIconPopover] = useState(false);
   const [showColorPopover, setShowColorPopover] = useState(false);
+  const [openIconIndex, setOpenIconIndex] = useState<number | null>(null);
+  const [openColorIndex, setOpenColorIndex] = useState<number | null>(null);
+
+  const normalizeOption = (opt: OptionType): OptionType => {
+    if (typeof opt === 'string') return { value: opt, color: defaultColor, icon: defaultIcon };
+    return {
+      value: opt.value,
+      color: opt.color || defaultColor,
+      icon: opt.icon || defaultIcon
+    };
+  };
+
+  const normalizedOptions = options.map(normalizeOption);
 
   const addOption = () => {
     if (!newOptionValue.trim()) return;
-    const next = [...options, { value: newOptionValue.trim(), color: newOptionColor, icon: newOptionIcon }];
+    const next = [...normalizedOptions, { value: newOptionValue.trim(), color: newOptionColor, icon: newOptionIcon }];
     onChange(next);
     setNewOptionValue('');
     setNewOptionColor(defaultColor);
@@ -29,7 +42,21 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
   };
 
   const removeOption = (index: number) => {
-    const next = options.filter((_, i) => i !== index);
+    const next = normalizedOptions.filter((_, i) => i !== index);
+    onChange(next);
+  };
+
+  const updateOption = (index: number, partial: Partial<OptionType>) => {
+    const next = normalizedOptions.map((opt, i) => (i === index ? { ...opt, ...partial } : opt));
+    onChange(next);
+  };
+
+  const moveOption = (index: number, delta: number) => {
+    const target = index + delta;
+    if (target < 0 || target >= normalizedOptions.length) return;
+    const next = [...normalizedOptions];
+    const [item] = next.splice(index, 1);
+    next.splice(target, 0, item);
     onChange(next);
   };
 
@@ -37,26 +64,85 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
     <div className="space-y-3">
       <label className="block text-sm font-medium text-neutral-300">Options</label>
       <div className="space-y-2">
-        {options.map((opt, index) => {
-          const optValue = typeof opt === 'string' ? opt : opt.value;
-          const optColor = typeof opt === 'string' ? defaultColor : (opt.color || defaultColor);
-          const iconName = typeof opt === 'string' ? null : (opt.icon || null);
-          const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
+        {normalizedOptions.map((opt, index) => {
+          const OptIcon = (Icons as any)[opt.icon] || null;
           return (
-            <div key={index} className="flex items-center gap-2">
-              {OptIcon && <OptIcon size={16} />}
-              <div className="w-6 h-6 rounded border border-white/20" style={{ backgroundColor: optColor }} />
-              <span className="flex-1 text-sm text-neutral-300">{optValue}</span>
+            <div key={`${opt.value}-${index}`} className="flex items-center gap-2 p-2 bg-neutral-800/50 border border-white/10 rounded-lg">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => moveOption(index, -1)}
+                  className="p-1 text-neutral-400 hover:text-white disabled:opacity-30"
+                  disabled={index === 0}
+                  title="Monter"
+                >
+                  <Icons.ChevronUp size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveOption(index, 1)}
+                  className="p-1 text-neutral-400 hover:text-white disabled:opacity-30"
+                  disabled={index === normalizedOptions.length - 1}
+                  title="Descendre"
+                >
+                  <Icons.ChevronDown size={16} />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOpenIconIndex(openIconIndex === index ? null : index)}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white"
+                  title="Choisir une icône"
+                >
+                  {OptIcon ? <OptIcon size={18} /> : <Icons.Tag size={18} />}
+                </button>
+                {openIconIndex === index && (
+                  <div className="absolute z-[1200] mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
+                    <IconPicker
+                      value={opt.icon || defaultIcon}
+                      onChange={(val) => { updateOption(index, { icon: val }); setOpenIconIndex(null); }}
+                      mode="all"
+                    />
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setOpenColorIndex(openColorIndex === index ? null : index)}
+                  className="w-9 h-9 rounded-lg border border-white/10"
+                  style={{ backgroundColor: opt.color || defaultColor }}
+                  title="Choisir une couleur"
+                />
+                {openColorIndex === index && (
+                  <div className="absolute z-[1200] mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
+                    <ColorPicker
+                      value={opt.color || defaultColor}
+                      onChange={(val) => { updateOption(index, { color: val }); setOpenColorIndex(null); }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <input
+                type="text"
+                value={opt.value}
+                onChange={(e) => updateOption(index, { value: e.target.value })}
+                className="flex-1 px-3 py-2 bg-neutral-900/60 border border-white/10 rounded-lg text-white text-sm placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+              />
+
               <button
                 onClick={() => removeOption(index)}
-                className="p-1 hover:bg-red-500/20 rounded text-red-400"
+                className="p-1.5 hover:bg-red-500/20 rounded text-red-400"
+                title="Supprimer"
               >
                 <Icons.X size={16} />
               </button>
             </div>
           );
         })}
-        {options.length === 0 && (
+        {normalizedOptions.length === 0 && (
           <div className="text-xs text-neutral-500 px-1">Aucune option</div>
         )}
       </div>
@@ -74,11 +160,13 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
             <button
               type="button"
               onClick={() => setShowIconPopover((v) => !v)}
-              className="px-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300 text-sm"
+              className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300"
               title="Choisir une icône"
-            >Icône</button>
+            >
+              {(Icons as any)[newOptionIcon] ? React.createElement((Icons as any)[newOptionIcon], { size: 18 }) : <Icons.Tag size={18} />}
+            </button>
             {showIconPopover && (
-              <div className="absolute z-[1000] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
+              <div className="absolute z-[1200] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
                 <IconPicker value={newOptionIcon} onChange={(val) => { setNewOptionIcon(val); setShowIconPopover(false); }} mode="all" />
               </div>
             )}
@@ -87,11 +175,12 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
             <button
               type="button"
               onClick={() => setShowColorPopover((v) => !v)}
-              className="px-2 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300 text-sm"
+              className="w-10 h-10 rounded-lg border border-white/10"
+              style={{ backgroundColor: newOptionColor }}
               title="Choisir une couleur"
-            >Couleur</button>
+            />
             {showColorPopover && (
-              <div className="absolute z-[1000] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
+              <div className="absolute z-[1200] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
                 <ColorPicker value={newOptionColor} onChange={(val) => { setNewOptionColor(val); setShowColorPopover(false); }} />
               </div>
             )}

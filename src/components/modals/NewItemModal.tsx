@@ -6,6 +6,7 @@ import { Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import ShinyButton from '@/components/ShinyButton';
+import EditableProperty from '@/components/EditableProperty';
 import { cn } from '@/lib/utils';
 
 interface NewItemModalProps {
@@ -114,50 +115,19 @@ const NewItemModal: React.FC<NewItemModalProps> = ({ collection, onClose, onSave
                   })}
                 </select>
               )}
-              {prop.type === 'relation' && (() => {
-                const relation = prop.relation || {};
-                const targetCollection = (collections || []).find((c: any) => c.id === relation.targetCollectionId);
-                const targetItems = targetCollection?.items || [];
-                const isSourceMany = relation.type === 'one_to_many' || relation.type === 'many_to_many';
-                if (!targetCollection) return <div className="text-sm text-neutral-500">Collection liée introuvable</div>;
-                if (!isSourceMany) {
-                  return (
-                    <select value={formData[prop.id] || ''} onChange={(e) => handleChange(prop.id, e.target.value || null)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none">
-                      <option value="">Aucun</option>
-                      {targetItems.map((ti: any) => (
-                        <option key={ti.id} value={ti.id}>{(() => {
-                          const nf = targetCollection.properties.find((p: any) => p.id === 'name' || p.name === 'Nom');
-                          return nf ? ti[nf.id] || 'Sans titre' : ti.name || 'Sans titre';
-                        })()}</option>
-                      ))}
-                    </select>
-                  );
-                }
-                const selectedIds = Array.isArray(formData[prop.id]) ? formData[prop.id] : [];
-                return (
-                  <select 
-                    multiple 
-                    value={selectedIds} 
-                    onChange={(e) => {
-                      const options = Array.from(e.target.selectedOptions);
-                      const values = options.map(opt => opt.value);
-                      handleChange(prop.id, values);
-                    }} 
-                    className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none min-h-[120px]"
-                    size={Math.min(targetItems.length, 8)}
-                  >
-                    {targetItems.map((ti: any) => {
-                      const label = (() => {
-                        const nf = targetCollection.properties.find((p: any) => p.id === 'name' || p.name === 'Nom');
-                        return nf ? ti[nf.id] || 'Sans titre' : ti.name || 'Sans titre';
-                      })();
-                      return (
-                        <option key={ti.id} value={ti.id}>{label}</option>
-                      );
-                    })}
-                  </select>
-                );
-              })()}
+              {prop.type === 'relation' && (
+                <EditableProperty
+                  property={prop}
+                  value={formData[prop.id]}
+                  onChange={(val) => handleChange(prop.id, val)}
+                  size="md"
+                  collections={collections}
+                  currentItem={formData}
+                  onRelationChange={(property, item, value) => {
+                    handleChange(property.id, value);
+                  }}
+                />
+              )}
             </div>
           ))}
         </div>

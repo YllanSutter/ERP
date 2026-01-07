@@ -5,13 +5,11 @@ import WeekEventCard from '@/components/CalendarView/WeekEventCard';
 import {
   getItemColor,
   toDateKey,
-  getWeekDays,
   getEventStyle,
   getEventLayout,
-  formatFieldValue,
 } from '@/lib/calendarUtils';
 
-interface WeekViewProps {
+interface DayViewProps {
   currentDate: Date;
   items: any[];
   dateField: any;
@@ -28,7 +26,7 @@ interface WeekViewProps {
   collections?: any[];
 }
 
-const WeekView: React.FC<WeekViewProps> = ({
+const DayView: React.FC<DayViewProps> = ({
   currentDate,
   items,
   dateField,
@@ -45,15 +43,15 @@ const WeekView: React.FC<WeekViewProps> = ({
   collections = [],
 }) => {
   const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-  const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
   // Get visible relation/select fields
   const visibleMetaFields = collection.properties.filter(
     (p: any) => (p.type === 'relation' || p.type === 'select') && !hiddenFields.includes(p.id)
   );
 
-  // Get week days
-  const weekDays = getWeekDays(currentDate);
+  // Use single day
+  const dayDate = new Date(currentDate);
+  dayDate.setHours(0, 0, 0, 0);
 
   // Helper to build a local (non-UTC) date key YYYY-MM-DD
   const toDateKeyLocal = (d: Date) => toDateKey(d);
@@ -62,41 +60,30 @@ const WeekView: React.FC<WeekViewProps> = ({
   const getEventStyleLocal = (item: any) =>
     getEventStyle(item, dateField, defaultDuration, endHour);
 
-  // Group events by day with overflow handling
-  const eventsByDay = useMemo(() => {
-    const events: Record<string, Array<{ item: any; style: any; dayIndex: number; multiDayIndex: number }>> = {};
-
-    weekDays.forEach((date) => {
-      const dateStr = toDateKey(date);
-      events[dateStr] = [];
-    });
+  // Group events for the current day
+  const dayEvents = useMemo(() => {
+    const currentDayStr = toDateKey(dayDate);
+    const dayEventList: Array<{ item: any; style: any; dayIndex: number; multiDayIndex: number }> = [];
 
     items.forEach((item) => {
       const style = getEventStyleLocal(item);
       if (!style) return;
 
       const startDateStr = toDateKey(style.startDate);
-      const dayIndex = weekDays.findIndex((d) => toDateKey(d) === startDateStr);
-
-      if (dayIndex !== -1) {
-        // Handle multi-day events
-        for (let i = 0; i < style.daysSpanned; i++) {
-          const currentDayIndex = dayIndex + i;
-          if (currentDayIndex < 5) { // Lundi à vendredi seulement
-            const currentDateStr = toDateKey(weekDays[currentDayIndex]);
-            events[currentDateStr].push({
-              item,
-              style,
-              dayIndex: currentDayIndex,
-              multiDayIndex: i,
-            });
-          }
-        }
+      
+      // Include events that start on this day
+      if (startDateStr === currentDayStr) {
+        dayEventList.push({
+          item,
+          style,
+          dayIndex: 0,
+          multiDayIndex: 0,
+        });
       }
     });
 
-    return events;
-  }, [items, weekDays]);
+    return dayEventList;
+  }, [items, dayDate]);
 
   // Detect overlapping events and calculate columns
   const getEventLayoutLocal = (dayEvents: any[], multiDayIndex: number) =>
@@ -138,31 +125,19 @@ const WeekView: React.FC<WeekViewProps> = ({
 
   return (
     <div className="space-y-4 overflow-x-auto">
-      {/* Week Header */}
-      <div className="grid grid-cols-6 min-w-min">
-        <div className="w-16"></div>
-        {weekDays.map((date, idx) => {
-          const isToday = date.toDateString() === new Date().toDateString();
-          const dayOfWeek = date.getDay(); // 0=dimanche, 1=lundi, ..., 6=samedi
-          return (
-            <div
-              key={idx}
-              className={cn(
-                'text-center py-3 rounded-lg border px-2',
-                isToday ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-white/10 bg-neutral-800/30'
-              )}
-            >
-              <div className="text-xs font-semibold text-neutral-500">{dayNamesShort[dayOfWeek]}</div>
-              <div className={cn('text-lg font-bold', isToday ? 'text-cyan-300' : 'text-white')}>
-                {date.getDate()}
-              </div>
-            </div>
-          );
-        })}
+      {/* Day Header */}
+      <div className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-neutral-800/30">
+        <div>
+          <div className="text-sm font-semibold text-neutral-500">{dayNames[dayDate.getDay()]}</div>
+          <div className="text-2xl font-bold text-white">{dayDate.getDate()}</div>
+        </div>
+        <div className="text-right text-xs text-neutral-500">
+          {dayDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+        </div>
       </div>
 
       {/* Time Grid */}
-      <div className="grid grid-cols-6 min-w-min">
+      <div className="flex min-w-min">
         {/* Time Column */}
         <div className="w-16">
           {hours.map(hour => (
@@ -172,61 +147,55 @@ const WeekView: React.FC<WeekViewProps> = ({
           ))}
         </div>
 
-        {/* Day Columns */}
-        {weekDays.map((date, dayIndex) => {
-          const dateStr = toDateKey(date);
-          const dayEvents = eventsByDay[dateStr] || [];
-          const layoutEvents = getEventLayoutLocal(dayEvents, 0);
-
-          return (
-            <div key={dayIndex} className="relative">
-              {hours.map((hour) => {
+        {/* Day Column */}
+        <div className="relative w-full p-20 bg-neutral-900/30">
+            <div className="relative mx-auto max-w-3xl w-full">
+            {hours.map((hour) => {
                 return (
-                  <div
-                    key={`${dayIndex}-${hour}`}
+                <div
+                    key={`day-${hour}`}
                     className={cn(
-                      'h-24 border-b border-l border-white/5 transition-colors bg-neutral-900/30 hover:bg-neutral-800/30'
+                    'h-24 border-b border-l border-white/5 transition-colors  hover:bg-neutral-800/30'
                     )}
-                  />
+                />
                 );
-              })}
+            })}
 
-              {/* Render events positioned absolutely */}
-              {layoutEvents.map(({ item, style, multiDayIndex, startTime: dayStartTime, endTime: dayEndTime, column, totalColumns }) => {
+            {/* Render events positioned absolutely */}
+            {getEventLayoutLocal(dayEvents, 0).map(({ item, style, multiDayIndex, startTime: dayStartTime, endTime: dayEndTime, column, totalColumns }) => {
                 const breakStart = 12;
                 const dayDuration = dayEndTime - dayStartTime;
                 const colors = getItemColor(item.id);
                 const hasBreakThisDay = dayStartTime < breakStart && dayEndTime > breakStart;
 
-                return (
-                  <WeekEventCard
-                    key={`${item.id}-${multiDayIndex}`}
-                    item={item}
-                    style={style}
-                    multiDayIndex={multiDayIndex}
-                    dayStartTime={dayStartTime}
-                    dayEndTime={dayEndTime}
-                    column={column}
-                    totalColumns={totalColumns}
-                    colors={colors}
-                    startHour={startHour}
-                    endHour={endHour}
-                    hoursLength={hours.length}
-                    hasBreakThisDay={hasBreakThisDay}
-                    visibleMetaFields={visibleMetaFields}
-                    collections={collections}
-                    getNameValue={getNameValue}
-                    onViewDetail={onViewDetail}
-                    onReduceDuration={reduceDuration}
-                  />
-                );
-              })}
+                    return (
+                    <WeekEventCard
+                        key={`${item.id}-${multiDayIndex}`}
+                        item={item}
+                        style={style}
+                        multiDayIndex={multiDayIndex}
+                        dayStartTime={dayStartTime}
+                        dayEndTime={dayEndTime}
+                        column={column}
+                        totalColumns={totalColumns}
+                        colors={colors}
+                        startHour={startHour}
+                        endHour={endHour}
+                        hoursLength={hours.length}
+                        hasBreakThisDay={hasBreakThisDay}
+                        visibleMetaFields={visibleMetaFields}
+                        collections={collections}
+                        getNameValue={getNameValue}
+                        onViewDetail={onViewDetail}
+                        onReduceDuration={reduceDuration}
+                    />
+                    );
+                })}
             </div>
-          );
-        })}
+        </div>
       </div>
     </div>
   );
 };
 
-export default WeekView;
+export default DayView;

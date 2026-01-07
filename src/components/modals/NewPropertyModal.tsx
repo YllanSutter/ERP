@@ -32,7 +32,12 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
   const [options, setOptions] = useState<OptionType[]>([]);
   const [relationTarget, setRelationTarget] = useState('');
   const [relationType, setRelationType] = useState('many_to_many');
+  const [relationFilterField, setRelationFilterField] = useState('');
+  const [relationFilterValue, setRelationFilterValue] = useState('');
   const [defaultDuration, setDefaultDuration] = useState(1);
+
+  const targetCollection = (collections || []).find((c: any) => c.id === relationTarget);
+  const filterProp = targetCollection?.properties?.find((p: any) => p.id === relationFilterField);
 
   const handleSave = () => {
     const property: any = { name, type, icon: 'Tag', color: '#8b5cf6' };
@@ -47,7 +52,11 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
         alert('Veuillez choisir une collection cible');
         return;
       }
-      property.relation = { targetCollectionId: relationTarget, type: relationType };
+      const relation: any = { targetCollectionId: relationTarget, type: relationType };
+      if (relationFilterField && relationFilterValue) {
+        relation.filter = { fieldId: relationFilterField, value: relationFilterValue };
+      }
+      property.relation = relation;
     }
     onSave(property);
   };
@@ -94,7 +103,7 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
                 <label className="block text-sm font-medium text-neutral-300 mb-2">Collection liée</label>
                 <select 
                   value={relationTarget}
-                  onChange={(e) => setRelationTarget(e.target.value)}
+                  onChange={(e) => { setRelationTarget(e.target.value); setRelationFilterField(''); setRelationFilterValue(''); }}
                   className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
                 >
                   <option value="">Sélectionner...</option>
@@ -115,6 +124,51 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
                   <option value="many_to_many">Many to Many</option>
                 </select>
               </div>
+              {relationTarget && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-300 mb-2">Filtrer par propriété</label>
+                    <select
+                      value={relationFilterField}
+                      onChange={(e) => setRelationFilterField(e.target.value)}
+                      className="w-full px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                    >
+                      <option value="">Aucune</option>
+                      {(collections.find((c: any) => c.id === relationTarget)?.properties || [])
+                        .filter((p: any) => p.type !== 'relation')
+                        .map((p: any) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-300 mb-2">Valeur du filtre</label>
+                    {filterProp?.type === 'select' || filterProp?.type === 'multi_select' ? (
+                      <select
+                        value={relationFilterValue}
+                        onChange={(e) => setRelationFilterValue(e.target.value)}
+                        className="w-full px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                      >
+                        <option value="">Sélectionner...</option>
+                        {(filterProp.options || []).map((opt: any) => {
+                          const optValue = typeof opt === 'string' ? opt : opt.value;
+                          return (
+                            <option key={optValue} value={optValue}>{optValue}</option>
+                          );
+                        })}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={relationFilterValue}
+                        onChange={(e) => setRelationFilterValue(e.target.value)}
+                        placeholder="Ex: dev, rédac..."
+                        className="w-full px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {(type === 'select' || type === 'multi_select') && (

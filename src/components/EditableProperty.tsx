@@ -181,7 +181,20 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
     const targetCollectionId = relation.targetCollectionId;
     const relationType = relation.type || 'many_to_many';
     const targetCollection = collections?.find((c: any) => c.id === targetCollectionId);
-    const targetItems = targetCollection?.items || [];
+    const targetItemsRaw = targetCollection?.items || [];
+    const filterCfg = relation.filter;
+    const targetItems = (() => {
+      if (!filterCfg || !targetCollection) return targetItemsRaw;
+      const prop = (targetCollection.properties || []).find((p: any) => p.id === filterCfg.fieldId);
+      if (!prop) return targetItemsRaw;
+      const filterVal = String(filterCfg.value || '').toLowerCase();
+      return targetItemsRaw.filter((it: any) => {
+        const val = it[filterCfg.fieldId];
+        if (val == null) return false;
+        if (Array.isArray(val)) return val.map((v: any) => String(v).toLowerCase()).includes(filterVal);
+        return String(val).toLowerCase() === filterVal;
+      });
+    })();
 
     const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
 
@@ -206,7 +219,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
             <Icons.List size={14} />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-[720px] p-2 bg-neutral-900 border-neutral-700" align="start">
+        <PopoverContent className="w-[720px] p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
           <div className="text-sm text-neutral-300 max-h-80 overflow-y-auto">
             <div className="flex items-center justify-between px-2 pb-2 border-b border-white/10">
               <span className="text-xs text-neutral-400">{targetCollection?.name}</span>
@@ -310,7 +323,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
                 <Icons.Plus size={14} />
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700" align="start">
+            <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
               <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
                 <button
                   className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-300"
@@ -362,7 +375,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
               <Icons.Plus size={14} />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700" align="start">
+          <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
             <div className="space-y-1 max-h-64 overflow-y-auto">
               {targetItems.map((ti: any) => {
                 const checked = selectedIds.includes(ti.id);

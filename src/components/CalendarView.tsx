@@ -4,6 +4,15 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import MonthView from '@/components/CalendarView/MonthView';
 import WeekView from '@/components/CalendarView/WeekView';
+import DayView from '@/components/CalendarView/DayView';
+import {
+  getMonday,
+  MONTH_NAMES,
+  getItemsForDate as getItemsForDateUtil,
+  getNameValue as getNameValueUtil,
+  getPreviousPeriod,
+  getNextPeriod,
+} from '@/lib/calendarUtils';
 
 interface CalendarViewProps {
   collection: any;
@@ -34,19 +43,19 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   defaultDuration = 1,
   collections = [],
 }) => {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 6));
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [viewMode, setViewMode] = useState<'month' | 'week'>(() => {
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>(() => {
     try {
       if (typeof window !== 'undefined') {
         const saved = window.localStorage.getItem('calendarViewMode');
-        if (saved === 'month' || saved === 'week') return saved;
+        if (saved === 'month' || saved === 'week' || saved === 'day') return saved;
       }
     } catch {}
     return 'month';
   });
 
-  const setViewModePersist = (mode: 'month' | 'week') => {
+  const setViewModePersist = (mode: 'month' | 'week' | 'day') => {
     setViewMode(mode);
     try {
       if (typeof window !== 'undefined') {
@@ -59,58 +68,21 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   let dateFieldId = dateProperty || dateProps[0]?.id;
   const dateField = collection.properties.find((p: any) => p.id === dateFieldId);
 
-  const getItemsForDate = (date: Date): any[] => {
-    if (!dateField) return [];
-
-    const dateStr = date.toISOString().split('T')[0];
-    return items.filter(item => {
-      const value = item[dateField.id];
-      if (!value) return false;
-
-      if (dateField.type === 'date') {
-        const itemDate = new Date(value).toISOString().split('T')[0];
-        return itemDate === dateStr;
-      } else if (dateField.type === 'date_range') {
-        if (typeof value === 'object' && value.start && value.end) {
-          const start = new Date(value.start).toISOString().split('T')[0];
-          const end = new Date(value.end).toISOString().split('T')[0];
-          return dateStr >= start && dateStr <= end;
-        }
-      }
-      return false;
-    });
-  };
+  const getItemsForDate = (date: Date) => getItemsForDateUtil(date, items, dateField);
 
   const previousPeriod = () => {
-    if (viewMode === 'week') {
-      const newDate = new Date(currentDate);
-      newDate.setDate(currentDate.getDate() - 7);
-      setCurrentDate(newDate);
-    } else {
-      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
-    }
+    setCurrentDate(getPreviousPeriod(currentDate, viewMode));
   };
 
   const nextPeriod = () => {
-    if (viewMode === 'week') {
-      const newDate = new Date(currentDate);
-      newDate.setDate(currentDate.getDate() + 7);
-      setCurrentDate(newDate);
-    } else {
-      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
-    }
+    setCurrentDate(getNextPeriod(currentDate, viewMode));
   };
 
   const goToToday = () => {
     setCurrentDate(new Date());
   };
 
-  const getNameValue = (item: any) => {
-    const nameField = collection.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
-    return nameField ? item[nameField.id] : item.name || 'Sans titre';
-  };
-
-  const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  const getNameValue = (item: any) => getNameValueUtil(item, collection);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -119,8 +91,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-white">
             {viewMode === 'month'
-              ? `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`
-              : `Semaine du ${new Date(currentDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
+              ? `${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getFullYear()}`
+              : viewMode === 'week'
+              ? `Semaine du ${getMonday(currentDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
+              : currentDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
             }
           </h2>
           <div className="flex items-center gap-3">
@@ -143,6 +117,15 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               >
                 Semaine
               </button>
+               <button
+                onClick={() => setViewModePersist('day')}
+                className={cn(
+                  'px-3 py-1.5 text-sm font-medium transition-colors',
+                  viewMode === 'day' ? 'bg-violet-500/30 text-violet-200' : 'text-neutral-400 hover:text-white'
+                )}
+              >
+                Jour
+              </button>
             </div>
             {dateProps.length > 0 && (
               <select
@@ -155,15 +138,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 ))}
               </select>
             )}
-            <button onClick={() => {
-              const newDate = new Date(currentDate);
-              if (viewMode === 'week') {
-                newDate.setDate(currentDate.getDate() - 7);
-              } else {
-                newDate.setMonth(currentDate.getMonth() - 1);
-              }
-              setCurrentDate(newDate);
-            }} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <button onClick={previousPeriod} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
               <ChevronLeft size={20} />
             </button>
             <button
@@ -172,15 +147,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             >
               Aujourd'hui
             </button>
-            <button onClick={() => {
-              const newDate = new Date(currentDate);
-              if (viewMode === 'week') {
-                newDate.setDate(currentDate.getDate() + 7);
-              } else {
-                newDate.setMonth(currentDate.getMonth() + 1);
-              }
-              setCurrentDate(newDate);
-            }} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <button onClick={nextPeriod} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
               <ChevronRight size={20} />
             </button>
           </div>
@@ -204,8 +171,25 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             getNameValue={getNameValue}
             getItemsForDate={getItemsForDate}
           />
-        ) : (
+        ) : viewMode === 'week' ? (
           <WeekView
+            currentDate={currentDate}
+            items={items}
+            dateField={dateField}
+            collection={collection}
+            onDelete={onDelete}
+            onEdit={onEdit}
+            onViewDetail={onViewDetail}
+            hiddenFields={hiddenFields}
+            getNameValue={getNameValue}
+            getItemsForDate={getItemsForDate}
+            startHour={startHour}
+            endHour={endHour}
+            defaultDuration={defaultDuration}
+            collections={collections}
+          />
+        ) : (
+          <DayView
             currentDate={currentDate}
             items={items}
             dateField={dateField}

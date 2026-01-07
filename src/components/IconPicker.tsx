@@ -54,7 +54,7 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange, className, mod
         </div>
       </div>
 
-      <div className="grid grid-cols-8 gap-2 max-h-64 overflow-y-auto p-1 bg-neutral-800/30 rounded-lg">
+      <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto p-1 bg-neutral-800/30 rounded-lg">
         {filteredIcons.map((iconName) => {
           const IconComponent = getIcon(iconName);
           return (

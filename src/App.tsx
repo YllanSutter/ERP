@@ -13,7 +13,6 @@ import EditPropertyModal from '@/components/modals/EditPropertyModal';
 import NewItemModal from '@/components/modals/NewItemModal';
 import FilterModal from '@/components/modals/FilterModal';
 import GroupModal from '@/components/modals/GroupModal';
-import ItemDetailModal from '@/components/modals/ItemDetailModal';
 import NewViewModal from '@/components/modals/NewViewModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -98,8 +97,7 @@ const App = () => {
   const [editingProperty, setEditingProperty] = useState<any>(null);
   const [showEditPropertyModal, setShowEditPropertyModal] = useState(false);
   const [showViewSettings, setShowViewSettings] = useState(false);
-  const [showItemDetail, setShowItemDetail] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [relationFilter, setRelationFilter] = useState<{ collectionId: string | null; ids: string[] }>({ collectionId: null, ids: [] });
   const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -162,6 +160,7 @@ const App = () => {
     }]);
     setViews({ ...views, [id]: [{ id: 'default', name: 'Toutes les données', type: 'table', filters: [], groups: [], hiddenFields: [] }] });
     setActiveCollection(id);
+    setRelationFilter({ collectionId: null, ids: [] });
     setShowNewCollectionModal(false);
   };
 
@@ -277,11 +276,18 @@ const App = () => {
   ) => {
     const relation = prop.relation || {};
     const targetCollectionId = relation.targetCollectionId;
-    const targetFieldId = relation.targetFieldId;
+    let targetFieldId = relation.targetFieldId;
     const relationType = relation.type || 'many_to_many';
 
     const targetCollection = stateCollections.find((c: any) => c.id === targetCollectionId);
+    if (!targetFieldId && targetCollection) {
+      const fallback = (targetCollection.properties || []).find(
+        (p: any) => p.type === 'relation' && p.relation?.targetCollectionId === sourceCollection.id
+      );
+      if (fallback) targetFieldId = fallback.id;
+    }
     if (!targetCollection) return stateCollections;
+    if (!targetFieldId) return stateCollections;
 
     const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
     const isTargetMany = relationType === 'many_to_many' ? true : relationType === 'one_to_many' ? false : true;
@@ -431,6 +437,16 @@ const App = () => {
     setCollections(updatedCollections);
   };
 
+  const handleNavigateToCollection = (collectionId: string, linkedIds?: string[]) => {
+    setActiveCollection(collectionId);
+    setActiveView('default');
+    if (linkedIds && linkedIds.length > 0) {
+      setRelationFilter({ collectionId, ids: linkedIds });
+    } else {
+      setRelationFilter({ collectionId: null, ids: [] });
+    }
+  };
+
   const getFilteredItems = () => {
     if (!currentCollection || !currentViewConfig) return [];
     let filtered = [...currentCollection.items];
@@ -472,6 +488,10 @@ const App = () => {
         }
       });
     });
+
+    if (relationFilter.collectionId === activeCollection && relationFilter.ids?.length) {
+      filtered = filtered.filter((item) => relationFilter.ids.includes(item.id));
+    }
     return filtered;
   };
 
@@ -519,6 +539,8 @@ const App = () => {
     }
     setShowGroupModal(false);
   };
+
+  const clearRelationFilter = () => setRelationFilter({ collectionId: null, ids: [] });
 
   const removeGroup = (property: string) => {
     const updatedViews = { ...views } as Record<string, any[]>;
@@ -609,6 +631,7 @@ const App = () => {
                 onClick={() => {
                   setActiveCollection(col.id);
                   setActiveView('default');
+                  setRelationFilter({ collectionId: null, ids: [] });
                 }}
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg mb-2 transition-all",
@@ -792,6 +815,15 @@ const App = () => {
                 </motion.div>
               ))}
 
+              {relationFilter.collectionId === activeCollection && relationFilter.ids.length > 0 && (
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-cyan-200 rounded-lg text-sm border border-cyan-500/30">
+                  <span>Filtre relation : {relationFilter.ids.length} élément(s)</span>
+                  <button onClick={clearRelationFilter} className="hover:bg-cyan-500/30 rounded p-0.5">
+                    <X size={14} />
+                  </button>
+                </motion.div>
+              )}
+
               {currentViewConfig?.groups.map((group: string, idx: number) => (
                 <motion.div key={idx} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-cyan-200 rounded-lg text-sm border border-cyan-500/30">
                   <span>Groupé par: {currentCollection?.properties.find((p: any) => p.id === group)?.name}</span>
@@ -815,7 +847,7 @@ const App = () => {
                 items={getFilteredItems()}
                 onEdit={(item: any) => updateItem(item)}
                 onDelete={deleteItem}
-                onViewDetail={(item: any) => { setSelectedItem(item); setShowItemDetail(true); }}
+                onViewDetail={(item: any) => { setEditingItem(item); setShowNewItemModal(true); }}
                 hiddenFields={currentViewConfig?.hiddenFields || []}
                 onToggleField={toggleFieldVisibility}
                 onDeleteProperty={deleteProperty}
@@ -826,7 +858,7 @@ const App = () => {
                   updateItem(updatedItem);
                 }}
                 onNavigateToCollection={(collectionId: string, linkedIds?: string[]) => {
-                  setActiveCollection(collectionId);
+                  handleNavigateToCollection(collectionId, linkedIds);
                 }}
               />
             )}
@@ -836,7 +868,7 @@ const App = () => {
                 items={getFilteredItems()}
                 onEdit={(item: any) => updateItem(item)}
                 onDelete={deleteItem}
-                onViewDetail={(item: any) => { setSelectedItem(item); setShowItemDetail(true); }}
+                onViewDetail={(item: any) => { setEditingItem(item); setShowNewItemModal(true); }}
                 groupBy={currentViewConfig?.groupBy}
                 hiddenFields={currentViewConfig?.hiddenFields || []}
                 onChangeGroupBy={(groupBy: string) => {
@@ -851,7 +883,7 @@ const App = () => {
                   updateItem(updatedItem);
                 }}
                 onNavigateToCollection={(collectionId: string, linkedIds?: string[]) => {
-                  setActiveCollection(collectionId);
+                  handleNavigateToCollection(collectionId, linkedIds);
                 }}
               />
             )}
@@ -861,7 +893,7 @@ const App = () => {
                 items={getFilteredItems()}
                 onEdit={(item: any) => updateItem(item)}
                 onDelete={deleteItem}
-                onViewDetail={(item: any) => { setSelectedItem(item); setShowItemDetail(true); }}
+                onViewDetail={(item: any) => { setEditingItem(item); setShowNewItemModal(true); }}
                 dateProperty={currentViewConfig?.dateProperty}
                 hiddenFields={currentViewConfig?.hiddenFields || []}
                 collections={collections}
@@ -877,19 +909,17 @@ const App = () => {
         </div>
       </div>
 
-      {showItemDetail && selectedItem && (
-        <ItemDetailModal
-          item={selectedItem}
-          collection={currentCollection}
-          onClose={() => { setShowItemDetail(false); setSelectedItem(null); }}
-          onEdit={() => { setEditingItem(selectedItem); setShowNewItemModal(true); setShowItemDetail(false); }}
-          onDelete={() => { deleteItem(selectedItem.id); setShowItemDetail(false); setSelectedItem(null); }}
-        />
-      )}
-
       {showNewCollectionModal && <NewCollectionModal onClose={() => setShowNewCollectionModal(false)} onSave={addCollection} />}
       {showNewPropertyModal && <NewPropertyModal onClose={() => setShowNewPropertyModal(false)} onSave={addProperty} collections={collections} currentCollection={activeCollection} />}
-      {showEditPropertyModal && editingProperty && <EditPropertyModal onClose={() => { setShowEditPropertyModal(false); setEditingProperty(null); }} onSave={updateProperty} property={editingProperty} />}
+      {showEditPropertyModal && editingProperty && (
+        <EditPropertyModal
+          onClose={() => { setShowEditPropertyModal(false); setEditingProperty(null); }}
+          onSave={updateProperty}
+          property={editingProperty}
+          collections={collections}
+          currentCollectionId={activeCollection}
+        />
+      )}
       {showNewItemModal && <NewItemModal collection={currentCollection!} collections={collections} onClose={() => { setShowNewItemModal(false); setEditingItem(null); }} onSave={saveItem} editingItem={editingItem} />}
       {showFilterModal && (
         <FilterModal

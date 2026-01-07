@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import ShinyButton from '@/components/ShinyButton';
+import { LightSelect } from '@/components/inputs/LightSelect';
+import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 
 interface FilterModalProps {
   properties: any[];
@@ -87,39 +89,28 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
               }
             }
             if (selectedProp?.type === 'select') {
+              const opts = (selectedProp.options || []).map((opt: any) =>
+                typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.value, color: opt.color, icon: opt.icon }
+              );
               return (
-                <select
+                <LightSelect
+                  options={opts}
                   value={typeof value === 'string' ? value : ''}
-                  onChange={(e) => setValue(e.target.value)}
-                  className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
-                >
-                  <option value="">Sélectionner...</option>
-                  {(selectedProp.options || []).map((opt: any) => {
-                    const optValue = typeof opt === 'string' ? opt : opt.value;
-                    return <option key={optValue} value={optValue}>{optValue}</option>;
-                  })}
-                </select>
+                  onChange={(val) => setValue(val)}
+                />
               );
             }
             if (selectedProp?.type === 'multi_select') {
+              const opts = (selectedProp.options || []).map((opt: any) =>
+                typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.value, color: opt.color, icon: opt.icon }
+              );
               const currentValues = Array.isArray(value) ? value : [];
-              const size = Math.min((selectedProp.options || []).length || 5, 8);
               return (
-                <select
-                  multiple
-                  value={currentValues}
-                  onChange={(e) => {
-                    const opts = Array.from(e.target.selectedOptions).map(o => o.value);
-                    setValue(opts);
-                  }}
-                  size={size}
-                  className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none min-h-[120px]"
-                >
-                  {(selectedProp.options || []).map((opt: any) => {
-                    const optValue = typeof opt === 'string' ? opt : opt.value;
-                    return <option key={optValue} value={optValue}>{optValue}</option>;
-                  })}
-                </select>
+                <LightMultiSelect
+                  options={opts}
+                  values={currentValues}
+                  onChange={(vals) => setValue(vals)}
+                />
               );
             }
             return (
