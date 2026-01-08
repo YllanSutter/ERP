@@ -251,28 +251,34 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
 
                     {/* Editable Properties */}
                     <div className="space-y-2">
-                      {(orderedProperties || collection.properties)
-                        .slice(1)
-                        .filter((prop: any) => 
-                          !hiddenFields.includes(prop.id) && 
-                          canViewFieldFn(prop.id)
-                        )
-                        .map((prop: any) => (
-                          <div key={prop.id} className="text-xs flex justify-between items-center">
-                            <span className="text-neutral-500 block mb-1">{prop.name}:</span>
-                            <EditableProperty
-                              property={prop}
-                              value={item[prop.id]}
-                              onChange={(val) => onEdit({...item, [prop.id]: val})}
-                              size="sm"
-                              collections={collections}
-                              currentItem={item}
-                              onRelationChange={onRelationChange}
-                              onNavigateToCollection={onNavigateToCollection}
-                              readOnly={!canEdit || !canEditFieldFn(prop.id)}
-                            />
-                          </div>
-                        ))}
+                      {(() => {
+                        const allProps = orderedProperties || collection.properties;
+                        const firstVisibleProp = allProps.find((p: any) => 
+                          !hiddenFields.includes(p.id) && canViewFieldFn(p.id)
+                        );
+                        return allProps
+                          .filter((prop: any) => 
+                            prop.id !== firstVisibleProp?.id &&
+                            !hiddenFields.includes(prop.id) && 
+                            canViewFieldFn(prop.id)
+                          )
+                          .map((prop: any) => (
+                            <div key={prop.id} className="text-xs flex justify-between items-center">
+                              <span className="text-neutral-500 block mb-1">{prop.name}:</span>
+                              <EditableProperty
+                                property={prop}
+                                value={item[prop.id]}
+                                onChange={(val) => onEdit({...item, [prop.id]: val})}
+                                size="sm"
+                                collections={collections}
+                                currentItem={item}
+                                onRelationChange={onRelationChange}
+                                onNavigateToCollection={onNavigateToCollection}
+                                readOnly={!canEdit || !canEditFieldFn(prop.id)}
+                              />
+                            </div>
+                          ));
+                      })()}
                     </div>
 
                     {/* Action Buttons */}
