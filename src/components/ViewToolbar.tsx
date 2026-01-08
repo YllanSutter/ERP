@@ -5,6 +5,7 @@ import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ShinyButton from './ShinyButton';
 import DraggableList from './DraggableList';
+import { useCanEdit, useCanViewField } from '@/lib/hooks/useCanEdit';
 
 interface ViewToolbarProps {
   currentCollection: any;
@@ -13,7 +14,6 @@ interface ViewToolbarProps {
   activeView: string | null;
   orderedProperties: any[];
   collections: any[];
-  canEdit: boolean;
   showViewSettings: boolean;
   relationFilter: { collectionId: string | null; ids: string[] };
   activeCollection: string | null;
@@ -40,7 +40,6 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   activeView,
   orderedProperties,
   collections,
-  canEdit,
   showViewSettings,
   relationFilter,
   activeCollection,
@@ -60,6 +59,13 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onRemoveGroup
 }) => {
   const settingsRef = useRef<HTMLDivElement>(null);
+  
+  // Hook de permission
+  const canEdit = useCanEdit(activeCollection);
+  const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, activeCollection);
+  
+  // Filtrer les propriétés que l'utilisateur peut voir
+  const viewableProperties = orderedProperties.filter(prop => canViewFieldFn(prop.id));
 
   return (
     <motion.div
@@ -183,7 +189,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                 </div>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   <DraggableList
-                    items={orderedProperties}
+                    items={viewableProperties}
                     getId={(p) => p.id}
                     onReorder={(next) => {
                       const nextOrder = next.map((p: any) => p.id);

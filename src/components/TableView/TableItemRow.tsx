@@ -49,7 +49,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
       {visibleProperties.map((prop: any, index: number) => (
         <td
           key={prop.id}
-          className="px-6 py-4 whitespace-nowrap text-sm text-neutral-300"
+          className="px-6 py-4 whitespace-nowrap text-sm text-neutral-300 relative"
           style={index === 0 ? { paddingLeft: `${paddingLeft}px` } : undefined}
         >
           <EditableProperty

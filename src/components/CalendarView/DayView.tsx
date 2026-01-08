@@ -25,6 +25,7 @@ interface DayViewProps {
   defaultDuration?: number; // in hours
   collections?: any[];
   onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number) => void;
+  canViewField?: (fieldId: string) => boolean;
 }
 
 const DayView: React.FC<DayViewProps> = ({
@@ -43,12 +44,16 @@ const DayView: React.FC<DayViewProps> = ({
   defaultDuration = 1,
   collections = [],
   onEventDrop,
+  canViewField = () => true,
 }) => {
   const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
   // Get visible relation/select fields
   const visibleMetaFields = collection.properties.filter(
-    (p: any) => (p.type === 'relation' || p.type === 'select') && !hiddenFields.includes(p.id)
+    (p: any) => 
+      (p.type === 'relation' || p.type === 'select') && 
+      !hiddenFields.includes(p.id) &&
+      canViewField(p.id)
   );
 
   // Use single day

@@ -44,7 +44,7 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
         <Popover>
           <PopoverTrigger asChild>
             <button
-              className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-neutral-200"
+              className="p-1 hover:bg-white/5  text-neutral-200 opacity-30 hover:opacity-100 transition-all duration-300"
               title="Ajouter / gérer"
             >
               <Icons.Plus size={14} />

@@ -20,7 +20,7 @@ import FilterModal from '@/components/modals/FilterModal';
 import GroupModal from '@/components/modals/GroupModal';
 import NewViewModal from '@/components/modals/NewViewModal';
 import { API_URL, defaultCollections, defaultViews } from '@/lib/constants';
-import { usePermissions } from '@/lib/hooks/usePermissions';
+import { useCanEdit, useCanEditField, useCanManagePermissions } from '@/lib/hooks/useCanEdit';
 import { useCollections } from '@/lib/hooks/useCollections';
 import { useItems } from '@/lib/hooks/useItems';
 import { useViews } from '@/lib/hooks/useViews';
@@ -53,8 +53,9 @@ const App = () => {
   const [showAccessManager, setShowAccessManager] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<any[]>([]);
 
-  // Hooks personnalisés
-  const { canEditField, canEdit, canManagePermissions } = usePermissions(activeCollection);
+  // Hooks personnalisés pour les permissions
+  const canEdit = useCanEdit(activeCollection);
+  const canManagePermissions = useCanManagePermissions();
 
   const collectionHooks = useCollections(
     collections,
@@ -200,8 +201,6 @@ const App = () => {
       `}</style>
 
       <AppHeader
-        canEdit={canEdit}
-        canManagePermissions={canManagePermissions}
         impersonatedRoleId={impersonatedRoleId}
         availableRoles={availableRoles}
         onNewCollection={() => setShowNewCollectionModal(true)}
@@ -250,7 +249,6 @@ const App = () => {
                 activeView={activeView}
                 orderedProperties={orderedProperties}
                 collections={collections}
-                canEdit={canEdit}
                 showViewSettings={showViewSettings}
                 relationFilter={relationFilter}
                 activeCollection={activeCollection}
@@ -293,8 +291,6 @@ const App = () => {
                     }}
                     hiddenFields={currentViewConfig?.hiddenFields || []}
                     orderedProperties={orderedProperties}
-                    canEdit={canEdit}
-                    canEditField={canEditField}
                     onReorderItems={(nextItems: any[]) => {
                       const updatedCollections = collections.map((col) => {
                         if (col.id === activeCollection) {
@@ -333,8 +329,7 @@ const App = () => {
                     }}
                     groupBy={currentViewConfig?.groupBy}
                     hiddenFields={currentViewConfig?.hiddenFields || []}
-                    canEdit={canEdit}
-                    canEditField={canEditField}
+                    filters={currentViewConfig?.filters || []}
                     onChangeGroupBy={(groupBy: string) => {
                       const updatedViews = { ...views } as Record<string, any[]>;
                       const viewIndex = updatedViews[activeCollection].findIndex(
@@ -366,8 +361,6 @@ const App = () => {
                     dateProperty={currentViewConfig?.dateProperty}
                     hiddenFields={currentViewConfig?.hiddenFields || []}
                     collections={collections}
-                    canEdit={canEdit}
-                    canEditField={canEditField}
                     onChangeDateProperty={(propId: string) => {
                       const updatedViews = { ...views } as Record<string, any[]>;
                       const viewIndex = updatedViews[activeCollection].findIndex(

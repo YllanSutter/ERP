@@ -41,7 +41,7 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
         <Popover>
           <PopoverTrigger asChild>
             <button
-              className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-neutral-200"
+              className="p-1 hover:bg-white/5  text-neutral-200 opacity-30 hover:opacity-100 transition-all duration-300"
               title="Choisir"
             >
               <Icons.Plus size={14} />

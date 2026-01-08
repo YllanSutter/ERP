@@ -29,6 +29,7 @@ interface WeekViewProps {
   defaultDuration?: number; // in hours
   collections?: any[];
   onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number) => void;
+  canViewField?: (fieldId: string) => boolean;
 }
 
 const WeekView: React.FC<WeekViewProps> = ({
@@ -47,6 +48,7 @@ const WeekView: React.FC<WeekViewProps> = ({
   defaultDuration = 1,
   collections = [],
   onEventDrop,
+  canViewField = () => true,
 }) => {
   const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
@@ -55,7 +57,10 @@ const WeekView: React.FC<WeekViewProps> = ({
 
   // Get visible relation/select fields
   const visibleMetaFields = collection.properties.filter(
-    (p: any) => (p.type === 'relation' || p.type === 'select') && !hiddenFields.includes(p.id)
+    (p: any) => 
+      (p.type === 'relation' || p.type === 'select') && 
+      !hiddenFields.includes(p.id) &&
+      canViewField(p.id)
   );
 
   // Get week days

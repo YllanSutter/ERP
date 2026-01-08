@@ -1,22 +1,24 @@
 import React from 'react';
 import * as Icons from 'lucide-react';
 import { Property } from '@/lib/types';
+import { useCanEdit } from '@/lib/hooks/useCanEdit';
 
 export interface TableHeaderProps {
   visibleProperties: Property[];
-  canEdit: boolean;
   onEditProperty: (prop: Property) => void;
   onToggleField: (fieldId: string) => void;
   onDeleteProperty: (propId: string) => void;
+  collectionId?: string;
 }
 
 const TableHeader: React.FC<TableHeaderProps> = ({
   visibleProperties,
-  canEdit,
   onEditProperty,
   onToggleField,
   onDeleteProperty,
+  collectionId,
 }) => {
+  const canEdit = useCanEdit(collectionId);
   return (
     <thead className="bg-neutral-900/60 border-b border-white/5">
       <tr>
@@ -25,8 +27,8 @@ const TableHeader: React.FC<TableHeaderProps> = ({
           return (
             <th
               key={prop.id}
-              style={{ backgroundColor: `${prop.color || '#8b5cf6'}10` }}
-              className="px-6 py-3 text-left text-xs font-medium text-neutral-400 uppercase tracking-wider"
+              style={{ borderBottomColor: `${prop.color || '#fff'}50` }}
+              className="px-6 py-1 text-left text-xs font-medium text-neutral-400 uppercase tracking-wider border-b border-r border-[#ffffff10]"
             >
               <div className="flex items-center gap-2 font-black">
                 <PropIcon size={14} />

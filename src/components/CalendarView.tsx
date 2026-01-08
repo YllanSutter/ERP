@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import MonthView from '@/components/CalendarView/MonthView';
 import WeekView from '@/components/CalendarView/WeekView';
 import DayView from '@/components/CalendarView/DayView';
+import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 import {
   getMonday,
   MONTH_NAMES,
@@ -27,8 +28,6 @@ interface CalendarViewProps {
   endHour?: number;
   defaultDuration?: number; // in hours
   collections?: any[];
-  canEdit?: boolean;
-  canEditField?: (fieldId: string) => boolean;
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({
@@ -44,9 +43,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   endHour = 20,
   defaultDuration = 1,
   collections = [],
-  canEdit = true,
-  canEditField = () => true,
 }) => {
+  // Hooks de permissions
+  const canEdit = useCanEdit(collection?.id);
+  const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, collection?.id);
+  const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, collection?.id);
+
   if (!collection) {
     return (
       <div className="flex items-center justify-center h-full text-neutral-500">
@@ -221,6 +223,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             defaultDuration={defaultDuration}
             collections={collections}
             onEventDrop={canEdit ? handleEventDrop : undefined}
+            canViewField={canViewFieldFn}
           />
         ) : (
           <DayView
@@ -239,6 +242,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             defaultDuration={defaultDuration}
             collections={collections}
             onEventDrop={canEdit ? handleEventDrop : undefined}
+            canViewField={canViewFieldFn}
           />
         )}
       </div>

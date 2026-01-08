@@ -3,10 +3,9 @@ import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import ShinyButton from './ShinyButton';
 import { useAuth } from '@/auth/AuthProvider';
+import { useCanEdit, useCanManagePermissions } from '@/lib/hooks/useCanEdit';
 
 interface AppHeaderProps {
-  canEdit: boolean;
-  canManagePermissions: boolean;
   impersonatedRoleId: string | null;
   availableRoles: any[];
   onNewCollection: () => void;
@@ -15,8 +14,6 @@ interface AppHeaderProps {
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({
-  canEdit,
-  canManagePermissions,
   impersonatedRoleId,
   availableRoles,
   onNewCollection,
@@ -24,6 +21,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   onShowAccessManager
 }) => {
   const { user, logout, isAdminBase } = useAuth();
+  
+  // Hooks de permissions
+  const canEdit = useCanEdit();
+  const canManagePermissions = useCanManagePermissions();
 
   return (
     <motion.div

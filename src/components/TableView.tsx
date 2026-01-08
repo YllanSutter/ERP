@@ -4,6 +4,7 @@ import { TableViewProps } from '@/lib/types';
 import GroupRenderer from '@/components/TableView/GroupRenderer';
 import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
+import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 
 const TableView: React.FC<TableViewProps> = ({
   collection,
@@ -21,14 +22,17 @@ const TableView: React.FC<TableViewProps> = ({
   onRelationChange,
   onNavigateToCollection,
   groups = [],
-  canEdit = true,
-  canEditField = () => true,
 }) => {
   const { itemsMap, groupedStructure, expandedGroups, toggleGroup } = useGrouping(
     items,
     groups,
     collection.properties
   );
+  
+  // Hooks de permissions
+  const canEdit = useCanEdit(collection?.id);
+  const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, collection?.id);
+  const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, collection?.id);
 
   if (!collection) {
     return (
@@ -38,7 +42,10 @@ const TableView: React.FC<TableViewProps> = ({
     );
   }
 
-  const visibleProperties = orderedProperties.filter(p => !hiddenFields.includes(p.id));
+  // Filtrer les propriétés selon les permissions de vue
+  const visibleProperties = orderedProperties.filter(p => 
+    !hiddenFields.includes(p.id) && canViewFieldFn(p.id)
+  );
 
   return (
     <div className="bg-neutral-900/40 border border-white/5 rounded-lg overflow-hidden backdrop-blur">
@@ -46,10 +53,10 @@ const TableView: React.FC<TableViewProps> = ({
         <table className="w-full">
           <TableHeader
             visibleProperties={visibleProperties}
-            canEdit={canEdit}
             onEditProperty={onEditProperty}
             onToggleField={onToggleField}
             onDeleteProperty={onDeleteProperty}
+            collectionId={collection?.id}
           />
           <tbody className="divide-y divide-white/5">
             {groupedStructure ? (
@@ -73,7 +80,7 @@ const TableView: React.FC<TableViewProps> = ({
                   onRelationChange={onRelationChange}
                   onNavigateToCollection={onNavigateToCollection}
                   canEdit={canEdit}
-                  canEditField={canEditField}
+                  canEditField={canEditFieldFn}
                 />
               ))
             ) : (
@@ -90,7 +97,7 @@ const TableView: React.FC<TableViewProps> = ({
                   onRelationChange={onRelationChange}
                   onNavigateToCollection={onNavigateToCollection}
                   canEdit={canEdit}
-                  canEditField={canEditField}
+                  canEditField={canEditFieldFn}
                   animate={true}
                 />
               ))

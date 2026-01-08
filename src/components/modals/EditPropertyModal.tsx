@@ -109,10 +109,10 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                     <button
                       type="button"
                       onClick={() => setShowIconPopover((v) => !v)}
-                      className="w-12 h-12 flex items-center justify-center bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300"
+                      className="w-9 h-9 flex items-center justify-center bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300"
                       title="Choisir une icône"
                     >
-                      {(Icons as any)[icon] ? React.createElement((Icons as any)[icon], { size: 20 }) : <Icons.Tag size={20} />}
+                      {(Icons as any)[icon] ? React.createElement((Icons as any)[icon], { size: 14 }) : <Icons.Tag size={14} />}
                     </button>
                     {showIconPopover && (
                       <div className="absolute z-[1200] mt-2 w-[320px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
@@ -121,11 +121,11 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                     )}
                   </div>
 
-                  <div className="relative">
+                  <div className="relative leading-none">
                     <button
                       type="button"
                       onClick={() => setShowColorPopover((v) => !v)}
-                      className="w-12 h-12 rounded-lg border border-white/10"
+                      className="w-9 h-9 rounded-lg border border-white/10"
                       style={{ backgroundColor: color }}
                       title="Choisir une couleur"
                     />

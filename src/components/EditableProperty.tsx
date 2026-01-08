@@ -219,12 +219,12 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
         <PopoverTrigger asChild>
           <button
             className={cn(
-              "px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-xs text-neutral-300",
+              "p-1 hover:bg-white/5  text-neutral-200 opacity-30 hover:opacity-100 transition-all duration-300 text-xs text-neutral-300 -ml-2",
               sizeClasses[size]
             )}
             title="Voir les éléments liés"
           >
-            <Icons.List size={14} />
+            <Icons.List size={10} />
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-[720px] p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
@@ -357,7 +357,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
             <Popover>
               <PopoverTrigger asChild>
                 <button
-                  className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-neutral-200"
+                  className="p-1 hover:bg-white/5  text-neutral-200 opacity-30 hover:opacity-100 transition-all duration-300"
                   title="Ajouter / changer"
                 >
                   <Icons.Plus size={14} />
@@ -535,10 +535,10 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
           <Popover>
             <PopoverTrigger asChild>
               <button
-                className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-neutral-200"
+                className="p-1 hover:bg-white/5  text-neutral-200 opacity-30 hover:opacity-100 transition-all duration-300"
                 title="Ajouter / gérer"
               >
-                <Icons.Plus size={14} />
+                <Icons.Plus size={13} />
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-80 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">

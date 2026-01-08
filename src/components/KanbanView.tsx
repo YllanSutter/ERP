@@ -4,6 +4,7 @@ import { Trash2, GripHorizontal, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EditableProperty from '@/components/EditableProperty';
+import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 
 interface KanbanViewProps {
   collection: any;
@@ -17,12 +18,16 @@ interface KanbanViewProps {
   collections?: any[];
   onRelationChange?: (property: any, item: any, value: any) => void;
   onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
-  canEdit?: boolean;
-  canEditField?: (fieldId: string) => boolean;
+  filters?: any[];
 }
 
-const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDelete, onViewDetail, groupBy, hiddenFields = [], onChangeGroupBy, collections = [], onRelationChange, onNavigateToCollection, canEdit = true, canEditField = () => true }) => {
+const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDelete, onViewDetail, groupBy, hiddenFields = [], onChangeGroupBy, collections = [], onRelationChange, onNavigateToCollection, filters = [] }) => {
   const [draggedItem, setDraggedItem] = useState<any>(null);
+  
+  // Hooks de permissions
+  const canEdit = useCanEdit(collection?.id);
+  const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, collection?.id);
+  const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, collection?.id);
 
   if (!collection) {
     return (
@@ -55,22 +60,63 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
         columnColors[optValue] = optColor;
       });
     }
-    // Add "Sans valeur" column for items without a value
-    groupedItems['Sans valeur'] = [];
-    columnColors['Sans valeur'] = '#6b7280';
     
-    // Distribute items into columns
+    // Distribute items into columns (skip items without value)
     items.forEach(item => {
-      const key = item[groupByProp.id] || 'Sans valeur';
-      if (!groupedItems[key]) groupedItems[key] = [];
-      groupedItems[key].push(item);
+      const key = item[groupByProp.id];
+      if (key && groupedItems[key]) {
+        groupedItems[key].push(item);
+      }
     });
   } else {
     groupedItems['Toutes les données'] = items;
     columnColors['Toutes les données'] = '#8b5cf6';
   }
 
-  const columns = Object.keys(groupedItems);
+  // Fonction pour vérifier si une valeur de colonne doit être affichée selon les filtres
+  const shouldShowColumn = (columnValue: string) => {
+    if (!groupByProp || filters.length === 0) return true;
+    
+    // Vérifier s'il y a des filtres sur le champ de groupement
+    const filtersOnGroupBy = filters.filter(f => f.property === groupByProp.id);
+    if (filtersOnGroupBy.length === 0) return true;
+    
+    // Séparer les filtres par type
+    const equalsFilters = filtersOnGroupBy.filter(f => f.operator === 'equals');
+    const notEqualsFilters = filtersOnGroupBy.filter(f => f.operator === 'not_equals');
+    const otherFilters = filtersOnGroupBy.filter(f => f.operator !== 'equals' && f.operator !== 'not_equals');
+    
+    // Pour les filtres "equals", la colonne doit correspondre à AU MOINS UN
+    if (equalsFilters.length > 0) {
+      const matchesEquals = equalsFilters.some(f => columnValue === f.value);
+      if (!matchesEquals) return false;
+    }
+    
+    // Pour les filtres "not_equals", la colonne NE doit correspondre à AUCUN
+    if (notEqualsFilters.length > 0) {
+      const matchesNotEquals = notEqualsFilters.some(f => columnValue === f.value);
+      if (matchesNotEquals) return false;
+    }
+    
+    // Pour les autres filtres
+    for (const filter of otherFilters) {
+      const filterValue = filter.value;
+      
+      if (filter.operator === 'contains') {
+        if (!columnValue?.toLowerCase().includes(filterValue?.toLowerCase())) return false;
+      } else if (filter.operator === 'not_contains') {
+        if (columnValue?.toLowerCase().includes(filterValue?.toLowerCase())) return false;
+      } else if (filter.operator === 'is_empty') {
+        if (columnValue !== 'Sans valeur' && columnValue !== null && columnValue !== '') return false;
+      } else if (filter.operator === 'is_not_empty') {
+        if (columnValue === 'Sans valeur' || columnValue === null || columnValue === '') return false;
+      }
+    }
+    
+    return true;
+  };
+
+  const columns = Object.keys(groupedItems).filter(col => shouldShowColumn(col));
 
   const getNameValue = (item: any) => {
     const nameField = collection.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
@@ -180,7 +226,11 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                     {/* Editable Properties */}
                     <div className="space-y-2">
                       {collection.properties
-                        .filter((prop: any) => !hiddenFields.includes(prop.id) && prop.id !== 'name')
+                        .filter((prop: any) => 
+                          !hiddenFields.includes(prop.id) && 
+                          prop.id !== 'name' && 
+                          canViewFieldFn(prop.id)
+                        )
                         .map((prop: any) => (
                           <div key={prop.id} className="text-xs flex justify-between items-center">
                             <span className="text-neutral-500 block mb-1">{prop.name}:</span>
@@ -193,7 +243,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                               currentItem={item}
                               onRelationChange={onRelationChange}
                               onNavigateToCollection={onNavigateToCollection}
-                              readOnly={!canEdit || !canEditField(prop.id)}
+                              readOnly={!canEdit || !canEditFieldFn(prop.id)}
                             />
                           </div>
                         ))}
