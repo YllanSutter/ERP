@@ -218,7 +218,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                       {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}
                       {(() => {
                         const firstProp = (orderedProperties || collection.properties).find((p: any) => 
-                          !hiddenFields.includes(p.id) && canViewFieldFn(p.id)
+                          !hiddenFields.includes(p.id) && !p.showContextMenu && canViewFieldFn(p.id)
                         );
                         if (!firstProp) return (
                           <button
@@ -254,12 +254,13 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                       {(() => {
                         const allProps = orderedProperties || collection.properties;
                         const firstVisibleProp = allProps.find((p: any) => 
-                          !hiddenFields.includes(p.id) && canViewFieldFn(p.id)
+                          !hiddenFields.includes(p.id) && !p.showContextMenu && canViewFieldFn(p.id)
                         );
                         return allProps
                           .filter((prop: any) => 
                             prop.id !== firstVisibleProp?.id &&
                             !hiddenFields.includes(prop.id) && 
+                            !prop.showContextMenu &&
                             canViewFieldFn(prop.id)
                           )
                           .map((prop: any) => (

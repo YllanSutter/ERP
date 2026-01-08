@@ -26,10 +26,14 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   collectionId,
 }) => {
   const canEdit = useCanEdit(collectionId);
+  
+  // Exclure les propriétés en menu contextuel de l'affichage du header
+  const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
+
   return (
     <thead className="bg-neutral-900/60 border-b border-white/5">
       <tr>
-        {visibleProperties.map((prop: any) => {
+        {displayProperties.map((prop: any) => {
           const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
           return (
             <ContextMenu key={prop.id}>

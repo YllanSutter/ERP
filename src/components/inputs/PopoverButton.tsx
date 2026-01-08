@@ -31,15 +31,15 @@ export const PopoverButton: React.FC<PopoverButtonProps> = ({
   right = 0.7
 }) => {
   const IconComponent = (Icons as any)[icon];
+  const [open, setOpen] = React.useState(false);
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           disabled={disabled}
           className={cn(
             "p-1 hover:bg-white/5 text-neutral-200 opacity-30 hover:opacity-100 transition-all duration-300",
-            // isAbsolute && "absolute",
             !disabled && "cursor-pointer",
             disabled && "opacity-50 cursor-not-allowed",
             className
@@ -50,7 +50,9 @@ export const PopoverButton: React.FC<PopoverButtonProps> = ({
           {IconComponent && <IconComponent size={size} />}
         </button>
       </PopoverTrigger>
-      <PopoverContent className={cn("p-2 bg-neutral-900 border-neutral-700 z-[300]", contentClassName)}>
+      <PopoverContent 
+        className={cn("p-2 bg-neutral-900 border-neutral-700 z-[300] pointer-events-auto", contentClassName)}
+      >
         {children}
       </PopoverContent>
     </Popover>

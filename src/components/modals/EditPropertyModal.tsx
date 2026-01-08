@@ -26,6 +26,7 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
   const [relationFilterField, setRelationFilterField] = useState(property.relation?.filter?.fieldId || '');
   const [relationFilterValue, setRelationFilterValue] = useState(property.relation?.filter?.value || '');
   const [defaultDuration, setDefaultDuration] = useState(property.defaultDuration || 1);
+  const [showContextMenu, setShowContextMenu] = useState(property.showContextMenu || false);
   const [showIconPopover, setShowIconPopover] = useState(false);
   const [showColorPopover, setShowColorPopover] = useState(false);
 
@@ -38,7 +39,8 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
       name,
       type,
       icon,
-      color
+      color,
+      showContextMenu
     };
     if (type === 'select' || type === 'multi_select') {
       updatedProperty.options = options;
@@ -234,6 +236,19 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
           {(type === 'select' || type === 'multi_select') && (
             <OptionListEditor options={options} onChange={setOptions} />
           )}
+
+          <div className="border-t border-white/10 pt-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showContextMenu}
+                onChange={(e) => setShowContextMenu(e.target.checked)}
+                className="w-4 h-4 rounded border-white/10"
+              />
+              <span className="text-sm font-medium text-neutral-300">Afficher dans le menu contextuel</span>
+            </label>
+            <p className="text-xs text-neutral-500 mt-2 ml-7">Cette propriété apparaîtra dans le menu contextuel au clic droit sur les objets</p>
+          </div>
         </div>
         <div className="flex gap-3 mt-8">
           <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
