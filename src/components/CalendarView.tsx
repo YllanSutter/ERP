@@ -27,6 +27,8 @@ interface CalendarViewProps {
   endHour?: number;
   defaultDuration?: number; // in hours
   collections?: any[];
+  canEdit?: boolean;
+  canEditField?: (fieldId: string) => boolean;
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({
@@ -42,7 +44,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   endHour = 20,
   defaultDuration = 1,
   collections = [],
+  canEdit = true,
+  canEditField = () => true,
 }) => {
+  if (!collection) {
+    return (
+      <div className="flex items-center justify-center h-full text-neutral-500">
+        <p>Collection non accessible</p>
+      </div>
+    );
+  }
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>(() => {
@@ -208,7 +220,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             endHour={endHour}
             defaultDuration={defaultDuration}
             collections={collections}
-            onEventDrop={handleEventDrop}
+            onEventDrop={canEdit ? handleEventDrop : undefined}
           />
         ) : (
           <DayView
@@ -226,7 +238,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             endHour={endHour}
             defaultDuration={defaultDuration}
             collections={collections}
-            onEventDrop={handleEventDrop}
+            onEventDrop={canEdit ? handleEventDrop : undefined}
           />
         )}
       </div>

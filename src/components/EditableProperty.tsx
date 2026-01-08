@@ -17,6 +17,7 @@ interface EditablePropertyProps {
   isNameField?: boolean;
   onViewDetail?: () => void;
   className?: string;
+  readOnly?: boolean;
   // Relations support
   collections?: any[];
   currentItem?: any;
@@ -32,6 +33,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
   isNameField = false,
   onViewDetail,
   className,
+  readOnly = false,
   collections,
   currentItem,
   onRelationChange,
@@ -64,6 +66,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
         onChange={onChange}
         className={className}
         sizeClass={sizeClasses[size]}
+        disabled={readOnly}
       />
     );
   }
@@ -78,6 +81,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
         onChange={onChange}
         className={className}
         sizeClass={sizeClasses[size]}
+        disabled={readOnly}
       />
     );
   }
@@ -89,7 +93,8 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
         type="checkbox"
         checked={value || false}
         onChange={(e) => onChange(e.target.checked)}
-        className="w-5 h-5 cursor-pointer"
+        disabled={readOnly}
+        className="w-5 h-5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
       />
     );
   }
@@ -105,8 +110,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
+            disabled={readOnly}
             className={cn(
-              "w-full px-2 py-1 bg-transparent border border-transparent text-left text-white hover:border-white/10 rounded transition-colors flex items-center gap-2",
+              "w-full px-2 py-1 bg-transparent border border-transparent text-left text-white hover:border-white/10 rounded transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed",
               sizeClasses[size],
               !value && "text-neutral-600",
               className
@@ -314,35 +320,37 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
               <span className="text-xs text-neutral-500">Aucun</span>
             )}
           </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-neutral-200"
-                title="Ajouter / changer"
-              >
-                <Icons.Plus size={14} />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
-              <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
+          {!readOnly && (
+            <Popover>
+              <PopoverTrigger asChild>
                 <button
-                  className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-300"
-                  onClick={() => onRelationChange(property, currentItem, null)}
+                  className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-neutral-200"
+                  title="Ajouter / changer"
                 >
-                  Aucun
+                  <Icons.Plus size={14} />
                 </button>
-                {targetItems.map((ti: any) => (
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
+                <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
                   <button
-                    key={ti.id}
-                    className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-100"
-                    onClick={() => onRelationChange(property, currentItem, ti.id)}
+                    className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-300"
+                    onClick={() => onRelationChange(property, currentItem, null)}
                   >
-                    {getItemName(ti)}
+                    Aucun
                   </button>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
+                  {targetItems.map((ti: any) => (
+                    <button
+                      key={ti.id}
+                      className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-100"
+                      onClick={() => onRelationChange(property, currentItem, ti.id)}
+                    >
+                      {getItemName(ti)}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
           {ViewerButton}
         </div>
       );
@@ -366,41 +374,43 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
             <span className="text-xs text-neutral-500">Aucun lien</span>
           )}
         </div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-neutral-200"
-              title="Ajouter / gérer"
-            >
-              <Icons.Plus size={14} />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
-            <div className="space-y-1 max-h-64 overflow-y-auto">
-              {targetItems.map((ti: any) => {
-                const checked = selectedIds.includes(ti.id);
-                return (
-                  <label key={ti.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5 text-sm text-white">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => {
-                        const next = e.target.checked
-                          ? [...selectedIds, ti.id]
-                          : selectedIds.filter((id: string) => id !== ti.id);
-                        onRelationChange(property, currentItem, next);
-                      }}
-                    />
-                    <span className="truncate">{getItemName(ti)}</span>
-                  </label>
-                );
-              })}
-              {targetItems.length === 0 && (
-                <div className="text-xs text-neutral-500 px-2 py-1">Aucun élément dans la collection</div>
-              )}
-            </div>
-          </PopoverContent>
-        </Popover>
+        {!readOnly && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-neutral-200"
+                title="Ajouter / gérer"
+              >
+                <Icons.Plus size={14} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {targetItems.map((ti: any) => {
+                  const checked = selectedIds.includes(ti.id);
+                  return (
+                    <label key={ti.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5 text-sm text-white">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                            ? [...selectedIds, ti.id]
+                            : selectedIds.filter((id: string) => id !== ti.id);
+                          onRelationChange(property, currentItem, next);
+                        }}
+                      />
+                      <span className="truncate">{getItemName(ti)}</span>
+                    </label>
+                  );
+                })}
+                {targetItems.length === 0 && (
+                  <div className="text-xs text-neutral-500 px-2 py-1">Aucun élément dans la collection</div>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
         {ViewerButton}
       </div>
     );
@@ -413,8 +423,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
         type="number"
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
+        disabled={readOnly}
         className={cn(
-          "w-full px-2 py-1 bg-transparent border border-transparent text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors",
+          "w-full px-2 py-1 bg-transparent border border-transparent text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
           sizeClasses[size],
           className
         )}
@@ -433,8 +444,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder={value ? '' : '-'}
+      disabled={readOnly}
       className={cn(
-        "w-full px-2 py-1 bg-transparent border border-transparent text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors",
+        "w-full px-2 py-1 bg-transparent border border-transparent text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
         sizeClasses[size],
         className
       )}

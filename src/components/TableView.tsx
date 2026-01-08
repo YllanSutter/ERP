@@ -20,6 +20,8 @@ interface TableViewProps {
   collections: any[];
   onRelationChange: (prop: any, item: any, value: any) => void;
   onNavigateToCollection: (collectionId: string, linkedIds?: string[]) => void;
+  canEdit?: boolean;
+  canEditField?: (fieldId: string) => boolean;
 }
 
 const TableView: React.FC<TableViewProps> = ({
@@ -37,7 +39,17 @@ const TableView: React.FC<TableViewProps> = ({
   collections,
   onRelationChange,
   onNavigateToCollection,
+  canEdit = true,
+  canEditField = () => true,
 }) => {
+  if (!collection) {
+    return (
+      <div className="flex items-center justify-center h-full text-neutral-500">
+        <p>Collection non accessible</p>
+      </div>
+    );
+  }
+
   const visibleProperties = orderedProperties.filter((p: any) => !hiddenFields.includes(p.id));
 
   return (
@@ -53,42 +65,45 @@ const TableView: React.FC<TableViewProps> = ({
                     <div className="flex items-center gap-2">
                       <PropIcon size={14} style={{ color: prop.color || '#8b5cf6' }} />
                       {prop.name}
-                      <div className="flex gap-1 opacity-0 hover:opacity-100 transition-all duration-500">
-                        <button
-                          onClick={() => onEditProperty(prop)}
-                          className="text-neutral-600 hover:text-cyan-400"
-                          title="Modifier la propriété"
-                        >
-                          <Icons.Edit2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => onToggleField(prop.id)}
-                          className="text-neutral-600 hover:text-neutral-400"
-                          title="Masquer la colonne"
-                        >
-                          <Icons.EyeOff size={14} />
-                        </button>
-                        {prop.id !== 'name' && (
+                      {canEdit && (
+                        <div className="flex gap-1 opacity-0 hover:opacity-100 transition-all duration-500">
                           <button
-                            onClick={() => onDeleteProperty(prop.id)}
-                            className="text-neutral-600 hover:text-red-500"
-                            title="Supprimer la propriété"
+                            onClick={() => onEditProperty(prop)}
+                            className="text-neutral-600 hover:text-cyan-400"
+                            title="Modifier la propriété"
                           >
-                            <Icons.Trash2 size={14} />
+                            <Icons.Edit2 size={14} />
                           </button>
-                        )}
-                      </div>
+                          <button
+                            onClick={() => onToggleField(prop.id)}
+                            className="text-neutral-600 hover:text-neutral-400"
+                            title="Masquer la colonne"
+                          >
+                            <Icons.EyeOff size={14} />
+                          </button>
+                          {prop.id !== 'name' && (
+                            <button
+                              onClick={() => onDeleteProperty(prop.id)}
+                              className="text-neutral-600 hover:text-red-500"
+                              title="Supprimer la propriété"
+                            >
+                              <Icons.Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </th>
                 );
               })}
-              <th className="px-6 py-3 text-right text-xs font-medium text-neutral-400 uppercase">Actions</th>
+              {canEdit && <th className="px-6 py-3 text-right text-xs font-medium text-neutral-400 uppercase">Actions</th>}
             </tr>
           </thead>
           <DraggableList
             items={items}
             getId={(it) => it.id}
             onReorder={onReorderItems}
+            disabled={!canEdit}
             renderContainer={(children) => <tbody className="divide-y divide-white/5">{children}</tbody>}
             renderItem={(item: any, { isDragging }) => (
               <motion.tr
@@ -110,17 +125,20 @@ const TableView: React.FC<TableViewProps> = ({
                       currentItem={item}
                       onRelationChange={onRelationChange}
                       onNavigateToCollection={onNavigateToCollection}
+                      readOnly={!canEdit || !canEditField(prop.id)}
                     />
                   </td>
                 ))}
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                  <div className="flex items-center justify-end gap-3 text-neutral-500">
-                    <Icons.GripVertical size={16} className="cursor-grab" />
-                    <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-400">
-                      <Icons.Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
+                {canEdit && (
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                    <div className="flex items-center justify-end gap-3 text-neutral-500">
+                      <Icons.GripVertical size={16} className="cursor-grab" />
+                      <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-400">
+                        <Icons.Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                )}
               </motion.tr>
             )}
           />

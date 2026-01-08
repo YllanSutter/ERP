@@ -11,13 +11,14 @@ interface LightMultiSelectProps {
   placeholder?: string;
   sizeClass?: string;
   className?: string;
+  disabled?: boolean;
 }
 
 const getOptionValue = (opt: OptionType) => typeof opt === 'string' ? opt : opt.value;
 const getOptionColor = (opt: OptionType) => typeof opt === 'string' ? '#8b5cf6' : (opt.color || '#8b5cf6');
 const getOptionIcon = (opt: OptionType) => typeof opt === 'string' ? null : (opt.icon || null);
 
-export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, values, onChange, placeholder = 'Aucun', sizeClass = 'text-sm h-8', className }) => {
+export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, values, onChange, placeholder = 'Aucun', sizeClass = 'text-sm h-8', className, disabled = false }) => {
   const selectedValues: string[] = Array.isArray(values) ? values : (values ? [values] : []);
 
   return (
@@ -39,15 +40,16 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
           <span className="text-xs text-neutral-500">{placeholder}</span>
         )}
       </div>
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-neutral-200"
-            title="Ajouter / gérer"
-          >
-            <Icons.Plus size={14} />
-          </button>
-        </PopoverTrigger>
+      {!disabled && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-neutral-200"
+              title="Ajouter / gérer"
+            >
+              <Icons.Plus size={14} />
+            </button>
+          </PopoverTrigger>
         <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700" align="start">
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {options.map((opt) => {
@@ -80,6 +82,7 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
           </div>
         </PopoverContent>
       </Popover>
+      )}
     </div>
   );
 };

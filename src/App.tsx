@@ -7,6 +7,9 @@ import KanbanView from '@/components/KanbanView';
 import CalendarView from '@/components/CalendarView';
 import TableView from '@/components/TableView';
 import ShinyButton from '@/components/ShinyButton';
+import LoginPage from '@/components/LoginPage';
+import AccessManager from '@/components/AccessManager';
+import { useAuth } from '@/auth/AuthProvider';
 import NewCollectionModal from '@/components/modals/NewCollectionModal';
 import EditCollectionModal from '@/components/modals/EditCollectionModal';
 import NewPropertyModal from '@/components/modals/NewPropertyModal';
@@ -38,6 +41,7 @@ const defaultCollections: any[] = [];
 const defaultViews: Record<string, any[]> = {};
 
 const App = () => {
+  const { user, loading: authLoading, login, register, logout, isAdmin, isAdminBase, isEditor, impersonate, impersonatedRoleId, permissions } = useAuth();
   const [collections, setCollections] = useState<any[]>(defaultCollections);
   const [views, setViews] = useState<Record<string, any[]>>(defaultViews);
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
@@ -57,12 +61,27 @@ const App = () => {
   const [showEditCollectionModal, setShowEditCollectionModal] = useState(false);
   const [showViewSettings, setShowViewSettings] = useState(false);
   const [relationFilter, setRelationFilter] = useState<{ collectionId: string | null; ids: string[] }>({ collectionId: null, ids: [] });
+  const [showAccessManager, setShowAccessManager] = useState(false);
+  const [availableRoles, setAvailableRoles] = useState<any[]>([]);
   const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadState = async () => {
+      if (authLoading) return;
+      if (!user) {
+        setCollections(defaultCollections);
+        setViews(defaultViews);
+        setActiveCollection(null);
+        setActiveView(null);
+        setIsLoaded(true);
+        return;
+      }
       try {
-        const res = await fetch(`${API_URL}/state`);
+        const res = await fetch(`${API_URL}/state`, { credentials: 'include' });
+        if (res.status === 401) {
+          await logout();
+          return;
+        }
         if (res.ok) {
           const data = await res.json();
           if (data?.collections && data?.views) {
@@ -85,15 +104,32 @@ const App = () => {
     };
 
     loadState();
-  }, []);
+  }, [authLoading, user, logout]);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    const loadRoles = async () => {
+      if (!isAdminBase) return;
+      try {
+        const res = await fetch(`${API_URL}/roles`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableRoles(data || []);
+        }
+      } catch (err) {
+        console.error('Impossible de charger les rôles', err);
+      }
+    };
+    loadRoles();
+  }, [isAdminBase]);
+
+  useEffect(() => {
+    if (!isLoaded || !user || !canEdit) return;
     const saveState = async () => {
       try {
         await fetch(`${API_URL}/state`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ collections, views, activeCollection, activeView }),
         });
       } catch (err) {
@@ -101,11 +137,42 @@ const App = () => {
       }
     };
     saveState();
-  }, [collections, views, activeCollection, activeView, isLoaded]);
+  }, [collections, views, activeCollection, activeView, isLoaded, user]);
 
   const currentCollection = collections.find(c => c.id === activeCollection);
   const currentViews = activeCollection ? (views[activeCollection] || []) : [];
   const currentViewConfig = currentViews.find((v: any) => v.id === activeView) || currentViews[0];
+
+  const hasPerm = (scope: { collectionId?: string | null; itemId?: string | null; fieldId?: string | null }, action: string) => {
+    if (isAdmin) return true;
+    const flag = action;
+    const perms = permissions || [];
+    const { collectionId = null, itemId = null, fieldId = null } = scope;
+
+    if (fieldId) {
+      const match = perms.find((p: any) => (p.field_id || null) === fieldId && (p.item_id || null) === itemId && (p.collection_id || null) === collectionId);
+      if (match) return Boolean(match[flag]);
+    }
+    if (itemId) {
+      const match = perms.find((p: any) => (p.item_id || null) === itemId && (p.collection_id || null) === collectionId && (p.field_id || null) === null);
+      if (match) return Boolean(match[flag]);
+    }
+    if (collectionId) {
+      const match = perms.find((p: any) => (p.collection_id || null) === collectionId && (p.item_id || null) === null && (p.field_id || null) === null);
+      if (match) return Boolean(match[flag]);
+    }
+    const globalMatch = perms.find((p: any) => (p.collection_id || null) === null && (p.item_id || null) === null && (p.field_id || null) === null);
+    if (globalMatch) return Boolean(globalMatch[flag]);
+    return false;
+  };
+
+  const canEditField = (fieldId: string) => {
+    if (isAdmin || isEditor) return true;
+    return hasPerm({ collectionId: activeCollection, fieldId }, 'can_write');
+  };
+
+  const canEdit = isAdmin || isEditor || hasPerm({}, 'can_write') || (activeCollection ? hasPerm({ collectionId: activeCollection }, 'can_write') : false);
+  const canManagePermissions = isAdminBase;
 
   const addCollection = (name: string, icon: string, color: string) => {
     const id = name.toLowerCase().replace(/\s+/g, '_');
@@ -612,6 +679,18 @@ const App = () => {
 
   const orderedProperties = getOrderedProperties();
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#030303] text-white">
+        <div className="text-neutral-400">Chargement de l'authentification…</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage onLogin={login} onRegister={register} loading={authLoading} />;
+  }
+
   return (
     <div className="h-screen flex flex-col bg-[#030303] text-white">
       <style>{`
@@ -639,10 +718,53 @@ const App = () => {
             <div className="h-4 w-4 rounded-full bg-gradient-to-tr from-violet-500 to-cyan-400 animate-pulse" />
             <h1 className="text-2xl font-serif font-bold">Gestionnaire de Projet</h1>
           </div>
-          <ShinyButton onClick={() => setShowNewCollectionModal(true)}>
+          <ShinyButton
+            onClick={() => { if (!canEdit) return; setShowNewCollectionModal(true); }}
+            className={!canEdit ? 'opacity-60 pointer-events-none' : ''}
+          >
             <Plus size={16} />
             Nouvelle collection
           </ShinyButton>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="text-sm text-neutral-400">
+            <span className="text-neutral-500">Connecté en tant que</span>{' '}
+            <span className="text-white font-medium">{user?.email || 'Utilisateur'}</span>
+          </div>
+          {isAdminBase && (
+            <div className="flex items-center gap-2 text-xs text-neutral-400">
+              <span className="text-neutral-500">Rôle effectif :</span>
+              <select
+                className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-sm text-white"
+                value={impersonatedRoleId || ''}
+                onChange={(e) => {
+                  const val = e.target.value || null;
+                  impersonate(val);
+                }}
+              >
+                <option value="">(Mon rôle réel)</option>
+                {availableRoles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {canManagePermissions && (
+            <button
+              onClick={() => setShowAccessManager(true)}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-white/5 text-neutral-300 hover:bg-white/10 border border-white/10"
+            >
+              Comptes & rôles
+            </button>
+          )}
+          <button
+            onClick={logout}
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-neutral-400 hover:bg-white/10"
+          >
+            Déconnexion
+          </button>
         </div>
       </motion.div>
 
@@ -727,9 +849,13 @@ const App = () => {
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
+                    <span className="text-2xl">{currentCollection?.icon}</span>
                     <h2 className="text-xl font-bold">{currentCollection?.name}</h2>
                   </div>
-                  <ShinyButton onClick={() => setShowNewItemModal(true)}>
+                  <ShinyButton
+                    onClick={() => { if (!canEdit) return; setShowNewItemModal(true); }}
+                    className={!canEdit ? 'opacity-60 pointer-events-none' : ''}
+                  >
                     <Plus size={16} />
                     Nouveau
                   </ShinyButton>
@@ -766,8 +892,9 @@ const App = () => {
                   <motion.button
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    onClick={() => setShowNewViewModal(true)}
+                    onClick={() => canEdit && setShowNewViewModal(true)}
                     className="px-4 py-2 rounded-lg text-sm font-medium bg-white/5 text-neutral-400 hover:bg-white/10"
+                    disabled={!canEdit}
                   >
                     <Plus size={14} className="inline mr-1" />
                     Nouvelle vue
@@ -783,7 +910,11 @@ const App = () => {
                     <Layers size={14} />
                     Grouper
                   </button>
-                  <button onClick={() => setShowNewPropertyModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm">
+                  <button
+                    onClick={() => canEdit && setShowNewPropertyModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
+                    disabled={!canEdit}
+                  >
                     <Plus size={14} />
                     Propriété
                   </button>
@@ -853,7 +984,7 @@ const App = () => {
                                       <span>{prop.name}</span>
                                     </div>
                                     <button
-                                      onClick={() => { setEditingProperty(prop); setShowEditPropertyModal(true); }}
+                                      onClick={() => { if (!canEdit) return; setEditingProperty(prop); setShowEditPropertyModal(true); }}
                                       className="ml-auto text-neutral-500 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
                                       title="Modifier la propriété"
                                     >
@@ -932,9 +1063,11 @@ const App = () => {
                     items={getFilteredItems()}
                     onEdit={(item: any) => updateItem(item)}
                     onDelete={deleteItem}
-                    onViewDetail={(item: any) => { setEditingItem(item); setShowNewItemModal(true); }}
+                    onViewDetail={(item: any) => { if (canEdit) { setEditingItem(item); setShowNewItemModal(true); } }}
                     hiddenFields={currentViewConfig?.hiddenFields || []}
                     orderedProperties={orderedProperties}
+                    canEdit={canEdit}
+                    canEditField={canEditField}
                     onReorderItems={(nextItems: any[]) => {
                       const updatedCollections = collections.map((col) => {
                         if (col.id === activeCollection) {
@@ -963,9 +1096,11 @@ const App = () => {
                     items={getFilteredItems()}
                     onEdit={(item: any) => updateItem(item)}
                     onDelete={deleteItem}
-                    onViewDetail={(item: any) => { setEditingItem(item); setShowNewItemModal(true); }}
+                    onViewDetail={(item: any) => { if (canEdit) { setEditingItem(item); setShowNewItemModal(true); } }}
                     groupBy={currentViewConfig?.groupBy}
                     hiddenFields={currentViewConfig?.hiddenFields || []}
+                    canEdit={canEdit}
+                    canEditField={canEditField}
                     onChangeGroupBy={(groupBy: string) => {
                       const updatedViews = { ...views } as Record<string, any[]>;
                       const viewIndex = updatedViews[activeCollection].findIndex(v => v.id === activeView);
@@ -988,10 +1123,12 @@ const App = () => {
                     items={getFilteredItems()}
                     onEdit={(item: any) => updateItem(item)}
                     onDelete={deleteItem}
-                    onViewDetail={(item: any) => { setEditingItem(item); setShowNewItemModal(true); }}
+                    onViewDetail={(item: any) => { if (canEdit) { setEditingItem(item); setShowNewItemModal(true); } }}
                     dateProperty={currentViewConfig?.dateProperty}
                     hiddenFields={currentViewConfig?.hiddenFields || []}
                     collections={collections}
+                    canEdit={canEdit}
+                    canEditField={canEditField}
                     onChangeDateProperty={(propId: string) => {
                       const updatedViews = { ...views } as Record<string, any[]>;
                       const viewIndex = updatedViews[activeCollection].findIndex(v => v.id === activeView);
@@ -1036,6 +1173,9 @@ const App = () => {
       )}
       {showGroupModal && <GroupModal properties={currentCollection?.properties || []} onClose={() => setShowGroupModal(false)} onAdd={addGroup} />}
       {showNewViewModal && <NewViewModal collection={currentCollection} onClose={() => setShowNewViewModal(false)} onSave={addView} />}
+      {showAccessManager && canManagePermissions && (
+        <AccessManager collections={collections} onClose={() => setShowAccessManager(false)} />
+      )}
     </div>
   );
 };

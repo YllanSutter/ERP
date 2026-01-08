@@ -17,10 +17,20 @@ interface KanbanViewProps {
   collections?: any[];
   onRelationChange?: (property: any, item: any, value: any) => void;
   onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
+  canEdit?: boolean;
+  canEditField?: (fieldId: string) => boolean;
 }
 
-const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDelete, onViewDetail, groupBy, hiddenFields = [], onChangeGroupBy, collections = [], onRelationChange, onNavigateToCollection }) => {
+const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDelete, onViewDetail, groupBy, hiddenFields = [], onChangeGroupBy, collections = [], onRelationChange, onNavigateToCollection, canEdit = true, canEditField = () => true }) => {
   const [draggedItem, setDraggedItem] = useState<any>(null);
+
+  if (!collection) {
+    return (
+      <div className="flex items-center justify-center h-full text-neutral-500">
+        <p>Collection non accessible</p>
+      </div>
+    );
+  }
 
   // Find available select properties
   const selectProps = collection.properties.filter((p: any) => p.type === 'select');
@@ -143,21 +153,22 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                 groupedItems[column].map((item, idx) => (
                   <motion.div
                     key={item.id}
-                    draggable
-                    onDragStart={() => setDraggedItem(item)}
-                    onDragEnd={() => setDraggedItem(null)}
+                    draggable={canEdit}
+                    onDragStart={canEdit ? () => setDraggedItem(item) : undefined}
+                    onDragEnd={canEdit ? () => setDraggedItem(null) : undefined}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.05 }}
-                    whileHover={{ scale: 1.02 }}
+                    whileHover={canEdit ? { scale: 1.02 } : {}}
                     className={cn(
-                      "group cursor-move rounded-lg border border-white/10 bg-gradient-to-br from-neutral-800/50 to-neutral-900/50 p-4 hover:border-white/20 transition-all space-y-3",
+                      "group rounded-lg border border-white/10 bg-gradient-to-br from-neutral-800/50 to-neutral-900/50 p-4 hover:border-white/20 transition-all space-y-3",
+                      canEdit && "cursor-move",
                       draggedItem?.id === item.id ? 'opacity-50 border-violet-500/50' : ''
                     )}
                   >
                     {/* Title with Grip */}
                     <div className="flex gap-2 items-start">
-                      <GripHorizontal size={14} className="text-neutral-600  transition-opacity flex-shrink-0 mt-1" />
+                      {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0 mt-1" />}
                       <button
                         onClick={() => onViewDetail(item)}
                         className="font-medium text-cyan-400 hover:text-cyan-300 hover:underline text-sm flex-1 line-clamp-2 text-left"
@@ -182,20 +193,23 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                               currentItem={item}
                               onRelationChange={onRelationChange}
                               onNavigateToCollection={onNavigateToCollection}
+                              readOnly={!canEdit || !canEditField(prop.id)}
                             />
                           </div>
                         ))}
                     </div>
 
                     {/* Delete Button */}
-                    <div className="flex justify-end pt-2">
-                      <button
-                        onClick={() => onDelete(item.id)}
-                        className="px-2 py-1 rounded text-xs text-red-300 hover:bg-red-500/20 transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        Supprimer
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex justify-end pt-2">
+                        <button
+                          onClick={() => onDelete(item.id)}
+                          className="px-2 py-1 rounded text-xs text-red-300 hover:bg-red-500/20 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    )}
                   </motion.div>
                 ))
               )}

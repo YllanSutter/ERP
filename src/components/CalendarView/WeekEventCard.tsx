@@ -104,9 +104,9 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     return (
       <motion.div
         ref={dragRef}
-        draggable
+        draggable={!!onEventDrop}
         initial={false}
-        className="absolute rounded-sm p-1.5 cursor-move transition-colors group text-xs overflow-hidden z-10 hover:opacity-80"
+        className={`absolute rounded-sm p-1.5 transition-colors group text-xs overflow-hidden z-10 hover:opacity-80 ${onEventDrop ? 'cursor-move' : 'cursor-default'}`}
         style={{
           top: `${topOffset}px`,
           height: `${heightPx}px`,
