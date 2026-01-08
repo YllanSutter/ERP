@@ -5,6 +5,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
 import { LightSelect } from '@/components/inputs/LightSelect';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
+import { PopoverButton, LinkedItemsViewer } from '@/components/inputs/PopoverButton';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -215,87 +216,17 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
     // Vue de liste via icône
     const ViewerButton = (
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            className={cn(
-              "p-1 hover:bg-white/5  opacity-30 hover:opacity-100 transition-all duration-300 text-xs text-neutral-300 -ml-2",
-              sizeClasses[size]
-            )}
-            title="Voir les éléments liés"
-          >
-            <Icons.List size={10} />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[720px] p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
-          <div className="text-sm text-neutral-300 max-h-80 overflow-y-auto">
-            <div className="flex items-center justify-between px-2 pb-2 border-b border-white/10">
-              <span className="text-xs text-neutral-400">{targetCollection?.name}</span>
-              {onNavigateToCollection && (
-                <button
-                  className="text-xs text-cyan-300 hover:text-cyan-200 hover:underline"
-                  onClick={() => {
-                    const linkedIds = isSourceMany ? (Array.isArray(value) ? value : []) : (value ? [value] : []);
-                    onNavigateToCollection(targetCollectionId, linkedIds);
-                  }}
-                >
-                  Ouvrir la collection
-                </button>
-              )}
-            </div>
-            <table className="w-full text-left text-xs">
-              <thead className="text-neutral-500 sticky top-0 bg-neutral-900">
-                <tr>
-                  {(targetCollection?.properties || []).map((p: any) => (
-                    <th key={p.id} className="py-1 px-2 font-semibold">{p.name}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(() => {
-                  const linkedIds = isSourceMany ? (Array.isArray(value) ? value : []) : (value ? [value] : []);
-                  const linkedItems = targetItems.filter((ti: any) => linkedIds.includes(ti.id));
-                  if (linkedItems.length === 0) {
-                    return (
-                      <tr>
-                        <td className="py-2 px-2 text-neutral-500" colSpan={(targetCollection?.properties || []).length || 1}>Aucun</td>
-                      </tr>
-                    );
-                  }
-                  const formatCell = (val: any, prop: any) => {
-                    if (val == null || val === '') return '-';
-                    switch (prop.type) {
-                      case 'date':
-                        try { return format(new Date(val), 'dd MMM yyyy', { locale: fr }); } catch { return String(val); }
-                      case 'date_range':
-                        return val?.start && val?.end ? `${format(new Date(val.start), 'dd MMM yyyy', { locale: fr })} - ${format(new Date(val.end), 'dd MMM yyyy', { locale: fr })}` : '-';
-                      case 'checkbox':
-                        return val ? '✓' : '✗';
-                      case 'url':
-                        return (<a href={val} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">{val}</a>);
-                      case 'multi_select':
-                        return Array.isArray(val) ? val.join(', ') : String(val);
-                      case 'relation':
-                        return Array.isArray(val) ? `${val.length} lié(s)` : (val ? '1 lié' : '-');
-                      default:
-                        return String(val);
-                    }
-                  };
-                  return linkedItems.map((it: any) => (
-                    <tr key={it.id} className="hover:bg-white/5">
-                      {(targetCollection?.properties || []).map((p: any) => (
-                        <td key={p.id} className="py-1 px-2">
-                          {p.id === 'name' || p.name === 'Nom' ? getItemName(it) : formatCell(it[p.id], p)}
-                        </td>
-                      ))}
-                    </tr>
-                  ));
-                })()}
-              </tbody>
-            </table>
-          </div>
-        </PopoverContent>
-      </Popover>
+      <LinkedItemsViewer
+        isSourceMany={isSourceMany}
+        value={value}
+        targetItems={targetItems}
+        targetCollection={targetCollection}
+        getItemName={getItemName}
+        onNavigateToCollection={onNavigateToCollection}
+        targetCollectionId={targetCollectionId}
+        top={0.35}
+        right={0}
+      />
     );
 
     if (!collections || !currentItem || !onRelationChange) {
@@ -354,17 +285,14 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
             )}
           </div>
           {!readOnly && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  className="p-1 hover:bg-white/5  text-neutral-200 opacity-30 hover:opacity-100 transition-all duration-300"
-                  title="Ajouter / changer"
-                >
-                  <Icons.Plus size={14} />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
-                <div className="space-y-2">
+            <PopoverButton
+              icon="Plus"
+              title="Ajouter / changer"
+              isAbsolute={true}
+              size={14}
+              contentClassName="w-80"
+            >
+              <div className="space-y-2">
                   {/* Champ de recherche */}
                   {!isCreating && (
                     <div className="relative">
@@ -473,8 +401,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                     </>
                   )}
                 </div>
-              </PopoverContent>
-            </Popover>
+            </PopoverButton>
           )}
           {ViewerButton}
         </div>
@@ -532,17 +459,14 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
           )}
         </div>
         {!readOnly && (
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                className="p-1 hover:bg-white/5  text-neutral-200 opacity-30 hover:opacity-100 transition-all duration-300"
-                title="Ajouter / gérer"
-              >
-                <Icons.Plus size={13} />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
-              <div className="space-y-2">
+          <PopoverButton
+            icon="Plus"
+            title="Ajouter / gérer"
+            isAbsolute={true}
+            size={13}
+            contentClassName="w-80"
+          >
+            <div className="space-y-2">
                 {/* Champ de recherche */}
                 {!isCreatingMulti && (
                   <div className="relative">
@@ -652,8 +576,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                   </>
                 )}
               </div>
-            </PopoverContent>
-          </Popover>
+            </PopoverButton>
         )}
         {ViewerButton}
       </div>
@@ -683,7 +606,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                    property.type === 'phone' ? 'tel' : 'text';
 
   const textLength = (value || '').toString().length;
-  const width = Math.max(textLength + 2, 5) + 'ch';
+  const width = Math.max(textLength, 5) + 'ch';
 
   return (
     <input

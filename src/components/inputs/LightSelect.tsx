@@ -1,7 +1,7 @@
 import React from 'react';
 import * as Icons from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { PopoverButton } from './PopoverButton';
 
 export type OptionType = string | { value: string; color?: string; icon?: string };
 
@@ -38,16 +38,13 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
         )}
       </div>
       {!disabled && (
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              className="p-1 hover:bg-white/5  text-neutral-200 opacity-30 hover:opacity-100 transition-all duration-300"
-              title="Choisir"
-            >
-              <Icons.Plus size={14} />
-            </button>
-          </PopoverTrigger>
-        <PopoverContent className="w-56 p-2 bg-neutral-900 border-neutral-700 z-[400]" align="start">
+        <PopoverButton
+          icon="Plus"
+          title="Ajouter / gérer"
+          isAbsolute
+          size={14}
+          contentClassName="w-56"
+        >
           <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
             <button
               className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-300"
@@ -73,8 +70,7 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
               );
             })}
           </div>
-        </PopoverContent>
-      </Popover>
+        </PopoverButton>
       )}
     </div>
   );

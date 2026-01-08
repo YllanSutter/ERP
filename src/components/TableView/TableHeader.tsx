@@ -2,6 +2,13 @@ import React from 'react';
 import * as Icons from 'lucide-react';
 import { Property } from '@/lib/types';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from '@/components/ui/context-menu';
 
 export interface TableHeaderProps {
   visibleProperties: Property[];
@@ -25,43 +32,49 @@ const TableHeader: React.FC<TableHeaderProps> = ({
         {visibleProperties.map((prop: any) => {
           const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
           return (
-            <th
-              key={prop.id}
-              style={{ borderBottomColor: `${prop.color || '#fff'}50` }}
-              className="px-6 py-1 text-left text-xs font-medium text-neutral-400 uppercase tracking-wider border-b border-r border-[#ffffff10]"
-            >
-              <div className="flex items-center gap-2 font-black">
-                <PropIcon size={14} />
-                {prop.name}
-                {canEdit && (
-                  <div className="flex gap-1 opacity-0 hover:opacity-100 transition-all duration-500">
-                    <button
-                      onClick={() => onEditProperty(prop)}
-                      className="text-neutral-600 hover:text-cyan-400"
-                      title="Modifier la propriété"
-                    >
-                      <Icons.Edit2 size={14} />
-                    </button>
-                    <button
-                      onClick={() => onToggleField(prop.id)}
-                      className="text-neutral-600 hover:text-neutral-400"
-                      title="Masquer la colonne"
-                    >
-                      <Icons.EyeOff size={14} />
-                    </button>
-                    {prop.id !== 'name' && (
-                      <button
+            <ContextMenu key={prop.id}>
+              <ContextMenuTrigger asChild>
+                <th
+                  style={{ borderBottomColor: `${prop.color || '#fff'}50` }}
+                  className="px-6 py-1 text-left text-xs font-medium text-neutral-400 uppercase tracking-wider border-b border-r border-[#ffffff10] cursor-context-menu"
+                >
+                  <div className="flex items-center gap-2 font-black">
+                    <PropIcon size={14} />
+                    {prop.name}
+                  </div>
+                </th>
+              </ContextMenuTrigger>
+              {canEdit && (
+                <ContextMenuContent>
+                  <ContextMenuItem
+                    onClick={() => onEditProperty(prop)}
+                    className="flex items-center gap-2"
+                  >
+                    <Icons.Edit2 size={14} />
+                    <span>Modifier</span>
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    onClick={() => onToggleField(prop.id)}
+                    className="flex items-center gap-2"
+                  >
+                    <Icons.EyeOff size={14} />
+                    <span>Masquer la colonne</span>
+                  </ContextMenuItem>
+                  {prop.id !== 'name' && (
+                    <>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem
                         onClick={() => onDeleteProperty(prop.id)}
-                        className="text-neutral-600 hover:text-red-500"
-                        title="Supprimer la propriété"
+                        className="flex items-center gap-2 text-red-500 focus:bg-red-500/10"
                       >
                         <Icons.Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </th>
+                        <span>Supprimer</span>
+                      </ContextMenuItem>
+                    </>
+                  )}
+                </ContextMenuContent>
+              )}
+            </ContextMenu>
           );
         })}
         {canEdit && (

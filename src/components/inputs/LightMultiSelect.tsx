@@ -1,8 +1,8 @@
 import React from 'react';
 import * as Icons from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { OptionType } from './LightSelect';
+import { PopoverButton } from './PopoverButton';
 
 interface LightMultiSelectProps {
   options: OptionType[];
@@ -41,16 +41,13 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
         )}
       </div>
       {!disabled && (
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              className="p-1 hover:bg-white/5  text-neutral-200 opacity-30 hover:opacity-100 transition-all duration-300"
-              title="Ajouter / gérer"
-            >
-              <Icons.Plus size={14} />
-            </button>
-          </PopoverTrigger>
-        <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700 z-[400]" align="start">
+        <PopoverButton
+          icon="Plus"
+          title="Ajouter / gérer"
+          isAbsolute
+          size={14}
+          contentClassName="w-64"
+        >
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {options.map((opt) => {
               const optValue = getOptionValue(opt);
@@ -80,8 +77,7 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
               <div className="text-xs text-neutral-500 px-2 py-1">Aucune option</div>
             )}
           </div>
-        </PopoverContent>
-      </Popover>
+        </PopoverButton>
       )}
     </div>
   );
