@@ -73,13 +73,22 @@ const DayView: React.FC<DayViewProps> = ({
 
       const startDateStr = toDateKey(style.startDate);
       
-      // Include events that start on this day
-      if (startDateStr === currentDayStr) {
+      // Calculer la différence en jours entre le début de l'événement et aujourd'hui
+      const startDate = new Date(style.startDate);
+      startDate.setHours(0, 0, 0, 0);
+      const currentDay = new Date(dayDate);
+      currentDay.setHours(0, 0, 0, 0);
+      const daysDiff = Math.floor((currentDay.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Inclure l'événement si :
+      // 1. Il commence aujourd'hui (daysDiff === 0)
+      // 2. Il a commencé avant et continue aujourd'hui (0 <= daysDiff < daysSpanned)
+      if (daysDiff >= 0 && daysDiff < style.daysSpanned) {
         dayEventList.push({
           item,
           style,
           dayIndex: 0,
-          multiDayIndex: 0,
+          multiDayIndex: daysDiff,
         });
       }
     });

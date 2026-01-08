@@ -49,8 +49,9 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   const dragRef = React.useRef<HTMLDivElement>(null);
   const breakStart = 12;
   const breakEnd = 13;
-  const widthPercent = (1 / totalColumns) * 100;
-  const leftPercent = column * widthPercent;
+  const space = 6;
+  const widthPercent = ((1 / totalColumns) * 100) - space;
+  const leftPercent = (column * widthPercent) + (space/2);
 
   const handleDragStart = (e: React.DragEvent) => {
     const dragEvent = e as unknown as DragEvent;

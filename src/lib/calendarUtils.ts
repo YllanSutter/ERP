@@ -225,6 +225,8 @@ export const getEventStyle = (
 
   // Check if event overlaps with break time (12h-13h)
   const breakStart = 12;
+  const breakEnd = 13;
+  const workDayEnd = 17;
   let adjustedEndTime = endTimeInHours;
 
   // If event starts before break and ends after break start
@@ -233,14 +235,30 @@ export const getEventStyle = (
     adjustedEndTime = endTimeInHours + 1;
   }
 
-  // Check if item fits within the day (max 7 hours per day)
-  let durationHours = duration;
-  let hoursPerDay = durationHours;
-  let daysSpanned = 1;
+  // Calculer les heures disponibles le premier jour
+  let firstDayAvailableHours: number;
+  if (startTimeInHours < breakStart) {
+    // Commence avant la pause : peut travailler jusqu'à 12h, puis de 13h à 17h
+    const hoursBeforeBreak = breakStart - startTimeInHours;
+    const hoursAfterBreak = workDayEnd - breakEnd;
+    firstDayAvailableHours = hoursBeforeBreak + hoursAfterBreak;
+  } else if (startTimeInHours >= breakEnd) {
+    // Commence après la pause : peut travailler jusqu'à 17h
+    firstDayAvailableHours = workDayEnd - startTimeInHours;
+  } else {
+    // Commence pendant la pause : peut travailler de 13h à 17h
+    firstDayAvailableHours = workDayEnd - breakEnd;
+  }
 
-  if (durationHours > 7) {
-    daysSpanned = Math.ceil(durationHours / 7);
-    hoursPerDay = 7;
+  // Calculer le nombre de jours nécessaires
+  let durationHours = duration;
+  let daysSpanned = 1;
+  let hoursPerDay = Math.min(durationHours, firstDayAvailableHours);
+
+  if (durationHours > firstDayAvailableHours) {
+    const remainingHours = durationHours - firstDayAvailableHours;
+    const additionalDays = Math.ceil(remainingHours / 7);
+    daysSpanned = 1 + additionalDays;
   }
 
   return {
@@ -311,29 +329,72 @@ export const getEventLayout = (
   const breakStart = 12;
   const breakEnd = 13;
   const workHoursPerDay = 7;
+  const workDayStart = 9; // Heure de début de journée de travail fixe
+  const workDayEnd = 17; // Heure de fin de journée fixe (9h + 7h travail + 1h pause = 17h)
 
   // Calculate time range for each event
   const eventsWithTime: EventLayoutItem[] = dayEvents.map(({ item, style, multiDayIndex: mdi }) => {
     let dayStartTime: number;
     let dayDuration: number;
-    let hoursAlreadyUsed = mdi * workHoursPerDay;
-
-    if (mdi === 0) {
-      dayStartTime = style.startTimeInHours;
-      const hoursUntilBreak = breakStart - dayStartTime;
-      const hoursAfterBreak = endHour - breakEnd;
-      const maxWorkHoursToday = dayStartTime < breakStart ? hoursUntilBreak + hoursAfterBreak : hoursAfterBreak;
-      dayDuration = Math.min(style.durationHours, maxWorkHoursToday, workHoursPerDay);
+    
+    // Calculer les heures disponibles le premier jour (selon l'heure de début)
+    let firstDayHours: number;
+    const startTime = style.startTimeInHours;
+    if (startTime < breakStart) {
+      const hoursBeforeBreak = breakStart - startTime;
+      const hoursAfterBreak = workDayEnd - breakEnd;
+      firstDayHours = hoursBeforeBreak + hoursAfterBreak;
+    } else if (startTime >= breakEnd) {
+      firstDayHours = workDayEnd - startTime;
     } else {
-      dayStartTime = style.startTimeInHours;
-      const remainingHours = style.durationHours - hoursAlreadyUsed;
-      const hoursUntilBreak = breakStart - dayStartTime;
-      const hoursAfterBreak = endHour - breakEnd;
-      const maxWorkHoursToday = dayStartTime < breakStart ? hoursUntilBreak + hoursAfterBreak : hoursAfterBreak;
-      dayDuration = Math.min(remainingHours, maxWorkHoursToday, workHoursPerDay);
+      firstDayHours = workDayEnd - breakEnd;
+    }
+    
+    // Calculer les heures déjà utilisées selon le jour actuel
+    let hoursAlreadyUsed: number;
+    if (mdi === 0) {
+      hoursAlreadyUsed = 0;
+    } else if (mdi === 1) {
+      // Deuxième jour : on a utilisé les heures du premier jour
+      hoursAlreadyUsed = firstDayHours;
+    } else {
+      // Jours suivants : premier jour + (mdi-1) jours complets de 7h
+      hoursAlreadyUsed = firstDayHours + (mdi - 1) * workHoursPerDay;
     }
 
-    let dayEndTime = dayStartTime + dayDuration;
+    if (mdi === 0) {
+      // Premier jour : commence à l'heure de début de l'événement
+      dayStartTime = style.startTimeInHours;
+      dayDuration = Math.min(style.durationHours, firstDayHours);
+    } else {
+      // Jours suivants : toujours commencer à l'heure de début de journée (9h)
+      dayStartTime = workDayStart;
+      const remainingHours = style.durationHours - hoursAlreadyUsed;
+      
+      // Pour une journée complète de 9h à 17h avec 1h de pause = 7h de travail
+      const availableHours = workHoursPerDay;
+      dayDuration = Math.min(remainingHours, availableHours);
+    }
+
+    // Calculer l'heure de fin en tenant compte de la pause
+    let dayEndTime: number;
+    if (dayStartTime < breakStart) {
+      const hoursBeforeBreak = breakStart - dayStartTime;
+      if (dayDuration <= hoursBeforeBreak) {
+        // L'événement se termine avant la pause
+        dayEndTime = dayStartTime + dayDuration;
+      } else {
+        // L'événement chevauche la pause
+        const hoursAfterBreak = dayDuration - hoursBeforeBreak;
+        dayEndTime = breakEnd + hoursAfterBreak;
+      }
+    } else {
+      // L'événement commence à/après la pause
+      dayEndTime = Math.max(dayStartTime, breakEnd) + dayDuration;
+    }
+    
+    // S'assurer que l'événement ne dépasse pas 17h
+    dayEndTime = Math.min(dayEndTime, workDayEnd);
 
     return {
       item,
