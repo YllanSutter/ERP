@@ -9,6 +9,8 @@ import {
   getEventStyle,
   getEventLayout,
   formatFieldValue,
+  calculateDropTime,
+  calculateDropIndicatorPosition,
 } from '@/lib/calendarUtils';
 
 interface WeekViewProps {
@@ -49,7 +51,7 @@ const WeekView: React.FC<WeekViewProps> = ({
   const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
-  const [dragPreview, setDragPreview] = React.useState<{ dayIndex: number; hour: number; height: number } | null>(null);
+  const [dragPreview, setDragPreview] = React.useState<{ dayIndex: number; positionY: number } | null>(null);
 
   // Get visible relation/select fields
   const visibleMetaFields = collection.properties.filter(
@@ -191,19 +193,16 @@ const WeekView: React.FC<WeekViewProps> = ({
             
             try {
               const data = JSON.parse(dragData);
-              const height = data.__dragHeight || 100;
+              const dragStartOffsetY = data.__dragStartOffsetY || 0;
               
               const container = e.currentTarget as HTMLElement;
               const rect = container.getBoundingClientRect();
               const dropY = e.clientY - rect.top;
-              const hourHeight = rect.height / (endHour - startHour);
-              const hourOffset = dropY / hourHeight;
-              const hour = Math.max(startHour, Math.min(endHour - 1, Math.floor(startHour + hourOffset)));
               
-              // Position l'indicateur au-dessus du curseur de la hauteur de l'événement
-              const previewTopOffset = (dropY - height / 2);
+              // Ajuste pour que le haut de l'élément soit à la position du drop minus l'offset
+              const adjustedDropY = Math.max(0, dropY - dragStartOffsetY);
               
-              setDragPreview({ dayIndex, hour, height: previewTopOffset });
+              setDragPreview({ dayIndex, positionY: adjustedDropY });
             } catch (e) {
               // Silently fail if data parsing fails
             }
@@ -222,29 +221,29 @@ const WeekView: React.FC<WeekViewProps> = ({
             
             try {
               const data = JSON.parse(dragData);
-              // Nettoyer les données de drag avant de les utiliser
+              // Nettoyer les données de drag
               const item = { ...data };
-              delete item.__dragHeight;
+              delete item.__dragStartOffsetY;
               
-              // Utiliser l'heure du preview pour être cohérent
-              if (dragPreview && dragPreview.dayIndex === dayIndex) {
-                const newMinutes = Math.round(((dragPreview.hour - Math.floor(dragPreview.hour)) * 60));
-                if (onEventDrop) {
-                  onEventDrop(item, date, dragPreview.hour, newMinutes);
-                }
-              } else {
-                // Fallback si le preview n'est pas disponible
-                const container = e.currentTarget as HTMLElement;
-                const rect = container.getBoundingClientRect();
-                const dropY = e.clientY - rect.top;
-                const hourHeight = rect.height / (endHour - startHour);
-                const hourOffset = dropY / hourHeight;
-                const newHour = Math.max(startHour, Math.min(endHour - 1, Math.floor(startHour + hourOffset)));
-                const newMinutes = Math.round(((startHour + hourOffset) % 1) * 60);
-                
-                if (onEventDrop) {
-                  onEventDrop(item, date, newHour, newMinutes);
-                }
+              const container = e.currentTarget as HTMLElement;
+              const rect = container.getBoundingClientRect();
+              const dropY = e.clientY - rect.top;
+              const dragStartOffsetY = data.__dragStartOffsetY || 0;
+              
+              // Ajuste pour que le haut de l'élément soit à la position du drop
+              const adjustedDropY = Math.max(0, dropY - dragStartOffsetY);
+              
+              // Calculer l'heure en fonction de la position ajustée
+              const { hour, minutes } = calculateDropTime({
+                dropY: adjustedDropY,
+                containerHeight: rect.height,
+                elementTop: 0,
+                startHour,
+                endHour,
+              });
+              
+              if (onEventDrop) {
+                onEventDrop(item, date, hour, minutes);
               }
             } catch (e) {
               console.error('Error parsing drag data:', e);
@@ -261,13 +260,12 @@ const WeekView: React.FC<WeekViewProps> = ({
               onDragLeave={handleDayDragLeave}
               onDrop={handleDayDrop}
             >
-              {/* Drag preview indicator */}
+              {/* Drag preview indicator - thin blue line */}
               {dragPreview && dragPreview.dayIndex === dayIndex && (
                 <div
-                  className="absolute left-0 right-0 bg-blue-500/40 border-2 border-blue-500 pointer-events-none z-50 rounded-sm"
+                  className="absolute left-0 right-0 border-t-2 border-blue-500 pointer-events-none z-50"
                   style={{
-                    top: `${dragPreview.height}px`,
-                    height: '100px',
+                    top: `${dragPreview.positionY}px`,
                   }}
                 />
               )}

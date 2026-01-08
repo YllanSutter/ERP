@@ -46,31 +46,114 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   onEventDrop,
   weekDayDate,
 }) => {
+  const dragRef = React.useRef<HTMLDivElement>(null);
   const breakStart = 12;
   const breakEnd = 13;
   const widthPercent = (1 / totalColumns) * 100;
   const leftPercent = column * widthPercent;
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDragStart = (e: React.DragEvent) => {
+    const dragEvent = e as unknown as DragEvent;
+    dragEvent.dataTransfer!.effectAllowed = 'move';
     
-    if (!onEventDrop || !weekDayDate) return;
-
-    const container = (e.currentTarget as HTMLElement).parentElement;
-    if (!container) return;
-
-    const rect = container.getBoundingClientRect();
-    const dropY = e.clientY - rect.top;
-    const containerHeight = rect.height;
+    // Capture la position relative du click par rapport au haut de l'élément
+    const element = e.currentTarget as HTMLElement;
+    const elementRect = element.getBoundingClientRect();
+    const clickYRelative = e.clientY - elementRect.top;
     
-    // Calculate hour based on drop position within the day container
-    const hourOffset = (dropY / containerHeight) * (endHour - startHour);
-    const newHour = Math.max(startHour, Math.min(endHour - 1, Math.floor(startHour + hourOffset)));
-    const newMinutes = Math.round(((startHour + hourOffset) % 1) * 60);
+    if (dragRef.current) {
+      dragRef.current.style.opacity = '0.5';
+    }
+    
+    const data = { 
+      ...item,
+      __dragStartOffsetY: clickYRelative // Position du click par rapport au haut
+    };
+    dragEvent.dataTransfer!.setData('application/json', JSON.stringify(data));
+  };
 
-    // weekDayDate is the date for this column's day
-    onEventDrop(item, weekDayDate, newHour, newMinutes);
+  const handleDragEnd = (e: React.DragEvent) => {
+    if (dragRef.current) {
+      dragRef.current.style.opacity = '1';
+    }
+  };
+
+  interface EventItemProps {
+    startTime: number;
+    endTime: number;
+    duration: number;
+    displayStartTime?: number;
+    displayEndTime?: number;
+  }
+
+  const EventItem: React.FC<EventItemProps> = ({
+    startTime,
+    endTime,
+    duration,
+    displayStartTime,
+    displayEndTime,
+  }) => {
+    const { topOffset, heightPx } = calculateEventPosition(
+      startTime,
+      endTime,
+      startHour,
+      endHour,
+      hoursLength
+    );
+
+    return (
+      <motion.div
+        ref={dragRef}
+        draggable
+        initial={false}
+        className="absolute rounded-sm p-1.5 cursor-move transition-colors group text-xs overflow-hidden z-10 hover:opacity-80"
+        style={{
+          top: `${topOffset}px`,
+          height: `${heightPx}px`,
+          left: `${leftPercent}%`,
+          width: `${widthPercent}%`,
+          minHeight: '24px',
+          borderLeft: `4px solid ${colors.border}`,
+          backgroundColor: colors.bg,
+          color: colors.text,
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.hover)}
+        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.bg)}
+        onClick={() => onViewDetail(item)}
+        onDragStart={(e: any) => handleDragStart(e)}
+        onDragEnd={(e: any) => handleDragEnd(e)}
+      >
+        <div className="font-medium truncate">{getNameValue(item)}</div>
+        <div className="text-[10px] opacity-70">
+          {(() => {
+            const dStart = displayStartTime ?? startTime;
+            const dEnd = displayEndTime ?? endTime;
+            const startH = Math.floor(dStart);
+            const startM = Math.round((dStart - startH) * 60);
+            const endH = Math.floor(dEnd);
+            const endM = Math.round((dEnd - endH) * 60);
+            return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
+          })()}
+        </div>
+        {visibleMetaFields.map((field: any) => {
+          const val = formatFieldValueUtil(item, field, collections);
+          return val ? (
+            <div key={field.id} className="text-[9px] opacity-60 truncate">
+              {field.name}: {val}
+            </div>
+          ) : null;
+        })}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onReduceDuration(item, duration);
+          }}
+          className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <Trash2 size={10} />
+        </button>
+      </motion.div>
+    );
   };
 
   // If event overlaps with break, split it into two parts
@@ -84,206 +167,35 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     return (
       <Fragment key={`${item.id}-${multiDayIndex}`}>
         {beforeBreakDuration > 0 && (
-          <motion.div
-            draggable
-            onDragStart={(e: any) => {
-              const dragEvent = e as DragEvent;
-              dragEvent.dataTransfer!.effectAllowed = 'move';
-              const element = e.currentTarget as HTMLElement;
-              const height = element.offsetHeight;
-              const data = { ...item, __dragHeight: height };
-              dragEvent.dataTransfer!.setData('application/json', JSON.stringify(data));
-            }}
-            onDrop={handleDrop}
-            onDragOver={(e: any) => {
-              e.preventDefault();
-              const dragEvent = e as DragEvent;
-              dragEvent.dataTransfer!.dropEffect = 'move';
-            }}
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute p-1.5 cursor-move transition-colors group text-xs overflow-hidden z-10 rounded-sm hover:opacity-80"
-            style={{
-              top: `${calculateEventPosition(dayStartTime, beforeBreakEnd, startHour, endHour, hoursLength).topOffset}px`,
-              height: `${calculateEventPosition(dayStartTime, beforeBreakEnd, startHour, endHour, hoursLength).heightPx}px`,
-              left: `${leftPercent}%`,
-              width: `${widthPercent}%`,
-              minHeight: '24px',
-              borderLeft: `4px solid ${colors.border}`,
-              backgroundColor: colors.bg,
-              color: colors.text,
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.hover)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.bg)}
-            onClick={() => onViewDetail(item)}
-          >
-            <div className="font-medium truncate">{getNameValue(item)}</div>
-            <div className="text-[10px] opacity-70">
-              {(() => {
-                const startH = Math.floor(dayStartTime);
-                const startM = Math.round((dayStartTime - startH) * 60);
-                return `${formatTimeDisplay(startH, startM)} - 12:00`;
-              })()}
-            </div>
-            {visibleMetaFields.map((field: any) => {
-              const val = formatFieldValueUtil(item, field, collections);
-              return val ? (
-                <div key={field.id} className="text-[9px] opacity-60 truncate">
-                  {field.name}: {val}
-                </div>
-              ) : null;
-            })}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onReduceDuration(item, beforeBreakDuration);
-              }}
-              className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <Trash2 size={10} />
-            </button>
-          </motion.div>
+          <EventItem
+            startTime={dayStartTime}
+            endTime={beforeBreakEnd}
+            duration={beforeBreakDuration}
+            displayEndTime={breakStart}
+          />
         )}
 
         {afterBreakDuration > 0 && (
-          <motion.div
-            draggable
-            onDragStart={(e: any) => {
-              const dragEvent = e as DragEvent;
-              dragEvent.dataTransfer!.effectAllowed = 'move';
-              const element = e.currentTarget as HTMLElement;
-              const height = element.offsetHeight;
-              const data = { ...item, __dragHeight: height };
-              dragEvent.dataTransfer!.setData('application/json', JSON.stringify(data));
-            }}
-            onDrop={handleDrop}
-            onDragOver={(e: any) => {
-              e.preventDefault();
-              const dragEvent = e as DragEvent;
-              dragEvent.dataTransfer!.dropEffect = 'move';
-            }}
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute p-1.5 cursor-move transition-colors group text-xs overflow-hidden z-10 rounded-sm hover:opacity-80"
-            style={{
-              top: `${calculateEventPosition(afterBreakStart, dayEndTime, startHour, endHour, hoursLength).topOffset}px`,
-              height: `${calculateEventPosition(afterBreakStart, dayEndTime, startHour, endHour, hoursLength).heightPx}px`,
-              left: `${leftPercent}%`,
-              width: `${widthPercent}%`,
-              minHeight: '24px',
-              borderLeft: `4px solid ${colors.border}`,
-              backgroundColor: colors.bg,
-              color: colors.text,
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.hover)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.bg)}
-            onClick={() => onViewDetail(item)}
-          >
-            <div className="font-medium truncate">{getNameValue(item)}</div>
-            <div className="text-[10px] opacity-70">
-              {(() => {
-                const startH = Math.floor(afterBreakStart);
-                const startM = Math.round((afterBreakStart - startH) * 60);
-                const endH = Math.floor(dayEndTime);
-                const endM = Math.round((dayEndTime - endH) * 60);
-                return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
-              })()}
-            </div>
-            {visibleMetaFields.map((field: any) => {
-              const val = formatFieldValueUtil(item, field, collections);
-              return val ? (
-                <div key={field.id} className="text-[9px] opacity-60 truncate">
-                  {field.name}: {val}
-                </div>
-              ) : null;
-            })}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onReduceDuration(item, afterBreakDuration);
-              }}
-              className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <Trash2 size={10} />
-            </button>
-          </motion.div>
+          <EventItem
+            startTime={afterBreakStart}
+            endTime={dayEndTime}
+            duration={afterBreakDuration}
+            displayStartTime={afterBreakStart}
+          />
         )}
       </Fragment>
     );
   }
 
   const dayDuration = dayEndTime - dayStartTime;
-  const { topOffset, heightPx } = calculateEventPosition(
-    dayStartTime,
-    dayEndTime,
-    startHour,
-    endHour,
-    hoursLength
-  );
 
   return (
-    <motion.div
+    <EventItem
       key={`${item.id}-${multiDayIndex}`}
-      draggable
-      onDragStart={(e: any) => {
-        const dragEvent = e as DragEvent;
-        dragEvent.dataTransfer!.effectAllowed = 'move';
-        const element = e.currentTarget as HTMLElement;
-        const height = element.offsetHeight;
-        const data = { ...item, __dragHeight: height };
-        dragEvent.dataTransfer!.setData('application/json', JSON.stringify(data));
-      }}
-      onDrop={handleDrop}
-      onDragOver={(e: any) => {
-        e.preventDefault();
-        const dragEvent = e as DragEvent;
-        dragEvent.dataTransfer!.dropEffect = 'move';
-      }}
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="absolute rounded-sm p-1.5 cursor-move transition-colors group text-xs overflow-hidden z-10 hover:opacity-80"
-      style={{
-        top: `${topOffset}px`,
-        height: `${heightPx}px`,
-        left: `${leftPercent}%`,
-        width: `${widthPercent}%`,
-        minHeight: '24px',
-        borderLeft: `4px solid ${colors.border}`,
-        backgroundColor: colors.bg,
-        color: colors.text,
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.hover)}
-      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.bg)}
-      onClick={() => onViewDetail(item)}
-    >
-      <div className="font-medium truncate">{getNameValue(item)}</div>
-      <div className="text-[10px] opacity-70">
-        {(() => {
-          const startH = Math.floor(dayStartTime);
-          const startM = Math.round((dayStartTime - startH) * 60);
-          const endH = Math.floor(dayEndTime);
-          const endM = Math.round((dayEndTime - endH) * 60);
-          return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
-        })()}
-      </div>
-      {visibleMetaFields.map((field: any) => {
-        const val = formatFieldValueUtil(item, field, collections);
-        return val ? (
-          <div key={field.id} className="text-[9px] opacity-60 truncate">
-            {field.name}: {val}
-          </div>
-        ) : null;
-      })}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onReduceDuration(item, dayDuration);
-        }}
-        className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <Trash2 size={10} />
-      </button>
-    </motion.div>
+      startTime={dayStartTime}
+      endTime={dayEndTime}
+      duration={dayDuration}
+    />
   );
 };
 

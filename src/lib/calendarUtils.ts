@@ -412,3 +412,64 @@ export const calculateEventPosition = (
   const heightPx = ((endTime - startTime) / totalHours) * (hoursLength * 96);
   return { topOffset, heightPx };
 };
+
+/**
+ * Drag and Drop utilities
+ */
+
+export interface DragDropInfo {
+  dropY: number; // Position du drop en pixels par rapport au container
+  containerHeight: number;
+  elementTop: number; // Position du haut de l'élément en cours de drag
+  startHour: number;
+  endHour: number;
+}
+
+/**
+ * Calculate the drop time based on the position where the user is dragging
+ * This accounts for the top of the element being dragged
+ * Snaps to nearest 15 minutes
+ */
+export const calculateDropTime = (dragDropInfo: DragDropInfo): { hour: number; minutes: number } => {
+  const { dropY, containerHeight, elementTop, startHour, endHour } = dragDropInfo;
+  
+  // La position de drop considère le haut de l'élément
+  const adjustedDropY = dropY;
+  
+  const totalHours = endHour - startHour;
+  const hourOffset = (adjustedDropY / containerHeight) * totalHours;
+  const newHourDecimal = startHour + hourOffset;
+  
+  // Snap to nearest 15 minutes
+  // Convert to minutes, round to nearest 15, convert back
+  const totalMinutes = newHourDecimal * 60;
+  const snappedMinutes = Math.round(totalMinutes / 15) * 15;
+  const snappedHourDecimal = snappedMinutes / 60;
+  
+  const hour = Math.floor(snappedHourDecimal);
+  const minutes = Math.round((snappedHourDecimal % 1) * 60);
+  
+  // Clamp to valid range
+  const clampedHour = Math.max(startHour, Math.min(endHour - 1, hour));
+  
+  return {
+    hour: clampedHour,
+    minutes: clampedHour === hour ? minutes : (hour < startHour ? 0 : 59),
+  };
+};
+
+/**
+ * Calculate the visual position for the drag preview indicator (blue line)
+ * Returns the Y position for a thin line that shows where the element will be dropped
+ */
+export const calculateDropIndicatorPosition = (
+  dropY: number,
+  containerHeight: number,
+  startHour: number,
+  endHour: number,
+  hoursLength: number
+): number => {
+  // La ligne doit être à la position du curseur (ou près de là)
+  // Elle montre où le haut de l'élément sera déposé
+  return dropY;
+};
