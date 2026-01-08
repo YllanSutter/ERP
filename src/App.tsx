@@ -330,6 +330,7 @@ const App = () => {
                     groupBy={currentViewConfig?.groupBy}
                     hiddenFields={currentViewConfig?.hiddenFields || []}
                     filters={currentViewConfig?.filters || []}
+                    orderedProperties={orderedProperties}
                     onChangeGroupBy={(groupBy: string) => {
                       const updatedViews = { ...views } as Record<string, any[]>;
                       const viewIndex = updatedViews[activeCollection].findIndex(

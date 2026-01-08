@@ -19,9 +19,10 @@ interface KanbanViewProps {
   onRelationChange?: (property: any, item: any, value: any) => void;
   onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
   filters?: any[];
+  orderedProperties?: any[];
 }
 
-const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDelete, onViewDetail, groupBy, hiddenFields = [], onChangeGroupBy, collections = [], onRelationChange, onNavigateToCollection, filters = [] }) => {
+const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDelete, onViewDetail, groupBy, hiddenFields = [], onChangeGroupBy, collections = [], onRelationChange, onNavigateToCollection, filters = [], orderedProperties }) => {
   const [draggedItem, setDraggedItem] = useState<any>(null);
   
   // Hooks de permissions
@@ -213,22 +214,47 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                     )}
                   >
                     {/* Title with Grip */}
-                    <div className="flex gap-2 items-start">
-                      {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0 mt-1" />}
-                      <button
-                        onClick={() => onViewDetail(item)}
-                        className="font-medium text-cyan-400 hover:text-cyan-300 hover:underline text-sm flex-1 line-clamp-2 text-left"
-                      >
-                        {getNameValue(item)}
-                      </button>
+                    <div className="flex gap-2 items-center">
+                      {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}
+                      {(() => {
+                        const firstProp = (orderedProperties || collection.properties).find((p: any) => 
+                          !hiddenFields.includes(p.id) && canViewFieldFn(p.id)
+                        );
+                        if (!firstProp) return (
+                          <button
+                            onClick={() => onViewDetail(item)}
+                            className="font-medium text-cyan-400 hover:text-cyan-300 hover:underline text-sm flex-1 line-clamp-2 text-left"
+                          >
+                            {getNameValue(item)}
+                          </button>
+                        );
+                        return (
+                          <div className="flex-1 flex items-center gap-2">
+                            <span className="text-neutral-500 text-xs">{firstProp.name}:</span>
+                            <div className="flex-1">
+                              <EditableProperty
+                                property={firstProp}
+                                value={item[firstProp.id]}
+                                onChange={(val) => onEdit({...item, [firstProp.id]: val})}
+                                size="sm"
+                                collections={collections}
+                                currentItem={item}
+                                onRelationChange={onRelationChange}
+                                onNavigateToCollection={onNavigateToCollection}
+                                readOnly={!canEdit || !canEditFieldFn(firstProp.id)}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Editable Properties */}
                     <div className="space-y-2">
-                      {collection.properties
+                      {(orderedProperties || collection.properties)
+                        .slice(1)
                         .filter((prop: any) => 
                           !hiddenFields.includes(prop.id) && 
-                          prop.id !== 'name' && 
                           canViewFieldFn(prop.id)
                         )
                         .map((prop: any) => (
@@ -249,17 +275,23 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                         ))}
                     </div>
 
-                    {/* Delete Button */}
-                    {canEdit && (
-                      <div className="flex justify-end pt-2">
+                    {/* Action Buttons */}
+                    <div className="flex justify-end gap-2 pt-2 absolute -top-7 left-1">
+                      <button
+                        onClick={() => onViewDetail(item)}
+                        className="px-2 py-0.5 rounded text-xs text-white bg-blue-500/20 hover:bg-blue-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
+                      >
+                        Éditer
+                      </button>
+                      {canEdit && (
                         <button
                           onClick={() => onDelete(item.id)}
-                          className="px-2 py-1 rounded text-xs text-red-300 hover:bg-red-500/20 transition-colors opacity-0 group-hover:opacity-100"
+                          className="px-2 py-0.5 rounded text-xs text-white bg-red-500/20 hover:bg-red-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
                         >
                           Supprimer
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </motion.div>
                 ))
               )}

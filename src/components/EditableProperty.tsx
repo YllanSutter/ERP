@@ -219,7 +219,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
         <PopoverTrigger asChild>
           <button
             className={cn(
-              "p-1 hover:bg-white/5  text-neutral-200 opacity-30 hover:opacity-100 transition-all duration-300 text-xs text-neutral-300 -ml-2",
+              "p-1 hover:bg-white/5  opacity-30 hover:opacity-100 transition-all duration-300 text-xs text-neutral-300 -ml-2",
               sizeClasses[size]
             )}
             title="Voir les éléments liés"
@@ -682,6 +682,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                    property.type === 'url' ? 'url' :
                    property.type === 'phone' ? 'tel' : 'text';
 
+  const textLength = (value || '').toString().length;
+  const width = Math.max(textLength + 2, 5) + 'ch';
+
   return (
     <input
       type={inputType}
@@ -689,8 +692,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       onChange={(e) => onChange(e.target.value)}
       placeholder={value ? '' : '-'}
       disabled={readOnly}
+      style={{ width }}
       className={cn(
-        "w-full px-2 py-1 bg-transparent border border-transparent text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+        "min-w-full px-2 py-1 bg-transparent border border-transparent text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap",
         sizeClasses[size],
         className
       )}
