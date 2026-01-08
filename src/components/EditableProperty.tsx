@@ -18,6 +18,7 @@ interface EditablePropertyProps {
   onViewDetail?: () => void;
   className?: string;
   readOnly?: boolean;
+  disableNameLink?: boolean; // Désactive le lien cliquable pour le champ nom (pour édition directe)
   // Relations support
   collections?: any[];
   currentItem?: any;
@@ -34,6 +35,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   onViewDetail,
   className,
   readOnly = false,
+  disableNameLink = false,
   collections,
   currentItem,
   onRelationChange,
@@ -45,8 +47,8 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     lg: 'text-base h-9'
   };
 
-  // Si c'est le champ nom et qu'on a un callback de détail, afficher comme un lien
-  if (isNameField && onViewDetail) {
+  // Si c'est le champ nom et qu'on a un callback de détail, afficher comme un lien (sauf si désactivé)
+  if (isNameField && onViewDetail && !disableNameLink) {
     return (
       <button
         onClick={onViewDetail}
@@ -307,6 +309,37 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
     if (!isSourceMany) {
       // Sélection légère: chip + bouton +
+      const [searchQuery, setSearchQuery] = useState('');
+      const [newItemData, setNewItemData] = useState<any>({});
+      const [isCreating, setIsCreating] = useState(false);
+
+      const filteredItems = targetItems.filter((ti: any) => 
+        getItemName(ti).toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+      const handleCreateNew = () => {
+        const nameField = targetCollection?.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
+        const nameValue = newItemData[nameField?.id || 'name'];
+        if (!nameValue || !nameValue.trim()) return;
+        
+        // Créer un nouvel élément dans la collection cible avec tous les champs
+        const newItem = {
+          id: `new_${Date.now()}`,
+          ...newItemData,
+        };
+        
+        // Ajouter à la collection cible
+        targetCollection.items.push(newItem);
+        
+        // Sélectionner le nouvel élément
+        onRelationChange(property, currentItem, newItem.id);
+        
+        // Réinitialiser
+        setNewItemData({});
+        setIsCreating(false);
+        setSearchQuery('');
+      };
+
       return (
         <div className={cn("flex items-center gap-2", className)}>
           <div className="flex flex-wrap gap-1 flex-1">
@@ -330,23 +363,115 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                   <Icons.Plus size={14} />
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
-                <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
-                  <button
-                    className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-300"
-                    onClick={() => onRelationChange(property, currentItem, null)}
-                  >
-                    Aucun
-                  </button>
-                  {targetItems.map((ti: any) => (
-                    <button
-                      key={ti.id}
-                      className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-100"
-                      onClick={() => onRelationChange(property, currentItem, ti.id)}
-                    >
-                      {getItemName(ti)}
-                    </button>
-                  ))}
+              <PopoverContent className="w-80 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
+                <div className="space-y-2">
+                  {/* Champ de recherche */}
+                  {!isCreating && (
+                    <div className="relative">
+                      <Icons.Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500" />
+                      <input
+                        type="text"
+                        placeholder="Rechercher..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-8 pr-2 py-1.5 bg-neutral-800/50 border border-white/10 rounded text-sm text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {/* Création d'un nouvel élément */}
+                  {isCreating ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                        <span className="text-sm font-medium text-white">Nouvel élément</span>
+                        <button
+                          onClick={() => { setIsCreating(false); setNewItemData({}); }}
+                          className="text-neutral-400 hover:text-white"
+                        >
+                          <Icons.X size={16} />
+                        </button>
+                      </div>
+                      
+                      {/* Formulaire complet */}
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {targetCollection?.properties?.map((prop: any) => {
+                          if (prop.type === 'relation') return null; // Skip relations dans la création rapide
+                          
+                          return (
+                            <div key={prop.id}>
+                              <label className="block text-xs font-medium text-neutral-400 mb-1">
+                                {prop.name}
+                              </label>
+                              <EditableProperty
+                                property={prop}
+                                value={newItemData[prop.id]}
+                                onChange={(val) => setNewItemData({ ...newItemData, [prop.id]: val })}
+                                size="sm"
+                                collections={collections}
+                                currentItem={newItemData}
+                                onRelationChange={() => {}}
+                                readOnly={false}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex gap-2 pt-2 border-t border-white/10">
+                        <button
+                          onClick={handleCreateNew}
+                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-violet-600 hover:bg-violet-700 rounded text-sm text-white font-medium"
+                        >
+                          <Icons.Check size={14} />
+                          Créer et lier
+                        </button>
+                        <button
+                          onClick={() => { setIsCreating(false); setNewItemData({}); }}
+                          className="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 rounded text-sm text-white"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setIsCreating(true)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 rounded text-sm text-violet-300"
+                      >
+                        <Icons.Plus size={14} />
+                        Créer nouveau
+                      </button>
+
+                      {/* Liste des éléments */}
+                      <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
+                        <button
+                          className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-300"
+                          onClick={() => {
+                            onRelationChange(property, currentItem, null);
+                            setSearchQuery('');
+                          }}
+                        >
+                          Aucun
+                        </button>
+                        {filteredItems.map((ti: any) => (
+                          <button
+                            key={ti.id}
+                            className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-100"
+                            onClick={() => {
+                              onRelationChange(property, currentItem, ti.id);
+                              setSearchQuery('');
+                            }}
+                          >
+                            {getItemName(ti)}
+                          </button>
+                        ))}
+                        {filteredItems.length === 0 && searchQuery && (
+                          <div className="text-xs text-neutral-500 px-2 py-1">Aucun résultat</div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </PopoverContent>
             </Popover>
@@ -358,6 +483,38 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
     // Sélection multiple via popover + chips
     const selectedIds = Array.isArray(value) ? value : [];
+    const [searchQueryMulti, setSearchQueryMulti] = useState('');
+    const [newItemDataMulti, setNewItemDataMulti] = useState<any>({});
+    const [isCreatingMulti, setIsCreatingMulti] = useState(false);
+
+    const filteredItemsMulti = targetItems.filter((ti: any) => 
+      getItemName(ti).toLowerCase().includes(searchQueryMulti.toLowerCase())
+    );
+
+    const handleCreateNewMulti = () => {
+      const nameField = targetCollection?.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
+      const nameValue = newItemDataMulti[nameField?.id || 'name'];
+      if (!nameValue || !nameValue.trim()) return;
+      
+      // Créer un nouvel élément dans la collection cible avec tous les champs
+      const newItem = {
+        id: `new_${Date.now()}`,
+        ...newItemDataMulti,
+      };
+      
+      // Ajouter à la collection cible
+      targetCollection.items.push(newItem);
+      
+      // Ajouter aux éléments sélectionnés
+      const next = [...selectedIds, newItem.id];
+      onRelationChange(property, currentItem, next);
+      
+      // Réinitialiser
+      setNewItemDataMulti({});
+      setIsCreatingMulti(false);
+      setSearchQueryMulti('');
+    };
+
     return (
       <div className={cn("flex items-center gap-2", className)}>
         <div className="flex flex-wrap gap-1 flex-1">
@@ -384,28 +541,115 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                 <Icons.Plus size={14} />
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
-              <div className="space-y-1 max-h-64 overflow-y-auto">
-                {targetItems.map((ti: any) => {
-                  const checked = selectedIds.includes(ti.id);
-                  return (
-                    <label key={ti.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5 text-sm text-white">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          const next = e.target.checked
-                            ? [...selectedIds, ti.id]
-                            : selectedIds.filter((id: string) => id !== ti.id);
-                          onRelationChange(property, currentItem, next);
-                        }}
-                      />
-                      <span className="truncate">{getItemName(ti)}</span>
-                    </label>
-                  );
-                })}
-                {targetItems.length === 0 && (
-                  <div className="text-xs text-neutral-500 px-2 py-1">Aucun élément dans la collection</div>
+            <PopoverContent className="w-80 p-2 bg-neutral-900 border-neutral-700 z-[300]" align="start">
+              <div className="space-y-2">
+                {/* Champ de recherche */}
+                {!isCreatingMulti && (
+                  <div className="relative">
+                    <Icons.Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500" />
+                    <input
+                      type="text"
+                      placeholder="Rechercher..."
+                      value={searchQueryMulti}
+                      onChange={(e) => setSearchQueryMulti(e.target.value)}
+                      className="w-full pl-8 pr-2 py-1.5 bg-neutral-800/50 border border-white/10 rounded text-sm text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+                    />
+                  </div>
+                )}
+
+                {/* Création d'un nouvel élément */}
+                {isCreatingMulti ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                      <span className="text-sm font-medium text-white">Nouvel élément</span>
+                      <button
+                        onClick={() => { setIsCreatingMulti(false); setNewItemDataMulti({}); }}
+                        className="text-neutral-400 hover:text-white"
+                      >
+                        <Icons.X size={16} />
+                      </button>
+                    </div>
+                    
+                    {/* Formulaire complet */}
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {targetCollection?.properties?.map((prop: any) => {
+                        if (prop.type === 'relation') return null; // Skip relations dans la création rapide
+                        
+                        return (
+                          <div key={prop.id}>
+                            <label className="block text-xs font-medium text-neutral-400 mb-1">
+                              {prop.name}
+                            </label>
+                            <EditableProperty
+                              property={prop}
+                              value={newItemDataMulti[prop.id]}
+                              onChange={(val) => setNewItemDataMulti({ ...newItemDataMulti, [prop.id]: val })}
+                              size="sm"
+                              collections={collections}
+                              currentItem={newItemDataMulti}
+                              onRelationChange={() => {}}
+                              readOnly={false}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex gap-2 pt-2 border-t border-white/10">
+                      <button
+                        onClick={handleCreateNewMulti}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-violet-600 hover:bg-violet-700 rounded text-sm text-white font-medium"
+                      >
+                        <Icons.Check size={14} />
+                        Créer et lier
+                      </button>
+                      <button
+                        onClick={() => { setIsCreatingMulti(false); setNewItemDataMulti({}); }}
+                        className="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 rounded text-sm text-white"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setIsCreatingMulti(true)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 rounded text-sm text-violet-300"
+                    >
+                      <Icons.Plus size={14} />
+                      Créer nouveau
+                    </button>
+
+                    {/* Liste des éléments */}
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
+                      {filteredItemsMulti.map((ti: any) => {
+                        const checked = selectedIds.includes(ti.id);
+                        return (
+                          <label key={ti.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5 text-sm text-white cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                const next = e.target.checked
+                                  ? [...selectedIds, ti.id]
+                                  : selectedIds.filter((id: string) => id !== ti.id);
+                                onRelationChange(property, currentItem, next);
+                              }}
+                              className="cursor-pointer"
+                            />
+                            <span className="truncate">{getItemName(ti)}</span>
+                          </label>
+                        );
+                      })}
+                      {filteredItemsMulti.length === 0 && searchQueryMulti && (
+                        <div className="text-xs text-neutral-500 px-2 py-1">Aucun résultat</div>
+                      )}
+                      {targetItems.length === 0 && !searchQueryMulti && (
+                        <div className="text-xs text-neutral-500 px-2 py-1">Aucun élément dans la collection</div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </PopoverContent>

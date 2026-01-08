@@ -50,7 +50,7 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
               <Icons.Plus size={14} />
             </button>
           </PopoverTrigger>
-        <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700" align="start">
+        <PopoverContent className="w-64 p-2 bg-neutral-900 border-neutral-700 z-[400]" align="start">
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {options.map((opt) => {
               const optValue = getOptionValue(opt);

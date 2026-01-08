@@ -970,7 +970,7 @@ const App = () => {
                                 const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
                                 return (
                                   <div className={cn(
-                                    "flex items-center gap-3 text-sm text-neutral-300 p-2 rounded transition-colors hover:bg-white/5",
+                                    "flex items-center gap-3 text-sm text-neutral-300 p-2 transition-colors hover:bg-white/5  border-b border-[#ffffff20]",
                                     isDragging && "border border-cyan-500/60"
                                   )}>
                                     <div className="text-neutral-500 cursor-grab">

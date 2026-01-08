@@ -59,6 +59,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
             size="md"
             isNameField={prop.id === 'name' || prop.name === 'Nom'}
             onViewDetail={prop.id === 'name' || prop.name === 'Nom' ? () => onViewDetail(item) : undefined}
+            disableNameLink={true}
             collections={collections}
             currentItem={item}
             onRelationChange={onRelationChange}
