@@ -495,6 +495,15 @@ const App = () => {
               return itemVal.includes(fVal);
             }
             return itemVal === fVal;
+          case 'not_equals':
+            if (isArrayVal) {
+              if (Array.isArray(fVal)) {
+                // Doesn't match any selected value
+                return !fVal.some((v: any) => itemVal.includes(v));
+              }
+              return !itemVal.includes(fVal);
+            }
+            return itemVal !== fVal;
           case 'contains':
             if (isArrayVal) {
               if (Array.isArray(fVal)) {

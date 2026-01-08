@@ -17,6 +17,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
   const [value, setValue] = useState<any>('');
   const operators = [
     { value: 'equals', label: 'Est égal à' },
+    { value: 'not_equals', label: 'Est différent de' },
     { value: 'contains', label: 'Contient' },
     { value: 'greater', label: 'Supérieur à' },
     { value: 'less', label: 'Inférieur à' },
