@@ -25,7 +25,7 @@ interface EditablePropertyProps {
   onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
 }
 
-const EditableProperty: React.FC<EditablePropertyProps> = ({
+const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   property,
   value,
   onChange,
@@ -452,6 +452,8 @@ const EditableProperty: React.FC<EditablePropertyProps> = ({
       )}
     />
   );
-};
+});
+
+EditableProperty.displayName = 'EditableProperty';
 
 export default EditableProperty;

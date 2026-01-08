@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
 import EditableProperty from '@/components/EditableProperty';
 import { cn } from '@/lib/utils';
@@ -25,11 +25,11 @@ interface TableViewProps {
   canEditField?: (fieldId: string) => boolean;
 }
 
-interface GroupNode {
-  key: string;
-  label: string;
-  items?: any[];
-  children?: Record<string, GroupNode>;
+interface GroupedItems {
+  [groupPath: string]: {
+    itemIds: string[];
+    subGroups: string[];
+  };
 }
 
 const TableView: React.FC<TableViewProps> = ({
@@ -51,55 +51,74 @@ const TableView: React.FC<TableViewProps> = ({
   canEdit = true,
   canEditField = () => true,
 }) => {
-  // Construire la hiérarchie de groupes et collectionner tous les chemins
-  const { groupedData, allGroupPaths } = useMemo(() => {
-    if (!groups || groups.length === 0) return { groupedData: null, allGroupPaths: [] };
+  // Indexer les items par ID pour accès O(1)
+  const itemsMap = useMemo(() => {
+    const map = new Map<string, any>();
+    items.forEach(item => map.set(item.id, item));
+    return map;
+  }, [items]);
 
-    const paths: string[] = [];
+  // Nouvelle logique de groupage : structure plate avec IDs uniquement
+  const groupedStructure = useMemo(() => {
+    if (!groups || groups.length === 0) return null;
 
-    const buildGroupTree = (items: any[], groupProperties: any[], depth: number = 0, parentPath: string = 'group'): GroupNode => {
-      if (depth >= groupProperties.length) {
-        return { key: 'items', label: '', items };
+    const structure: GroupedItems = {};
+    const rootGroups = new Set<string>();
+
+    // Pour chaque item, construire son chemin de groupe
+    items.forEach(item => {
+      let currentPath = '';
+      
+      for (let depth = 0; depth < groups.length; depth++) {
+        const groupId = groups[depth];
+        const prop = collection.properties.find((p: any) => p.id === groupId);
+        if (!prop) continue;
+
+        const groupValue = String(item[groupId] || '(vide)');
+        const parentPath = currentPath;
+        currentPath = currentPath ? `${currentPath}/${groupValue}` : groupValue;
+
+        // Initialiser ce niveau de groupe s'il n'existe pas
+        if (!structure[currentPath]) {
+          structure[currentPath] = { itemIds: [], subGroups: [] };
+        }
+
+        // Si c'est le dernier niveau de groupage, ajouter l'item
+        if (depth === groups.length - 1) {
+          if (!structure[currentPath].itemIds.includes(item.id)) {
+            structure[currentPath].itemIds.push(item.id);
+          }
+        }
+
+        // Enregistrer ce groupe comme sous-groupe de son parent
+        if (parentPath && !structure[parentPath].subGroups.includes(currentPath)) {
+          structure[parentPath].subGroups.push(currentPath);
+        } else if (!parentPath) {
+          rootGroups.add(currentPath.split('/')[0]);
+        }
       }
+    });
 
-      const prop = groupProperties[depth];
-      const grouped: Record<string, any[]> = {};
+    return { structure, rootGroups: Array.from(rootGroups) };
+  }, [items, groups, collection.properties]);
 
-      items.forEach(item => {
-        const groupKey = String(item[prop.id] || '(vide)');
-        if (!grouped[groupKey]) grouped[groupKey] = [];
-        grouped[groupKey].push(item);
-      });
+  // Initialiser les groupes ouverts
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
+    if (!groupedStructure) return new Set();
+    return new Set(Object.keys(groupedStructure.structure));
+  });
 
-      const children: Record<string, GroupNode> = {};
-      Object.entries(grouped).forEach(([key, groupItems]) => {
-        const groupPath = `${parentPath}/${key}`;
-        paths.push(groupPath);
-        children[key] = buildGroupTree(groupItems, groupProperties, depth + 1, groupPath);
-      });
-
-      return {
-        key: 'root',
-        label: '',
-        children
-      };
-    };
-
-    const groupProperties = groups
-      .map((groupId: string) => collection.properties.find((p: any) => p.id === groupId))
-      .filter(Boolean);
-
-    const tree = buildGroupTree(items, groupProperties);
-    return { groupedData: tree, allGroupPaths: paths };
-  }, [items, groups, collection]);
-
-  // Initialiser avec tous les groupes ouverts par défaut
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(allGroupPaths));
-
-  // Mettre à jour expandedGroups quand les données changent
+  // Mettre à jour les groupes ouverts pour les nouveaux groupes uniquement
   React.useEffect(() => {
-    setExpandedGroups(new Set(allGroupPaths));
-  }, [allGroupPaths]);
+    if (!groupedStructure) return;
+    setExpandedGroups(prev => {
+      const newGroups = Object.keys(groupedStructure.structure).filter(path => !prev.has(path));
+      if (newGroups.length === 0) return prev;
+      const next = new Set(prev);
+      newGroups.forEach(path => next.add(path));
+      return next;
+    });
+  }, [groupedStructure]);
 
   if (!collection) {
     return (
@@ -132,126 +151,115 @@ const TableView: React.FC<TableViewProps> = ({
     return String(value);
   };
 
+  // Fonction de rendu récursive pour les groupes
+  const renderGroup = (groupPath: string, depth: number): React.ReactNode => {
+    if (!groupedStructure) return null;
 
-  // Composant pour afficher un groupe
-  const countItemsInNode = (node: GroupNode): number => {
-    if (node.items && node.items.length > 0) {
-      return node.items.length;
-    }
-    if (node.children) {
-      return Object.values(node.children).reduce((total, child) => total + countItemsInNode(child), 0);
-    }
-    return 0;
-  };
+    const groupData = groupedStructure.structure[groupPath];
+    if (!groupData) return null;
 
-  const GroupSection: React.FC<{ node: GroupNode; property: any; depth: number; parentPath: string }> = ({ 
-    node, 
-    property, 
-    depth, 
-    parentPath 
-  }) => {
-    if (!node.children) return null;
+    const pathParts = groupPath.split('/');
+    const groupValue = pathParts[pathParts.length - 1];
+    const groupId = groups[depth];
+    const property = collection.properties.find((p: any) => p.id === groupId);
+    if (!property) return null;
+
+    const isExpanded = expandedGroups.has(groupPath);
+    const label = getGroupLabel(property, groupValue === '(vide)' ? undefined : groupValue);
+    
+    // Compter récursivement tous les items dans ce groupe et ses sous-groupes
+    const countItems = (path: string): number => {
+      const data = groupedStructure.structure[path];
+      if (!data) return 0;
+      return data.itemIds.length + 
+        data.subGroups.reduce((sum, subPath) => sum + countItems(subPath), 0);
+    };
+    const itemCount = countItems(groupPath);
 
     return (
-      <>
-        {Object.entries(node.children).map(([key, childNode]) => {
-          const groupPath = `${parentPath}/${key}`;
-          const isExpanded = expandedGroups.has(groupPath);
-          const label = getGroupLabel(property, key === '(vide)' ? undefined : key);
-          const itemCount = countItemsInNode(childNode);
+      <React.Fragment key={groupPath}>
+        {/* Group Header */}
+        <tr className="bg-neutral-800/40 hover:bg-neutral-800/60 border-b border-white/5">
+          <td colSpan={visibleProperties.length + (canEdit ? 1 : 0)} className="px-6 py-3">
+            <button
+              onClick={() => {
+                const next = new Set(expandedGroups);
+                if (next.has(groupPath)) {
+                  next.delete(groupPath);
+                } else {
+                  next.add(groupPath);
+                }
+                setExpandedGroups(next);
+              }}
+              className="flex items-center gap-2 text-sm font-semibold text-white hover:text-cyan-400 transition-colors"
+            >
+              <motion.div
+                animate={{ rotate: isExpanded ? 90 : 0 }}
+                className="flex items-center justify-center"
+              >
+                <Icons.ChevronRight size={18} />
+              </motion.div>
+              <span style={{ marginLeft: `${depth * 20}px` }}>
+                {property.name}: <span className="text-neutral-400">{label}</span>
+              </span>
+              <span className="text-xs bg-white/10 px-2 py-1 rounded ml-2">
+                {itemCount}
+              </span>
+            </button>
+          </td>
+        </tr>
 
-          return (
-            <React.Fragment key={groupPath}>
-              {/* Group Header */}
-              <tr className="bg-neutral-800/40 hover:bg-neutral-800/60 border-b border-white/5">
-                <td colSpan={visibleProperties.length + (canEdit ? 1 : 0)} className="px-6 py-3">
-                  <button
-                    onClick={() => {
-                      const next = new Set(expandedGroups);
-                      if (next.has(groupPath)) {
-                        next.delete(groupPath);
-                      } else {
-                        next.add(groupPath);
-                      }
-                      setExpandedGroups(next);
-                    }}
-                    className="flex items-center gap-2 text-sm font-semibold text-white hover:text-cyan-400 transition-colors"
-                  >
-                    <motion.div
-                      animate={{ rotate: isExpanded ? 90 : 0 }}
-                      className="flex items-center justify-center"
-                    >
-                      <Icons.ChevronRight size={18} />
-                    </motion.div>
-                    <span style={{ marginLeft: `${depth * 20}px` }}>
-                      {property.name}: <span className="text-neutral-400">{label}</span>
-                    </span>
-                    <span className="text-xs bg-white/10 px-2 py-1 rounded ml-2">
-                      {itemCount}
-                    </span>
-                  </button>
-                </td>
-              </tr>
+        {/* Sub-groups or items */}
+        {isExpanded && (
+          <>
+            {/* Sous-groupes d'abord */}
+            {groupData.subGroups.map(subPath => renderGroup(subPath, depth + 1))}
+            
+            {/* Items de ce groupe */}
+            {groupData.itemIds.map(itemId => {
+              const item = itemsMap.get(itemId);
+              if (!item) return null;
 
-              {/* Sub-groups or items */}
-              <AnimatePresence>
-                {isExpanded && (
-                  <>
-                    {depth + 1 < groups.length ? (
-                      // Sub-groups
-                      <GroupSection
-                        node={childNode}
-                        property={collection.properties.find((p: any) => p.id === groups[depth + 1])}
-                        depth={depth + 1}
-                        parentPath={groupPath}
+              return (
+                <motion.tr
+                  key={item.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="hover:bg-white/5 transition-colors border-b border-white/5"
+                >
+                  {visibleProperties.map((prop: any) => (
+                    <td key={prop.id} className="px-6 py-4 whitespace-nowrap text-sm text-neutral-300" style={{ paddingLeft: `${24 + (depth + 1) * 20}px` }}>
+                      <EditableProperty
+                        property={prop}
+                        value={item[prop.id]}
+                        onChange={(val) => onEdit({ ...item, [prop.id]: val })}
+                        size="md"
+                        isNameField={prop.id === 'name' || prop.name === 'Nom'}
+                        onViewDetail={prop.id === 'name' || prop.name === 'Nom' ? () => onViewDetail(item) : undefined}
+                        collections={collections}
+                        currentItem={item}
+                        onRelationChange={onRelationChange}
+                        onNavigateToCollection={onNavigateToCollection}
+                        readOnly={!canEdit || !canEditField(prop.id)}
                       />
-                    ) : (
-                      // Items in this group
-                      childNode.items?.map((item: any) => (
-                        <motion.tr
-                          key={item.id}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="hover:bg-white/5 transition-colors border-b border-white/5"
-                        >
-                          {visibleProperties.map((prop: any) => (
-                            <td key={prop.id} className="px-6 py-4 whitespace-nowrap text-sm text-neutral-300" style={{ paddingLeft: `${24 + (depth + 1) * 20}px` }}>
-                              <EditableProperty
-                                property={prop}
-                                value={item[prop.id]}
-                                onChange={(val) => onEdit({ ...item, [prop.id]: val })}
-                                size="md"
-                                isNameField={prop.id === 'name' || prop.name === 'Nom'}
-                                onViewDetail={prop.id === 'name' || prop.name === 'Nom' ? () => onViewDetail(item) : undefined}
-                                collections={collections}
-                                currentItem={item}
-                                onRelationChange={onRelationChange}
-                                onNavigateToCollection={onNavigateToCollection}
-                                readOnly={!canEdit || !canEditField(prop.id)}
-                              />
-                            </td>
-                          ))}
-                          {canEdit && (
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                              <div className="flex items-center justify-end gap-3 text-neutral-500">
-                                <Icons.GripVertical size={16} className="cursor-grab" />
-                                <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-400">
-                                  <Icons.Trash2 size={16} />
-                                </button>
-                              </div>
-                            </td>
-                          )}
-                        </motion.tr>
-                      ))
-                    )}
-                  </>
-                )}
-              </AnimatePresence>
-            </React.Fragment>
-          );
-        })}
-      </>
+                    </td>
+                  ))}
+                  {canEdit && (
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                      <div className="flex items-center justify-end gap-3 text-neutral-500">
+                        <Icons.GripVertical size={16} className="cursor-grab" />
+                        <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-400">
+                          <Icons.Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </motion.tr>
+              );
+            })}
+          </>
+        )}
+      </React.Fragment>
     );
   };
 
@@ -303,13 +311,9 @@ const TableView: React.FC<TableViewProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {groupedData ? (
-              <GroupSection 
-                node={groupedData} 
-                property={collection.properties.find((p: any) => p.id === groups[0])}
-                depth={0}
-                parentPath="group"
-              />
+            {groupedStructure ? (
+              // Rendu des groupes avec la nouvelle logique
+              groupedStructure.rootGroups.map(rootGroup => renderGroup(rootGroup, 0))
             ) : (
               // Sans groupes : affichage normal
               items.map((item: any) => (
