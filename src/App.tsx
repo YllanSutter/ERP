@@ -1097,6 +1097,7 @@ const App = () => {
                     onNavigateToCollection={(collectionId: string, linkedIds?: string[]) => {
                       handleNavigateToCollection(collectionId, linkedIds);
                     }}
+                    groups={currentViewConfig?.groups || []}
                   />
                 )}
                 {currentViewConfig?.type === 'kanban' && (
