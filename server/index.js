@@ -5,7 +5,12 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import pkg from 'pg';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 const { Pool } = pkg;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -378,9 +383,12 @@ const logAudit = async (userId, action, targetType, targetId, details = {}) => {
 };
 
 // --- Routes: health -----------------------------------------------------
-app.get('/', (_req, res) => {
+app.get('/api', (_req, res) => {
   res.json({ ok: true, message: 'API server is running' });
 });
+
+// Serve static files from dist/ (frontend)
+app.use(express.static(path.join(__dirname, '../dist')));
 
 // --- Auth routes --------------------------------------------------------
 app.post('/auth/register', async (req, res) => {
@@ -588,6 +596,11 @@ app.post('/state', requireAuth, async (req, res) => {
 app.get('/audit', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
   const logs = await pool.query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 200');
   res.json(logs.rows);
+});
+
+// Catch-all: serve index.html for any non-API routes (SPA routing)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
 // --- Bootstrap and start -----------------------------------------------
