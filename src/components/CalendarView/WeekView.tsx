@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import EditableProperty from '@/components/fields/EditableProperty';
+import EditableProperty from '@/components/EditableProperty';
 import WeekEventCard from '@/components/CalendarView/WeekEventCard';
 import {
   getItemColor,

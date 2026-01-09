@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Star } from 'lucide-react';
-import ShinyButton from '@/components/ui/ShinyButton';
-import EditableProperty from '@/components/fields/EditableProperty';
+import ShinyButton from '@/components/ShinyButton';
+import EditableProperty from '@/components/EditableProperty';
 import { cn } from '@/lib/utils';
 
 interface NewItemModalProps {

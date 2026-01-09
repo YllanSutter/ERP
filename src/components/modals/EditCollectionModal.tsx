@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
-import ShinyButton from '@/components/ui/ShinyButton';
-import IconPicker from '@/components/inputs/IconPicker';
-import ColorPicker from '@/components/inputs/ColorPicker';
+import ShinyButton from '@/components/ShinyButton';
+import IconPicker from '@/components/IconPicker';
+import ColorPicker from '@/components/ColorPicker';
 import * as Icons from 'lucide-react';
 
 interface EditCollectionModalProps {

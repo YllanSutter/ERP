@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import ShinyButton from '@/components/ui/ShinyButton';
+import ShinyButton from '@/components/ShinyButton';
 import { LightSelect } from '@/components/inputs/LightSelect';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import ShinyButton from '@/components/ui/ShinyButton';
-import OptionListEditor from '@/components/inputs/OptionListEditor';
-import IconPicker from '@/components/inputs/IconPicker';
-import ColorPicker from '@/components/inputs/ColorPicker';
+import ShinyButton from '@/components/ShinyButton';
+import OptionListEditor from '@/components/OptionListEditor';
+import IconPicker from '@/components/IconPicker';
+import ColorPicker from '@/components/ColorPicker';
 import * as Icons from 'lucide-react';
 import { OptionType } from '@/components/inputs/LightSelect';
 

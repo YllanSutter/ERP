@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Users } from 'lucide-react';
-import ShinyButton from '@/components/ui/ShinyButton';
+import ShinyButton from '@/components/ShinyButton';
 
 interface ViewVisibilityModalProps {
   view: any;
