@@ -96,30 +96,46 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
           )}
         </RowComponent>
       </ContextMenuTrigger>
-      {contextMenuProperties.length > 0 && (
-        <ContextMenuContent>
-          <ContextMenuLabel className="text-xs">Édition rapide</ContextMenuLabel>
-          <ContextMenuSeparator />
-          {contextMenuProperties.map((prop: any) => (
-            <ContextMenuItem key={prop.id} className="flex items-center justify-between gap-4 cursor-default" onSelect={(e) => e.preventDefault()}>
-              <span className="text-xs text-neutral-400">{prop.name}:</span>
-              <div className="flex-1 max-w-[200px]" onClick={(e) => e.stopPropagation()}>
-                <EditableProperty
-                  property={prop}
-                  value={item[prop.id]}
-                  onChange={(val) => onEdit({ ...item, [prop.id]: val })}
-                  size="sm"
-                  collections={collections}
-                  currentItem={item}
-                  onRelationChange={onRelationChange}
-                  onNavigateToCollection={onNavigateToCollection}
-                  readOnly={false}
-                />
-              </div>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={() => onViewDetail(item)} className="gap-2">
+          <Icons.Eye size={14} />
+          <span>Détails</span>
+        </ContextMenuItem>
+        {contextMenuProperties.length > 0 && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuLabel className="text-xs">Édition rapide</ContextMenuLabel>
+            <ContextMenuSeparator />
+            {contextMenuProperties.map((prop: any) => (
+              <ContextMenuItem key={prop.id} className="flex items-center justify-between gap-4 cursor-default" onSelect={(e) => e.preventDefault()}>
+                <span className="text-xs text-neutral-400">{prop.name}:</span>
+                <div className="flex-1 max-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                  <EditableProperty
+                    property={prop}
+                    value={item[prop.id]}
+                    onChange={(val) => onEdit({ ...item, [prop.id]: val })}
+                    size="sm"
+                    collections={collections}
+                    currentItem={item}
+                    onRelationChange={onRelationChange}
+                    onNavigateToCollection={onNavigateToCollection}
+                    readOnly={false}
+                  />
+                </div>
+              </ContextMenuItem>
+            ))}
+          </>
+        )}
+        {canEdit && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => onDelete(item.id)} className="gap-2 text-red-300 focus:bg-red-500/20">
+              <Icons.Trash2 size={14} />
+              <span>Supprimer</span>
             </ContextMenuItem>
-          ))}
-        </ContextMenuContent>
-      )}
+          </>
+        )}
+      </ContextMenuContent>
     </ContextMenu>
   );
 };
