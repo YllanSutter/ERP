@@ -1,16 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trash2, GripHorizontal, ChevronDown, Eye } from 'lucide-react';
+import { GripHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu';
-import EditableProperty from '@/components/EditableProperty';
+import EditableProperty from '@/components/fields/EditableProperty';
+import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 
 interface KanbanViewProps {
@@ -205,126 +199,119 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                 </div>
               ) : (
                 groupedItems[column].map((item, idx) => (
-                  <ContextMenu key={item.id}>
-                    <ContextMenuTrigger asChild>
-                      <motion.div
-                        draggable={canEdit}
-                        onDragStart={canEdit ? () => setDraggedItem(item) : undefined}
-                        onDragEnd={canEdit ? () => setDraggedItem(null) : undefined}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.05 }}
-                        whileHover={canEdit ? { scale: 1.02 } : {}}
-                        className={cn(
-                          "group rounded-lg border border-white/10 bg-gradient-to-br from-neutral-800/50 to-neutral-900/50 p-4 hover:border-white/20 transition-all space-y-3",
-                          canEdit && "cursor-move",
-                          draggedItem?.id === item.id ? 'opacity-50 border-violet-500/50' : ''
-                        )}
-                      >
-                    {/* Title with Grip */}
-                    <div className="flex gap-2 items-center">
-                      {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}
-                      {(() => {
-                        const firstProp = (orderedProperties || collection.properties).find((p: any) => 
-                          !hiddenFields.includes(p.id) && !p.showContextMenu && canViewFieldFn(p.id)
-                        );
-                        if (!firstProp) return (
-                          <button
-                            onClick={() => onViewDetail(item)}
-                            className="font-medium text-cyan-400 hover:text-cyan-300 hover:underline text-sm flex-1 line-clamp-2 text-left"
-                          >
-                            {getNameValue(item)}
-                          </button>
-                        );
-                        return (
-                          <div className="flex-1 flex items-center gap-2">
-                            <span className="text-neutral-500 text-xs">{firstProp.name}:</span>
-                            <div className="flex-1">
-                              <EditableProperty
-                                property={firstProp}
-                                value={item[firstProp.id]}
-                                onChange={(val) => onEdit({...item, [firstProp.id]: val})}
-                                size="sm"
-                                collections={collections}
-                                currentItem={item}
-                                onRelationChange={onRelationChange}
-                                onNavigateToCollection={onNavigateToCollection}
-                                readOnly={!canEdit || !canEditFieldFn(firstProp.id)}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Editable Properties */}
-                    <div className="space-y-2">
-                      {(() => {
-                        const allProps = orderedProperties || collection.properties;
-                        const firstVisibleProp = allProps.find((p: any) => 
-                          !hiddenFields.includes(p.id) && !p.showContextMenu && canViewFieldFn(p.id)
-                        );
-                        return allProps
-                          .filter((prop: any) => 
-                            prop.id !== firstVisibleProp?.id &&
-                            !hiddenFields.includes(prop.id) && 
-                            !prop.showContextMenu &&
-                            canViewFieldFn(prop.id)
-                          )
-                          .map((prop: any) => (
-                            <div key={prop.id} className="text-xs flex justify-between items-center">
-                              <span className="text-neutral-500 block mb-1">{prop.name}:</span>
-                              <EditableProperty
-                                property={prop}
-                                value={item[prop.id]}
-                                onChange={(val) => onEdit({...item, [prop.id]: val})}
-                                size="sm"
-                                collections={collections}
-                                currentItem={item}
-                                onRelationChange={onRelationChange}
-                                onNavigateToCollection={onNavigateToCollection}
-                                readOnly={!canEdit || !canEditFieldFn(prop.id)}
-                              />
-                            </div>
-                          ));
-                      })()}
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex justify-end gap-2 pt-2 absolute -top-7 left-1">
-                      <button
-                        onClick={() => onViewDetail(item)}
-                        className="px-2 py-0.5 rounded text-xs text-white bg-blue-500/20 hover:bg-blue-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
-                      >
-                        Éditer
-                      </button>
-                      {canEdit && (
+                  <ItemContextMenu
+                    key={item.id}
+                    item={item}
+                    onViewDetail={onViewDetail}
+                    onDelete={onDelete}
+                    canEdit={canEdit}
+                    onEdit={onEdit}
+                    collections={collections}
+                    onRelationChange={onRelationChange}
+                    onNavigateToCollection={onNavigateToCollection}
+                  >
+                    <motion.div
+                      draggable={canEdit}
+                      onDragStart={canEdit ? () => setDraggedItem(item) : undefined}
+                      onDragEnd={canEdit ? () => setDraggedItem(null) : undefined}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                      whileHover={canEdit ? { scale: 1.02 } : {}}
+                      className={cn(
+                        "group rounded-lg border border-white/10 bg-gradient-to-br from-neutral-800/50 to-neutral-900/50 p-4 hover:border-white/20 transition-all space-y-3",
+                        canEdit && "cursor-move",
+                        draggedItem?.id === item.id ? 'opacity-50 border-violet-500/50' : ''
+                      )}
+                    >
+                  {/* Title with Grip */}
+                  <div className="flex gap-2 items-center">
+                    {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}
+                    {(() => {
+                      const firstProp = (orderedProperties || collection.properties).find((p: any) => 
+                        !hiddenFields.includes(p.id) && !p.showContextMenu && canViewFieldFn(p.id)
+                      );
+                      if (!firstProp) return (
                         <button
-                          onClick={() => onDelete(item.id)}
-                          className="px-2 py-0.5 rounded text-xs text-white bg-red-500/20 hover:bg-red-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
+                          onClick={() => onViewDetail(item)}
+                          className="font-medium text-cyan-400 hover:text-cyan-300 hover:underline text-sm flex-1 line-clamp-2 text-left"
                         >
-                          Supprimer
+                          {getNameValue(item)}
                         </button>
-                      )}
-                    </div>
-                      </motion.div>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
-                      <ContextMenuItem onSelect={() => onViewDetail(item)} className="gap-2">
-                        <Eye size={14} />
-                        <span>Détails</span>
-                      </ContextMenuItem>
-                      {canEdit && (
-                        <>
-                          <ContextMenuSeparator />
-                          <ContextMenuItem onSelect={() => onDelete(item.id)} className="gap-2 text-red-300 focus:bg-red-500/20">
-                            <Trash2 size={14} />
-                            <span>Supprimer</span>
-                          </ContextMenuItem>
-                        </>
-                      )}
-                    </ContextMenuContent>
-                  </ContextMenu>
+                      );
+                      return (
+                        <div className="flex-1 flex items-center gap-2">
+                          <span className="text-neutral-500 text-xs">{firstProp.name}:</span>
+                          <div className="flex-1">
+                            <EditableProperty
+                              property={firstProp}
+                              value={item[firstProp.id]}
+                              onChange={(val) => onEdit({...item, [firstProp.id]: val})}
+                              size="sm"
+                              collections={collections}
+                              currentItem={item}
+                              onRelationChange={onRelationChange}
+                              onNavigateToCollection={onNavigateToCollection}
+                              readOnly={!canEdit || !canEditFieldFn(firstProp.id)}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Editable Properties */}
+                  <div className="space-y-2">
+                    {(() => {
+                      const allProps = orderedProperties || collection.properties;
+                      const firstVisibleProp = allProps.find((p: any) => 
+                        !hiddenFields.includes(p.id) && !p.showContextMenu && canViewFieldFn(p.id)
+                      );
+                      return allProps
+                        .filter((prop: any) => 
+                          prop.id !== firstVisibleProp?.id &&
+                          !hiddenFields.includes(prop.id) && 
+                          !prop.showContextMenu &&
+                          canViewFieldFn(prop.id)
+                        )
+                        .map((prop: any) => (
+                          <div key={prop.id} className="text-xs flex justify-between items-center">
+                            <span className="text-neutral-500 block mb-1">{prop.name}:</span>
+                            <EditableProperty
+                              property={prop}
+                              value={item[prop.id]}
+                              onChange={(val) => onEdit({...item, [prop.id]: val})}
+                              size="sm"
+                              collections={collections}
+                              currentItem={item}
+                              onRelationChange={onRelationChange}
+                              onNavigateToCollection={onNavigateToCollection}
+                              readOnly={!canEdit || !canEditFieldFn(prop.id)}
+                            />
+                          </div>
+                        ));
+                    })()}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex justify-end gap-2 pt-2 absolute -top-7 left-1">
+                    <button
+                      onClick={() => onViewDetail(item)}
+                      className="px-2 py-0.5 rounded text-xs text-white bg-blue-500/20 hover:bg-blue-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
+                    >
+                      Éditer
+                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => onDelete(item.id)}
+                        className="px-2 py-0.5 rounded text-xs text-white bg-red-500/20 hover:bg-red-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
+                      >
+                        Supprimer
+                      </button>
+                    )}
+                  </div>
+                    </motion.div>
+                  </ItemContextMenu>
                 ))
               )}
             </div>

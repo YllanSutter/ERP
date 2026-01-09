@@ -1,13 +1,7 @@
 import React, { Fragment } from 'react';
 import { motion } from 'framer-motion';
-import { Trash2, Eye } from 'lucide-react';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu';
+import { Trash2 } from 'lucide-react';
+import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { ColorSet, EventStyle, calculateEventPosition, formatTimeDisplay, formatFieldValue as formatFieldValueUtil } from '@/lib/calendarUtils';
 
 interface WeekEventCardProps {
@@ -110,71 +104,63 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     );
 
     return (
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <motion.div
-            ref={dragRef}
-            draggable={!!onEventDrop}
-            initial={false}
-            className={`absolute rounded-sm p-1.5 transition-colors group text-xs overflow-hidden z-10 hover:opacity-80 ${onEventDrop ? 'cursor-move' : 'cursor-default'}`}
-            style={{
-              top: `${topOffset}px`,
-              height: `${heightPx}px`,
-              left: `${leftPercent}%`,
-              width: `${widthPercent}%`,
-              minHeight: '24px',
-              borderLeft: `4px solid ${colors.border}`,
-              backgroundColor: colors.bg,
-              color: colors.text,
+      <ItemContextMenu
+        item={item}
+        onViewDetail={onViewDetail}
+        onDelete={(id) => onReduceDuration(item, duration)}
+        canEdit={!!onEventDrop}
+      >
+        <motion.div
+          ref={dragRef}
+          draggable={!!onEventDrop}
+          initial={false}
+          className={`absolute rounded-sm p-1.5 transition-colors group text-xs overflow-hidden z-10 hover:opacity-80 ${onEventDrop ? 'cursor-move' : 'cursor-default'}`}
+          style={{
+            top: `${topOffset}px`,
+            height: `${heightPx}px`,
+            left: `${leftPercent}%`,
+            width: `${widthPercent}%`,
+            minHeight: '24px',
+            borderLeft: `4px solid ${colors.border}`,
+            backgroundColor: colors.bg,
+            color: colors.text,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.hover)}
+          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.bg)}
+          onDragStart={(e: any) => handleDragStart(e)}
+          onDragEnd={(e: any) => handleDragEnd(e)}
+        >
+          <div className="font-medium truncate">{getNameValue(item)}</div>
+          <div className="text-[10px] opacity-70">
+            {(() => {
+              const dStart = displayStartTime ?? startTime;
+              const dEnd = displayEndTime ?? endTime;
+              const startH = Math.floor(dStart);
+              const startM = Math.round((dStart - startH) * 60);
+              const endH = Math.floor(dEnd);
+              const endM = Math.round((dEnd - endH) * 60);
+              return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
+            })()}
+          </div>
+          {visibleMetaFields.map((field: any) => {
+            const val = formatFieldValueUtil(item, field, collections);
+            return val ? (
+              <div key={field.id} className="text-[9px] opacity-60 truncate">
+                {field.name}: {val}
+              </div>
+            ) : null;
+          })}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onReduceDuration(item, duration);
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.hover)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.bg)}
-            onDragStart={(e: any) => handleDragStart(e)}
-            onDragEnd={(e: any) => handleDragEnd(e)}
+            className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
           >
-            <div className="font-medium truncate">{getNameValue(item)}</div>
-            <div className="text-[10px] opacity-70">
-              {(() => {
-                const dStart = displayStartTime ?? startTime;
-                const dEnd = displayEndTime ?? endTime;
-                const startH = Math.floor(dStart);
-                const startM = Math.round((dStart - startH) * 60);
-                const endH = Math.floor(dEnd);
-                const endM = Math.round((dEnd - endH) * 60);
-                return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
-              })()}
-            </div>
-            {visibleMetaFields.map((field: any) => {
-              const val = formatFieldValueUtil(item, field, collections);
-              return val ? (
-                <div key={field.id} className="text-[9px] opacity-60 truncate">
-                  {field.name}: {val}
-                </div>
-              ) : null;
-            })}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onReduceDuration(item, duration);
-              }}
-              className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <Trash2 size={10} />
-            </button>
-          </motion.div>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem onSelect={() => onViewDetail(item)} className="gap-2">
-            <Eye size={14} />
-            <span>Détails</span>
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem onSelect={() => onReduceDuration(item, duration)} className="gap-2 text-red-300 focus:bg-red-500/20">
-            <Trash2 size={14} />
-            <span>Supprimer</span>
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
+            <Trash2 size={10} />
+          </button>
+        </motion.div>
+      </ItemContextMenu>
     );
   };
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { LogIn, UserPlus } from 'lucide-react';
-import ShinyButton from '@/components/ShinyButton';
+import ShinyButton from '@/components/ui/ShinyButton';
 
 type LoginPageProps = {
   onLogin: (email: string, password: string) => Promise<void>;

@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
-import ShinyButton from './ShinyButton';
-import DraggableList from './DraggableList';
+import ShinyButton from '@/components/ui/ShinyButton';
+import DraggableList from '@/components/inputs/DraggableList';
 import { useCanEdit, useCanViewField } from '@/lib/hooks/useCanEdit';
 import {
   ContextMenu,

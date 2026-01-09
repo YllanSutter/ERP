@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
-import ShinyButton from './ShinyButton';
+import ShinyButton from '@/components/ui/ShinyButton';
 import { useAuth } from '@/auth/AuthProvider';
 import { useCanEdit, useCanManagePermissions } from '@/lib/hooks/useCanEdit';
 

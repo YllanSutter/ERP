@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import * as Icons from 'lucide-react';
 import { OptionType } from '@/components/inputs/LightSelect';
-import IconPicker from '@/components/IconPicker';
-import ColorPicker from '@/components/ColorPicker';
-import DraggableList from '@/components/DraggableList';
+import IconPicker from '@/components/inputs/IconPicker';
+import ColorPicker from '@/components/inputs/ColorPicker';
+import DraggableList from '@/components/inputs/DraggableList';
 import { cn } from '@/lib/utils';
 
 interface OptionListEditorProps {

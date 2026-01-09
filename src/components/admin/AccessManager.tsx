@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, RefreshCw, Shield, UserPlus, Plus } from 'lucide-react';
-import ShinyButton from '@/components/ShinyButton';
+import ShinyButton from '@/components/ui/ShinyButton';
 import { useAuth } from '@/auth/AuthProvider';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
