@@ -15,11 +15,11 @@ const TOKEN_EXPIRES = process.env.JWT_EXPIRES || '7d';
 
 // PostgreSQL connection pool
 const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'erp_db',
+  user: process.env.PGUSER || process.env.DB_USER || 'postgres',
+  password: process.env.PGPASSWORD || process.env.DB_PASSWORD || 'postgres',
+  host: process.env.PGHOST || process.env.DB_HOST || 'localhost',
+  port: process.env.PGPORT || process.env.DB_PORT || 5432,
+  database: process.env.PGDATABASE || process.env.DB_NAME || 'erp_db',
 });
 
 app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
