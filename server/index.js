@@ -13,14 +13,22 @@ const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const TOKEN_EXPIRES = process.env.JWT_EXPIRES || '7d';
 
-// PostgreSQL connection pool
-const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'erp_db',
-});
+// PostgreSQL connection pool (supports Supabase via DATABASE_URL)
+const pool = new Pool(
+  process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false }, // Supabase needs SSL
+      }
+    : {
+        user: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || 'postgres',
+        host: process.env.DB_HOST || 'localhost',
+        port: process.env.DB_PORT || 5432,
+        database: process.env.DB_NAME || 'erp_db',
+        ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+      }
+);
 
 app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
 app.use(cookieParser());
