@@ -10,15 +10,16 @@ const { Pool } = pkg;
 const app = express();
 const PORT = process.env.PORT || 4000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || process.env.JWT_SECRET || 'dev-secret';
 const TOKEN_EXPIRES = process.env.JWT_EXPIRES || '7d';
 
-// PostgreSQL connection pool (supports Supabase via DATABASE_URL)
+// PostgreSQL connection pool (supports Vercel Postgres & Supabase)
+const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
 const pool = new Pool(
-  process.env.DATABASE_URL
+  connectionString
     ? {
-        connectionString: process.env.DATABASE_URL,
-        ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false }, // Supabase needs SSL
+        connectionString,
+        ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
       }
     : {
         user: process.env.DB_USER || 'postgres',
