@@ -387,11 +387,8 @@ app.get('/api', (_req, res) => {
   res.json({ ok: true, message: 'API server is running' });
 });
 
-// Serve static files from dist/ (frontend)
-app.use(express.static(path.join(__dirname, '../dist')));
-
 // --- Auth routes --------------------------------------------------------
-app.post('/auth/register', async (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, name } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'email and password required' });
@@ -409,7 +406,7 @@ app.post('/auth/register', async (req, res) => {
   }
 });
 
-app.post('/auth/login', async (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'email and password required' });
@@ -428,7 +425,7 @@ app.post('/auth/login', async (req, res) => {
   }
 });
 
-app.get('/auth/me', requireAuth, async (req, res) => {
+app.get('/api/auth/me', requireAuth, async (req, res) => {
   res.json({
     user: req.auth.user,
     roles: req.auth.roles,
@@ -438,7 +435,7 @@ app.get('/auth/me', requireAuth, async (req, res) => {
   });
 });
 
-app.post('/auth/impersonate', requireAuth, async (req, res) => {
+app.post('/api/auth/impersonate', requireAuth, async (req, res) => {
   // Only real admins can impersonate (use base roles)
   const isAdmin = (req.auth.baseRoles || req.auth.roles || []).some((r) => r.name === 'admin');
   if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
@@ -463,14 +460,14 @@ app.post('/auth/impersonate', requireAuth, async (req, res) => {
   return res.json({ ok: true, impersonatedRoleId: roleId });
 });
 
-app.post('/auth/logout', (_req, res) => {
+app.post('/api/auth/logout', (_req, res) => {
   clearAuthCookie(res);
   res.clearCookie('impersonate_role_id');
   res.json({ ok: true });
 });
 
 // --- Users / Roles / Permissions ---------------------------------------
-app.get('/users', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
+app.get('/api/users', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
   const users = await pool.query(
     `SELECT u.id, u.email, u.name, u.provider, COALESCE(json_agg(ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL), '[]') as role_ids
      FROM users u
@@ -480,12 +477,12 @@ app.get('/users', requireAuth, requirePermission('can_manage_permissions'), asyn
   res.json(users.rows);
 });
 
-app.get('/roles', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
+app.get('/api/roles', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
   const roles = await pool.query('SELECT * FROM roles');
   res.json(roles.rows);
 });
 
-app.post('/roles', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
+app.post('/api/roles', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
   const { name, description } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const roleId = uuidv4();
@@ -494,7 +491,7 @@ app.post('/roles', requireAuth, requirePermission('can_manage_permissions'), asy
   res.json({ ok: true, id: roleId });
 });
 
-app.post('/user_roles', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
+app.post('/api/user_roles', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
   const { userId, roleId, action } = req.body;
   if (!userId || !roleId) return res.status(400).json({ error: 'userId and roleId required' });
   if (action === 'remove') {
@@ -507,12 +504,12 @@ app.post('/user_roles', requireAuth, requirePermission('can_manage_permissions')
   res.json({ ok: true });
 });
 
-app.get('/permissions', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
+app.get('/api/permissions', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
   const perms = await pool.query('SELECT * FROM permissions');
   res.json(perms.rows);
 });
 
-app.post('/permissions', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
+app.post('/api/permissions', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
   const perm = req.body || {};
   if (!perm.role_id) return res.status(400).json({ error: 'role_id required' });
   const result = await upsertPermission(perm);
@@ -556,7 +553,7 @@ const filterStateForUser = (data, ctx) => {
   return { ...data, collections: filteredCollections };
 };
 
-app.get('/state', requireAuth, async (req, res) => {
+app.get('/api/state', requireAuth, async (req, res) => {
   try {
     const result = await pool.query('SELECT data FROM app_state WHERE id = 1');
     if (result.rows.length === 0) return res.json({});
@@ -569,7 +566,7 @@ app.get('/state', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/state', requireAuth, async (req, res) => {
+app.post('/api/state', requireAuth, async (req, res) => {
   try {
     const payload = req.body ?? {};
     const collections = payload.collections || [];
@@ -593,10 +590,13 @@ app.post('/state', requireAuth, async (req, res) => {
 });
 
 // --- Audit -------------------------------------------------------------
-app.get('/audit', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
+app.get('/api/audit', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
   const logs = await pool.query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 200');
   res.json(logs.rows);
 });
+
+// Serve static files from the dist folder
+app.use(express.static(path.join(__dirname, '../dist')));
 
 // Catch-all: serve index.html for any non-API routes (SPA routing)
 app.get('*', (req, res) => {
