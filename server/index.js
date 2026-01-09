@@ -19,13 +19,22 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const TOKEN_EXPIRES = process.env.JWT_EXPIRES || '7d';
 
 // PostgreSQL connection pool
-const pool = new Pool({
-  user: process.env.PGUSER || process.env.DB_USER || 'postgres',
-  password: process.env.PGPASSWORD || process.env.DB_PASSWORD || 'postgres',
-  host: process.env.PGHOST || process.env.DB_HOST || 'localhost',
-  port: process.env.PGPORT || process.env.DB_PORT || 5432,
-  database: process.env.PGDATABASE || process.env.DB_NAME || 'erp_db',
-});
+let pool;
+if (process.env.DATABASE_PUBLIC_URL) {
+  // Use DATABASE_PUBLIC_URL directly (Railway/production)
+  pool = new Pool({
+    connectionString: process.env.DATABASE_PUBLIC_URL,
+  });
+} else {
+  // Use individual environment variables (local development)
+  pool = new Pool({
+    user: process.env.PGUSER || process.env.DB_USER || 'postgres',
+    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || 'postgres',
+    host: process.env.PGHOST || process.env.DB_HOST || 'localhost',
+    port: process.env.PGPORT || process.env.DB_PORT || 5432,
+    database: process.env.PGDATABASE || process.env.DB_NAME || 'erp_db',
+  });
+}
 
 // CORS configuration - allow same-origin or CLIENT_ORIGIN
 app.use(cors({ 

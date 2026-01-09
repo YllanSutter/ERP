@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "api": "node server/index.js",
     "dev:all": "concurrently \"npm run api\" \"npm run dev\"",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "sync:db:railway": "bash sync-db-railway.sh"
   },
   "dependencies": {
     "@passport-next/passport-google-oauth2": "^0.2.0",
