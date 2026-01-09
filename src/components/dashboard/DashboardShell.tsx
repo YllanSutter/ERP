@@ -680,12 +680,12 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     const cell = aggregates.daily[key]?.[leaf.id] || { count: 0, duration: 0 };
                     const span = spanForDay(leaf.id, key);
                     const countClasses = span
-                      ? 'px-3 py-2 text-right text-white border-l border-blue-300/40 bg-blue-500/10'
+                      ? 'px-3 py-2 text-right text-white border-l border-blue-300/40 bg-blue-500/5'
                       : 'px-3 py-2 text-right text-white border-l border-white/10 bg-neutral-900/30';
                     const durationClasses = span
                       ? `px-3 py-2 text-right text-white border-l ${span.isEnd ? '' : ''} ${
                           span.isStart ? 'rounded-l-md' : ''
-                        } border-blue-300/40 bg-blue-500/15`
+                        } border-blue-300/40 bg-blue-500/5`
                       : 'px-3 py-2 text-right text-white border-l border-white/10 bg-neutral-900/20';
 
                     // Afficher le nombre uniquement sur le premier jour de l'événement (isStart)
