@@ -1,6 +1,16 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Star, ChevronDown, ChevronRight } from 'lucide-react';
+import {
+  Settings,
+  Star,
+  ChevronDown,
+  ChevronRight,
+  LayoutDashboard,
+  Plus,
+  Copy,
+  Trash,
+  ArrowUpDown
+} from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -9,6 +19,9 @@ interface SidebarProps {
   views: Record<string, any[]>;
   favorites: { views: string[]; items: string[] };
   activeCollection: string | null;
+  dashboards: any[];
+  activeDashboard: string | null;
+  dashboardSort: 'created' | 'name-asc' | 'name-desc';
   userRoleIds: string[];
   userId: string | null;
   onSelectCollection: (collectionId: string) => void;
@@ -17,6 +30,11 @@ interface SidebarProps {
   onToggleFavoriteItem: (itemId: string) => void;
   onSelectView: (collectionId: string, viewId: string) => void;
   onSelectItem: (collectionId: string, itemId: string) => void;
+  onSelectDashboard: (dashboardId: string) => void;
+  onCreateDashboard: () => void;
+  onDeleteDashboard: (dashboardId: string) => void;
+  onDuplicateDashboard: (dashboardId: string) => void;
+  onChangeDashboardSort: (sort: 'created' | 'name-asc' | 'name-desc') => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -24,6 +42,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   views,
   favorites,
   activeCollection,
+  dashboards,
+  activeDashboard,
+  dashboardSort,
   userRoleIds,
   userId,
   onSelectCollection,
@@ -32,6 +53,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   onToggleFavoriteItem,
   onSelectView,
   onSelectItem,
+  onSelectDashboard,
+  onCreateDashboard,
+  onDeleteDashboard,
+  onDuplicateDashboard,
+  onChangeDashboardSort
 }) => {
   const [expandedFavorites, setExpandedFavorites] = useState(true);
 
@@ -75,10 +101,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
-  console.log('Favorites state:', favorites);
-  console.log('Favorite views IDs:', favorites.views);
-  console.log('Favorite views list:', favoriteViewsList);
-  console.log('Favorite items list:', favoriteItemsList);
+  // console.log('Favorites state:', favorites);
+  // console.log('Favorite views IDs:', favorites.views);
+  // console.log('Favorite views list:', favoriteViewsList);
+  // console.log('Favorite items list:', favoriteItemsList);
 
   return (
     <motion.div
@@ -142,6 +168,89 @@ const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
       )}
+
+      {/* Section Dashboards */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-3 pr-1">
+          <h2 className="text-xs font-semibold text-neutral-500 uppercase pl-2 flex items-center gap-2">
+            <LayoutDashboard size={14} />
+            Dashboards
+          </h2>
+          <button
+            onClick={onCreateDashboard}
+            className="text-neutral-400 hover:text-white p-1 rounded hover:bg-white/10 transition-colors"
+            title="Nouveau dashboard"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-2 text-xs text-neutral-400">
+          <ArrowUpDown size={14} />
+          <select
+            value={dashboardSort}
+            onChange={(e) => onChangeDashboardSort(e.target.value as any)}
+            className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs flex-1"
+          >
+            <option value="created">Tri : création</option>
+            <option value="name-asc">Tri : nom A→Z</option>
+            <option value="name-desc">Tri : nom Z→A</option>
+          </select>
+        </div>
+        {dashboards.length === 0 ? (
+          <div className="text-xs text-neutral-500 px-3 py-2">Aucun dashboard pour l’instant</div>
+        ) : (
+          <div className="space-y-1">
+            {dashboards.map((db, i) => (
+              <motion.div
+                key={db.id}
+                role="button"
+                tabIndex={0}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.04 * i }}
+                onClick={() => onSelectDashboard(db.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectDashboard(db.id);
+                  }
+                }}
+                className={cn(
+                  'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors',
+                  activeDashboard === db.id
+                    ? 'bg-gradient-to-r from-cyan-500/30 to-violet-500/30 border border-cyan-500/40 text-white'
+                    : 'hover:bg-white/5 text-neutral-300'
+                )}
+              >
+                <LayoutDashboard size={16} className="text-cyan-300" />
+                <span className="flex-1 text-left truncate">{db.name}</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDuplicateDashboard(db.id);
+                  }}
+                  className="p-1 rounded text-neutral-400 hover:text-white hover:bg-white/10"
+                  title="Dupliquer"
+                >
+                  <Copy size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteDashboard(db.id);
+                  }}
+                  className="p-1 rounded text-red-300 hover:text-white hover:bg-red-500/30"
+                  title="Supprimer"
+                >
+                  <Trash size={14} />
+                </button>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Section Collections */}
       <h2 className="text-xs font-semibold text-neutral-500 uppercase mb-4 pl-2">Collections</h2>

@@ -20,12 +20,14 @@ import FilterModal from '@/components/modals/FilterModal';
 import GroupModal from '@/components/modals/GroupModal';
 import NewViewModal from '@/components/modals/NewViewModal';
 import ViewVisibilityModal from '@/components/modals/ViewVisibilityModal';
-import { API_URL, defaultCollections, defaultViews } from '@/lib/constants';
+import DashboardShell from '@/components/dashboard/DashboardShell';
+import { API_URL, defaultCollections, defaultDashboards, defaultViews } from '@/lib/constants';
 import { useCanEdit, useCanEditField, useCanManagePermissions } from '@/lib/hooks/useCanEdit';
 import { useCollections } from '@/lib/hooks/useCollections';
 import { useItems } from '@/lib/hooks/useItems';
 import { useViews } from '@/lib/hooks/useViews';
 import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
+import { MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 
 const App = () => {
   const {
@@ -40,8 +42,11 @@ const App = () => {
   } = useAuth();
   const [collections, setCollections] = useState<any[]>(defaultCollections);
   const [views, setViews] = useState<Record<string, any[]>>(defaultViews);
+  const [dashboards, setDashboards] = useState<MonthlyDashboardConfig[]>(defaultDashboards);
+  const [dashboardSort, setDashboardSort] = useState<'created' | 'name-asc' | 'name-desc'>('created');
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<string | null>(null);
+  const [activeDashboard, setActiveDashboard] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
@@ -89,6 +94,7 @@ const App = () => {
 
   const currentCollection = collections.find((c) => c.id === activeCollection);
   const { currentViews } = viewHooks;
+  const activeDashboardConfig = dashboards.find((d) => d.id === activeDashboard) || null;
 
   const userRoleIds = (userRoles || []).map((r: any) => r.id);
   const canSeeView = (view: any) => {
@@ -111,8 +117,11 @@ const App = () => {
       if (!user) {
         setCollections(defaultCollections);
         setViews(defaultViews);
+        setDashboards(defaultDashboards);
+        setDashboardSort('created');
         setActiveCollection(null);
         setActiveView(null);
+        setActiveDashboard(null);
         setIsLoaded(true);
         return;
       }
@@ -127,8 +136,11 @@ const App = () => {
           if (data?.collections && data?.views) {
             setCollections(data.collections);
             setViews(data.views);
+            setDashboards(data.dashboards || defaultDashboards);
+            setDashboardSort(data.dashboardSort || 'created');
             setActiveCollection(data.activeCollection || null);
             setActiveView(data.activeView || null);
+            setActiveDashboard(data.activeDashboard || null);
             setFavorites(data.favorites || { views: [], items: [] });
             setIsLoaded(true);
             return;
@@ -139,8 +151,11 @@ const App = () => {
       }
       setCollections(defaultCollections);
       setViews(defaultViews);
+      setDashboards(defaultDashboards);
+      setDashboardSort('created');
       setActiveCollection(null);
       setActiveView(null);
+      setActiveDashboard(null);
       setIsLoaded(true);
     };
 
@@ -187,14 +202,23 @@ const App = () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ collections, views, activeCollection, activeView, favorites }),
+          body: JSON.stringify({
+            collections,
+            views,
+            dashboards,
+            dashboardSort,
+            activeCollection,
+            activeView,
+            activeDashboard,
+            favorites
+          }),
         });
       } catch (err) {
         console.error('Impossible de sauvegarder les données', err);
       }
     };
     saveState();
-  }, [collections, views, activeCollection, activeView, favorites, isLoaded, user, canEdit]);
+  }, [collections, views, dashboards, activeCollection, activeView, activeDashboard, favorites, isLoaded, user, canEdit]);
 
   useEffect(() => {
     if (!activeCollection) return;
@@ -209,6 +233,7 @@ const App = () => {
   }, [activeCollection, activeView, visibleViews]);
 
   const handleNavigateToCollection = (collectionId: string, linkedIds?: string[]) => {
+    setActiveDashboard(null);
     setActiveCollection(collectionId);
     setActiveView('default');
     if (linkedIds && linkedIds.length > 0) {
@@ -218,7 +243,73 @@ const App = () => {
     }
   };
 
+  const handleCreateDashboard = () => {
+    const now = new Date();
+    const newDashboard: MonthlyDashboardConfig = {
+      id: Date.now().toString(),
+      name: `Dashboard ${dashboards.length + 1}`,
+      sourceCollectionId: collections[0]?.id || null,
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      includeWeekends: false,
+      typeField: null,
+      globalDateField: null,
+      globalDateRange: { startField: null, endField: null },
+      globalDurationField: null,
+      columnTree: [],
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    };
+    setDashboards((prev) => [...prev, newDashboard]);
+    setActiveDashboard(newDashboard.id);
+    setActiveCollection(null);
+    setActiveView(null);
+    setRelationFilter({ collectionId: null, ids: [] });
+  };
+
+  const handleUpdateDashboard = (dashboardId: string, patch: Partial<MonthlyDashboardConfig>) => {
+    setDashboards((prev) =>
+      prev.map((db) => (db.id === dashboardId ? { ...db, ...patch, updatedAt: new Date().toISOString() } : db))
+    );
+  };
+
+  const handleDeleteDashboard = (dashboardId: string) => {
+    setDashboards((prev) => prev.filter((d) => d.id !== dashboardId));
+    if (activeDashboard === dashboardId) {
+      setActiveDashboard(null);
+    }
+  };
+
+  const handleDuplicateDashboard = (dashboardId: string) => {
+    const source = dashboards.find((d) => d.id === dashboardId);
+    if (!source) return;
+    const now = new Date();
+    const clone: MonthlyDashboardConfig = {
+      ...source,
+      id: Date.now().toString(),
+      name: `${source.name} (copie)`,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    };
+    setDashboards((prev) => [...prev, clone]);
+    setActiveDashboard(clone.id);
+    setActiveCollection(null);
+    setActiveView(null);
+    setRelationFilter({ collectionId: null, ids: [] });
+  };
+
   const clearRelationFilter = () => setRelationFilter({ collectionId: null, ids: [] });
+
+  const sortedDashboards = useMemo(() => {
+    const base = [...dashboards];
+    if (dashboardSort === 'name-asc') {
+      return base.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    if (dashboardSort === 'name-desc') {
+      return base.sort((a, b) => b.name.localeCompare(a.name));
+    }
+    return base;
+  }, [dashboards, dashboardSort]);
 
   const orderedProperties = getOrderedProperties(currentCollection, activeViewConfig);
 
@@ -271,11 +362,15 @@ const App = () => {
         <Sidebar
           collections={collections}
           views={views}
+          dashboards={sortedDashboards}
           favorites={favorites}
           activeCollection={activeCollection}
+          activeDashboard={activeDashboard}
+          dashboardSort={dashboardSort}
           userRoleIds={userRoleIds}
           userId={user?.id || null}
           onSelectCollection={(collectionId) => {
+            setActiveDashboard(null);
             setActiveCollection(collectionId);
             setActiveView('default');
             setRelationFilter({ collectionId: null, ids: [] });
@@ -301,11 +396,13 @@ const App = () => {
             }));
           }}
           onSelectView={(collectionId: string, viewId: string) => {
+            setActiveDashboard(null);
             setActiveCollection(collectionId);
             setActiveView(viewId);
             setRelationFilter({ collectionId: null, ids: [] });
           }}
           onSelectItem={(collectionId: string, itemId: string) => {
+            setActiveDashboard(null);
             const collection = collections.find((c) => c.id === collectionId);
             const item = collection?.items.find((it: any) => it.id === itemId);
             if (item) {
@@ -314,10 +411,26 @@ const App = () => {
               setShowNewItemModal(true);
             }
           }}
+          onSelectDashboard={(dashboardId: string) => {
+            setActiveDashboard(dashboardId);
+            setActiveCollection(null);
+            setActiveView(null);
+            setRelationFilter({ collectionId: null, ids: [] });
+          }}
+          onCreateDashboard={handleCreateDashboard}
+          onDeleteDashboard={handleDeleteDashboard}
+          onDuplicateDashboard={handleDuplicateDashboard}
+          onChangeDashboardSort={(sort) => setDashboardSort(sort)}
         />
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          {!activeCollection ? (
+          {activeDashboard ? (
+            <DashboardShell
+              dashboard={activeDashboardConfig}
+              collections={collections}
+              onUpdate={(patch) => activeDashboard && handleUpdateDashboard(activeDashboard, patch)}
+            />
+          ) : !activeCollection ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
