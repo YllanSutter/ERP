@@ -20,8 +20,6 @@ interface SidebarProps {
   favorites: { views: string[]; items: string[] };
   activeCollection: string | null;
   dashboards: any[];
-  activeDashboard: string | null;
-  dashboardSort: 'created' | 'name-asc' | 'name-desc';
   userRoleIds: string[];
   userId: string | null;
   onSelectCollection: (collectionId: string) => void;
@@ -34,7 +32,6 @@ interface SidebarProps {
   onCreateDashboard: () => void;
   onDeleteDashboard: (dashboardId: string) => void;
   onDuplicateDashboard: (dashboardId: string) => void;
-  onChangeDashboardSort: (sort: 'created' | 'name-asc' | 'name-desc') => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -43,21 +40,16 @@ const Sidebar: React.FC<SidebarProps> = ({
   favorites,
   activeCollection,
   dashboards,
-  activeDashboard,
-  dashboardSort,
   userRoleIds,
   userId,
   onSelectCollection,
   onEditCollection,
-  onToggleFavoriteView,
-  onToggleFavoriteItem,
   onSelectView,
   onSelectItem,
   onSelectDashboard,
   onCreateDashboard,
   onDeleteDashboard,
   onDuplicateDashboard,
-  onChangeDashboardSort
 }) => {
   const [expandedFavorites, setExpandedFavorites] = useState(true);
 
@@ -118,24 +110,23 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="mb-6">
           <button
             onClick={() => setExpandedFavorites(!expandedFavorites)}
-            className="w-full flex items-center gap-2 text-xs font-semibold text-neutral-500 uppercase mb-3 pl-2 hover:text-neutral-400 transition-colors"
+            className="w-full flex items-center gap-2 text-xs font-semibold text-neutral-500 mb-3 pl-2 hover:text-neutral-400 transition-colors border-b border-white/5 pb-3"
           >
             {expandedFavorites ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            <Star size={12} className="text-yellow-500" fill="currentColor" />
             Favoris
           </button>
 
           {expandedFavorites && (
             <div className="space-y-1 mb-4">
               {favoriteViewsList.map(({ view, collection, collectionId }: any) => {
-                const IconComponent = (Icons as any)[collection.icon] || Icons.Folder;
+                const IconComponent = (Icons as any)[view.icon] || Icons.Folder;
                 return (
                   <button
                     key={view.id}
                     onClick={() => onSelectView(collectionId, view.id)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-neutral-300 hover:text-white transition-colors text-sm group"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-neutral-500 font-medium hover:text-white transition-colors text-sm group"
                   >
-                    <IconComponent size={14} style={{ color: collection.color || '#8b5cf6' }} />
+                    <IconComponent size={14} style={{ color: '#fff' }} />
                     <span className="flex-1 text-left truncate">{view.name}</span>
                     <Star
                       size={12}
@@ -171,30 +162,17 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Section Dashboards */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-3 pr-1">
-          <h2 className="text-xs font-semibold text-neutral-500 uppercase pl-2 flex items-center gap-2">
-            <LayoutDashboard size={14} />
+        <div className="flex  justify-between mb-3 pr-1 border-b border-white/5 pb-2">
+          <h2 className="text-xs font-semibold text-neutral-500 pl-2 flex items-center gap-2 ">
             Dashboards
           </h2>
           <button
             onClick={onCreateDashboard}
-            className="text-neutral-400 hover:text-white p-1 rounded hover:bg-white/10 transition-colors"
+            className="text-neutral-400 hover:text-white p-1 rounded hover:bg-white/10 transition-colors h-auto inline-block"
             title="Nouveau dashboard"
           >
             <Plus size={14} />
           </button>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-2 text-xs text-neutral-400">
-          <ArrowUpDown size={14} />
-          <select
-            value={dashboardSort}
-            onChange={(e) => onChangeDashboardSort(e.target.value as any)}
-            className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs flex-1"
-          >
-            <option value="created">Tri : création</option>
-            <option value="name-asc">Tri : nom A→Z</option>
-            <option value="name-desc">Tri : nom Z→A</option>
-          </select>
         </div>
         {dashboards.length === 0 ? (
           <div className="text-xs text-neutral-500 px-3 py-2">Aucun dashboard pour l’instant</div>
@@ -216,14 +194,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                   }
                 }}
                 className={cn(
-                  'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors',
-                  activeDashboard === db.id
-                    ? 'bg-gradient-to-r from-cyan-500/30 to-violet-500/30 border border-cyan-500/40 text-white'
-                    : 'hover:bg-white/5 text-neutral-300'
+                  'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors'
                 )}
               >
-                <LayoutDashboard size={16} className="text-cyan-300" />
-                <span className="flex-1 text-left truncate">{db.name}</span>
+                <LayoutDashboard size={14} className="text-white" />
+                <span className="flex-1 text-left truncate text-neutral-500">{db.name}</span>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -253,7 +228,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Section Collections */}
-      <h2 className="text-xs font-semibold text-neutral-500 uppercase mb-4 pl-2">Collections</h2>
+      <h2 className="text-xs font-semibold text-neutral-500 mb-4 pl-2 border-b border-white/5 pb-2">Collections</h2>
       {collections.map((col, i) => {
         const IconComponent = (Icons as any)[col.icon] || Icons.Folder;
         return (
@@ -269,20 +244,12 @@ const Sidebar: React.FC<SidebarProps> = ({
               className={cn(
                 'w-full flex items-center gap-3 px-4 pr-10 py-2.5 rounded-lg transition-all',
                 activeCollection === col.id
-                  ? 'bg-gradient-to-r from-violet-500/30 to-cyan-500/30 border border-violet-500/50 text-white'
-                  : 'hover:bg-white/5 text-neutral-400 hover:text-white'
+                  ? 'bg-white/5  text-white'
+                  : 'hover:bg-white/5 text-neutral-600 hover:text-white'
               )}
-              style={
-                activeCollection === col.id
-                  ? {
-                      borderColor: `${col.color}80`,
-                      background: `linear-gradient(to right, ${col.color}30, ${col.color}10)`
-                    }
-                  : {}
-              }
             >
-              <IconComponent size={20} style={{ color: col.color || '#8b5cf6' }} />
-              <span className="font-medium flex-1 text-left">{col.name}</span>
+              <IconComponent size={14} style={{ color: '#fff' }} />
+              <span className="text-sm font-medium flex-1 text-left">{col.name}</span>
               <span className="text-xs text-neutral-500 bg-white/5 px-2 py-1 rounded">
                 {col.items.length}
               </span>

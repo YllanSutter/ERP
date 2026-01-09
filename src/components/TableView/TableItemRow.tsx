@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
-import EditableProperty from '@/components/EditableProperty';
+import EditableProperty from '@/components/fields/EditableProperty';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -65,7 +65,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
           {displayProperties.map((prop: any, index: number) => (
             <td
               key={prop.id}
-              className="px-6 py-4 whitespace-nowrap text-sm text-neutral-300 relative"
+              className="px-3 py-2 whitespace-nowrap text-sm text-neutral-300 relative"
               style={index === 0 ? { paddingLeft: `${paddingLeft}px` } : undefined}
             >
               <EditableProperty

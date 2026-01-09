@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DashboardColumnNode, MonthlyDashboardConfig } from '@/lib/dashboardTypes';
-import ShinyButton from '../ShinyButton';
+import ShinyButton from '@/components/ui/ShinyButton';
 
 interface DashboardShellProps {
   dashboard: MonthlyDashboardConfig | null;
@@ -8,20 +8,16 @@ interface DashboardShellProps {
   onUpdate: (patch: Partial<MonthlyDashboardConfig>) => void;
 }
 
-const months = [
-  'Janvier',
-  'Février',
-  'Mars',
-  'Avril',
-  'Mai',
-  'Juin',
-  'Juillet',
-  'Août',
-  'Septembre',
-  'Octobre',
-  'Novembre',
-  'Décembre'
-];
+import {
+  getMonday,
+  MONTH_NAMES,
+  getItemsForDate as getItemsForDateUtil,
+  getNameValue as getNameValueUtil,
+  getPreviousPeriod,
+  getNextPeriod,
+} from '@/lib/calendarUtils';
+
+const months = MONTH_NAMES;
 
 const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate }) => {
   const years = useMemo(() => {
@@ -680,12 +676,12 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     const cell = aggregates.daily[key]?.[leaf.id] || { count: 0, duration: 0 };
                     const span = spanForDay(leaf.id, key);
                     const countClasses = span
-                      ? 'px-3 py-2 text-right text-white border-l border-blue-300/40 bg-blue-500/5'
-                      : 'px-3 py-2 text-right text-white border-l border-white/10 bg-neutral-900/30';
+                      ? 'px-3 py-2 text-right text-white border-l border-white/30 bg-white/10'
+                      : 'px-3 py-2 text-right text-white border-l border-white/30 bg-neutral-900/30';
                     const durationClasses = span
                       ? `px-3 py-2 text-right text-white border-l ${span.isEnd ? '' : ''} ${
                           span.isStart ? 'rounded-l-md' : ''
-                        } border-blue-300/40 bg-blue-500/5`
+                        } border-white/30 bg-white/10`
                       : 'px-3 py-2 text-right text-white border-l border-white/10 bg-neutral-900/20';
 
                     // Afficher le nombre uniquement sur le premier jour de l'événement (isStart)
@@ -906,7 +902,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
               onChange={(e) => onUpdate({ globalDateField: e.target.value || null })}
               className="bg-neutral-900 border border-white/10 rounded px-3 py-2"
             >
-              <option value="">Non utilisé</option>
+              <option value="">Héritées</option>
               {collections
                 .find((c) => c.id === dashboard.sourceCollectionId)?.properties?.map((prop: any) => (
                   <option key={prop.id} value={prop.id}>
@@ -917,14 +913,14 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           </div>
         </div>
 
-        <div className="mt-6 space-y-3">
+        <div className="mt-6 grid grid-cols-3 gap-4 items-stretch">
           {leafColumns.length === 0 && (
             <div className="text-sm text-neutral-500">Ajoute une colonne pour mapper les valeurs du champ type.</div>
           )}
           {leafColumns.map((leaf) => {
             const typeValuesText = typeValuesInput[leaf.id] ?? (leaf.typeValues || []).join(', ');
             return (
-              <div key={leaf.id} className="border border-white/10 rounded-lg p-3 bg-neutral-800/40">
+              <div key={leaf.id} className="bg-neutral-900 border border-white/10 rounded px-3 py-2">
                 <div className="flex items-center gap-2 mb-3">
                   <input
                     value={leaf.label}
@@ -938,9 +934,9 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     Supprimer
                   </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div className="flex flex-col gap-1">
-                    <span className="text-neutral-400">Valeurs du champ type (séparées par virgule)</span>
+                    <span className="text-neutral-400">Valeurs champ type (séparées par , )</span>
                     <input
                       value={typeValuesText}
                       onChange={(e) => {
@@ -955,7 +951,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-neutral-400">Date unique (override)</span>
+                    <span className="text-neutral-400">Date unique</span>
                     <select
                       value={leaf.dateFieldOverride?.single || ''}
                       onChange={(e) =>
@@ -965,8 +961,10 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                       }
                       className="bg-neutral-900 border border-white/10 rounded px-3 py-2"
                     >
-                      <option value="">Non utilisé</option>
-                      {properties.map((prop: any) => (
+                      <option value="">Héritées</option>
+                      {
+                        properties.filter((prop: any) => prop.type === 'date')
+                        .map((prop: any) => (
                         <option key={prop.id} value={prop.id}>
                           {prop.name}
                         </option>
@@ -974,7 +972,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     </select>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-neutral-400">Date début (override)</span>
+                    <span className="text-neutral-400">Date début</span>
                     <select
                       value={leaf.dateFieldOverride?.start || ''}
                       onChange={(e) =>
@@ -984,8 +982,10 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                       }
                       className="bg-neutral-900 border border-white/10 rounded px-3 py-2"
                     >
-                      <option value="">Non utilisé</option>
-                      {properties.map((prop: any) => (
+                      <option value="">Héritées</option>
+                      {
+                        properties.filter((prop: any) => prop.type === 'date')
+                        .map((prop: any) => (
                         <option key={prop.id} value={prop.id}>
                           {prop.name}
                         </option>
@@ -993,7 +993,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     </select>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-neutral-400">Date fin (override)</span>
+                    <span className="text-neutral-400">Date fin</span>
                     <select
                       value={leaf.dateFieldOverride?.end || ''}
                       onChange={(e) =>
@@ -1003,8 +1003,10 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                       }
                       className="bg-neutral-900 border border-white/10 rounded px-3 py-2"
                     >
-                      <option value="">Non utilisé</option>
-                      {properties.map((prop: any) => (
+                       <option value="">Héritées</option>
+                      {
+                        properties.filter((prop: any) => prop.type === 'date')
+                        .map((prop: any) => (
                         <option key={prop.id} value={prop.id}>
                           {prop.name}
                         </option>

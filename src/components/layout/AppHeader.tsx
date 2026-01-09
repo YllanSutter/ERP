@@ -49,15 +49,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         </ShinyButton>
       </div>
       <div className="flex items-center gap-3">
-        <div className="text-sm text-neutral-400">
-          <span className="text-neutral-500">Connecté en tant que</span>{' '}
-          <span className="text-white font-medium">{user?.email || 'Utilisateur'}</span>
+        <div className="text-sm text-neutral-400 grid items-center justify-center bg-neutral-700 size-[22px] rounded-full">
+          <span className="text-white font-bold text-xs leading-none text-center">{user?.name.charAt(0) || 'Utilisateur'}</span>
         </div>
         {isAdminBase && (
           <div className="flex items-center gap-2 text-xs text-neutral-400">
             <span className="text-neutral-500">Rôle effectif :</span>
             <select
-              className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-sm text-white"
+              className="bg-neutral-900 border border-white/10 rounded px-4 py-2 text-sm text-white"
               value={impersonatedRoleId || ''}
               onChange={(e) => {
                 const val = e.target.value || null;

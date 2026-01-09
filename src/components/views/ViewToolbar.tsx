@@ -17,7 +17,7 @@ import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ShinyButton from '@/components/ui/ShinyButton';
 import DraggableList from '@/components/inputs/DraggableList';
-import { useSimpleViewPermissions } from '@/lib/hooks/useViewPermissions';
+import { useCanEdit, useCanViewField } from '@/lib/hooks/useCanEdit';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -86,10 +86,12 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   const settingsRef = useRef<HTMLDivElement>(null);
   
   // Hook de permission
-  const { canEdit, canViewFieldFn } = useSimpleViewPermissions(activeCollection);
+  const canEdit = useCanEdit(activeCollection);
+  const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, activeCollection);
   
   // Filtrer les propriétés que l'utilisateur peut voir
   const viewableProperties = orderedProperties.filter(prop => canViewFieldFn(prop.id));
+  const IconComponent = (Icons as any)[currentCollection.icon] || Icons.Folder;
 
   return (
     <motion.div
@@ -100,7 +102,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">{currentCollection?.icon}</span>
+          <IconComponent size={18} style={{ color: '#fff' }} />
           <h2 className="text-xl font-bold">{currentCollection?.name}</h2>
         </div>
         <ShinyButton
@@ -130,7 +132,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                   <button
                     onClick={() => onSetActiveView(view.id)}
                     className={cn(
-                      'px-4 py-2 pr-9 rounded-lg text-sm font-medium transition-all relative',
+                      'px-4 py-2 pr-9 rounded-lg text-sm font-medium transition-all relative inline-flex items-center',
                       activeView === view.id
                         ? 'bg-gradient-to-r from-violet-600 to-cyan-600 text-white shadow-lg'
                         : 'bg-white/5 text-neutral-400 hover:bg-white/10'

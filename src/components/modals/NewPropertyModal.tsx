@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import ShinyButton from '@/components/ShinyButton';
-import OptionListEditor from '@/components/OptionListEditor';
-import IconPicker from '@/components/IconPicker';
+import ShinyButton from '@/components/ui/ShinyButton';
+import OptionListEditor from '@/components/inputs/OptionListEditor';
+import IconPicker from '@/components/inputs/IconPicker';
 import { OptionType } from '@/components/inputs/LightSelect';
 
 interface NewPropertyModalProps {
@@ -71,12 +71,12 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
             value={name} 
             onChange={(e) => setName(e.target.value)} 
             placeholder="Nom" 
-            className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none" 
+            className="w-full px-4 py-2 bg-neutral-900 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none" 
           />
           <select 
             value={type} 
             onChange={(e) => setType(e.target.value)} 
-            className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+            className="bg-neutral-900 border border-white/10 rounded px-4 py-2 text-sm text-white w-full"
           >
             {Object.entries(PropertyTypeLabels).map(([key, label]) => (
               <option key={key} value={key}>{label}</option>
@@ -91,7 +91,7 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
                 onChange={(e) => setDefaultDuration(parseFloat(e.target.value) || 1)}
                 min="0.25"
                 step="0.25"
-                className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                className="w-full px-4 py-2 bg-neutral-900 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
                 placeholder="1"
               />
               <p className="text-xs text-neutral-500 mt-1">Durée par défaut des événements dans le calendrier</p>

@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
-import KanbanView from '@/components/KanbanView';
-import CalendarView from '@/components/CalendarView';
-import TableView from '@/components/TableView';
-import ShinyButton from '@/components/ShinyButton';
-import LoginPage from '@/components/LoginPage';
-import AccessManager from '@/components/AccessManager';
-import AppHeader from '@/components/AppHeader';
-import Sidebar from '@/components/Sidebar';
-import ViewToolbar from '@/components/ViewToolbar';
+import KanbanView from '@/components/views/KanbanView';
+import CalendarView from '@/components/views/CalendarView';
+import TableView from '@/components/views/TableView';
+import ShinyButton from '@/components/ui/ShinyButton';
+import LoginPage from '@/components/pages/LoginPage';
+import AccessManager from '@/components/admin/AccessManager';
+import AppHeader from '@/components/layout/AppHeader';
+import Sidebar from '@/components/menus/Sidebar';
+import ViewToolbar from '@/components/views/ViewToolbar';
 import { useAuth } from '@/auth/AuthProvider';
 import NewCollectionModal from '@/components/modals/NewCollectionModal';
 import EditCollectionModal from '@/components/modals/EditCollectionModal';
@@ -365,8 +365,6 @@ const App = () => {
           dashboards={sortedDashboards}
           favorites={favorites}
           activeCollection={activeCollection}
-          activeDashboard={activeDashboard}
-          dashboardSort={dashboardSort}
           userRoleIds={userRoleIds}
           userId={user?.id || null}
           onSelectCollection={(collectionId) => {
@@ -420,7 +418,6 @@ const App = () => {
           onCreateDashboard={handleCreateDashboard}
           onDeleteDashboard={handleDeleteDashboard}
           onDuplicateDashboard={handleDuplicateDashboard}
-          onChangeDashboardSort={(sort) => setDashboardSort(sort)}
         />
 
         <div className="flex-1 flex flex-col overflow-hidden">

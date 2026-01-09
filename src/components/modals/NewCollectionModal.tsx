@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import IconPicker from '@/components/IconPicker';
-import ColorPicker from '@/components/ColorPicker';
-import ShinyButton from '@/components/ShinyButton';
+import IconPicker from '@/components/inputs/IconPicker';
+import ColorPicker from '@/components/inputs/ColorPicker';
+import ShinyButton from '@/components/ui/ShinyButton';
 
 interface NewCollectionModalProps {
   onClose: () => void;
