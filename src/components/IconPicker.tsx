@@ -69,7 +69,7 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange, className, mod
               )}
               title={iconName}
             >
-              <IconComponent size={1} />
+              <IconComponent size={14} />
             </button>
           );
         })}
