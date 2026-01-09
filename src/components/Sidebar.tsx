@@ -1,22 +1,70 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Settings } from 'lucide-react';
+import { Settings, Star, ChevronDown, ChevronRight } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
   collections: any[];
+  views: Record<string, any[]>;
+  favorites: { views: string[]; items: string[] };
   activeCollection: string | null;
   onSelectCollection: (collectionId: string) => void;
   onEditCollection: (collection: any) => void;
+  onToggleFavoriteView: (viewId: string) => void;
+  onToggleFavoriteItem: (itemId: string) => void;
+  onSelectView: (collectionId: string, viewId: string) => void;
+  onSelectItem: (collectionId: string, itemId: string) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
   collections,
+  views,
+  favorites,
   activeCollection,
   onSelectCollection,
-  onEditCollection
+  onEditCollection,
+  onToggleFavoriteView,
+  onToggleFavoriteItem,
+  onSelectView,
+  onSelectItem,
 }) => {
+  const [expandedFavorites, setExpandedFavorites] = useState(true);
+
+  // Construire la liste des vues favorites avec leurs infos
+  const favoriteViewsList = favorites.views
+    .map((viewId) => {
+      for (const [collectionId, collectionViews] of Object.entries(views)) {
+        const view = collectionViews.find((v: any) => v.id === viewId);
+        if (view) {
+          const collection = collections.find((c) => c.id === collectionId);
+          return { view, collection, collectionId };
+        }
+      }
+      return null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  // Construire la liste des items favoris avec leurs infos
+  const favoriteItemsList = favorites.items
+    .map((itemId) => {
+      for (const collection of collections) {
+        const item = collection.items.find((it: any) => it.id === itemId);
+        if (item) {
+          const nameField = collection.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
+          const itemName = nameField ? item[nameField.id] || 'Sans titre' : item.name || 'Sans titre';
+          return { item, collection, itemName };
+        }
+      }
+      return null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  console.log('Favorites state:', favorites);
+  console.log('Favorite views IDs:', favorites.views);
+  console.log('Favorite views list:', favoriteViewsList);
+  console.log('Favorite items list:', favoriteItemsList);
+
   return (
     <motion.div
       initial={{ x: -100, opacity: 0 }}
@@ -24,6 +72,63 @@ const Sidebar: React.FC<SidebarProps> = ({
       transition={{ delay: 0.1 }}
       className="w-64 border-r border-white/5 bg-neutral-950/50 backdrop-blur overflow-y-auto p-4"
     >
+      {/* Section Favoris */}
+      {(favoriteViewsList.length > 0 || favoriteItemsList.length > 0) && (
+        <div className="mb-6">
+          <button
+            onClick={() => setExpandedFavorites(!expandedFavorites)}
+            className="w-full flex items-center gap-2 text-xs font-semibold text-neutral-500 uppercase mb-3 pl-2 hover:text-neutral-400 transition-colors"
+          >
+            {expandedFavorites ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <Star size={12} className="text-yellow-500" fill="currentColor" />
+            Favoris
+          </button>
+
+          {expandedFavorites && (
+            <div className="space-y-1 mb-4">
+              {favoriteViewsList.map(({ view, collection, collectionId }: any) => {
+                const IconComponent = (Icons as any)[collection.icon] || Icons.Folder;
+                return (
+                  <button
+                    key={view.id}
+                    onClick={() => onSelectView(collectionId, view.id)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-neutral-300 hover:text-white transition-colors text-sm group"
+                  >
+                    <IconComponent size={14} style={{ color: collection.color || '#8b5cf6' }} />
+                    <span className="flex-1 text-left truncate">{view.name}</span>
+                    <Star
+                      size={12}
+                      className="text-yellow-500 opacity-60 group-hover:opacity-100"
+                      fill="currentColor"
+                    />
+                  </button>
+                );
+              })}
+
+              {favoriteItemsList.map(({ item, collection, itemName }: any) => {
+                const IconComponent = (Icons as any)[collection.icon] || Icons.Folder;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onSelectItem(collection.id, item.id)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-neutral-300 hover:text-white transition-colors text-sm group"
+                  >
+                    <IconComponent size={14} style={{ color: collection.color || '#8b5cf6' }} />
+                    <span className="flex-1 text-left truncate">{itemName}</span>
+                    <Star
+                      size={12}
+                      className="text-yellow-500 opacity-60 group-hover:opacity-100"
+                      fill="currentColor"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Section Collections */}
       <h2 className="text-xs font-semibold text-neutral-500 uppercase mb-4 pl-2">Collections</h2>
       {collections.map((col, i) => {
         const IconComponent = (Icons as any)[col.icon] || Icons.Folder;

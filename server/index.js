@@ -135,8 +135,10 @@ const bootstrap = async () => {
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_state (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      data TEXT NOT NULL
+      id SERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      data TEXT NOT NULL,
+      UNIQUE(user_id)
     );
   `);
 
@@ -566,10 +568,21 @@ const filterStateForUser = (data, ctx) => {
 
 app.get('/api/state', requireAuth, async (req, res) => {
   try {
-    const result = await pool.query('SELECT data FROM app_state WHERE id = 1');
-    if (result.rows.length === 0) return res.json({});
-    const parsed = JSON.parse(result.rows[0].data);
-    const filtered = filterStateForUser(parsed, req.auth);
+    const userId = req.auth.user.id;
+    // Récupérer l'état global (collections, views, activeCollection, activeView)
+    const globalResult = await pool.query('SELECT data FROM app_state WHERE user_id IS NULL');
+    const globalData = globalResult.rows.length > 0 ? JSON.parse(globalResult.rows[0].data) : {};
+    
+    // Récupérer les favoris de l'utilisateur
+    const userResult = await pool.query('SELECT favorite_views, favorite_items FROM users WHERE id = $1', [userId]);
+    const favorites = userResult.rows.length > 0 ? {
+      views: userResult.rows[0].favorite_views || [],
+      items: userResult.rows[0].favorite_items || []
+    } : { views: [], items: [] };
+    
+    // Combiner l'état global et les favoris de l'utilisateur
+    const state = { ...globalData, favorites };
+    const filtered = filterStateForUser(state, req.auth);
     return res.json(filtered);
   } catch (err) {
     console.error('Failed to load state', err);
@@ -580,19 +593,32 @@ app.get('/api/state', requireAuth, async (req, res) => {
 app.post('/api/state', requireAuth, async (req, res) => {
   try {
     const payload = req.body ?? {};
-    const collections = payload.collections || [];
+    const userId = req.auth.user.id;
+    
+    // Séparer les favoris du reste de l'état
+    const { favorites, ...stateData } = payload;
+    const collections = stateData.collections || [];
+    
+    // Vérifier les permissions pour les collections
     for (const col of collections) {
       if (!hasPermission(req.auth, { collection_id: col.id }, 'can_write')) {
         return res.status(403).json({ error: `Forbidden to write collection ${col.id}` });
       }
     }
 
-    const dataStr = JSON.stringify(payload);
-    const updateResult = await pool.query('UPDATE app_state SET data = $1 WHERE id = 1', [dataStr]);
-    if (updateResult.rowCount === 0) {
-      await pool.query('INSERT INTO app_state (id, data) VALUES (1, $1)', [dataStr]);
-    }
-    await logAudit(req.auth?.user?.id, 'state.save', 'app_state', '1', { collections: collections.length });
+    // Sauvegarder l'état global (sans favoris) dans app_state
+    const stateStr = JSON.stringify(stateData);
+    await pool.query('UPDATE app_state SET data = $1 WHERE user_id IS NULL', [stateStr]);
+    
+    // Sauvegarder les favoris de l'utilisateur
+    const favoriteViews = favorites?.views || [];
+    const favoriteItems = favorites?.items || [];
+    await pool.query(
+      'UPDATE users SET favorite_views = $1, favorite_items = $2 WHERE id = $3',
+      [favoriteViews, favoriteItems, userId]
+    );
+    
+    await logAudit(userId, 'state.save', 'app_state', 'global', { collections: collections.length });
     return res.json({ ok: true });
   } catch (err) {
     console.error('Failed to save state', err);

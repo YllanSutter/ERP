@@ -52,6 +52,7 @@ const App = () => {
   });
   const [showAccessManager, setShowAccessManager] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<any[]>([]);
+  const [favorites, setFavorites] = useState<{ views: string[]; items: string[] }>({ views: [], items: [] });
 
   // Hooks personnalisés pour les permissions
   const canEdit = useCanEdit(activeCollection);
@@ -99,6 +100,7 @@ const App = () => {
             setViews(data.views);
             setActiveCollection(data.activeCollection || null);
             setActiveView(data.activeView || null);
+            setFavorites(data.favorites || { views: [], items: [] });
             setIsLoaded(true);
             return;
           }
@@ -140,14 +142,14 @@ const App = () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ collections, views, activeCollection, activeView }),
+          body: JSON.stringify({ collections, views, activeCollection, activeView, favorites }),
         });
       } catch (err) {
         console.error('Impossible de sauvegarder les données', err);
       }
     };
     saveState();
-  }, [collections, views, activeCollection, activeView, isLoaded, user, canEdit]);
+  }, [collections, views, activeCollection, activeView, favorites, isLoaded, user, canEdit]);
 
   const handleNavigateToCollection = (collectionId: string, linkedIds?: string[]) => {
     setActiveCollection(collectionId);
@@ -211,6 +213,8 @@ const App = () => {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           collections={collections}
+          views={views}
+          favorites={favorites}
           activeCollection={activeCollection}
           onSelectCollection={(collectionId) => {
             setActiveCollection(collectionId);
@@ -220,6 +224,36 @@ const App = () => {
           onEditCollection={(col) => {
             setEditingCollection(col);
             setShowEditCollectionModal(true);
+          }}
+          onToggleFavoriteView={(viewId: string) => {
+            setFavorites((prev) => ({
+              ...prev,
+              views: prev.views.includes(viewId)
+                ? prev.views.filter((id) => id !== viewId)
+                : [...prev.views, viewId],
+            }));
+          }}
+          onToggleFavoriteItem={(itemId: string) => {
+            setFavorites((prev) => ({
+              ...prev,
+              items: prev.items.includes(itemId)
+                ? prev.items.filter((id) => id !== itemId)
+                : [...prev.items, itemId],
+            }));
+          }}
+          onSelectView={(collectionId: string, viewId: string) => {
+            setActiveCollection(collectionId);
+            setActiveView(viewId);
+            setRelationFilter({ collectionId: null, ids: [] });
+          }}
+          onSelectItem={(collectionId: string, itemId: string) => {
+            const collection = collections.find((c) => c.id === collectionId);
+            const item = collection?.items.find((it: any) => it.id === itemId);
+            if (item) {
+              setActiveCollection(collectionId);
+              setEditingItem(item);
+              setShowNewItemModal(true);
+            }
           }}
         />
 
@@ -252,6 +286,7 @@ const App = () => {
                 showViewSettings={showViewSettings}
                 relationFilter={relationFilter}
                 activeCollection={activeCollection}
+                favorites={favorites}
                 onSetActiveView={setActiveView}
                 onDeleteView={viewHooks.deleteView}
                 onShowNewViewModal={() => setShowNewViewModal(true)}
@@ -269,6 +304,14 @@ const App = () => {
                 onRemoveFilter={viewHooks.removeFilter}
                 onClearRelationFilter={clearRelationFilter}
                 onRemoveGroup={viewHooks.removeGroup}
+                onToggleFavoriteView={(viewId: string) => {
+                  setFavorites((prev) => ({
+                    ...prev,
+                    views: prev.views.includes(viewId)
+                      ? prev.views.filter((id) => id !== viewId)
+                      : [...prev.views, viewId],
+                  }));
+                }}
               />
 
               <motion.div
@@ -435,6 +478,7 @@ const App = () => {
         <NewItemModal
           collection={currentCollection!}
           collections={collections}
+          favorites={favorites}
           onClose={() => {
             setShowNewItemModal(false);
             setEditingItem(null);
@@ -445,6 +489,14 @@ const App = () => {
             setEditingItem(null);
           }}
           editingItem={editingItem}
+          onToggleFavoriteItem={(itemId: string) => {
+            setFavorites((prev) => ({
+              ...prev,
+              items: prev.items.includes(itemId)
+                ? prev.items.filter((id) => id !== itemId)
+                : [...prev.items, itemId],
+            }));
+          }}
         />
       )}
       {showFilterModal && (

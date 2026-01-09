@@ -6,6 +6,7 @@ import { CalendarIcon } from 'lucide-react';
 import { LightSelect } from '@/components/inputs/LightSelect';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 import { PopoverButton, LinkedItemsViewer } from '@/components/inputs/PopoverButton';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -608,7 +609,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   const textLength = (value || '').toString().length;
   const width = Math.max(textLength, 5) + 'ch';
 
-  return (
+  const inputElement = (
     <input
       type={inputType}
       value={value || ''}
@@ -623,6 +624,33 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       )}
     />
   );
+
+  // Si c'est une URL avec une valeur, ajouter le menu contextuel
+  if (property.type === 'url' && value) {
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          {inputElement}
+        </ContextMenuTrigger>
+        <ContextMenuContent className="bg-neutral-900 border-neutral-700">
+          <ContextMenuItem
+            onClick={() => {
+              const url = value.startsWith('http://') || value.startsWith('https://') 
+                ? value 
+                : `https://${value}`;
+              window.open(url, '_blank', 'noopener,noreferrer');
+            }}
+            className="cursor-pointer text-white hover:bg-white/10 flex items-center gap-2"
+          >
+            <Icons.ExternalLink size={14} />
+            Ouvrir le lien
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
+  }
+
+  return inputElement;
 });
 
 EditableProperty.displayName = 'EditableProperty';
