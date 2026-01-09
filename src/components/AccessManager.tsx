@@ -4,7 +4,7 @@ import { X, RefreshCw, Shield, UserPlus, Plus } from 'lucide-react';
 import ShinyButton from '@/components/ShinyButton';
 import { useAuth } from '@/auth/AuthProvider';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const flags = [
   { key: 'can_read', label: 'Voir', hint: 'Consulter les collections et leurs items' },
