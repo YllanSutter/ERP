@@ -1,11 +1,30 @@
 import React, { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Filter, Layers, Table, Layout, X, Settings, Calendar as CalendarIcon, Star } from 'lucide-react';
+import {
+  Plus,
+  Filter,
+  Layers,
+  Table,
+  Layout,
+  X,
+  Settings,
+  Calendar as CalendarIcon,
+  Star,
+  Trash,
+  Eye
+} from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ShinyButton from './ShinyButton';
 import DraggableList from './DraggableList';
 import { useCanEdit, useCanViewField } from '@/lib/hooks/useCanEdit';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '@/components/ui/context-menu';
 
 interface ViewToolbarProps {
   currentCollection: any;
@@ -33,6 +52,7 @@ interface ViewToolbarProps {
   onClearRelationFilter: () => void;
   onRemoveGroup: (property: string) => void;
   onToggleFavoriteView: (viewId: string) => void;
+  onManageViewVisibility: (viewId: string) => void;
 }
 
 const ViewToolbar: React.FC<ViewToolbarProps> = ({
@@ -60,7 +80,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onRemoveFilter,
   onClearRelationFilter,
   onRemoveGroup,
-  onToggleFavoriteView
+  onToggleFavoriteView,
+  onManageViewVisibility
 }) => {
   const settingsRef = useRef<HTMLDivElement>(null);
   
@@ -99,52 +120,85 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         {currentViews.map((view: any, i: number) => {
           const isFavorite = favorites.views.includes(view.id);
           return (
-            <motion.div
-              key={view.id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.05 * i }}
-              className="relative group"
-            >
-              <button
-                onClick={() => onSetActiveView(view.id)}
-                className={cn(
-                  'px-4 py-2 pr-9 rounded-lg text-sm font-medium transition-all relative',
-                  activeView === view.id
-                    ? 'bg-gradient-to-r from-violet-600 to-cyan-600 text-white shadow-lg'
-                    : 'bg-white/5 text-neutral-400 hover:bg-white/10'
-                )}
-              >
-                {view.type === 'table' && <Table size={14} className="inline mr-1.5" />}
-                {view.type === 'kanban' && <Layout size={14} className="inline mr-1.5" />}
-                {view.type === 'calendar' && <CalendarIcon size={14} className="inline mr-1.5" />}
-                {view.name}
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleFavoriteView(view.id);
-                }}
-                className={cn(
-                  "absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-all",
-                  isFavorite 
-                    ? "text-yellow-500 hover:text-yellow-400" 
-                    : "text-neutral-500 hover:text-yellow-500 opacity-0 group-hover:opacity-100"
-                )}
-                title={isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
-              >
-                <Star size={14} fill={isFavorite ? "currentColor" : "none"} />
-              </button>
-              {currentViews.length > 1 && activeView === view.id && (
-                <button
-                  onClick={() => onDeleteView(view.id)}
-                  className="absolute -top-1 -right-1 p-1 bg-red-500/80 hover:bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                  title="Supprimer la vue"
+            <ContextMenu key={view.id}>
+              <ContextMenuTrigger asChild>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.05 * i }}
+                  className="relative group"
                 >
-                  <X size={12} />
-                </button>
-              )}
-            </motion.div>
+                  <button
+                    onClick={() => onSetActiveView(view.id)}
+                    className={cn(
+                      'px-4 py-2 pr-9 rounded-lg text-sm font-medium transition-all relative',
+                      activeView === view.id
+                        ? 'bg-gradient-to-r from-violet-600 to-cyan-600 text-white shadow-lg'
+                        : 'bg-white/5 text-neutral-400 hover:bg-white/10'
+                    )}
+                  >
+                    {view.type === 'table' && <Table size={14} className="inline mr-1.5" />}
+                    {view.type === 'kanban' && <Layout size={14} className="inline mr-1.5" />}
+                    {view.type === 'calendar' && <CalendarIcon size={14} className="inline mr-1.5" />}
+                    {view.name}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleFavoriteView(view.id);
+                    }}
+                    className={cn(
+                      "absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-all",
+                      isFavorite 
+                        ? "text-yellow-500 hover:text-yellow-400" 
+                        : "text-neutral-500 hover:text-yellow-500 opacity-0 group-hover:opacity-100"
+                    )}
+                    title={isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+                  >
+                    <Star size={14} fill={isFavorite ? "currentColor" : "none"} />
+                  </button>
+                  {currentViews.length > 1 && activeView === view.id && (
+                    <button
+                      onClick={() => onDeleteView(view.id)}
+                      className="absolute -top-1 -right-1 p-1 bg-red-500/80 hover:bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      title="Supprimer la vue"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </motion.div>
+              </ContextMenuTrigger>
+              <ContextMenuContent className="min-w-[200px]">
+                <ContextMenuItem
+                  onSelect={() => onManageViewVisibility(view.id)}
+                  className="gap-2"
+                >
+                  <Eye size={14} className="text-cyan-400" />
+                  <span>Visibilité…</span>
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() => onToggleFavoriteView(view.id)}
+                  className="gap-2"
+                >
+                  <Star
+                    size={14}
+                    className={isFavorite ? 'text-yellow-400' : 'text-neutral-300'}
+                    fill={isFavorite ? 'currentColor' : 'none'}
+                  />
+                  <span>{isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}</span>
+                </ContextMenuItem>
+                {currentViews.length > 1 && <ContextMenuSeparator />}
+                {currentViews.length > 1 && (
+                  <ContextMenuItem
+                    onSelect={() => onDeleteView(view.id)}
+                    className="gap-2 text-red-300 focus:bg-red-500/20"
+                  >
+                    <Trash size={14} />
+                    <span>Supprimer la vue</span>
+                  </ContextMenuItem>
+                )}
+              </ContextMenuContent>
+            </ContextMenu>
           );
         })}
         <motion.button
@@ -348,6 +402,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
           </motion.div>
         ))}
       </div>
+
     </motion.div>
   );
 };

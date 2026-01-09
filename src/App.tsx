@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import KanbanView from '@/components/KanbanView';
@@ -19,6 +19,7 @@ import NewItemModal from '@/components/modals/NewItemModal';
 import FilterModal from '@/components/modals/FilterModal';
 import GroupModal from '@/components/modals/GroupModal';
 import NewViewModal from '@/components/modals/NewViewModal';
+import ViewVisibilityModal from '@/components/modals/ViewVisibilityModal';
 import { API_URL, defaultCollections, defaultViews } from '@/lib/constants';
 import { useCanEdit, useCanEditField, useCanManagePermissions } from '@/lib/hooks/useCanEdit';
 import { useCollections } from '@/lib/hooks/useCollections';
@@ -27,7 +28,16 @@ import { useViews } from '@/lib/hooks/useViews';
 import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
 
 const App = () => {
-  const { user, loading: authLoading, login, register, logout, impersonate, impersonatedRoleId } = useAuth();
+  const {
+    user,
+    roles: userRoles,
+    loading: authLoading,
+    login,
+    register,
+    logout,
+    impersonate,
+    impersonatedRoleId
+  } = useAuth();
   const [collections, setCollections] = useState<any[]>(defaultCollections);
   const [views, setViews] = useState<Record<string, any[]>>(defaultViews);
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
@@ -52,7 +62,11 @@ const App = () => {
   });
   const [showAccessManager, setShowAccessManager] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<any[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
   const [favorites, setFavorites] = useState<{ views: string[]; items: string[] }>({ views: [], items: [] });
+  const [viewVisibilityTarget, setViewVisibilityTarget] = useState<{ viewId: string; collectionId: string } | null>(
+    null
+  );
 
   // Hooks personnalisés pour les permissions
   const canEdit = useCanEdit(activeCollection);
@@ -74,7 +88,22 @@ const App = () => {
   const viewHooks = useViews(views, setViews, activeCollection, activeView, setActiveView);
 
   const currentCollection = collections.find((c) => c.id === activeCollection);
-  const { currentViews, currentViewConfig } = viewHooks;
+  const { currentViews } = viewHooks;
+
+  const userRoleIds = (userRoles || []).map((r: any) => r.id);
+  const canSeeView = (view: any) => {
+    const allowed = view?.visibleToRoles;
+    const allowedUsers = view?.visibleToUsers;
+    const hasRoleRestriction = Array.isArray(allowed) && allowed.length > 0;
+    const hasUserRestriction = Array.isArray(allowedUsers) && allowedUsers.length > 0;
+    if (!hasRoleRestriction && !hasUserRestriction) return true;
+    const roleOk = hasRoleRestriction ? allowed.some((rid: string) => userRoleIds.includes(rid)) : false;
+    const userOk = hasUserRestriction ? allowedUsers.includes(user?.id) : false;
+    return roleOk || userOk;
+  };
+  const visibleViews = useMemo(() => currentViews.filter(canSeeView), [currentViews, userRoleIds, user?.id]);
+  const activeViewConfig =
+    visibleViews.find((v: any) => v.id === activeView) || visibleViews[0] || null;
 
   useEffect(() => {
     const loadState = async () => {
@@ -135,6 +164,22 @@ const App = () => {
   }, [canManagePermissions]);
 
   useEffect(() => {
+    const loadUsers = async () => {
+      if (!user) return;
+      try {
+        const res = await fetch(`${API_URL}/users`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableUsers(data || []);
+        }
+      } catch (err) {
+        console.error('Impossible de charger les utilisateurs', err);
+      }
+    };
+    loadUsers();
+  }, [user]);
+
+  useEffect(() => {
     if (!isLoaded || !user || !canEdit) return;
     const saveState = async () => {
       try {
@@ -151,6 +196,18 @@ const App = () => {
     saveState();
   }, [collections, views, activeCollection, activeView, favorites, isLoaded, user, canEdit]);
 
+  useEffect(() => {
+    if (!activeCollection) return;
+    if (visibleViews.length === 0) {
+      if (activeView !== null) setActiveView(null);
+      return;
+    }
+    const isAccessible = visibleViews.some((v: any) => v.id === activeView);
+    if (!activeView || !isAccessible) {
+      setActiveView(visibleViews[0].id);
+    }
+  }, [activeCollection, activeView, visibleViews]);
+
   const handleNavigateToCollection = (collectionId: string, linkedIds?: string[]) => {
     setActiveCollection(collectionId);
     setActiveView('default');
@@ -163,11 +220,11 @@ const App = () => {
 
   const clearRelationFilter = () => setRelationFilter({ collectionId: null, ids: [] });
 
-  const orderedProperties = getOrderedProperties(currentCollection, currentViewConfig);
+  const orderedProperties = getOrderedProperties(currentCollection, activeViewConfig);
 
   const filteredItems = getFilteredItems(
     currentCollection,
-    currentViewConfig,
+    activeViewConfig,
     relationFilter,
     activeCollection,
     collections
@@ -216,6 +273,8 @@ const App = () => {
           views={views}
           favorites={favorites}
           activeCollection={activeCollection}
+          userRoleIds={userRoleIds}
+          userId={user?.id || null}
           onSelectCollection={(collectionId) => {
             setActiveCollection(collectionId);
             setActiveView('default');
@@ -278,8 +337,8 @@ const App = () => {
             <>
               <ViewToolbar
                 currentCollection={currentCollection}
-                currentViews={currentViews}
-                currentViewConfig={currentViewConfig}
+                currentViews={visibleViews}
+                currentViewConfig={activeViewConfig}
                 activeView={activeView}
                 orderedProperties={orderedProperties}
                 collections={collections}
@@ -312,6 +371,10 @@ const App = () => {
                       : [...prev.views, viewId],
                   }));
                 }}
+                onManageViewVisibility={(viewId: string) => {
+                  if (!activeCollection) return;
+                  setViewVisibilityTarget({ viewId, collectionId: activeCollection });
+                }}
               />
 
               <motion.div
@@ -320,7 +383,7 @@ const App = () => {
                 transition={{ delay: 0.2 }}
                 className="flex-1 overflow-auto p-6"
               >
-                {currentViewConfig?.type === 'table' && (
+                {activeViewConfig?.type === 'table' && (
                   <TableView
                     collection={currentCollection}
                     items={filteredItems}
@@ -332,7 +395,7 @@ const App = () => {
                         setShowNewItemModal(true);
                       }
                     }}
-                    hiddenFields={currentViewConfig?.hiddenFields || []}
+                    hiddenFields={activeViewConfig?.hiddenFields || []}
                     orderedProperties={orderedProperties}
                     onReorderItems={(nextItems: any[]) => {
                       const updatedCollections = collections.map((col) => {
@@ -355,10 +418,10 @@ const App = () => {
                       itemHooks.updateItem(updatedItem);
                     }}
                     onNavigateToCollection={handleNavigateToCollection}
-                    groups={currentViewConfig?.groups || []}
+                    groups={activeViewConfig?.groups || []}
                   />
                 )}
-                {currentViewConfig?.type === 'kanban' && (
+                {activeViewConfig?.type === 'kanban' && (
                   <KanbanView
                     collection={currentCollection}
                     items={filteredItems}
@@ -370,9 +433,9 @@ const App = () => {
                         setShowNewItemModal(true);
                       }
                     }}
-                    groupBy={currentViewConfig?.groupBy}
-                    hiddenFields={currentViewConfig?.hiddenFields || []}
-                    filters={currentViewConfig?.filters || []}
+                    groupBy={activeViewConfig?.groupBy}
+                    hiddenFields={activeViewConfig?.hiddenFields || []}
+                    filters={activeViewConfig?.filters || []}
                     orderedProperties={orderedProperties}
                     onChangeGroupBy={(groupBy: string) => {
                       const updatedViews = { ...views } as Record<string, any[]>;
@@ -390,7 +453,7 @@ const App = () => {
                     onNavigateToCollection={handleNavigateToCollection}
                   />
                 )}
-                {currentViewConfig?.type === 'calendar' && (
+                {activeViewConfig?.type === 'calendar' && (
                   <CalendarView
                     collection={currentCollection}
                     items={filteredItems}
@@ -402,8 +465,8 @@ const App = () => {
                         setShowNewItemModal(true);
                       }
                     }}
-                    dateProperty={currentViewConfig?.dateProperty}
-                    hiddenFields={currentViewConfig?.hiddenFields || []}
+                    dateProperty={activeViewConfig?.dateProperty}
+                    hiddenFields={activeViewConfig?.hiddenFields || []}
                     collections={collections}
                     onChangeDateProperty={(propId: string) => {
                       const updatedViews = { ...views } as Record<string, any[]>;
@@ -445,6 +508,22 @@ const App = () => {
             setShowEditCollectionModal(false);
           }}
           collection={editingCollection}
+        />
+      )}
+      {viewVisibilityTarget && (
+        <ViewVisibilityModal
+          view={
+            views[viewVisibilityTarget.collectionId]?.find(
+              (v: any) => v.id === viewVisibilityTarget.viewId
+            )
+          }
+          roles={availableRoles}
+          users={availableUsers}
+          onClose={() => setViewVisibilityTarget(null)}
+          onSave={(roleIds, userIds) => {
+            viewHooks.updateViewVisibility(viewVisibilityTarget.viewId, roleIds, userIds);
+            setViewVisibilityTarget(null);
+          }}
         />
       )}
       {showNewPropertyModal && activeCollection && (
@@ -527,6 +606,20 @@ const App = () => {
           onSave={(name, type, config) => {
             viewHooks.addView(name, type, config);
             setShowNewViewModal(false);
+          }}
+        />
+      )}
+      {viewVisibilityTarget && (
+        <ViewVisibilityModal
+          view={(views[viewVisibilityTarget.collectionId] || []).find(
+            (v) => v.id === viewVisibilityTarget.viewId
+          )}
+          roles={availableRoles.length ? availableRoles : userRoles || []}
+          users={availableUsers}
+          onClose={() => setViewVisibilityTarget(null)}
+          onSave={(roleIds, userIds) => {
+            viewHooks.updateViewVisibility(viewVisibilityTarget.viewId, roleIds, userIds);
+            setViewVisibilityTarget(null);
           }}
         />
       )}

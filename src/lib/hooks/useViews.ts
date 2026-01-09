@@ -15,7 +15,10 @@ export const useViews = (
       type,
       filters: [],
       groups: [],
-      hiddenFields: []
+      hiddenFields: [],
+      // Si vide ou non défini -> tout le monde peut voir la vue
+      visibleToRoles: [],
+      visibleToUsers: []
     };
     if (config?.groupBy) newView.groupBy = config.groupBy;
     if (config?.dateProperty) newView.dateProperty = config.dateProperty;
@@ -34,6 +37,19 @@ export const useViews = (
     const updatedViews = { ...views } as Record<string, any[]>;
     const viewIndex = updatedViews[activeCollection].findIndex((v: any) => v.id === activeView);
     updatedViews[activeCollection][viewIndex].filters.push({ property, operator, value });
+    setViews(updatedViews);
+  };
+
+  const updateViewVisibility = (viewId: string, roleIds: string[], userIds: string[]) => {
+    if (!activeCollection) return;
+    const updatedViews = { ...views } as Record<string, any[]>;
+    const viewIndex = updatedViews[activeCollection].findIndex((v: any) => v.id === viewId);
+    if (viewIndex === -1) return;
+    updatedViews[activeCollection][viewIndex] = {
+      ...updatedViews[activeCollection][viewIndex],
+      visibleToRoles: roleIds,
+      visibleToUsers: userIds
+    };
     setViews(updatedViews);
   };
 
@@ -142,6 +158,7 @@ export const useViews = (
     deleteView,
     toggleFieldVisibility,
     moveFieldInView,
-    updateViewFieldOrder
+    updateViewFieldOrder,
+    updateViewVisibility
   };
 };

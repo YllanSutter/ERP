@@ -9,6 +9,8 @@ interface SidebarProps {
   views: Record<string, any[]>;
   favorites: { views: string[]; items: string[] };
   activeCollection: string | null;
+  userRoleIds: string[];
+  userId: string | null;
   onSelectCollection: (collectionId: string) => void;
   onEditCollection: (collection: any) => void;
   onToggleFavoriteView: (viewId: string) => void;
@@ -22,6 +24,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   views,
   favorites,
   activeCollection,
+  userRoleIds,
+  userId,
   onSelectCollection,
   onEditCollection,
   onToggleFavoriteView,
@@ -31,11 +35,22 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [expandedFavorites, setExpandedFavorites] = useState(true);
 
+  const canSeeView = (view: any) => {
+    const allowedRoles = view?.visibleToRoles || [];
+    const allowedUsers = view?.visibleToUsers || [];
+    const hasRoleRestriction = allowedRoles.length > 0;
+    const hasUserRestriction = allowedUsers.length > 0;
+    if (!hasRoleRestriction && !hasUserRestriction) return true;
+    const roleOk = hasRoleRestriction ? allowedRoles.some((rid: string) => userRoleIds.includes(rid)) : false;
+    const userOk = hasUserRestriction ? allowedUsers.includes(userId) : false;
+    return roleOk || userOk;
+  };
+
   // Construire la liste des vues favorites avec leurs infos
   const favoriteViewsList = favorites.views
     .map((viewId) => {
       for (const [collectionId, collectionViews] of Object.entries(views)) {
-        const view = collectionViews.find((v: any) => v.id === viewId);
+        const view = collectionViews.find((v: any) => v.id === viewId && canSeeView(v));
         if (view) {
           const collection = collections.find((c) => c.id === collectionId);
           return { view, collection, collectionId };
