@@ -18,5 +18,10 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"],
+  "functions": {
+    "api/**.js": {
+      "runtime": "nodejs20.x"
+    }
+  }
 }
