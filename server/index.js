@@ -27,7 +27,18 @@ const pool = new Pool({
   database: process.env.PGDATABASE || process.env.DB_NAME || 'erp_db',
 });
 
-app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
+// CORS configuration - allow same-origin or CLIENT_ORIGIN
+app.use(cors({ 
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    // Allow CLIENT_ORIGIN
+    if (origin === CLIENT_ORIGIN) return callback(null, true);
+    // In production, also allow same-origin requests
+    callback(null, true);
+  }, 
+  credentials: true 
+}));
 app.use(cookieParser());
 app.use(express.json({ limit: '2mb' }));
 
