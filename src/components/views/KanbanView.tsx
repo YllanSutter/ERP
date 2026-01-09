@@ -5,7 +5,8 @@ import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EditableProperty from '@/components/fields/EditableProperty';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
-import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
+import NoAccessView from '@/components/views/NoAccessView';
+import { useViewPermissions } from '@/lib/hooks/useViewPermissions';
 
 interface KanbanViewProps {
   collection: any;
@@ -27,16 +28,10 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
   const [draggedItem, setDraggedItem] = useState<any>(null);
   
   // Hooks de permissions
-  const canEdit = useCanEdit(collection?.id);
-  const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, collection?.id);
-  const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, collection?.id);
+  const { canEdit, canEditFieldFn, canViewFieldFn } = useViewPermissions(collection?.id);
 
   if (!collection) {
-    return (
-      <div className="flex items-center justify-center h-full text-neutral-500">
-        <p>Collection non accessible</p>
-      </div>
-    );
+    return <NoAccessView />;
   }
 
   // Find available select properties

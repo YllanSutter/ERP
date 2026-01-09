@@ -17,7 +17,7 @@ import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ShinyButton from '@/components/ui/ShinyButton';
 import DraggableList from '@/components/inputs/DraggableList';
-import { useCanEdit, useCanViewField } from '@/lib/hooks/useCanEdit';
+import { useSimpleViewPermissions } from '@/lib/hooks/useViewPermissions';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -86,8 +86,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   const settingsRef = useRef<HTMLDivElement>(null);
   
   // Hook de permission
-  const canEdit = useCanEdit(activeCollection);
-  const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, activeCollection);
+  const { canEdit, canViewFieldFn } = useSimpleViewPermissions(activeCollection);
   
   // Filtrer les propriétés que l'utilisateur peut voir
   const viewableProperties = orderedProperties.filter(prop => canViewFieldFn(prop.id));
