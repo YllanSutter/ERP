@@ -1,4 +1,6 @@
-import serverless from 'serverless-http';
+// Vercel Serverless Function
+// This wraps the Express app to work as a Vercel Function
+
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -610,8 +612,8 @@ app.get('/api/audit', requireAuth, requirePermission('can_manage_permissions'), 
   res.json(logs.rows);
 });
 
-// Export for Vercel serverless (format Vercel-compatible)
-export default serverless(app);
+// Export for Vercel serverless (Vercel-compatible format)
+export default app;
 
 
 const ensureSystemRoles = async () => {
