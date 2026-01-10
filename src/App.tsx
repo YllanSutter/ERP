@@ -748,7 +748,44 @@ const App = () => {
         />
       )}
       {showAccessManager && canManagePermissions && (
-        <AccessManager collections={collections} onClose={() => setShowAccessManager(false)} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-neutral-900 rounded-lg shadow-lg p-6 min-w-[400px] max-w-[90vw] max-h-[90vh] overflow-auto relative">
+            <AccessManager
+              collections={collections}
+              onClose={() => setShowAccessManager(false)}
+              onImportCollections={(importedCollections) => {
+                setCollections(importedCollections);
+                // Générer les vues par défaut si absentes pour éviter undefined
+                const newViews: Record<string, any[]> = {};
+                importedCollections.forEach((col: any) => {
+                  if (Array.isArray(col.views)) {
+                    newViews[col.id] = col.views;
+                  } else {
+                    // Crée une vue par défaut si aucune vue n'est présente
+                    newViews[col.id] = [
+                      {
+                        id: 'default',
+                        name: 'Vue par défaut',
+                        type: 'table',
+                        hiddenFields: [],
+                        filters: [],
+                        groups: [],
+                        groupBy: null,
+                        dateProperty: null,
+                      },
+                    ];
+                  }
+                });
+                setViews(newViews);
+                setActiveCollection(null);
+                setActiveView(null);
+                setActiveDashboard(null);
+                setRelationFilter({ collectionId: null, ids: [] });
+                alert('Collections importées !');
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

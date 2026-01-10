@@ -15,7 +15,7 @@ const flags = [
   { key: 'can_manage_permissions', label: 'Permissions', hint: 'Gérer les droits des rôles et utilisateurs' },
 ];
 
-const AccessManager = ({ collections, onClose }: { collections: any[]; onClose: () => void }) => {
+const AccessManager = ({ collections, onClose, onImportCollections }: { collections: any[]; onClose: () => void; onImportCollections?: (collections: any[]) => void }) => {
   const { isAdminBase: isAdmin, refresh: refreshAuth, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<any[]>([]);
@@ -260,6 +260,54 @@ const AccessManager = ({ collections, onClose }: { collections: any[]; onClose: 
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs shadow"
+                style={{ minWidth: 80 }}
+                onClick={() => {
+                  // Exporter toutes les collections avec toutes leurs données (propriétés, items, vues, etc)
+                  const collectionsExport = collections.map(col => {
+                    // On exporte tout l'objet collection, sans filtrer
+                    return { ...col };
+                  });
+                  const blob = new Blob([JSON.stringify(collectionsExport, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'collections_export.json';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                Exporter
+              </button>
+              <label className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs shadow cursor-pointer" style={{ minWidth: 80, textAlign: 'center' }}>
+                Importer
+                <input
+                  type="file"
+                  accept="application/json"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      const text = await file.text();
+                      const data = JSON.parse(text);
+                      if (Array.isArray(data)) {
+                        if (typeof onImportCollections === 'function') {
+                          onImportCollections(data);
+                        }
+                        alert('Collections importées !');
+                      } else {
+                        alert('Le fichier ne contient pas de collections valides.');
+                      }
+                    } catch (err) {
+                      alert('Erreur lors de l\'importation.');
+                    }
+                  }}
+                />
+              </label>
               <button onClick={loadAll} className="p-2 rounded-lg hover:bg-white/10 text-neutral-400" title="Rafraîchir">
                 <RefreshCw size={16} />
               </button>
