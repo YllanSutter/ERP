@@ -55,14 +55,38 @@ const WeekView: React.FC<WeekViewProps> = ({
 
   const [dragPreview, setDragPreview] = React.useState<{ dayIndex: number; positionY: number } | null>(null);
 
-  // Afficher toutes les propriétés visibles (non masquées et non dans le menu contextuel)
-  const contextualMenuFields = (collection.contextualMenuFields || []);
-  const visibleMetaFields = collection.properties.filter(
-    (p: any) =>
-      !hiddenFields.includes(p.id) &&
-      canViewField(p.id) &&
-      !contextualMenuFields.includes(p.id)
-  );
+  // En mode multi-collection, il faut gérer les champs visibles/contextuels par collection
+  // (ne jamais appeler de hook dans un useMemo !)
+  const collectionMap: Record<string, any> = {};
+  // Pour éviter de changer l'ordre des hooks, on crée une fonction stable
+  const canViewFieldSafe = (fieldId: string, colId?: string) => {
+    // Si la fonction attend 2 arguments, on les passe, sinon juste le premier
+    if (canViewField.length === 2) return (canViewField as any)(fieldId, colId);
+    return canViewField(fieldId);
+  };
+  (collections || []).forEach((col: any) => {
+    const contextualMenuFields = col.contextualMenuFields || [];
+    const visibleMetaFields = col.properties.filter(
+      (p: any) =>
+        !hiddenFields.includes(p.id) &&
+        canViewFieldSafe(p.id, col.id) &&
+        !contextualMenuFields.includes(p.id)
+    );
+    collectionMap[col.id] = { contextualMenuFields, visibleMetaFields, collection: col };
+  });
+
+  // Helper pour récupérer la collection d'un item
+  const getCollectionForItem = (item: any) => {
+    if (item.__collectionId && collectionMap[item.__collectionId]) return collectionMap[item.__collectionId].collection;
+    if (collections && collections.length === 1) return collections[0];
+    return undefined;
+  };
+  // Helper pour récupérer les champs visibles d'un item
+  const getVisibleMetaFields = (item: any) => {
+    if (item.__collectionId && collectionMap[item.__collectionId]) return collectionMap[item.__collectionId].visibleMetaFields;
+    if (collections && collections.length === 1) return collectionMap[collections[0].id].visibleMetaFields;
+    return [];
+  };
 
   // Get week days
   const weekDays = getWeekDays(currentDate);
@@ -70,9 +94,24 @@ const WeekView: React.FC<WeekViewProps> = ({
   // Helper to build a local (non-UTC) date key YYYY-MM-DD
   const toDateKeyLocal = (d: Date) => toDateKey(d);
 
-  // Calculate event positions and spans
-  const getEventStyleLocal = (item: any) =>
-    getEventStyle(item, dateField, defaultDuration, endHour);
+
+  // Helper pour récupérer le champ date d'un item (multi-collection)
+  const getDateFieldForItem = (item: any) => {
+    const col = getCollectionForItem(item);
+    if (!col) return undefined;
+    // On prend le premier champ date/date_range sélectionné (ou le premier trouvé)
+    const dateProps = col.properties.filter((p: any) => p.type === 'date' || p.type === 'date_range');
+    // Si CalendarView fournit un mapping, il faudrait le passer ici
+    // Pour l'instant, on prend le premier
+    return dateProps[0];
+  };
+
+  // Calculate event positions and spans (par item)
+  const getEventStyleLocal = (item: any) => {
+    const dateField = getDateFieldForItem(item);
+    if (!dateField) return undefined;
+    return getEventStyle(item, dateField, defaultDuration, endHour);
+  };
 
   // Group events by day with overflow handling
   const eventsByDay = useMemo(() => {
@@ -302,7 +341,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                 const dayDuration = dayEndTime - dayStartTime;
                 const colors = getItemColor(item.id);
                 const hasBreakThisDay = dayStartTime < breakStart && dayEndTime > breakStart;
-
+                const visibleMetaFields = getVisibleMetaFields(item);
                 return (
                   <WeekEventCard
                     key={`${item.id}-${multiDayIndex}`}

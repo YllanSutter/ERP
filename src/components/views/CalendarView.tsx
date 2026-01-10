@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -44,15 +44,43 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   defaultDuration = 1,
   collections = [],
 }) => {
-  // Hooks de permissions
-  const canEdit = useCanEdit(collection?.id);
-  const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, collection?.id);
-  const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, collection?.id);
+  // Sélection multiple de collections
+        // Persistance du multi-sélecteur de collections
+        const getInitialSelectedCollections = () => {
+          try {
+            if (typeof window !== 'undefined') {
+              const saved = window.localStorage.getItem('calendarSelectedCollections');
+              if (saved) {
+                const arr = JSON.parse(saved);
+                if (Array.isArray(arr) && arr.length > 0) return arr;
+              }
+            }
+          } catch {}
+          if (collection) return [collection.id];
+          if (collections.length > 0) return [collections[0].id];
+          return [];
+        };
+        const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(getInitialSelectedCollections);
+  // Pour chaque collection sélectionnée, on choisit un champ date
+  const [selectedDateFields, setSelectedDateFields] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    collections.forEach(col => {
+      const dateProp = col.properties.find((p: any) => p.type === 'date' || p.type === 'date_range');
+      if (dateProp) initial[col.id] = dateProp.id;
+    });
+    return initial;
+  });
 
-  if (!collection) {
+  // Hooks de permissions (par collection)
+  const canEdit = (colId: string) => useCanEdit(colId);
+  const canEditFieldFn = (fieldId: string, colId: string) => useCanEditField(fieldId, colId);
+  const canViewFieldFn = (fieldId: string, colId: string) => useCanViewField(fieldId, colId);
+
+
+  if (!collections || collections.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-neutral-500">
-        <p>Collection non accessible</p>
+        <p>Aucune collection accessible</p>
       </div>
     );
   }
@@ -78,30 +106,45 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     } catch {}
   };
 
-  const dateProps = collection.properties.filter((p: any) => p.type === 'date' || p.type === 'date_range');
-  let dateFieldId = dateProperty || dateProps[0]?.id;
-  const dateField = collection.properties.find((p: any) => p.id === dateFieldId);
 
-  const getItemsForDate = (date: Date) => getItemsForDateUtil(date, items, dateField);
+  // Récupérer les collections sélectionnées
+  const selectedCollections = useMemo(() => collections.filter(col => selectedCollectionIds.includes(col.id)), [collections, selectedCollectionIds]);
 
-  const previousPeriod = () => {
-    setCurrentDate(getPreviousPeriod(currentDate, viewMode));
+  // Fusionner les items de toutes les collections sélectionnées
+  const mergedItems = useMemo(() => selectedCollections.flatMap(col => col.items.map((it: any) => ({ ...it, __collectionId: col.id }))), [selectedCollections]);
+
+  // Pour chaque collection, récupérer le champ date sélectionné
+  const dateFieldsByCollection: Record<string, any> = {};
+  selectedCollections.forEach(col => {
+    dateFieldsByCollection[col.id] = col.properties.find((p: any) => p.id === selectedDateFields[col.id]);
+  });
+
+  // Pour chaque item, trouver le champ date à utiliser (par collection)
+  const getDateFieldForItem = (item: any) => dateFieldsByCollection[item.__collectionId];
+
+  // Pour chaque date, récupérer les items correspondants (toutes collections)
+  const getItemsForDate = (date: Date) => {
+    return mergedItems.filter(item => {
+      const dateField = getDateFieldForItem(item);
+      return getItemsForDateUtil(date, [item], dateField).length > 0;
+    });
   };
 
-  const nextPeriod = () => {
-    setCurrentDate(getNextPeriod(currentDate, viewMode));
-  };
 
-  const goToToday = () => {
-    setCurrentDate(new Date());
-  };
+  const previousPeriod = () => setCurrentDate(getPreviousPeriod(currentDate, viewMode));
+  const nextPeriod = () => setCurrentDate(getNextPeriod(currentDate, viewMode));
+  const goToToday = () => setCurrentDate(new Date());
 
-  const getNameValue = (item: any) => getNameValueUtil(item, collection);
+
+  // Trouver la collection d'un item
+  const getCollectionForItem = (item: any) => collections.find(col => col.id === item.__collectionId);
+  const getNameValue = (item: any) => getNameValueUtil(item, getCollectionForItem(item));
+
 
   const handleEventDrop = (item: any, newDate: Date, newHours?: number, newMinutes?: number) => {
     const updatedItem = { ...item };
+    const dateField = getDateFieldForItem(item);
     const newDateTime = new Date(newDate);
-    
     if (newHours !== undefined) {
       newDateTime.setHours(newHours);
     } else if (item[dateField?.id]) {
@@ -110,11 +153,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     } else {
       newDateTime.setHours(9, 0);
     }
-    
     if (newMinutes !== undefined) {
       newDateTime.setMinutes(newMinutes);
     }
-    
     updatedItem[dateField?.id] = newDateTime.toISOString();
     onEdit(updatedItem);
   };
@@ -133,6 +174,55 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             }
           </h2>
           <div className="flex items-center gap-3">
+            {/* Sélecteur multi-collections UX boutons toggle */}
+            <div className="flex gap-2">
+              {collections.map(col => {
+                const selected = selectedCollectionIds.includes(col.id);
+                return (
+                  <button
+                    key={col.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCollectionIds(ids => {
+                        const newIds = ids.includes(col.id)
+                          ? ids.filter(id => id !== col.id)
+                          : [...ids, col.id];
+                        try {
+                          if (typeof window !== 'undefined') {
+                            window.localStorage.setItem('calendarSelectedCollections', JSON.stringify(newIds));
+                          }
+                        } catch {}
+                        return newIds;
+                      });
+                    }}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
+                      selected
+                        ? 'bg-violet-500/30 text-violet-200 border-violet-500/50 shadow'
+                        : 'bg-neutral-800/50 text-neutral-400 border-white/10 hover:bg-neutral-700/50 hover:text-white'
+                    )}
+                  >
+                    {col.name}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Sélecteur de champ date par collection */}
+            {selectedCollections.map(col => {
+              const dateProps = col.properties.filter((p: any) => p.type === 'date' || p.type === 'date_range');
+              return (
+                <select
+                  key={col.id}
+                  value={selectedDateFields[col.id] || ''}
+                  onChange={e => setSelectedDateFields(f => ({ ...f, [col.id]: e.target.value }))}
+                  className="px-3 py-1.5 bg-neutral-800/50 border border-white/10 rounded-lg text-sm text-white focus:border-violet-500 focus:outline-none min-w-[120px]"
+                >
+                  {dateProps.map((prop: any) => (
+                    <option key={prop.id} value={prop.id}>{col.name} - {prop.name}</option>
+                  ))}
+                </select>
+              );
+            })}
             <div className="flex gap-1 bg-neutral-800/50 rounded-lg p-1">
               <button
                 onClick={() => setViewModePersist('month')}
@@ -152,7 +242,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               >
                 Semaine
               </button>
-               <button
+              <button
                 onClick={() => setViewModePersist('day')}
                 className={cn(
                   'px-3 py-1.5 text-sm font-medium transition-colors',
@@ -162,17 +252,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 Jour
               </button>
             </div>
-            {dateProps.length > 0 && (
-              <select
-                value={dateFieldId}
-                onChange={(e) => onChangeDateProperty?.(e.target.value)}
-                className="px-3 py-1.5 bg-neutral-800/50 border border-white/10 rounded-lg text-sm text-white focus:border-violet-500 focus:outline-none"
-              >
-                {dateProps.map((prop: any) => (
-                  <option key={prop.id} value={prop.id}>{prop.name}</option>
-                ))}
-              </select>
-            )}
             <button onClick={previousPeriod} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
               <ChevronLeft size={20} />
             </button>
@@ -189,19 +268,19 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
 
         {/* Calendar Views */}
-        {!dateField ? (
+        {selectedCollections.length === 0 || selectedCollections.every(col => !col.properties.some((p: any) => p.type === 'date' || p.type === 'date_range')) ? (
           <div className="flex items-center justify-center h-96 rounded-lg border border-white/10 bg-white/[0.02]">
             <div className="text-center">
-              <p className="text-neutral-400 mb-2">Aucune propriété de type "Date" trouvée</p>
+              <p className="text-neutral-400 mb-2">Aucune propriété de type "Date" trouvée dans les collections sélectionnées</p>
               <p className="text-xs text-neutral-500">Ajoutez une propriété date pour utiliser la vue calendrier</p>
             </div>
           </div>
         ) : viewMode === 'month' ? (
           <MonthView
             currentDate={currentDate}
-            items={items}
-            dateField={dateField}
-            collection={collection}
+            items={mergedItems}
+            dateField={undefined} // non utilisé, getItemsForDate fait le tri
+            collection={undefined} // non utilisé, getItemsForDate fait le tri
             onDateSelect={setSelectedDate}
             getNameValue={getNameValue}
             getItemsForDate={getItemsForDate}
@@ -209,9 +288,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         ) : viewMode === 'week' ? (
           <WeekView
             currentDate={currentDate}
-            items={items}
-            dateField={dateField}
-            collection={collection}
+            items={mergedItems}
+            dateField={undefined}
+            collection={undefined}
             onDelete={onDelete}
             onEdit={onEdit}
             onViewDetail={onViewDetail}
@@ -221,16 +300,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             startHour={startHour}
             endHour={endHour}
             defaultDuration={defaultDuration}
-            collections={collections}
-            onEventDrop={canEdit ? handleEventDrop : undefined}
-            canViewField={canViewFieldFn}
+            collections={selectedCollections}
+            onEventDrop={handleEventDrop}
+            canViewField={(fieldId: string, colId?: string) => canViewFieldFn(fieldId, colId)}
           />
         ) : (
           <DayView
             currentDate={currentDate}
-            items={items}
-            dateField={dateField}
-            collection={collection}
+            items={mergedItems}
+            dateField={undefined}
+            collection={undefined}
             onDelete={onDelete}
             onEdit={onEdit}
             onViewDetail={onViewDetail}
@@ -240,9 +319,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             startHour={startHour}
             endHour={endHour}
             defaultDuration={defaultDuration}
-            collections={collections}
-            onEventDrop={canEdit ? handleEventDrop : undefined}
-            canViewField={canViewFieldFn}
+            collections={selectedCollections}
+            onEventDrop={handleEventDrop}
+            canViewField={(fieldId: string, colId?: string) => canViewFieldFn(fieldId, colId || selectedCollections[0]?.id)}
           />
         )}
       </div>
