@@ -753,15 +753,37 @@ const App = () => {
             <AccessManager
               collections={collections}
               onClose={() => setShowAccessManager(false)}
-              onImportCollections={(importedCollections) => {
-                setCollections(importedCollections);
+              onImportCollections={(importedData) => {
+                // Supporte l'ancien format (array) ou le nouveau (objet)
+                let collectionsToImport = importedData;
+                let favoritesToImport = undefined;
+                let rolesToImport = undefined;
+                let usersToImport = undefined;
+                if (Array.isArray(importedData)) {
+                  collectionsToImport = importedData;
+                } else if (
+                  typeof importedData === 'object' &&
+                  importedData !== null &&
+                  'collections' in importedData
+                ) {
+                  const dataObj = importedData as {
+                    collections?: any[];
+                    favorites?: any;
+                    roles?: any[];
+                    users?: any[];
+                  };
+                  collectionsToImport = dataObj.collections || [];
+                  favoritesToImport = dataObj.favorites;
+                  rolesToImport = dataObj.roles;
+                  usersToImport = dataObj.users;
+                }
+                setCollections(collectionsToImport);
                 // Générer les vues par défaut si absentes pour éviter undefined
                 const newViews: Record<string, any[]> = {};
-                importedCollections.forEach((col: any) => {
+                collectionsToImport.forEach((col: any) => {
                   if (Array.isArray(col.views)) {
                     newViews[col.id] = col.views;
                   } else {
-                    // Crée une vue par défaut si aucune vue n'est présente
                     newViews[col.id] = [
                       {
                         id: 'default',
@@ -777,11 +799,23 @@ const App = () => {
                   }
                 });
                 setViews(newViews);
+                if (
+                  favoritesToImport &&
+                  typeof favoritesToImport === 'object' &&
+                  Array.isArray(favoritesToImport.views) &&
+                  Array.isArray(favoritesToImport.items)
+                ) {
+                  setFavorites(favoritesToImport);
+                } else {
+                  setFavorites({ views: [], items: [] });
+                }
+                if (Array.isArray(rolesToImport)) setAvailableRoles(rolesToImport);
+                if (Array.isArray(usersToImport)) setAvailableUsers(usersToImport);
                 setActiveCollection(null);
                 setActiveView(null);
                 setActiveDashboard(null);
                 setRelationFilter({ collectionId: null, ids: [] });
-                alert('Collections importées !');
+                alert('Données importées !');
               }}
             />
           </div>

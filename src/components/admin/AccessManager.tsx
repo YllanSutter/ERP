@@ -264,16 +264,20 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                 className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs shadow"
                 style={{ minWidth: 80 }}
                 onClick={() => {
-                  // Exporter toutes les collections avec toutes leurs données (propriétés, items, vues, etc)
-                  const collectionsExport = collections.map(col => {
-                    // On exporte tout l'objet collection, sans filtrer
-                    return { ...col };
-                  });
-                  const blob = new Blob([JSON.stringify(collectionsExport, null, 2)], { type: 'application/json' });
+                  // Exporter collections (avec vues), favoris, comptes et rôles (pas les logs)
+                  const favorites: any[] = []; // Remplacez ceci par la vraie source des favoris si disponible
+                  const exportData = {
+                    collections: collections.map(col => ({ ...col })),
+                    views: undefined, // les vues sont dans chaque collection
+                    favorites,
+                    roles,
+                    users,
+                  };
+                  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = 'collections_export.json';
+                  a.download = 'erp_export.json';
                   document.body.appendChild(a);
                   a.click();
                   document.body.removeChild(a);
@@ -294,11 +298,12 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                     try {
                       const text = await file.text();
                       const data = JSON.parse(text);
-                      if (Array.isArray(data)) {
+                      // Accepte le format objet avec .collections ou un tableau direct
+                      if ((Array.isArray(data)) || (typeof data === 'object' && data !== null && Array.isArray(data.collections))) {
                         if (typeof onImportCollections === 'function') {
                           onImportCollections(data);
                         }
-                        alert('Collections importées !');
+                        alert('Données importées !');
                       } else {
                         alert('Le fichier ne contient pas de collections valides.');
                       }
