@@ -117,6 +117,13 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     });
   };
 
+  // UI pour choisir la collection et le champ date pour chaque groupe racine
+  const handleRootGroupChange = (groupIdx: number, patch: any) => {
+    if (!dashboard || !dashboard.columnTree) return;
+    const newTree = dashboard.columnTree.map((g: any, idx: number) => idx === groupIdx ? { ...g, ...patch } : g);
+    onUpdate({ columnTree: newTree });
+  };
+
   const getTableHeaderRows = () => {
     const rows: any[][] = [];
     buildHeaderRows(dashboard?.columnTree || [], 0, maxDepth, rows);
@@ -182,9 +189,9 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     const spansByLeaf: Record<string, any[]> = {};
     const spansByLeafDay: Record<string, Record<string, any>> = {};
 
-    if (!dashboard || !collection || !leafColumns.length) return { daily, spansByLeaf, spansByLeafDay };
+    if (!dashboard || !leafColumns.length) return { daily, spansByLeaf, spansByLeafDay };
 
-    // Générer tous les jours du mois affiché
+    // Générer tous les jours ouvrés (lundi-vendredi) du mois affiché
     const year = dashboard.year;
     const month = dashboard.month - 1; // JS: 0 = janvier
     const firstDay = new Date(year, month, 1);
@@ -192,28 +199,38 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     const daysOfMonth: Date[] = [];
     let d = new Date(firstDay);
     while (d <= lastDay) {
-      daysOfMonth.push(new Date(d));
+      const dayOfWeek = d.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        daysOfMonth.push(new Date(d));
+      }
       d.setDate(d.getDate() + 1);
     }
 
     // Pour chaque feuille (colonne finale)
     leafColumns.forEach((leaf: any) => {
-      // Déterminer le champ date à utiliser pour cette feuille
-      let dateFieldId = dashboard.globalDateField;
+      // Trouver le groupe racine parent (niveau 1)
+      const rootGroup = leaf._parentPath && leaf._parentPath.length > 0 ? leaf._parentPath[0] : null;
+      // Déterminer la collection à utiliser pour ce groupe racine
+      const groupCollectionId = rootGroup?.collectionId || dashboard.sourceCollectionId;
+      const groupCollection = collections.find((c: any) => c.id === groupCollectionId) || collection;
+      const groupProperties = groupCollection?.properties || [];
+      const groupItems = groupCollection?.items || [];
+      // Déterminer le champ date à utiliser pour ce groupe racine
+      let dateFieldId = rootGroup?.dateFieldId || dashboard.globalDateField;
       if (leaf.dateFieldOverride && leaf.dateFieldOverride.single) {
         dateFieldId = leaf.dateFieldOverride.single;
       }
       // Si rien n'est défini, prendre le premier champ date de la collection
-      if (!dateFieldId && properties.length > 0) {
-        const firstDate = properties.find((p: any) => p.type === 'date' || p.type === 'date_range');
+      if (!dateFieldId && groupProperties.length > 0) {
+        const firstDate = groupProperties.find((p: any) => p.type === 'date' || p.type === 'date_range');
         if (firstDate) dateFieldId = firstDate.id;
       }
       // Trouver le champ date dans les propriétés
-      const dateField = properties.find((p: any) => p.id === dateFieldId);
+      const dateField = groupProperties.find((p: any) => p.id === dateFieldId);
       console.log('[DASHBOARD][AGGREGATION] feuille:', leaf.label, '| dateFieldId:', dateFieldId, '| dateField:', dateField);
       if (!dateField) return;
       // Log les valeurs de ce champ pour chaque item
-      items.forEach((item: any) => {
+      groupItems.forEach((item: any) => {
         if (dateFieldId != null) {
           console.log('[DASHBOARD][AGGREGATION] item:', item.name, '|', dateFieldId, '=', item[dateFieldId]);
         } else {
@@ -239,9 +256,8 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         const key = day.toLocaleDateString('fr-CA'); // format YYYY-MM-DD
         if (!daily[key]) daily[key] = {};
         // Filtrer les items qui correspondent à la feuille et au jour
-        const itemsForDay = items.filter((item: any) => {
+        const itemsForDay = groupItems.filter((item: any) => {
           // Filtrer par type hiérarchique si applicable
-          // Détermination dynamique du typeField (multi_select)
           const typeField = resolvedTypeField;
           if (typeValues.length > 0 && typeField) {
             const itemType = item[typeField];
@@ -251,14 +267,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
             } else {
               match = typeValues.every((v: any) => itemType === v);
             }
-            console.log('[DASHBOARD][FILTER]', {
-              feuille: leaf.label,
-              typeValues,
-              itemName: item.name,
-              itemType,
-              match,
-              typeField
-            });
             if (!match) return false;
           }
           // Filtrer par date (correction : comparer en local)
@@ -293,17 +301,23 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     // (Optionnel) Spans pour les événements couvrant plusieurs jours (date_range)
     // Ici, on ne gère que les spans si le champ date est de type 'date_range'
     leafColumns.forEach((leaf: any) => {
-      let dateFieldId = dashboard.globalDateField;
+      // Trouver le groupe racine parent (niveau 1)
+      const rootGroup = leaf._parentPath && leaf._parentPath.length > 0 ? leaf._parentPath[0] : null;
+      const groupCollectionId = rootGroup?.collectionId || dashboard.sourceCollectionId;
+      const groupCollection = collections.find((c: any) => c.id === groupCollectionId) || collection;
+      const groupProperties = groupCollection?.properties || [];
+      let dateFieldId = rootGroup?.dateFieldId || dashboard.globalDateField;
       if (leaf.dateFieldOverride && leaf.dateFieldOverride.single) {
         dateFieldId = leaf.dateFieldOverride.single;
       }
-      const dateField = properties.find((p: any) => p.id === dateFieldId);
+      const dateField = groupProperties.find((p: any) => p.id === dateFieldId);
       if (!dateField || dateField.type !== 'date_range') return;
       const typeValues = leaf.typeValues && leaf.typeValues.length > 0 ? leaf.typeValues : null;
       const spans: any[] = [];
-      items.forEach((item: any) => {
-        if (typeValues && dashboard.typeField) {
-          if (!typeValues.includes(item[dashboard.typeField])) return;
+      const groupItems = groupCollection?.items || [];
+      groupItems.forEach((item: any) => {
+        if (typeValues && resolvedTypeField) {
+          if (!typeValues.includes(item[resolvedTypeField])) return;
         }
         const value = item[dateField.id];
         if (value && value.start && value.end) {
@@ -313,7 +327,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
             item,
             start,
             end,
-            label: getNameValueUtil(item, collection),
+            label: getNameValueUtil(item, groupCollection),
           });
         }
       });
@@ -334,7 +348,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     });
 
     return { daily, spansByLeaf, spansByLeafDay };
-  }, [dashboard, collection, properties, items, leafColumns]);
+  }, [dashboard, collection, collections, properties, items, leafColumns, resolvedTypeField]);
 
   if (!dashboard) {
     return (
@@ -575,7 +589,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     );
   };
 
-  // Génération des semaines du mois sélectionné (lundi-dimanche, week-ends exclus)
+  // Génération des semaines du mois sélectionné (lundi-vendredi, week-ends exclus)
   const groupedWeeks = useMemo(() => {
     if (!dashboard?.month || !dashboard?.year) return [];
     const year = dashboard.year;
@@ -591,7 +605,10 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         const d = new Date(current);
         d.setDate(current.getDate() + i);
         if (d.getMonth() === month && d <= lastDay) {
-          days.push(d);
+          const dayOfWeek = d.getDay();
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            days.push(d);
+          }
         }
       }
       if (days.length > 0) {
@@ -646,31 +663,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
               </option>
             ))}
           </select>
-          <select
-            value={dashboard.sourceCollectionId || ''}
-            onChange={(e) => onUpdate({ sourceCollectionId: e.target.value || null })}
-            className="bg-neutral-900 border border-white/10 rounded px-3 py-2 text-sm"
-          >
-            <option value="">Choisir une collection</option>
-            {collections.map((col) => (
-              <option key={col.id} value={col.id}>
-                {col.name}
-              </option>
-            ))}
-          </select>
-          {/* Sélecteur de champ date pour la collection */}
-          {dateFields.length > 0 && (
-            <select
-              value={dashboard.globalDateField || ''}
-              onChange={e => onUpdate({ globalDateField: e.target.value })}
-              className="bg-neutral-900 border border-white/10 rounded px-3 py-2 text-sm"
-            >
-              <option value="">Champ date à utiliser</option>
-              {dateFields.map((f: any) => (
-                <option key={f.id} value={f.id}>{f.name}</option>
-              ))}
-            </select>
-          )}
         </div>
       </div>
 

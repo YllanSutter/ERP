@@ -124,6 +124,14 @@ const DashboardColumnConfig = ({
   const renderNode = (node: any, depth = 0) => {
     const isGroup = !!node.groupField;
     const isLeaf = !isGroup;
+    // Pour les groupes racine (depth === 0), on permet de choisir la collection et le champ date
+    let groupCollection = null;
+    let groupDateFields: any[] = [];
+    if (depth === 0) {
+      const groupCollectionId = node.collectionId || dashboard.sourceCollectionId;
+      groupCollection = collections.find((c: any) => c.id === groupCollectionId) || collection;
+      groupDateFields = (groupCollection?.properties || []).filter((p: any) => p.type === 'date' || p.type === 'date_range');
+    }
     return (
       <div key={node.id} className={`bg-neutral-900 border border-white/10 rounded px-3 py-2 mb-2 ml-${depth * 4}`}> 
         <div className="flex items-center gap-2 mb-2">
@@ -135,54 +143,89 @@ const DashboardColumnConfig = ({
             onChange={(e) => handleUpdateNode(node.id, { label: e.target.value })}
             className="flex-1 bg-neutral-900 border border-white/10 rounded px-3 py-2 text-sm"
           />
-          {isGroup && <>
-            <span className="text-neutral-400 text-xs">Champ à grouper :</span>
-            <select
-              value={node.groupField || ''}
-              onChange={(e) => handleUpdateNode(node.id, { groupField: e.target.value || null })}
-              className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs"
-            >
-              <option value="">À définir</option>
-              {allProperties.map((prop: any) => (
-                <option key={prop.id} value={prop.id}>{prop.name}</option>
-              ))}
-            </select>
-            <span className="text-neutral-400 text-xs">Valeur :</span>
-            {node.groupField && (
+          {/* Sélecteur collection/dateField pour groupe racine */}
+          {depth === 0 && (
+            <>
+              <span className="text-neutral-400 text-xs">Collection :</span>
               <select
-                value={node.groupValue || ''}
-                onChange={(e) => handleUpdateNode(node.id, { groupValue: e.target.value })}
+                value={node.collectionId || ''}
+                onChange={e => handleUpdateNode(node.id, { collectionId: e.target.value })}
+                className="bg-neutral-800 border border-white/10 rounded px-2 py-1 text-xs"
+              >
+                <option value="">Collection</option>
+                {collections.map((col: any) => (
+                  <option key={col.id} value={col.id}>{col.name}</option>
+                ))}
+              </select>
+              {groupDateFields.length > 0 && (
+                <>
+                  <span className="text-neutral-400 text-xs">Champ date :</span>
+                  <select
+                    value={node.dateFieldId || ''}
+                    onChange={e => handleUpdateNode(node.id, { dateFieldId: e.target.value })}
+                    className="bg-neutral-800 border border-white/10 rounded px-2 py-1 text-xs"
+                  >
+                    <option value="">Champ date</option>
+                    {groupDateFields.map((f: any) => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </>
+          )}
+          {isGroup && (
+            <>
+              <span className="text-neutral-400 text-xs">Champ à grouper :</span>
+              <select
+                value={node.groupField || ''}
+                onChange={(e) => handleUpdateNode(node.id, { groupField: e.target.value || null })}
                 className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs"
               >
                 <option value="">À définir</option>
-                {allOptions(node.groupField).map((opt: any) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                {allProperties.map((prop: any) => (
+                  <option key={prop.id} value={prop.id}>{prop.name}</option>
                 ))}
               </select>
-            )}
-          </>}
-          {isLeaf && <>
-            <span className="text-neutral-400 text-xs">Champ à filtrer :</span>
-            <select
-              value={node.filterField || ''}
-              onChange={(e) => handleUpdateNode(node.id, { filterField: e.target.value || null, typeValues: [] })}
-              className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs"
-            >
-              <option value="">À définir</option>
-              {allProperties.map((prop: any) => (
-                <option key={prop.id} value={prop.id}>{prop.name}</option>
-              ))}
-            </select>
-            {node.filterField && (
-              <LightMultiSelect
-                options={allOptions(node.filterField)}
-                values={node.typeValues || []}
-                onChange={(vals) => handleUpdateNode(node.id, { typeValues: vals })}
-                placeholder="Valeurs..."
-                sizeClass="text-xs h-7"
-              />
-            )}
-          </>}
+              <span className="text-neutral-400 text-xs">Valeur :</span>
+              {node.groupField && (
+                <select
+                  value={node.groupValue || ''}
+                  onChange={(e) => handleUpdateNode(node.id, { groupValue: e.target.value })}
+                  className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs"
+                >
+                  <option value="">À définir</option>
+                  {allOptions(node.groupField).map((opt: any) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              )}
+            </>
+          )}
+          {isLeaf && (
+            <>
+              <span className="text-neutral-400 text-xs">Champ à filtrer :</span>
+              <select
+                value={node.filterField || ''}
+                onChange={(e) => handleUpdateNode(node.id, { filterField: e.target.value || null, typeValues: [] })}
+                className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs"
+              >
+                <option value="">À définir</option>
+                {allProperties.map((prop: any) => (
+                  <option key={prop.id} value={prop.id}>{prop.name}</option>
+                ))}
+              </select>
+              {node.filterField && (
+                <LightMultiSelect
+                  options={allOptions(node.filterField)}
+                  values={node.typeValues || []}
+                  onChange={(vals) => handleUpdateNode(node.id, { typeValues: vals })}
+                  placeholder="Valeurs..."
+                  sizeClass="text-xs h-7"
+                />
+              )}
+            </>
+          )}
           <button onClick={() => handleRemoveNode(node.id)} className="text-red-300 hover:text-white hover:bg-red-500/20 rounded px-2 py-1 text-xs ml-2">
             Supprimer
           </button>

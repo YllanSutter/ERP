@@ -86,22 +86,31 @@ const WeekView: React.FC<WeekViewProps> = ({
       const style = getEventStyleLocal(item);
       if (!style) return;
 
-      const startDateStr = toDateKey(style.startDate);
-      const dayIndex = weekDays.findIndex((d) => toDateKey(d) === startDateStr);
-
-      if (dayIndex !== -1) {
-        // Handle multi-day events
-        for (let i = 0; i < style.daysSpanned; i++) {
-          const currentDayIndex = dayIndex + i;
-          if (currentDayIndex < 5) { // Lundi à vendredi seulement
-            const currentDateStr = toDateKey(weekDays[currentDayIndex]);
-            events[currentDateStr].push({
+      // Utiliser la liste explicite des jours ouvrés couverts par l'événement
+      if (style.workdayDates && style.workdayDates.length > 0) {
+        style.workdayDates.forEach((date: Date, i: number) => {
+          const dateStr = toDateKey(date);
+          const dayIndex = weekDays.findIndex((d) => toDateKey(d) === dateStr);
+          if (dayIndex !== -1) {
+            events[dateStr].push({
               item,
               style,
-              dayIndex: currentDayIndex,
+              dayIndex,
               multiDayIndex: i,
             });
           }
+        });
+      } else {
+        // fallback mono-jour
+        const startDateStr = toDateKey(style.startDate);
+        const dayIndex = weekDays.findIndex((d) => toDateKey(d) === startDateStr);
+        if (dayIndex !== -1) {
+          events[startDateStr].push({
+            item,
+            style,
+            dayIndex,
+            multiDayIndex: 0,
+          });
         }
       }
     });

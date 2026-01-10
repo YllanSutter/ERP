@@ -11,6 +11,7 @@ export interface EventStyle {
   hoursPerDay: number;
   daysSpanned: number;
   hasBreak: boolean;
+  workdayDates?: Date[]; // Liste des jours ouvrés couverts par l'événement
 }
 
 export interface ColorSet {
@@ -122,6 +123,10 @@ export const getItemsForDate = (
   dateField: any
 ): any[] => {
   if (!dateField) return [];
+
+  // Ignore les week-ends (samedi = 6, dimanche = 0)
+  const dayOfWeek = date.getDay();
+  if (dayOfWeek === 0 || dayOfWeek === 6) return [];
 
   const dateStr = date.toISOString().split('T')[0];
   return items.filter((item) => {
@@ -250,15 +255,25 @@ export const getEventStyle = (
     firstDayAvailableHours = workDayEnd - breakEnd;
   }
 
-  // Calculer le nombre de jours nécessaires
+  // Calculer le nombre de jours nécessaires en sautant les week-ends
   let durationHours = duration;
   let daysSpanned = 1;
   let hoursPerDay = Math.min(durationHours, firstDayAvailableHours);
+  const workdayDates: Date[] = [new Date(startDate)];
 
   if (durationHours > firstDayAvailableHours) {
-    const remainingHours = durationHours - firstDayAvailableHours;
-    const additionalDays = Math.ceil(remainingHours / 7);
-    daysSpanned = 1 + additionalDays;
+    let remainingHours = durationHours - firstDayAvailableHours;
+    let current = new Date(startDate);
+    while (remainingHours > 0) {
+      current.setDate(current.getDate() + 1);
+      const dayOfWeek = current.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        continue;
+      }
+      workdayDates.push(new Date(current));
+      daysSpanned++;
+      remainingHours -= workHoursPerDay;
+    }
   }
 
   return {
@@ -270,6 +285,7 @@ export const getEventStyle = (
     hoursPerDay,
     daysSpanned,
     hasBreak: startTimeInHours < breakStart && endTimeInHours > breakStart,
+    workdayDates,
   };
 };
 
