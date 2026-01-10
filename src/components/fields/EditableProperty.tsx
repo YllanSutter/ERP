@@ -149,7 +149,40 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0 bg-neutral-900 border-neutral-700" align="start">
-          <div className="flex flex-row gap-4 p-3 pb-0">
+          <div className="flex flex-row gap-4 p-3">
+            {/* Durée (picker vertical style heure) */}
+            {onRelationChange && currentItem && (
+              <div className="flex flex-col items-center justify-center min-w-[110px]">
+                <label className="block text-xs font-medium text-neutral-400 mb-1.5">Durée (H:M)</label>
+                <div className="relative w-full flex flex-col items-center">
+                  <select
+                    value={currentDuration}
+                    onChange={e => {
+                      const newDuration = parseFloat(e.target.value) || 1;
+                      onRelationChange(property, { ...currentItem, [durationKey]: newDuration }, value);
+                    }}
+                    className="w-full h-50 text-center bg-neutral-900 border-r border-white/10 text-white text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
+                    size={9}
+                    style={{ WebkitAppearance: 'none', appearance: 'none' }}
+                  >
+                    {Array.from({ length: 97 }, (_, i) => (i * 0.25)).map(dur => {
+                      let label;
+                      if (dur % 1 === 0) {
+                        label = `${String(dur).padStart(2, '0')}:00`;
+                      } else {
+                        const hours = String(Math.floor(dur)).padStart(2, '0');
+                        const minutes = String((dur % 1) * 60).padStart(2, '0');
+                        label = `${hours}:${minutes}`;
+                      }
+                      return (
+                        <option key={dur} value={dur}>{label}</option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+            )}
+            {/* Calendrier au centre */}
             <Calendar
               mode="single"
               selected={selectedDate}
@@ -168,8 +201,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
               initialFocus
               className="bg-neutral-900 text-white"
             />
+            {/* Heure (picker vertical) à droite */}
             <div className="flex flex-col items-center justify-center min-w-[110px]">
-              <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure</label>
+              <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure (H:M)</label>
               <div className="relative w-full flex flex-col items-center">
                 <select
                   value={currentTime}
@@ -179,7 +213,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                     d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
                     onChange(d.toISOString());
                   }}
-                  className="w-full h-50 text-center bg-neutral-900 border-l border-white/10 rounded-lg text-white text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
+                  className="w-full h-50 text-center bg-neutral-900 border-l border-white/10  text-white text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
                   size={9}
                   style={{ WebkitAppearance: 'none', appearance: 'none' }}
                 >
@@ -190,23 +224,6 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
               </div>
             </div>
           </div>
-          {onRelationChange && currentItem && (
-            <div className="flex gap-5 items-center justify-center min-w-[110px] px-3 py-3 border-t border-white/10">
-              <label className="block text-xs font-medium text-neutral-400">Durée (heures)</label>
-              <input
-                type="number"
-                value={currentDuration}
-                onChange={(e) => {
-                  const newDuration = parseFloat(e.target.value) || 1;
-                  onRelationChange(property, { ...currentItem, [durationKey]: newDuration }, value);
-                }}
-                min="0.25"
-                step="0.25"
-                placeholder="1"
-                className="flex-1 px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none text-sm"
-              />
-            </div>
-          )}
         </PopoverContent>
       </Popover>
     );
@@ -638,10 +655,10 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       type={inputType}
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
-      placeholder={value ? '' : '-'}
+      placeholder={value ? '' : '...'}
       disabled={readOnly}
       className={cn(
-        "flex-1 w-auto px-2 py-1 bg-transparent border border-transparent border-b-white/5 hover:border-white/10 text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+        "flex-1 w-auto px-2 py-1 bg-transparent border border-transparent hover:border-white/10 text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
         sizeClasses[size],
         className
       )}
@@ -650,10 +667,27 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
   // Si c'est une URL avec une valeur, ajouter le menu contextuel
   if (property.type === 'url' && value) {
+    // Calculer la taille en ch selon la valeur
+    const urlLength = value ? Math.max(20, value.length) : 20;
+    const urlInputElement = (
+      <input
+        type="url"
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={value ? '' : '-'}
+        disabled={readOnly}
+        className={cn(
+          "flex-1 w-auto px-2 py-1 bg-transparent border border-transparent hover:border-white/10 duration-300 rounded-sm text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+          sizeClasses[size],
+          className
+        )}
+        style={{ width: `${urlLength}ch` }}
+      />
+    );
     return (
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          {inputElement}
+          {urlInputElement}
         </ContextMenuTrigger>
         <ContextMenuContent className="bg-neutral-900 border-neutral-700">
           <ContextMenuItem

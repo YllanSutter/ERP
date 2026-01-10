@@ -6,6 +6,7 @@ import IconPicker from '@/components/inputs/IconPicker';
 import ColorPicker from '@/components/inputs/ColorPicker';
 import * as Icons from 'lucide-react';
 import { OptionType } from '@/components/inputs/LightSelect';
+import EditableProperty from '@/components/fields/EditableProperty';
 
 interface EditPropertyModalProps {
   onClose: () => void;
@@ -27,6 +28,7 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
   const [relationFilterValue, setRelationFilterValue] = useState(property.relation?.filter?.value || '');
   const [defaultDuration, setDefaultDuration] = useState(property.defaultDuration || 1);
   const [showContextMenu, setShowContextMenu] = useState(property.showContextMenu || false);
+  const [defaultValue, setDefaultValue] = useState(property.defaultValue ?? null);
   const [showIconPopover, setShowIconPopover] = useState(false);
   const [showColorPopover, setShowColorPopover] = useState(false);
 
@@ -40,7 +42,8 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
       type,
       icon,
       color,
-      showContextMenu
+      showContextMenu,
+      defaultValue
     };
     if (type === 'select' || type === 'multi_select') {
       updatedProperty.options = options;
@@ -82,6 +85,29 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                 onChange={(e) => setName(e.target.value)} 
                 className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none" 
               />
+            </div>
+            {/* Champ valeur par défaut dynamique selon le type */}
+            <div>
+              <label className="block text-sm font-medium text-neutral-300 mb-2">Valeur par défaut</label>
+              <EditableProperty
+                property={{
+                  ...property,
+                  type,
+                  options,
+                  relation: type === 'relation' ? {
+                    targetCollectionId: relationTarget,
+                    type: relationType,
+                    filter: relationFilterField && relationFilterValue ? { fieldId: relationFilterField, value: relationFilterValue } : undefined
+                  } : undefined
+                }}
+                value={defaultValue}
+                onChange={setDefaultValue}
+                collections={collections}
+                currentItem={{}}
+                size="md"
+                readOnly={false}
+              />
+              <p className="text-xs text-neutral-500 mt-1">Cette valeur sera utilisée par défaut lors de la création d'un nouvel élément</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>

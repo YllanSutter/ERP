@@ -29,7 +29,7 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
     <div className={cn('flex items-center gap-2', sizeClass, className)}>
       <div className="flex flex-wrap gap-1 flex-1">
         {selectedOption ? (
-          <span className="px-2 py-0.5 text-xs rounded bg-white/10 inline-flex items-center gap-2" style={{ backgroundColor: `${selectedColor}15` }}>
+          <span className="px-2 py-0.5 text-xs rounded-full bg-white/10 inline-flex items-center gap-2" style={{ backgroundColor: `${selectedColor}25` }}>
             {SelectedIcon && <SelectedIcon size={12} />}
             <span>{getOptionValue(selectedOption)}</span>
           </span>

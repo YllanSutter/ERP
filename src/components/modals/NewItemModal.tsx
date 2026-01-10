@@ -60,7 +60,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     if (editingItem) return editingItem;
     const data: any = {};
     (orderedProperties && orderedProperties.length > 0 ? orderedProperties : collection.properties).forEach((prop: any) => {
-      if (prop.type === 'date') {
+      if (prop.defaultValue !== undefined && prop.defaultValue !== null) {
+        data[prop.id] = prop.defaultValue;
+      } else if (prop.type === 'date') {
         data[prop.id] = getRoundedNow().toISOString();
       }
     });
@@ -144,7 +146,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               <div className="text-neutral-500 text-sm">Aucun champ classique</div>
             )}
             <div
-              className="flex flex-col space-y-4 group/classic-fields"
+              className="flex flex-col space-y-2 group/classic-fields"
             >
               {classicProps.map((prop: any) => (
                 <div
