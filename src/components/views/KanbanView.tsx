@@ -4,6 +4,7 @@ import { Trash2, GripHorizontal, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EditableProperty from '@/components/fields/EditableProperty';
+import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 
 interface KanbanViewProps {
@@ -198,21 +199,33 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                 </div>
               ) : (
                 groupedItems[column].map((item, idx) => (
-                  <motion.div
-                    key={item.id}
-                    draggable={canEdit}
-                    onDragStart={canEdit ? () => setDraggedItem(item) : undefined}
-                    onDragEnd={canEdit ? () => setDraggedItem(null) : undefined}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    whileHover={canEdit ? { scale: 1.02 } : {}}
-                    className={cn(
-                      "group rounded-lg border border-white/10 bg-gradient-to-br from-neutral-800/50 to-neutral-900/50 p-4 hover:border-white/20 transition-all space-y-3",
-                      canEdit && "cursor-move",
-                      draggedItem?.id === item.id ? 'opacity-50 border-violet-500/50' : ''
-                    )}
+                  <ItemContextMenu
+                    item={item}
+                    onViewDetail={onViewDetail}
+                    onDelete={onDelete}
+                    canEdit={canEdit}
+                    quickEditProperties={(orderedProperties || collection.properties).filter((p: any) => p.showContextMenu && canEditFieldFn(p.id))}
+                    onEdit={onEdit}
+                    collections={collections}
+                    onRelationChange={onRelationChange}
+                    onNavigateToCollection={onNavigateToCollection}
+                    canEditField={canEditFieldFn}
                   >
+                    <motion.div
+                      key={item.id}
+                      draggable={canEdit}
+                      onDragStart={canEdit ? () => setDraggedItem(item) : undefined}
+                      onDragEnd={canEdit ? () => setDraggedItem(null) : undefined}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                      whileHover={canEdit ? { scale: 1.02 } : {}}
+                      className={cn(
+                        "group rounded-lg border border-white/10 bg-gradient-to-br from-neutral-800/50 to-neutral-900/50 p-4 hover:border-white/20 transition-all space-y-3",
+                        canEdit && "cursor-move",
+                        draggedItem?.id === item.id ? 'opacity-50 border-violet-500/50' : ''
+                      )}
+                    >
                     {/* Title with Grip */}
                     <div className="flex gap-2 items-center">
                       {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}
@@ -299,7 +312,8 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                         </button>
                       )}
                     </div>
-                  </motion.div>
+                    </motion.div>
+                  </ItemContextMenu>
                 ))
               )}
             </div>

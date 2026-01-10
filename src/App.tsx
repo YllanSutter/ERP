@@ -426,6 +426,19 @@ const App = () => {
               dashboard={activeDashboardConfig}
               collections={collections}
               onUpdate={(patch) => activeDashboard && handleUpdateDashboard(activeDashboard, patch)}
+              onViewDetail={(item: any) => {
+                setEditingItem(item);
+                // Sélectionne la bonne collection (priorité à _collection si présent)
+                if (item && item._collection && item._collection.id) {
+                  setActiveCollection(item._collection.id);
+                } else if (item && item.collectionId) {
+                  setActiveCollection(item.collectionId);
+                }
+                setShowNewItemModal(true);
+              }}
+              onDelete={(id: string) => {
+                // Optionnel : suppression d'un item depuis le dashboard
+              }}
             />
           ) : !activeCollection ? (
             <motion.div

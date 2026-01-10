@@ -12,6 +12,7 @@
     );
   };
 import React, { useEffect, useMemo, useState } from 'react';
+import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { DashboardColumnNode, MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 import DashboardColumnConfig from './DashboardColumnConfig';
 
@@ -19,6 +20,8 @@ interface DashboardShellProps {
   dashboard: MonthlyDashboardConfig | null;
   collections: any[];
   onUpdate: (patch: Partial<MonthlyDashboardConfig>) => void;
+  onViewDetail: (item: any) => void;
+  onDelete: (id: string) => void;
 }
 
 import {
@@ -35,7 +38,7 @@ import {
 
 const months = MONTH_NAMES;
 
-const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate }) => {
+const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete }) => {
     useEffect(() => {
       if (dashboard) {
         console.log('[DASHBOARD] Champ date sélectionné (globalDateField) :', dashboard.globalDateField);
@@ -490,15 +493,52 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                         duration: cell.duration,
                       });
 
+                      // Ajout du menu contextuel sur la cellule d'item si un item unique est présent ce jour-là
+                      const itemIds = Object.keys(aggregates.dailyObjectDurations[key]?.[leaf.id] || {});
+                      // Pour chaque item, retrouver la bonne collection (par item.collectionId)
+                      const itemsInCell = itemIds
+                        .map((itemId) => {
+                          // Cherche dans toutes les collections
+                          for (const coll of collections) {
+                            const found = coll.items?.find((it: any) => it.id === itemId);
+                            if (found) return { ...found, _collection: coll };
+                          }
+                          return null;
+                        })
+                        .filter(Boolean);
+                      const cellContent = (
+                        <>
+                          {cell.duration ? formatDurationHeureMinute(cell.duration) : ''}
+                          {itemsInCell.length === 1 && (
+                            <div className="text-[11px] text-white truncate">{getNameValueUtil(itemsInCell[0], itemsInCell[0]._collection)}</div>
+                          )}
+                          {itemsInCell.length > 1 && (
+                            <div className="text-[11px] text-white/70 truncate">{itemsInCell.length} items</div>
+                          )}
+                          {span && (
+                            <div className="text-[11px] text-white truncate">{span.label}</div>
+                          )}
+                        </>
+                      );
+                      // Toujours afficher le menu contextuel sur la cellule si au moins un item
                       return (
                         <React.Fragment key={`${week.week}-${key}-${leaf.id}`}>
                           <td className={countClasses}>{countValue}</td>
                           <td className={durationClasses}>
-                                {cell.duration ? formatDurationHeureMinute(cell.duration) : ''}
-                                {span && (
-                                  <div className="text-[11px] text-white truncate">{span.label}</div>
-                                )}
-                              </td>
+                            {itemsInCell.length > 0 ? (
+                              <ItemContextMenu
+                                item={itemsInCell[0]}
+                                onViewDetail={() => onViewDetail({ ...itemsInCell[0], _collection: itemsInCell[0]._collection })}
+                                onDelete={() => onDelete(itemsInCell[0]?.id)}
+                                canEdit={false}
+                                quickEditProperties={[]}
+                              >
+                                <div style={{width: '100%', height: '100%', cursor: 'context-menu'}}>
+                                  {cellContent}
+                                </div>
+                              </ItemContextMenu>
+                            ) : cellContent}
+                          </td>
                         </React.Fragment>
                       );
                     })}
