@@ -10,6 +10,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { workDayStart, workDayEnd } from '@/lib/calendarUtils';
 
 interface EditablePropertyProps {
   property: any;
@@ -110,6 +111,27 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     const durationKey = `${property.id}_duration`;
     const currentDuration = currentItem?.[durationKey] || property.defaultDuration || 1;
     
+
+    // Time wheel picker (heures/minutes, pas de 15min, borné)
+    const getTimeOptions = () => {
+      const options = [];
+      // Ajoute 1h avant et 1h15 après la plage de travail
+      const minHour = Math.max(0, workDayStart - 1);
+      const maxHour = Math.min(23, workDayEnd + 1); 
+      for (let h = minHour; h <= maxHour; h++) {
+        for (let m = 0; m < 60; m += 15) {
+          // Pour la dernière heure, ne pas dépasser 1h15 après workDayEnd
+          if (h === maxHour && m > 0) continue;
+          const hh = h.toString().padStart(2, '0');
+          const mm = m.toString().padStart(2, '0');
+          options.push(`${hh}:${mm}`);
+        }
+      }
+      return options;
+    };
+    const timeOptions = getTimeOptions();
+    const currentTime = value ? format(new Date(value), 'HH:mm') : `${String(workDayStart).padStart(2, '0')}:00`;
+
     return (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -127,13 +149,13 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0 bg-neutral-900 border-neutral-700" align="start">
-          <div className="flex flex-col">
+          <div className="flex flex-row gap-4 p-3 pb-0">
             <Calendar
               mode="single"
               selected={selectedDate}
               onSelect={(date) => {
                 if (date) {
-                  // Preserve time if exists, otherwise set to 09:00
+                  // Preserve time if exists, sinon 09:00
                   const existingDate = value ? new Date(value) : null;
                   if (existingDate) {
                     date.setHours(existingDate.getHours(), existingDate.getMinutes());
@@ -146,40 +168,45 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
               initialFocus
               className="bg-neutral-900 text-white"
             />
-            <div className="p-3 border-t border-white/10 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure de début</label>
-                <input
-                  type="time"
-                  value={value ? format(new Date(value), 'HH:mm') : '09:00'}
-                  onChange={(e) => {
-                    const currentDate = value ? new Date(value) : new Date();
+            <div className="flex flex-col items-center justify-center min-w-[110px]">
+              <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure</label>
+              <div className="relative w-full flex flex-col items-center">
+                <select
+                  value={currentTime}
+                  onChange={e => {
                     const [hours, minutes] = e.target.value.split(':');
-                    currentDate.setHours(parseInt(hours), parseInt(minutes));
-                    onChange(currentDate.toISOString());
+                    const d = value ? new Date(value) : new Date();
+                    d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                    onChange(d.toISOString());
                   }}
-                  className="w-full px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none text-sm"
-                />
+                  className="w-full h-50 text-center bg-neutral-900 border-l border-white/10 rounded-lg text-white text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
+                  size={9}
+                  style={{ WebkitAppearance: 'none', appearance: 'none' }}
+                >
+                  {timeOptions.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
               </div>
-              {onRelationChange && currentItem && (
-                <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-1.5">Durée (heures)</label>
-                  <input
-                    type="number"
-                    value={currentDuration}
-                    onChange={(e) => {
-                      const newDuration = parseFloat(e.target.value) || 1;
-                      onRelationChange(property, { ...currentItem, [durationKey]: newDuration }, value);
-                    }}
-                    min="0.25"
-                    step="0.25"
-                    placeholder="1"
-                    className="w-full px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none text-sm"
-                  />
-                </div>
-              )}
             </div>
           </div>
+          {onRelationChange && currentItem && (
+            <div className="flex gap-5 items-center justify-center min-w-[110px] px-3 py-3 border-t border-white/10">
+              <label className="block text-xs font-medium text-neutral-400">Durée (heures)</label>
+              <input
+                type="number"
+                value={currentDuration}
+                onChange={(e) => {
+                  const newDuration = parseFloat(e.target.value) || 1;
+                  onRelationChange(property, { ...currentItem, [durationKey]: newDuration }, value);
+                }}
+                min="0.25"
+                step="0.25"
+                placeholder="1"
+                className="flex-1 px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none text-sm"
+              />
+            </div>
+          )}
         </PopoverContent>
       </Popover>
     );
