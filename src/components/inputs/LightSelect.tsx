@@ -29,9 +29,21 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
     <div className={cn('flex items-center gap-2', sizeClass, className)}>
       <div className="flex flex-wrap gap-1 flex-1">
         {selectedOption ? (
-          <span className="px-2 py-0.5 text-xs rounded-full bg-white/10 inline-flex items-center gap-2" style={{ backgroundColor: `${selectedColor}25` }}>
-            {SelectedIcon && <SelectedIcon size={12} />}
+          <span
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 border border-white/10 hover:bg-white/20 transition cursor-pointer group"
+            style={{ backgroundColor: `${selectedColor}22`, borderColor: `${selectedColor}55` }}
+          >
+            {SelectedIcon && <SelectedIcon size={13} className="opacity-80" />}
             <span>{getOptionValue(selectedOption)}</span>
+            <button
+              type="button"
+              className="ml-1 text-neutral-400 hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
+              onClick={() => onChange("")}
+              tabIndex={-1}
+              aria-label={`Retirer ${getOptionValue(selectedOption)}`}
+            >
+              <Icons.X size={12} />
+            </button>
           </span>
         ) : (
           <span className="text-xs text-neutral-500">{placeholder}</span>
@@ -62,10 +74,10 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
                   key={optValue}
                   className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-100 flex items-center gap-2"
                   onClick={() => onChange(optValue)}
+                  style={{ color: optColor }}
                 >
                   {OptIcon && <OptIcon size={12} />}
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: optColor }} />
-                  <span className="truncate">{optValue}</span>
+                  <span className="truncate text-white">{optValue}</span>
                 </button>
               );
             })}

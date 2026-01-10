@@ -493,9 +493,45 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
           {selectedIds.map((id: string) => {
             const it = targetItems.find((ti: any) => ti.id === id);
             const label = it ? getItemName(it) : id;
+            // Couleur de base de la relation (violet par défaut)
+            const baseColor = property.color || '#8b5cf6';
+            // Génère une variation de couleur selon l'id (hash simple)
+            function shiftColor(hex: string, shift: number) {
+              // hex: #RRGGBB
+              let r = parseInt(hex.slice(1, 3), 16);
+              let g = parseInt(hex.slice(3, 5), 16);
+              let b = parseInt(hex.slice(5, 7), 16);
+              // Amplifie la variabilité
+              r = (r + shift * 13) % 256;
+              g = (g + shift * 23) % 256;
+              b = (b + shift * 37) % 256;
+              return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+            }
+            // Hash simple sur l'id pour la variation
+            let hash = 0;
+            for (let i = 0; i < id.length; i++) hash = (hash + id.charCodeAt(i)) % 32;
+            const tagColor = shiftColor(baseColor, hash);
             return (
-              <span key={id} className="px-2 py-0.5 text-xs rounded bg-white/10 border border-white/10">
-                {label}
+              <span
+                key={id}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 border hover:bg-white/20 transition cursor-pointer group"
+                style={{ backgroundColor: `${tagColor}22`, borderColor: `${tagColor}55` }}
+              >
+                <span>{label}</span>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    className="ml-1 text-neutral-400 hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
+                    onClick={() => {
+                      const next = selectedIds.filter((sid: string) => sid !== id);
+                      onRelationChange(property, currentItem, next);
+                    }}
+                    tabIndex={-1}
+                    aria-label={`Retirer ${label}`}
+                  >
+                    <Icons.X size={12} />
+                  </button>
+                )}
               </span>
             );
           })}
@@ -650,6 +686,59 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                    property.type === 'url' ? 'url' :
                    property.type === 'phone' ? 'tel' : 'text';
 
+  // Affichage visuel amélioré pour les URL (badge cliquable)
+  if (property.type === 'url' && value) {
+    const url = value.startsWith('http://') || value.startsWith('https://') ? value : `https://${value}`;
+    const urlLength = value ? Math.max(20, value.length) : 20;
+    return (
+      <span
+      
+        className={cn(
+          'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-900/30 border border-blue-600/30 text-blue-300 hover:bg-blue-800/60 transition',
+
+          className
+        )}
+        title={value}
+      >
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-white text-blue-300"
+          tabIndex={0}
+          style={{ display: 'flex' }}
+        >
+          <Icons.Link size={13} className="opacity-80 mr-1" />
+        </a>
+        <input
+          type="text"
+          value={value.replace(/^https?:\/\//, '')}
+          onChange={e => {
+            // Préserve le protocole si présent, sinon laisse l'utilisateur gérer
+            const inputVal = e.target.value;
+            let newVal = inputVal;
+            if (value.startsWith('http://')) newVal = 'http://' + inputVal.replace(/^https?:\/\//, '');
+            else if (value.startsWith('https://')) newVal = 'https://' + inputVal.replace(/^https?:\/\//, '');
+            onChange(newVal);
+          }}
+          className="truncate max-w-[200px] bg-transparent border-none outline-none text-blue-100 px-0 py-0.5 focus:ring-0 focus:outline-none"
+          style={{ width: `${urlLength}ch` }}
+          disabled={readOnly}
+        />
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-white text-blue-300"
+          tabIndex={0}
+          style={{ display: 'flex' }}
+        >
+          <Icons.ExternalLink size={12} className="ml-1 opacity-60" />
+        </a>
+      </span>
+    );
+  }
+
   const inputElement = (
     <input
       type={inputType}
@@ -664,48 +753,6 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       )}
     />
   );
-
-  // Si c'est une URL avec une valeur, ajouter le menu contextuel
-  if (property.type === 'url' && value) {
-    // Calculer la taille en ch selon la valeur
-    const urlLength = value ? Math.max(20, value.length) : 20;
-    const urlInputElement = (
-      <input
-        type="url"
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={value ? '' : '-'}
-        disabled={readOnly}
-        className={cn(
-          "flex-1 w-auto px-2 py-1 bg-transparent border border-transparent hover:border-white/10 duration-300 rounded-sm text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-          sizeClasses[size],
-          className
-        )}
-        style={{ width: `${urlLength}ch` }}
-      />
-    );
-    return (
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          {urlInputElement}
-        </ContextMenuTrigger>
-        <ContextMenuContent className="bg-neutral-900 border-neutral-700">
-          <ContextMenuItem
-            onClick={() => {
-              const url = value.startsWith('http://') || value.startsWith('https://') 
-                ? value 
-                : `https://${value}`;
-              window.open(url, '_blank', 'noopener,noreferrer');
-            }}
-            className="cursor-pointer text-white hover:bg-white/10 flex items-center gap-2"
-          >
-            <Icons.ExternalLink size={14} />
-            Ouvrir le lien
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-    );
-  }
 
   return inputElement;
 });

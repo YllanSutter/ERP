@@ -21,25 +21,22 @@ const getOptionIcon = (opt: OptionType) => typeof opt === 'string' ? null : (opt
 export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, values, onChange, placeholder = 'Aucun', sizeClass = 'text-sm h-8', className, disabled = false }) => {
   const selectedValues: string[] = Array.isArray(values) ? values : (values ? [values] : []);
 
+  // Fonction pour retirer un tag
+  const removeValue = (val: string) => {
+    onChange(selectedValues.filter((v) => v !== val));
+  };
+
+  // Fonction pour ajouter ou retirer une valeur depuis la popover
+  const toggleValue = (val: string) => {
+    if (selectedValues.includes(val)) {
+      removeValue(val);
+    } else {
+      onChange([...selectedValues, val]);
+    }
+  };
+
   return (
     <div className={cn('flex items-center gap-2', sizeClass, className)}>
-      <div className="flex flex-wrap gap-1 flex-1">
-        {selectedValues.map((val) => {
-          const opt = options.find((o) => getOptionValue(o) === val);
-          const color = opt ? getOptionColor(opt) : '#8b5cf6';
-          const iconName = opt ? getOptionIcon(opt) : null;
-          const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
-          return (
-            <span key={val} className="px-2 py-0.5 text-xs rounded bg-white/10  inline-flex items-center gap-2" style={{ backgroundColor: `${color}15` }}>
-              {OptIcon && <OptIcon size={12} />}
-              <span>{val}</span>
-            </span>
-          );
-        })}
-        {selectedValues.length === 0 && (
-          <span className="text-xs text-neutral-500">{placeholder}</span>
-        )}
-      </div>
       {!disabled && (
         <PopoverButton
           icon="Plus"
@@ -56,21 +53,25 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
               const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
               const checked = selectedValues.includes(optValue);
               return (
-                <label key={optValue} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5 text-sm text-white">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(e) => {
-                      const next = e.target.checked
-                        ? [...selectedValues, optValue]
-                        : selectedValues.filter((v) => v !== optValue);
-                      onChange(next);
-                    }}
-                  />
-                  {OptIcon && <OptIcon size={12} />}
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: optColor }} />
-                  <span className="truncate">{optValue}</span>
-                </label>
+                <button
+                  key={optValue}
+                  type="button"
+                  className={cn(
+                    'flex items-center gap-2 w-full px-2 py-1 rounded text-sm transition',
+                    checked
+                      ? 'bg-violet-600/20 text-violet-200 font-semibold'
+                      : 'hover:bg-white/10 text-white'
+                  )}
+                  style={checked ? { backgroundColor: `${optColor}22`, color: optColor } : {}}
+                  onClick={() => toggleValue(optValue)}
+                >
+                  <span className={cn('inline-flex items-center justify-center w-4 h-4 rounded-full border', checked ? 'bg-violet-500 border-violet-400' : 'bg-white/5 border-white/20')}
+                    style={checked ? { backgroundColor: optColor, borderColor: optColor } : {}}>
+                    {checked && <Icons.Check size={12} className="text-white" />}
+                  </span>
+                  {OptIcon && <OptIcon size={13} className="opacity-80" />}
+                  <span className="truncate flex-1 text-left">{optValue}</span>
+                </button>
               );
             })}
             {options.length === 0 && (
@@ -79,6 +80,36 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
           </div>
         </PopoverButton>
       )}
+      <div className="flex flex-wrap gap-1 flex-1">
+        {selectedValues.length === 0 && (
+          <span className="text-xs text-neutral-500 items-center flex">{placeholder}</span>
+        )}
+        {selectedValues.map((val) => {
+          const opt = options.find((o) => getOptionValue(o) === val);
+          const color = opt ? getOptionColor(opt) : '#8b5cf6';
+          const iconName = opt ? getOptionIcon(opt) : null;
+          const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
+          return (
+            <span
+              key={val}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[xs] font-medium bg-white/10 border border-white/10 hover:bg-white/20 transition cursor-pointer group"
+              style={{ backgroundColor: `${color}22`, borderColor: `${color}55` }}
+            >
+              {OptIcon && <OptIcon size={13} className="opacity-80" />}
+              <span className="text-xs">{val}</span>
+              <button
+                type="button"
+                className="ml-1 text-neutral-400 hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
+                onClick={() => removeValue(val)}
+                tabIndex={-1}
+                aria-label={`Retirer ${val}`}
+              >
+                <Icons.X size={12} />
+              </button>
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 };
