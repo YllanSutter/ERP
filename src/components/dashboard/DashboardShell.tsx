@@ -1,3 +1,10 @@
+  // Affiche une durée en heures et minutes (ex: 7h00, 3h30)
+  function formatDurationHeureMinute(duree: number): string {
+    if (typeof duree !== 'number' || isNaN(duree)) return '';
+    const heures = Math.floor(duree);
+    const minutes = Math.round((duree - heures) * 60);
+    return `${heures}h${minutes.toString().padStart(2, '0')}`;
+  }
   // Récupérer toutes les feuilles (sous-colonnes finales) sans le chemin (pour usages simples)
   const getLeaves = (nodes: any[]): any[] => {
     return nodes.flatMap((n) =>
@@ -186,10 +193,12 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
   // Agrégation des données (daily, spans, etc.)
   const aggregates = useMemo(() => {
     const daily: Record<string, Record<string, { count: number; duration: number }>> = {};
+    // Pour afficher la durée par jour et par objet (id)
+    const dailyObjectDurations: Record<string, Record<string, Record<string, number>>> = {}; // dailyObjectDurations[dateKey][leafId][itemId] = durée ce jour-là
     const spansByLeaf: Record<string, any[]> = {};
     const spansByLeafDay: Record<string, Record<string, any>> = {};
 
-    if (!dashboard || !leafColumns.length) return { daily, spansByLeaf, spansByLeafDay };
+    if (!dashboard || !leafColumns.length) return { daily, spansByLeaf, spansByLeafDay, dailyObjectDurations };
 
     // Générer tous les jours ouvrés (lundi-vendredi) du mois affiché
     const year = dashboard.year;
@@ -227,19 +236,8 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       }
       // Trouver le champ date dans les propriétés
       const dateField = groupProperties.find((p: any) => p.id === dateFieldId);
-      console.log('[DASHBOARD][AGGREGATION] feuille:', leaf.label, '| dateFieldId:', dateFieldId, '| dateField:', dateField);
       if (!dateField) return;
-      // Log les valeurs de ce champ pour chaque item
-      groupItems.forEach((item: any) => {
-        if (dateFieldId != null) {
-          console.log('[DASHBOARD][AGGREGATION] item:', item.name, '|', dateFieldId, '=', item[dateFieldId]);
-        } else {
-          console.log('[DASHBOARD][AGGREGATION] item:', item.name, '| dateFieldId is null or undefined');
-        }
-      });
-
       // Déterminer les valeurs de type à filtrer (typeValues hiérarchiques)
-      // On ne garde que les typeValues non vides dans la hiérarchie
       let typeValues: string[] = [];
       if (leaf._parentPath) {
         typeValues = [
@@ -252,12 +250,14 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
       // Pour chaque jour du mois
       daysOfMonth.forEach((day) => {
-        // Correction : forcer la date locale pour la clé et la comparaison
         const key = day.toLocaleDateString('fr-CA'); // format YYYY-MM-DD
         if (!daily[key]) daily[key] = {};
-        // Filtrer les items qui correspondent à la feuille et au jour
-        const itemsForDay = groupItems.filter((item: any) => {
-          // Filtrer par type hiérarchique si applicable
+        if (!dailyObjectDurations[key]) dailyObjectDurations[key] = {};
+        if (!dailyObjectDurations[key][leaf.id]) dailyObjectDurations[key][leaf.id] = {};
+
+        // Pour chaque item, on utilise la logique de getEventStyle pour savoir s'il couvre ce jour et quelle part de durée afficher
+        groupItems.forEach((item: any) => {
+          // Filtrage par type hiérarchique si applicable
           const typeField = resolvedTypeField;
           if (typeValues.length > 0 && typeField) {
             const itemType = item[typeField];
@@ -267,32 +267,53 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
             } else {
               match = typeValues.every((v: any) => itemType === v);
             }
-            if (!match) return false;
+            if (!match) return;
           }
-          // Filtrer par date (correction : comparer en local)
-          if (dateField.type === 'date') {
-            const itemDate = item[dateField.id];
-            if (!itemDate) return false;
-            const itemDateStr = new Date(itemDate).toLocaleDateString('fr-CA');
-            return itemDateStr === key;
-          }
-          // fallback : utilitaire
-          return getItemsForDateUtil(day, [item], dateField).length > 0;
-        });
-        if (itemsForDay.length > 0) {
-          console.log('[DASHBOARD][AGGREGATION] Feuille:', leaf.label, '| Jour:', key, '| Items retenus:', itemsForDay.map((i: { name: any; }) => i.name));
-        }
-        // Compter et sommer la durée
-        daily[key][leaf.id] = {
-          count: itemsForDay.length,
-          duration: itemsForDay.reduce((acc: number, item: any) => {
-            // Si un champ duration est défini
-            let duration = 0;
-            const durationFieldId = leaf.durationFieldOverride || dashboard.globalDurationField;
-            if (durationFieldId && item[durationFieldId]) {
-              duration = parseFloat(item[durationFieldId]) || 0;
+          // Utiliser getEventStyle pour obtenir la répartition par jour (workdayDates)
+          let eventStyle = null;
+          try {
+            eventStyle = getEventStyle(item, dateField, 1, 17); // 1h par défaut, mais getEventStyle gère la vraie durée
+          } catch (e) {}
+          if (eventStyle && eventStyle.workdayDates) {
+            // Si ce jour fait partie des workdayDates de l'événement
+            const isOnThisDay = eventStyle.workdayDates.some((wd: Date) => wd.toLocaleDateString('fr-CA') === key);
+            if (isOnThisDay) {
+              // Pour les multi-jours, on répartit la durée, sinon on prend la durée entière
+              let part = 0;
+              if (eventStyle.workdayDates.length > 1) {
+                part = eventStyle.durationHours / eventStyle.workdayDates.length;
+              } else {
+                part = eventStyle.durationHours;
+              }
+              dailyObjectDurations[key][leaf.id][item.id] = part;
             }
-            return acc + duration;
+          }
+        });
+
+        // Compter et sommer la durée (total pour la cellule)
+        const itemsForDay = Object.keys(dailyObjectDurations[key][leaf.id]);
+        // Pour le count, ne compter qu'une seule fois un événement multi-jours (seulement le premier jour)
+        let count = 0;
+        itemsForDay.forEach((itemId) => {
+          // Retrouver l'eventStyle pour cet item
+          const item = groupItems.find((it: any) => it.id === itemId);
+          let eventStyle = null;
+          try {
+            eventStyle = getEventStyle(item, dateField, 1, 17);
+          } catch (e) {}
+          if (eventStyle && eventStyle.workdayDates) {
+            // Si ce jour est le premier jour de l'événement, on compte
+            const firstDayKey = eventStyle.workdayDates[0].toLocaleDateString('fr-CA');
+            if (key === firstDayKey) {
+              count++;
+            }
+          }
+        });
+        daily[key][leaf.id] = {
+          count,
+          duration: itemsForDay.reduce((acc: number, itemId: string) => {
+            const part = dailyObjectDurations[key][leaf.id][itemId];
+            return acc + (typeof part === 'number' ? part : 0);
           }, 0),
         };
       });
@@ -347,7 +368,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       });
     });
 
-    return { daily, spansByLeaf, spansByLeafDay };
+    return { daily, spansByLeaf, spansByLeafDay, dailyObjectDurations };
   }, [dashboard, collection, collections, properties, items, leafColumns, resolvedTypeField]);
 
   if (!dashboard) {
@@ -473,11 +494,11 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                         <React.Fragment key={`${week.week}-${key}-${leaf.id}`}>
                           <td className={countClasses}>{countValue}</td>
                           <td className={durationClasses}>
-                            {cell.duration ? cell.duration.toFixed(1) : ''}
-                            {span && (
-                              <div className="text-[11px] text-white truncate">{span.label}</div>
-                            )}
-                          </td>
+                                {cell.duration ? formatDurationHeureMinute(cell.duration) : ''}
+                                {span && (
+                                  <div className="text-[11px] text-white truncate">{span.label}</div>
+                                )}
+                              </td>
                         </React.Fragment>
                       );
                     })}
@@ -577,7 +598,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   <React.Fragment key={`month-total-${leaf.id}`}>
                     <td className="px-3 py-2 text-right text-white border-l border-white/10">{count || ''}</td>
                     <td className="px-3 py-2 text-right text-white border-l border-white/10">
-                      {duration ? duration.toFixed(1) : ''}
+                      {duration ? formatDurationHeureMinute(duration) : ''}
                     </td>
                   </React.Fragment>
                 );
