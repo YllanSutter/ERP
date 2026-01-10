@@ -96,30 +96,37 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
           )}
         </RowComponent>
       </ContextMenuTrigger>
-      {contextMenuProperties.length > 0 && (
-        <ContextMenuContent>
-          <ContextMenuLabel className="text-xs">Édition rapide</ContextMenuLabel>
-          <ContextMenuSeparator />
-          {contextMenuProperties.map((prop: any) => (
-            <ContextMenuItem key={prop.id} className="flex items-center justify-between gap-4 cursor-default" onSelect={(e) => e.preventDefault()}>
-              <span className="text-xs text-neutral-400">{prop.name}:</span>
-              <div className="flex-1 max-w-[200px]" onClick={(e) => e.stopPropagation()}>
-                <EditableProperty
-                  property={prop}
-                  value={item[prop.id]}
-                  onChange={(val) => onEdit({ ...item, [prop.id]: val })}
-                  size="sm"
-                  collections={collections}
-                  currentItem={item}
-                  onRelationChange={onRelationChange}
-                  onNavigateToCollection={onNavigateToCollection}
-                  readOnly={false}
-                />
-              </div>
-            </ContextMenuItem>
-          ))}
-        </ContextMenuContent>
-      )}
+      <ContextMenuContent>
+        <ContextMenuItem onClick={() => onViewDetail(item)}>
+          <Icons.Search size={14} className="mr-2" />
+          <span>Détails</span>
+        </ContextMenuItem>
+        {contextMenuProperties.length > 0 && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuLabel className="text-xs">Édition rapide</ContextMenuLabel>
+            <ContextMenuSeparator />
+            {contextMenuProperties.map((prop: any) => (
+              <ContextMenuItem key={prop.id} className="flex items-center justify-between gap-4 cursor-default" onSelect={(e) => e.preventDefault()}>
+                <span className="text-xs text-neutral-400">{prop.name}:</span>
+                <div className="flex-1 max-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                  <EditableProperty
+                    property={prop}
+                    value={item[prop.id]}
+                    onChange={(val) => onEdit({ ...item, [prop.id]: val })}
+                    size="sm"
+                    collections={collections}
+                    currentItem={item}
+                    onRelationChange={onRelationChange}
+                    onNavigateToCollection={onNavigateToCollection}
+                    readOnly={false}
+                  />
+                </div>
+              </ContextMenuItem>
+            ))}
+          </>
+        )}
+      </ContextMenuContent>
     </ContextMenu>
   );
 };

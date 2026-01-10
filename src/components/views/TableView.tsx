@@ -98,7 +98,7 @@ const TableView: React.FC<TableViewProps> = ({
                   onNavigateToCollection={onNavigateToCollection}
                   canEdit={canEdit}
                   canEditField={canEditFieldFn}
-                  animate={true}
+                  animate={false}
                 />
               ))
             )}

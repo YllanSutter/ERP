@@ -32,8 +32,16 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const isFavorite = favorites && editingItem ? favorites.items.includes(editingItem.id) : false;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-[600px] max-h-[80vh] overflow-y-auto backdrop-blur">
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-[600px] max-h-[80vh] overflow-y-auto backdrop-blur"
+        onClick={e => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-bold">{editingItem ? 'Modifier' : 'Nouveau'} {collection.name}</h3>
           {editingItem && onToggleFavoriteItem && (
