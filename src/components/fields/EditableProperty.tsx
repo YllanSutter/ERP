@@ -641,7 +641,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       placeholder={value ? '' : '-'}
       disabled={readOnly}
       className={cn(
-        "flex-1 w-auto px-2 py-1 bg-transparent border border-white/5 rounded-sm text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+        "flex-1 w-auto px-2 py-1 bg-transparent border border-transparent border-b-white/5 hover:border-white/10 text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
         sizeClasses[size],
         className
       )}
