@@ -302,7 +302,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             defaultDuration={defaultDuration}
             collections={selectedCollections}
             onEventDrop={handleEventDrop}
-            canViewField={(fieldId: string, colId?: string) => canViewFieldFn(fieldId, colId)}
+            canViewField={(fieldId: string, colId?: string) => canViewFieldFn(fieldId, colId || selectedCollections[0]?.id)}
           />
         ) : (
           <DayView

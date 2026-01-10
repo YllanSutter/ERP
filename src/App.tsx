@@ -681,6 +681,7 @@ const App = () => {
           collection={currentCollection!}
           collections={collections}
           favorites={favorites}
+          orderedProperties={orderedProperties}
           onClose={() => {
             setShowNewItemModal(false);
             setEditingItem(null);

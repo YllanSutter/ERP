@@ -606,9 +606,6 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                    property.type === 'url' ? 'url' :
                    property.type === 'phone' ? 'tel' : 'text';
 
-  const textLength = (value || '').toString().length;
-  const width = Math.max(textLength, 5) + 'ch';
-
   const inputElement = (
     <input
       type={inputType}
@@ -616,9 +613,8 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       onChange={(e) => onChange(e.target.value)}
       placeholder={value ? '' : '-'}
       disabled={readOnly}
-      style={{ width }}
       className={cn(
-        "min-w-full px-2 py-1 bg-transparent border border-transparent text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap",
+        "flex-1 w-auto px-2 py-1 bg-transparent border border-white/5 rounded-sm text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
         sizeClasses[size],
         className
       )}
