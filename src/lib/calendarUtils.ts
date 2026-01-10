@@ -20,12 +20,6 @@ export interface ColorSet {
   text: string;
 }
 
-export const breakStart = 12;
-export const breakEnd = 13;
-export const workHoursPerDay = 7;
-export const workDayStart = 9; // Heure de début de journée de travail fixe
-export const workDayEnd = 17; // Heure de fin de journée fixe (9h + 7h travail + 1h pause = 17h)
-
 /**
  * Generate consistent color for each item based on its ID
  */
@@ -230,6 +224,9 @@ export const getEventStyle = (
   const endTimeInHours = endHourNum + endMinutes / 60;
 
   // Check if event overlaps with break time (12h-13h)
+  const breakStart = 12;
+  const breakEnd = 13;
+  const workDayEnd = 17;
   let adjustedEndTime = endTimeInHours;
 
   // If event starts before break and ends after break start
@@ -241,12 +238,15 @@ export const getEventStyle = (
   // Calculer les heures disponibles le premier jour
   let firstDayAvailableHours: number;
   if (startTimeInHours < breakStart) {
+    // Commence avant la pause : peut travailler jusqu'à 12h, puis de 13h à 17h
     const hoursBeforeBreak = breakStart - startTimeInHours;
     const hoursAfterBreak = workDayEnd - breakEnd;
     firstDayAvailableHours = hoursBeforeBreak + hoursAfterBreak;
   } else if (startTimeInHours >= breakEnd) {
+    // Commence après la pause : peut travailler jusqu'à 17h
     firstDayAvailableHours = workDayEnd - startTimeInHours;
   } else {
+    // Commence pendant la pause : peut travailler de 13h à 17h
     firstDayAvailableHours = workDayEnd - breakEnd;
   }
 
@@ -326,13 +326,18 @@ export const getEventLayout = (
   startHour: number,
   endHour: number
 ): EventLayoutItem[] => {
-
+  const breakStart = 12;
+  const breakEnd = 13;
+  const workHoursPerDay = 7;
+  const workDayStart = 9; // Heure de début de journée de travail fixe
+  const workDayEnd = 17; // Heure de fin de journée fixe (9h + 7h travail + 1h pause = 17h)
 
   // Calculate time range for each event
   const eventsWithTime: EventLayoutItem[] = dayEvents.map(({ item, style, multiDayIndex: mdi }) => {
     let dayStartTime: number;
     let dayDuration: number;
     
+    // Calculer les heures disponibles le premier jour (selon l'heure de début)
     let firstDayHours: number;
     const startTime = style.startTimeInHours;
     if (startTime < breakStart) {
@@ -345,22 +350,28 @@ export const getEventLayout = (
       firstDayHours = workDayEnd - breakEnd;
     }
     
+    // Calculer les heures déjà utilisées selon le jour actuel
     let hoursAlreadyUsed: number;
     if (mdi === 0) {
       hoursAlreadyUsed = 0;
     } else if (mdi === 1) {
+      // Deuxième jour : on a utilisé les heures du premier jour
       hoursAlreadyUsed = firstDayHours;
     } else {
+      // Jours suivants : premier jour + (mdi-1) jours complets de 7h
       hoursAlreadyUsed = firstDayHours + (mdi - 1) * workHoursPerDay;
     }
 
     if (mdi === 0) {
+      // Premier jour : commence à l'heure de début de l'événement
       dayStartTime = style.startTimeInHours;
       dayDuration = Math.min(style.durationHours, firstDayHours);
     } else {
+      // Jours suivants : toujours commencer à l'heure de début de journée (9h)
       dayStartTime = workDayStart;
       const remainingHours = style.durationHours - hoursAlreadyUsed;
       
+      // Pour une journée complète de 9h à 17h avec 1h de pause = 7h de travail
       const availableHours = workHoursPerDay;
       dayDuration = Math.min(remainingHours, availableHours);
     }
@@ -370,15 +381,19 @@ export const getEventLayout = (
     if (dayStartTime < breakStart) {
       const hoursBeforeBreak = breakStart - dayStartTime;
       if (dayDuration <= hoursBeforeBreak) {
+        // L'événement se termine avant la pause
         dayEndTime = dayStartTime + dayDuration;
       } else {
+        // L'événement chevauche la pause
         const hoursAfterBreak = dayDuration - hoursBeforeBreak;
         dayEndTime = breakEnd + hoursAfterBreak;
       }
     } else {
+      // L'événement commence à/après la pause
       dayEndTime = Math.max(dayStartTime, breakEnd) + dayDuration;
     }
     
+    // S'assurer que l'événement ne dépasse pas 17h
     dayEndTime = Math.min(dayEndTime, workDayEnd);
 
     return {
@@ -479,11 +494,15 @@ export interface DragDropInfo {
 export const calculateDropTime = (dragDropInfo: DragDropInfo): { hour: number; minutes: number } => {
   const { dropY, containerHeight, elementTop, startHour, endHour } = dragDropInfo;
   
+  // La position de drop considère le haut de l'élément
   const adjustedDropY = dropY;
   
   const totalHours = endHour - startHour;
   const hourOffset = (adjustedDropY / containerHeight) * totalHours;
   const newHourDecimal = startHour + hourOffset;
+  
+  // Snap to nearest 15 minutes
+  // Convert to minutes, round to nearest 15, convert back
   const totalMinutes = newHourDecimal * 60;
   const snappedMinutes = Math.round(totalMinutes / 15) * 15;
   const snappedHourDecimal = snappedMinutes / 60;
@@ -500,6 +519,10 @@ export const calculateDropTime = (dragDropInfo: DragDropInfo): { hour: number; m
   };
 };
 
+/**
+ * Calculate the visual position for the drag preview indicator (blue line)
+ * Returns the Y position for a thin line that shows where the element will be dropped
+ */
 export const calculateDropIndicatorPosition = (
   dropY: number,
   containerHeight: number,
@@ -507,5 +530,7 @@ export const calculateDropIndicatorPosition = (
   endHour: number,
   hoursLength: number
 ): number => {
+  // La ligne doit être à la position du curseur (ou près de là)
+  // Elle montre où le haut de l'élément sera déposé
   return dropY;
 };

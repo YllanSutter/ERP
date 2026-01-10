@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DashboardColumnNode, MonthlyDashboardConfig } from '@/lib/dashboardTypes';
-import DashboardColumnConfig from './DashboardColumnConfig';
+import ShinyButton from '@/components/ui/ShinyButton';
 
 interface DashboardShellProps {
   dashboard: MonthlyDashboardConfig | null;
@@ -15,9 +15,6 @@ import {
   getNameValue as getNameValueUtil,
   getPreviousPeriod,
   getNextPeriod,
-  getEventStyle,
-  workDayStart,
-  workDayEnd,
 } from '@/lib/calendarUtils';
 
 const months = MONTH_NAMES;
@@ -163,43 +160,231 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       return d;
     };
 
-    // Nouvelle version : utilise getEventStyle pour obtenir la logique de découpage et de durée
     const resolveRangeAndDuration = (
       item: any,
       leaf?: DashboardColumnNode
     ): { start: Date; end: Date; durationHours: number; startTime?: Date; endTime?: Date } | null => {
-      // Détermination du champ date à utiliser
-      let dateFieldId: string | undefined = undefined;
-      let dateField: any = undefined;
-      if (leaf?.dateFieldOverride?.single) {
-        dateFieldId = leaf.dateFieldOverride.single;
-      } else if (dashboard.globalDateField) {
-        dateFieldId = dashboard.globalDateField;
-      }
-      if (dateFieldId) {
-        dateField = properties.find((p: any) => p.id === dateFieldId);
-      } else if (properties.length > 0) {
-        // fallback: premier champ de type date/date_range
-        dateField = properties.find((p: any) => p.type === 'date' || p.type === 'date_range');
-      }
-      if (!dateField) return null;
-
-      // Utilisation de getEventStyle pour obtenir la logique de découpage
-      const style = getEventStyle(
-        item,
-        dateField,
-        dateField.defaultDuration || 7,
-        workDayEnd
-      );
-      console.log(style);
-      if (!style) return null;
-      return {
-        start: style.startDate,
-        end: style.endDate,
-        durationHours: style.durationHours,
-        startTime: style.startDate,
-        endTime: style.endDate,
+      const pickField = () => {
+        const override = leaf?.dateFieldOverride || {};
+        if (override.single) return { kind: 'single', fieldId: override.single } as const;
+        if (override.start || override.end) return { kind: 'range', startField: override.start, endField: override.end } as const;
+        if (dashboard.globalDateRange?.startField && dashboard.globalDateRange?.endField)
+          return { kind: 'range', startField: dashboard.globalDateRange.startField, endField: dashboard.globalDateRange.endField } as const;
+        if (dashboard.globalDateField) return { kind: 'single', fieldId: dashboard.globalDateField } as const;
+        return null;
       };
+
+      const candidate = pickField();
+      const getProp = (id?: string | null) => (id ? properties.find((p: any) => p.id === id) : null);
+      const hoursPerDay = 7;
+
+      const distributeFromSingle = (fieldId: string) => {
+        const prop = getProp(fieldId);
+        const val = item[fieldId];
+        let start = toDate(val);
+        if (!start) return null;
+
+        // Recherche d'un champ heure de début
+        let heureDebut = item[`${fieldId}_heure`] || item[`${fieldId}_start_time`] || item["heure_debut"] || item["start_time"] || null;
+        let h = 9, m = 0;
+        if (typeof heureDebut === "string" && /^\d{2}:\d{2}$/.test(heureDebut)) {
+          [h, m] = heureDebut.split(":").map(Number);
+        }
+        start.setHours(h, m, 0, 0);
+
+        // Recherche d'une durée
+        let durationHours =
+          typeof item?.[`${fieldId}_duration`] === 'number'
+            ? item[`${fieldId}_duration`]
+            : typeof prop?.defaultDuration === 'number'
+            ? prop.defaultDuration
+            : (typeof item["duree"] === 'number' ? item["duree"] : hoursPerDay);
+
+        // Découpage sur plusieurs jours ouvrés (7h max/jour)
+        const maxPerDay = 7;
+        let remaining = durationHours;
+        let current = new Date(start);
+        let end = new Date(start);
+        let lastDayHours = 0;
+        let firstDay = true;
+        let startHour = h;
+        while (remaining > 0.01) {
+          // Créneaux de travail : matin 9h-12h (3h), après-midi 13h-17h (4h)
+          let slots = [
+            { from: 9, to: 12 },
+            { from: 13, to: 17 }
+          ];
+          let todayHours = 0;
+          for (let i = 0; i < slots.length && remaining > 0.01; i++) {
+            let slot = slots[i];
+            let slotStart = firstDay && slot.from < startHour ? startHour : slot.from;
+            if (slotStart >= slot.to) continue;
+            let slotDuration = slot.to - slotStart;
+            let hours = Math.min(slotDuration, remaining);
+            todayHours += hours;
+            remaining -= hours;
+            firstDay = false;
+            startHour = 9; // pour les jours suivants
+          }
+          lastDayHours = todayHours;
+          if (remaining > 0.01) {
+            // Passe au jour ouvré suivant
+            do {
+              current.setDate(current.getDate() + 1);
+            } while (current.getDay() === 0 || current.getDay() === 6); // saute week-end
+          }
+        }
+        // Calcule la date/heure de fin
+        end = new Date(current);
+        // Heure de fin = 9h + lastDayHours, en respectant les créneaux
+        let hoursLeft = lastDayHours;
+        let endHour = 9;
+        for (let slot of [ { from: 9, to: 12 }, { from: 13, to: 17 } ]) {
+          let slotDuration = slot.to - slot.from;
+          if (hoursLeft > 0) {
+            if (hoursLeft <= slotDuration) {
+              endHour = slot.from + hoursLeft;
+              break;
+            } else {
+              hoursLeft -= slotDuration;
+            }
+          }
+        }
+        end.setHours(Math.floor(endHour), m, 0, 0);
+
+        return { start, end, durationHours, startTime: start, endTime: end };
+      };
+
+      const distributeFromRange = (startField?: string, endField?: string): { start: Date; end: Date; durationHours: number; startTime?: Date; endTime?: Date } | null => {
+        const sVal = startField ? item[startField] : null;
+        const eVal = endField ? item[endField] : null;
+        // Preserve time if available
+        const s = toDate(sVal, true);
+        const e = toDate(eVal, true);
+        if (s && e) {
+          // Check if times are present (not just date at midnight/noon)
+          const hasStartTime = s.getHours() !== 0 && s.getHours() !== 12;
+          const hasEndTime = e.getHours() !== 0 && e.getHours() !== 12;
+          
+          if (hasStartTime && hasEndTime) {
+            // Calculate actual hours between timestamps
+            const millisDiff = e.getTime() - s.getTime();
+            const totalHours = millisDiff / (1000 * 60 * 60);
+            // Remove breaks: 1h break per full day
+            const fullDays = Math.floor(totalHours / 24);
+            const durationHours = Math.max(0, totalHours - fullDays);
+            
+            // Normalize dates for day iteration (but keep original times)
+            const startDay = new Date(s);
+            startDay.setHours(12, 0, 0, 0);
+            const endDay = new Date(e);
+            endDay.setHours(12, 0, 0, 0);
+            
+            return { start: startDay, end: endDay, durationHours, startTime: s, endTime: e };
+          } else {
+            // Fallback to day-based calculation
+            const startDay = toDate(sVal, false);
+            const endDay = toDate(eVal, false);
+            if (!startDay || !endDay) return null;
+            const days = Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86400000) + 1);
+            const durationHours = days * hoursPerDay;
+            return { start: startDay, end: endDay, durationHours };
+          }
+        }
+        return null;
+      };
+
+      if (candidate) {
+        if (candidate.kind === 'single') {
+          const prop = getProp(candidate.fieldId);
+          if (prop?.type === 'date_range') {
+            const val = item[prop.id];
+            if (val?.start && val?.end) {
+              const s = toDate(val.start, true);
+              const e = toDate(val.end, true);
+              if (s && e) {
+                const hasStartTime = s.getHours() !== 0 && s.getHours() !== 12;
+                const hasEndTime = e.getHours() !== 0 && e.getHours() !== 12;
+                
+                if (hasStartTime && hasEndTime) {
+                  const millisDiff = e.getTime() - s.getTime();
+                  const totalHours = millisDiff / (1000 * 60 * 60);
+                  const fullDays = Math.floor(totalHours / 24);
+                  const durationHours = Math.max(0, totalHours - fullDays);
+                  const startDay = new Date(s);
+                  startDay.setHours(12, 0, 0, 0);
+                  const endDay = new Date(e);
+                  endDay.setHours(12, 0, 0, 0);
+                  return { start: startDay, end: endDay, durationHours, startTime: s, endTime: e };
+                } else {
+                  const startDay = toDate(val.start, false);
+                  const endDay = toDate(val.end, false);
+                  if (startDay && endDay) {
+                    const days = Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86400000) + 1);
+                    const durationHours = days * hoursPerDay;
+                    return { start: startDay, end: endDay, durationHours };
+                  }
+                }
+              }
+            }
+          }
+          const single = distributeFromSingle(candidate.fieldId);
+          if (single) return single;
+        }
+        if (candidate.kind === 'range') {
+          const ranged = distributeFromRange(candidate.startField, candidate.endField);
+          if (ranged) return ranged;
+        }
+      }
+
+      // Heuristic: detect common start/end fields on the item when no config is set
+      const startCandidates = ['start', 'startDate', 'dateStart', 'date_start', 'debut', 'dateDebut', 'date_debut'];
+      const endCandidates = ['end', 'endDate', 'dateEnd', 'date_end', 'fin', 'dateFin', 'date_fin'];
+      let sAuto: Date | null = null;
+      let eAuto: Date | null = null;
+      for (const key of startCandidates) {
+        const maybe = toDate(item[key]);
+        if (maybe) {
+          sAuto = maybe;
+          break;
+        }
+      }
+      for (const key of endCandidates) {
+        const maybe = toDate(item[key]);
+        if (maybe) {
+          eAuto = maybe;
+          break;
+        }
+      }
+      if (sAuto && eAuto) {
+        const days = Math.max(1, Math.round((eAuto.getTime() - sAuto.getTime()) / 86400000) + 1);
+        return { start: sAuto, end: eAuto, durationHours: days * hoursPerDay };
+      }
+
+      // Fallback: infer range from any date-like fields on the item
+      const inferredDates: Date[] = [];
+      Object.entries(item || {}).forEach(([key, value]) => {
+        if (value === null || value === undefined) return;
+        if (typeof value === 'string' && /\d{4}-\d{2}-\d{2}/.test(value)) {
+          const maybe = toDate(value);
+          if (maybe) inferredDates.push(maybe);
+          return;
+        }
+        if (value instanceof Date) {
+          const maybe = toDate(value as any);
+          if (maybe) inferredDates.push(maybe);
+          return;
+        }
+      });
+      if (inferredDates.length >= 2) {
+        const sorted = inferredDates.sort((a, b) => a.getTime() - b.getTime());
+        const days = Math.max(1, Math.round((sorted[sorted.length - 1].getTime() - sorted[0].getTime()) / 86400000) + 1);
+        return { start: sorted[0], end: sorted[sorted.length - 1], durationHours: days * hoursPerDay };
+      }
+      if (inferredDates.length === 1) {
+        return { start: inferredDates[0], end: inferredDates[0], durationHours: hoursPerDay };
+      }
+      return null;
     };
 
     const leafIds = leafColumns.map((l) => l.id);
@@ -228,51 +413,189 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       return nd;
     };
 
-    // Nouvelle version : utiliser getItemsForDate pour filtrer les items par jour
-    daysOfMonth.forEach((date) => {
+    items.forEach((item: any) => {
       leafColumns.forEach((leaf) => {
-        // Détermination du champ date à utiliser
-        let dateFieldId: string | undefined = undefined;
-        let dateField: any = undefined;
-        if (leaf?.dateFieldOverride?.single) {
-          dateFieldId = leaf.dateFieldOverride.single;
-        } else if (dashboard.globalDateField) {
-          dateFieldId = dashboard.globalDateField;
+        if (!matchesLeaf(leaf, item)) return;
+        
+        // Debug: log raw item data to see how times are stored
+        const isDev = typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV;
+        if (isDev && (item.name === "Alsace debosselage" || item.title === "Alsace debosselage")) {
+          console.log('RAW ITEM DATA:', {
+            name: item.name || item.title,
+            allFields: Object.keys(item),
+            dateFields: Object.fromEntries(
+              Object.entries(item).filter(([k, v]) => 
+                k.toLowerCase().includes('date') || 
+                k.toLowerCase().includes('start') || 
+                k.toLowerCase().includes('end') ||
+                k.toLowerCase().includes('time') ||
+                k.toLowerCase().includes('debut') ||
+                k.toLowerCase().includes('fin')
+              )
+            )
+          });
         }
-        if (dateFieldId) {
-          dateField = properties.find((p: any) => p.id === dateFieldId);
-        } else if (properties.length > 0) {
-          // fallback: premier champ de type date/date_range
-          dateField = properties.find((p: any) => p.type === 'date' || p.type === 'date_range');
+        
+        const resolved = resolveRangeAndDuration(item, leaf);
+        if (!resolved) return;
+        const { start: rangeStart, end: rangeEnd, durationHours, startTime, endTime } = resolved;
+        const start = normalizeDay(rangeStart);
+        const end = normalizeDay(rangeEnd);
+        const days: Date[] = [];
+        const cursor = new Date(start);
+        while (cursor <= end) {
+          if (
+            cursor.getFullYear() === dashboard.year &&
+            cursor.getMonth() + 1 === dashboard.month &&
+            (dashboard.includeWeekends || (cursor.getDay() !== 0 && cursor.getDay() !== 6))
+          ) {
+            days.push(new Date(cursor));
+          }
+          cursor.setDate(cursor.getDate() + 1);
         }
-        if (!dateField) return;
+        if (days.length === 0) return;
 
-        // Filtrage par date ET par type (matchesLeaf)
-        const itemsForDay = getItemsForDateUtil(date, items, dateField).filter((item) => matchesLeaf(leaf, item));
-        itemsForDay.forEach((item) => {
-          const resolved = resolveRangeAndDuration(item, leaf);
-          if (!resolved) return;
-          const { durationHours } = resolved;
-          const key = dayKey(date);
+        const overrides = extractDailyOverrides(item);
+
+        // Calculate per-day durations based on actual times if available
+        const perDayMap: Record<string, number> = {};
+        if (startTime && endTime && days.length >= 1) {
+          const workStart = 9; // 8h
+          const workEnd = 17;   // 17h (5pm)
+          const breakDuration = 1; // 1h break
+          const maxHoursPerDay = workEnd - workStart - breakDuration; // 8h
+
+          days.forEach((day, idx) => {
+            const key = dayKey(day);
+            
+            // Create work boundaries for this specific day
+            const dayWorkStart = new Date(day);
+            dayWorkStart.setHours(workStart, 0, 0, 0);
+            const dayWorkEnd = new Date(day);
+            dayWorkEnd.setHours(workEnd, 0, 0, 0);
+
+            let effectiveStart: Date;
+            let effectiveEnd: Date;
+
+            if (idx === 0) {
+              // First day: from startTime to end of work day (or endTime if same day conceptually)
+              effectiveStart = new Date(Math.max(startTime.getTime(), dayWorkStart.getTime()));
+              effectiveEnd = new Date(Math.min(dayWorkEnd.getTime(), endTime.getTime()));
+            } else if (idx === days.length - 1) {
+              // Last day: from start of work day to endTime
+              effectiveStart = dayWorkStart;
+              effectiveEnd = new Date(Math.min(endTime.getTime(), dayWorkEnd.getTime()));
+            } else {
+              // Middle days: full work day
+              effectiveStart = dayWorkStart;
+              effectiveEnd = dayWorkEnd;
+            }
+
+            const millisWorked = Math.max(0, effectiveEnd.getTime() - effectiveStart.getTime());
+            let hoursWorked = millisWorked / (1000 * 60 * 60);
+            
+            // Subtract break if this is a full or near-full day
+            if (hoursWorked >= maxHoursPerDay - 0.5) {
+              hoursWorked = Math.min(hoursWorked - breakDuration, maxHoursPerDay);
+            }
+            
+            perDayMap[key] = Math.max(0, hoursWorked);
+          });
+        }
+
+        let sumOverrides = 0;
+        let missingDaysCount = 0;
+        if (overrides) {
+          days.forEach((d) => {
+            const key = dayKey(d);
+            const val = overrides[key];
+            if (val !== undefined) {
+              sumOverrides += val;
+            } else {
+              missingDaysCount += 1;
+            }
+          });
+        }
+        
+        // Use time-based distribution if available, otherwise fallback
+        const hasTimeBasedDistribution = Object.keys(perDayMap).length > 0;
+        const remaining = Math.max(0, durationHours - sumOverrides);
+        const fallbackPerDay = overrides && missingDaysCount > 0 ? remaining / missingDaysCount : days.length ? durationHours / days.length : 0;
+
+        days.forEach((d) => {
+          const key = dayKey(d);
+          const overrideVal = overrides ? overrides[key] : undefined;
+          let perDayDuration: number;
+          
+          if (overrideVal !== undefined) {
+            perDayDuration = overrideVal;
+          } else if (hasTimeBasedDistribution && perDayMap[key] !== undefined) {
+            perDayDuration = perDayMap[key];
+          } else {
+            perDayDuration = fallbackPerDay;
+          }
+
           daily[key] = daily[key] || {};
           daily[key][leaf.id] = daily[key][leaf.id] || { count: 0, duration: 0 };
           daily[key][leaf.id].count += 1;
-          daily[key][leaf.id].duration += durationHours;
+          daily[key][leaf.id].duration += perDayDuration;
+        });
 
-          // Pour les spans (affichage multi-jours)
-          spansByLeaf[leaf.id] = spansByLeaf[leaf.id] || [];
-          spansByLeaf[leaf.id].push({ startKey: key, endKey: key, label: item.name || item.title || 'Élément' });
-          spansByLeafDay[leaf.id] = spansByLeafDay[leaf.id] || {};
+        debugEntries.push({
+          item: item.name || item.title || item.id,
+          leaf: leaf.label,
+          range: { start: dayKey(start), end: dayKey(end) },
+          startTime: startTime ? startTime.toISOString() : null,
+          endTime: endTime ? endTime.toISOString() : null,
+          days: days.map(dayKey),
+          overrides,
+          durationHours,
+          sumOverrides,
+          missingDaysCount,
+          fallbackPerDay,
+          perDayMap: hasTimeBasedDistribution ? perDayMap : null,
+          perDay: days.map((d) => {
+            const key = dayKey(d);
+            const override = overrides ? overrides[key] : undefined;
+            const timeBased = hasTimeBasedDistribution && perDayMap[key] !== undefined ? perDayMap[key] : null;
+            return {
+              day: key,
+              duration: override !== undefined ? override : (timeBased !== null ? timeBased : fallbackPerDay)
+            };
+          })
+        });
+
+        if (days.length === 1 && overrides === null) {
+          debugMissingRange.push({
+            item: item.name || item.title || item.id,
+            leaf: leaf.label,
+            rawKeys: Object.keys(item),
+            rawDates: Object.fromEntries(
+              Object.entries(item).filter(([k, v]) => typeof v === 'string' && /\d{4}-\d{2}-\d{2}/.test(String(v)))
+            ),
+            rangeStart: dayKey(start),
+            rangeEnd: dayKey(end)
+          });
+        }
+
+        const spanStartKey = dayKey(days[0]);
+        const spanEndKey = dayKey(days[days.length - 1]);
+        spansByLeaf[leaf.id] = spansByLeaf[leaf.id] || [];
+        spansByLeaf[leaf.id].push({ startKey: spanStartKey, endKey: spanEndKey, label: item.name || item.title || 'Élément' });
+
+        spansByLeafDay[leaf.id] = spansByLeafDay[leaf.id] || {};
+        days.forEach((d, dayIdx) => {
+          const key = dayKey(d);
           spansByLeafDay[leaf.id][key] = {
             label: item.name || item.title || 'Élément',
-            isStart: true,
-            isEnd: true
+            isStart: dayIdx === 0,
+            isEnd: dayIdx === days.length - 1
           };
         });
       });
     });
-    const isDev = typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV;
 
+    const isDev = typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV;
     if (typeof window !== 'undefined' && isDev) {
       console.log('Dashboard monthly debug', {
         month: dashboard.month,
@@ -545,17 +868,157 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         </div>
       </div>
 
-      <DashboardColumnConfig
-        dashboard={dashboard}
-        collections={collections}
-        properties={properties}
-        leafColumns={leafColumns}
-        typeValuesInput={typeValuesInput}
-        setTypeValuesInput={setTypeValuesInput}
-        handleAddLeaf={handleAddLeaf}
-        handleUpdateLeaf={handleUpdateLeaf}
-        handleRemoveLeaf={handleRemoveLeaf}
-      />
+            <div className="border border-white/10 rounded-lg p-4 bg-neutral-900/60 mt-20">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold">Configuration</h3>
+            <p className="text-sm text-neutral-500">Sélectionne les champs date, type et durée, puis mappe les colonnes.</p>
+          </div>
+          <ShinyButton onClick={handleAddLeaf} className="px-4 py-2">
+            Ajouter une colonne
+          </ShinyButton>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+          <div className="flex flex-col gap-1">
+            <span className="text-neutral-400">Champ type</span>
+            <select
+              value={dashboard.typeField || ''}
+              onChange={(e) => onUpdate({ typeField: e.target.value || null })}
+              className="bg-neutral-900 border border-white/10 rounded px-3 py-2"
+            >
+              <option value="">À définir</option>
+              {collections
+                .find((c) => c.id === dashboard.sourceCollectionId)?.properties?.map((prop: any) => (
+                  <option key={prop.id} value={prop.id}>
+                    {prop.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-neutral-400">Champ date (simple)</span>
+            <select
+              value={dashboard.globalDateField || ''}
+              onChange={(e) => onUpdate({ globalDateField: e.target.value || null })}
+              className="bg-neutral-900 border border-white/10 rounded px-3 py-2"
+            >
+              <option value="">Héritées</option>
+              {collections
+                .find((c) => c.id === dashboard.sourceCollectionId)?.properties?.map((prop: any) => (
+                  <option key={prop.id} value={prop.id}>
+                    {prop.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-3 gap-4 items-stretch">
+          {leafColumns.length === 0 && (
+            <div className="text-sm text-neutral-500">Ajoute une colonne pour mapper les valeurs du champ type.</div>
+          )}
+          {leafColumns.map((leaf) => {
+            const typeValuesText = typeValuesInput[leaf.id] ?? (leaf.typeValues || []).join(', ');
+            return (
+              <div key={leaf.id} className="bg-neutral-900 border border-white/10 rounded px-3 py-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    value={leaf.label}
+                    onChange={(e) => handleUpdateLeaf(leaf.id, { label: e.target.value })}
+                    className="flex-1 bg-neutral-900 border border-white/10 rounded px-3 py-2 text-sm"
+                  />
+                  <button
+                    onClick={() => handleRemoveLeaf(leaf.id)}
+                    className="text-red-300 hover:text-white hover:bg-red-500/20 rounded px-2 py-1 text-sm"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-neutral-400">Valeurs champ type (séparées par , )</span>
+                    <input
+                      value={typeValuesText}
+                      onChange={(e) => {
+                        setTypeValuesInput((prev) => ({ ...prev, [leaf.id]: e.target.value }));
+                        const arr = e.target.value
+                          .split(',')
+                          .map((v) => v.trim())
+                          .filter(Boolean);
+                        handleUpdateLeaf(leaf.id, { typeValues: arr });
+                      }}
+                      className="bg-neutral-900 border border-white/10 rounded px-3 py-2"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-neutral-400">Date unique</span>
+                    <select
+                      value={leaf.dateFieldOverride?.single || ''}
+                      onChange={(e) =>
+                        handleUpdateLeaf(leaf.id, {
+                          dateFieldOverride: { ...leaf.dateFieldOverride, single: e.target.value || undefined, start: undefined, end: undefined }
+                        })
+                      }
+                      className="bg-neutral-900 border border-white/10 rounded px-3 py-2"
+                    >
+                      <option value="">Héritées</option>
+                      {
+                        properties.filter((prop: any) => prop.type === 'date')
+                        .map((prop: any) => (
+                        <option key={prop.id} value={prop.id}>
+                          {prop.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-neutral-400">Date début</span>
+                    <select
+                      value={leaf.dateFieldOverride?.start || ''}
+                      onChange={(e) =>
+                        handleUpdateLeaf(leaf.id, {
+                          dateFieldOverride: { ...leaf.dateFieldOverride, start: e.target.value || undefined, single: undefined }
+                        })
+                      }
+                      className="bg-neutral-900 border border-white/10 rounded px-3 py-2"
+                    >
+                      <option value="">Héritées</option>
+                      {
+                        properties.filter((prop: any) => prop.type === 'date')
+                        .map((prop: any) => (
+                        <option key={prop.id} value={prop.id}>
+                          {prop.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-neutral-400">Date fin</span>
+                    <select
+                      value={leaf.dateFieldOverride?.end || ''}
+                      onChange={(e) =>
+                        handleUpdateLeaf(leaf.id, {
+                          dateFieldOverride: { ...leaf.dateFieldOverride, end: e.target.value || undefined, single: undefined }
+                        })
+                      }
+                      className="bg-neutral-900 border border-white/10 rounded px-3 py-2"
+                    >
+                       <option value="">Héritées</option>
+                      {
+                        properties.filter((prop: any) => prop.type === 'date')
+                        .map((prop: any) => (
+                        <option key={prop.id} value={prop.id}>
+                          {prop.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };
