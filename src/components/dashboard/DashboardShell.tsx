@@ -279,15 +279,26 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           } catch (e) {}
           if (eventStyle && eventStyle.workdayDates) {
             // Si ce jour fait partie des workdayDates de l'événement
-            const isOnThisDay = eventStyle.workdayDates.some((wd: Date) => wd.toLocaleDateString('fr-CA') === key);
-            if (isOnThisDay) {
-              // Pour les multi-jours, on répartit la durée, sinon on prend la durée entière
+            const idx = eventStyle.workdayDates.findIndex((wd: Date) => wd.toLocaleDateString('fr-CA') === key);
+            if (idx !== -1) {
+              // Calcul précis de la durée pour chaque jour
               let part = 0;
-              if (eventStyle.workdayDates.length > 1) {
-                part = eventStyle.durationHours / eventStyle.workdayDates.length;
-              } else {
+              const workHoursPerDay = 7;
+              if (eventStyle.workdayDates.length === 1) {
                 part = eventStyle.durationHours;
+              } else if (idx === 0) {
+                // Premier jour : durée = heures restantes sur la première journée
+                part = Math.min(eventStyle.durationHours, eventStyle.hoursPerDay);
+              } else {
+                // Jours suivants :
+                // cumul des heures déjà utilisées sur les jours précédents
+                let hoursUsed = eventStyle.hoursPerDay;
+                if (idx > 1) hoursUsed += (idx - 1) * workHoursPerDay;
+                const remaining = eventStyle.durationHours - hoursUsed;
+                part = Math.min(remaining, workHoursPerDay);
               }
+              // Clamp à 0 si négatif (peut arriver sur le dernier jour)
+              part = Math.max(0, part);
               dailyObjectDurations[key][leaf.id][item.id] = part;
             }
           }
@@ -467,15 +478,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   {leafColumns.map((leaf: any) => {
                       const cell = aggregates.daily[key]?.[leaf.id] || { count: 0, duration: 0 };
                       const span = spanForDay(leaf.id, key);
-                      const countClasses = span
-                        ? 'px-3 py-2 text-right text-white border-l border-white/30 bg-white/10'
-                        : 'px-3 py-2 text-right text-white border-l border-white/30 bg-neutral-900/30';
-                      const durationClasses = span
-                        ? `px-3 py-2 text-right text-white border-l ${span.isEnd ? '' : ''} ${
-                            span.isStart ? 'rounded-l-md' : ''
-                          } border-white/30 bg-white/10`
-                        : 'px-3 py-2 text-right text-white border-l border-white/10 bg-neutral-900/20';
-
+                      
                       // Correction : afficher le nombre pour les dates simples (pas de span)
                       let countValue = '';
                       if (span && span.isStart) {
@@ -520,6 +523,16 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                           )}
                         </>
                       );
+                      const hasObject = itemsInCell.length > 0;
+                      const countClasses = span
+                        ? `px-3 py-2 text-right text-white border-l border-white/30 bg-white/10${hasObject ? ' bg-white/5' : ''}`
+                        : `px-3 py-2 text-right text-white border-l border-white/30 bg-neutral-900/30${hasObject ? ' bg-white/10' : ''}`;
+                      const durationClasses = span
+                        ? `px-3 py-2 text-right text-white border-l ${span.isEnd ? '' : ''} ${
+                            span.isStart ? 'rounded-l-md' : ''
+                          } border-white/30 bg-white/10${hasObject ? ' bg-white/5' : ''}`
+                        : `px-3 py-2 text-right text-white border-l border-white/10 bg-neutral-900/20${hasObject ? ' bg-white/10' : ''}`;
+
                       // Toujours afficher le menu contextuel sur la cellule si au moins un item
                       return (
                         <React.Fragment key={`${week.week}-${key}-${leaf.id}`}>

@@ -115,7 +115,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
           ref={dragRef}
           draggable={!!onEventDrop}
           initial={false}
-          className={`absolute rounded-sm p-1.5 transition-colors group text-xs overflow-hidden z-10 hover:opacity-80 ${onEventDrop ? 'cursor-move' : 'cursor-default'}`}
+          className={`absolute rounded-sm p-0.5 px-2 grid gap-2 items-start content-start transition-colors group text-xs overflow-hidden z-10 hover:opacity-80 ${onEventDrop ? 'cursor-move' : 'cursor-default'}`}
           style={{
             top: `${topOffset}px`,
             height: `${heightPx}px`,
@@ -124,7 +124,6 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
             minHeight: '24px',
             borderLeft: `4px solid ${colors.border}`,
             backgroundColor: colors.bg,
-            color: colors.text,
           }}
           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.hover)}
           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.bg)}
@@ -132,8 +131,17 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
           onDragStart={(e: any) => handleDragStart(e)}
           onDragEnd={(e: any) => handleDragEnd(e)}
         >
-          <div className="font-medium truncate">{getNameValue(item)}</div>
-          <div className="text-[10px] opacity-70">
+          {/* Affichage du champ nom uniquement s'il est visible */}
+          {(() => {
+            const nameField = collections[0]?.properties?.find((p: any) => p.name === 'Nom' || p.id === 'name');
+            if (nameField && visibleMetaFields.some((f: any) => f.id === nameField.id)) {
+              return (
+                <div className="font-medium truncate">{getNameValue(item)}</div>
+              );
+            }
+            return null;
+          })()}
+          <div className="text-[10px] opacity-70 absolute right-1 top-1">
             {(() => {
               const dStart = displayStartTime ?? startTime;
               const dEnd = displayEndTime ?? endTime;
@@ -144,14 +152,73 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
               return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
             })()}
           </div>
-          {visibleMetaFields.map((field: any) => {
-            const val = formatFieldValueUtil(item, field, collections);
-            return val ? (
-              <div key={field.id} className="text-[9px] opacity-60 truncate">
-                {field.name}: {val}
-              </div>
-            ) : null;
-          })}
+          {/* Affichage des champs dans l'ordre de collection.properties */}
+          {(() => {
+            // Trouver la collection correspondant à l'item (pour l'ordre des propriétés)
+            const itemCollection = collections.find((col: any) => col.items?.some((it: any) => it.id === item.id)) || collections[0];
+            const collectionProps = itemCollection?.properties || [];
+            const visibleIds = visibleMetaFields.map((f: any) => f.id);
+            return collectionProps
+              .filter((p: any) => visibleIds.includes(p.id))
+              .map((field: any) => {
+                const value = item[field.id];
+                if (value === undefined || value === null || value === '') return null;
+                // MULTI-SELECT : badges colorés
+                if (field.type === 'multi_select' && Array.isArray(value)) {
+                  const options = field.options || [];
+                  return (
+                    <div key={field.id} className="flex items-center flex-wrap gap-1 text-[9px] truncate">
+                      <span className="mr-1">{field.name}:</span>
+                      {value.map((val: any, idx: number) => {
+                        const opt = options.find((o: any) => (typeof o === 'string' ? o === val : o.value === val || o.label === val));
+                        const color = opt?.color || opt?.bgColor || 'rgba(139,92,246,0.08)';
+                        const label = opt?.label || opt?.value || val;
+                        const icon = opt?.icon;
+                        return (
+                          <span
+                            key={val + idx}
+                            className="px-2 py-0.5 rounded bg-white/10 inline-flex items-center gap-2"
+                          >
+                            <span>{label}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  );
+                }
+                // SELECT : badge coloré
+                if (field.type === 'select') {
+                  const options = field.options || [];
+                  let val = value;
+                  let opt = options.find((o: any) => (typeof o === 'string' ? o === val : o.value === val || o.label === val));
+                  if (typeof val === 'object' && val !== null) {
+                    opt = options.find((o: any) => o.value === val.value || o.label === val.label);
+                    val = val.label || val.value;
+                  }
+                  const color = opt?.color || opt?.bgColor || 'rgba(139,92,246,0.08)';
+                  const label = opt?.label || opt?.value || val;
+                  const icon = opt?.icon;
+                  return (
+                    <div key={field.id} className="flex items-center flex-wrap gap-1 text-[9px] truncate">
+                      <span className="mr-1">{field.name}:</span>
+                      <span
+                        className="px-2 py-0.5 text-xs rounded bg-white/10 inline-flex items-center gap-2"
+                        style={{ backgroundColor: color }}
+                      >
+                        <span>{label}</span>
+                      </span>
+                    </div>
+                  );
+                }
+                // AUTRES (fallback)
+                const val = formatFieldValueUtil(item, field, collections);
+                return val ? (
+                  <div key={field.id} className="text-[9px] truncate">
+                    {field.name}: {val}
+                  </div>
+                ) : null;
+              });
+          })()}
           <button
             onClick={(e) => {
               e.stopPropagation();

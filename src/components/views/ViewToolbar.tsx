@@ -303,11 +303,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                             </svg>
                           </div>
                           <div className="flex items-center gap-2">
-                            <PropIcon size={14} style={{ color: prop.color || '#8b5cf6' }} />
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: prop.color || '#8b5cf6' }}
-                            />
+                           
                             <span>{prop.name}</span>
                           </div>
                           <button

@@ -73,7 +73,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 collections={collections}
                 currentItem={formData}
                 onRelationChange={(property, item, value) => {
-                  handleChange(property.id, value);
+                  if (property.type === 'relation' || property.type === 'multi_select') {
+                    setFormData({ ...formData, [property.id]: value });
+                  } else {
+                    setFormData(item);
+                  }
                 }}
                 readOnly={false}
               />

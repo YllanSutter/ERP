@@ -293,15 +293,102 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                       </button>
                     </div>
 
-                    {/* Editable Properties */}
+                    {/* Affichage de tous les champs visibles avec rendu badges pour multi-select/select */}
                     <div className="text-xs space-y-2">
                       {collection.properties
                         .filter((prop: any) => !hiddenFields.includes(prop.id) && prop.id !== 'name')
-                        .map((prop: any) => (
-                          <div key={prop.id}>
-                            <span className="text-neutral-600">{prop.name}:</span>
-                          </div>
-                        ))}
+                        .map((prop: any) => {
+                          let value = item[prop.id];
+                          if (value === undefined || value === null || value === '') return null;
+                          // MULTI-SELECT : badges colorés
+                          if (prop.type === 'multi_select' && Array.isArray(value)) {
+                            const options = prop.options || [];
+                            return (
+                              <div key={prop.id} className="flex items-center flex-wrap gap-1">
+                                <span className="text-neutral-600 mr-1">{prop.name}:</span>
+                                {value.map((val: any, idx: number) => {
+                                  const opt = options.find((o: any) => (typeof o === 'string' ? o === val : o.value === val || o.label === val));
+                                  const color = opt?.color || opt?.bgColor || 'rgba(139,92,246,0.08)';
+                                  const label = opt?.label || opt?.value || val;
+                                  const icon = opt?.icon;
+                                  return (
+                                    <span
+                                      key={val + idx}
+                                      className="px-2 py-0.5 text-xs rounded bg-white/10 inline-flex items-center gap-2"
+                                      style={{ backgroundColor: color }}
+                                    >
+                                      {icon && <span dangerouslySetInnerHTML={{ __html: icon }} />}
+                                      <span>{label}</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+                          // SELECT : badge coloré
+                          if (prop.type === 'select') {
+                            const options = prop.options || [];
+                            let val = value;
+                            let opt = options.find((o: any) => (typeof o === 'string' ? o === val : o.value === val || o.label === val));
+                            if (typeof val === 'object' && val !== null) {
+                              opt = options.find((o: any) => o.value === val.value || o.label === val.label);
+                              val = val.label || val.value;
+                            }
+                            const color = opt?.color || opt?.bgColor || 'rgba(139,92,246,0.08)';
+                            const label = opt?.label || opt?.value || val;
+                            const icon = opt?.icon;
+                            return (
+                              <div key={prop.id} className="flex items-center flex-wrap gap-1">
+                                <span className="text-neutral-600 mr-1">{prop.name}:</span>
+                                <span
+                                  className="px-2 py-0.5 text-xs rounded bg-white/10 inline-flex items-center gap-2"
+                                  style={{ backgroundColor: color }}
+                                >
+                                  {icon && <span dangerouslySetInnerHTML={{ __html: icon }} />}
+                                  <span>{label}</span>
+                                </span>
+                              </div>
+                            );
+                          }
+                          // DATE & DATE_RANGE
+                          if (prop.type === 'date' || prop.type === 'date_range') {
+                            let display = '';
+                            if (prop.type === 'date') {
+                              display = value ? new Date(value).toLocaleString('fr-FR') : '';
+                            } else if (typeof value === 'object' && value.start && value.end) {
+                              display = `${new Date(value.start).toLocaleDateString('fr-FR')} → ${new Date(value.end).toLocaleDateString('fr-FR')}`;
+                            }
+                            return (
+                              <div key={prop.id}>
+                                <span className="text-neutral-600">{prop.name}:</span> <span className="text-white">{display}</span>
+                              </div>
+                            );
+                          }
+                          // CHECKBOX
+                          if (prop.type === 'checkbox') {
+                            return (
+                              <div key={prop.id}>
+                                <span className="text-neutral-600">{prop.name}:</span> <span className="text-white">{value ? 'Oui' : 'Non'}</span>
+                              </div>
+                            );
+                          }
+                          // RELATION (affichage brut ou à améliorer)
+                          if (prop.type === 'relation') {
+                            if (Array.isArray(value)) {
+                              return (
+                                <div key={prop.id}>
+                                  <span className="text-neutral-600">{prop.name}:</span> <span className="text-white">{value.join(', ')}</span>
+                                </div>
+                              );
+                            }
+                          }
+                          // AUTRES
+                          return (
+                            <div key={prop.id}>
+                              <span className="text-neutral-600">{prop.name}:</span> <span className="text-white">{value}</span>
+                            </div>
+                          );
+                        })}
                     </div>
                   </motion.div>
                 ))}

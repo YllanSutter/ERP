@@ -55,12 +55,13 @@ const WeekView: React.FC<WeekViewProps> = ({
 
   const [dragPreview, setDragPreview] = React.useState<{ dayIndex: number; positionY: number } | null>(null);
 
-  // Get visible relation/select fields
+  // Afficher toutes les propriétés visibles (non masquées et non dans le menu contextuel)
+  const contextualMenuFields = (collection.contextualMenuFields || []);
   const visibleMetaFields = collection.properties.filter(
-    (p: any) => 
-      (p.type === 'relation' || p.type === 'select') && 
+    (p: any) =>
       !hiddenFields.includes(p.id) &&
-      canViewField(p.id)
+      canViewField(p.id) &&
+      !contextualMenuFields.includes(p.id)
   );
 
   // Get week days
