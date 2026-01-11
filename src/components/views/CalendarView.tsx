@@ -110,8 +110,15 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Récupérer les collections sélectionnées
   const selectedCollections = useMemo(() => collections.filter(col => selectedCollectionIds.includes(col.id)), [collections, selectedCollectionIds]);
 
-  // Fusionner les items de toutes les collections sélectionnées
-  const mergedItems = useMemo(() => selectedCollections.flatMap(col => col.items.map((it: any) => ({ ...it, __collectionId: col.id }))), [selectedCollections]);
+
+  // Utiliser la prop items si elle est fournie (déjà filtrée), sinon fallback sur tous les items des collections sélectionnées
+  // Correction : si la prop items est définie (même vide), on l'utilise strictement (elle doit déjà être filtrée)
+  const mergedItems = useMemo(() => {
+    if (Array.isArray(items)) {
+      return items;
+    }
+    return selectedCollections.flatMap(col => col.items.map((it: any) => ({ ...it, __collectionId: col.id })));
+  }, [items, selectedCollections]);
 
   // Pour chaque collection, récupérer le champ date sélectionné
   const dateFieldsByCollection: Record<string, any> = {};

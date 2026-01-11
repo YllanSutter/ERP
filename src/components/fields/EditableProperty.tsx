@@ -318,7 +318,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
       return (
         <div className={cn("flex items-center gap-2", className)}>
-          <div className="flex flex-wrap gap-1 flex-1">
+          <div className="flex gap-1 flex-1">
             {value ? (
               (() => {
                 const it = targetItems.find((ti: any) => ti.id === value);
@@ -489,7 +489,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
     return (
       <div className={cn("flex items-center gap-2", className)}>
-        <div className="flex flex-wrap gap-1 flex-1">
+        <div className="flex gap-1 flex-1">
           {selectedIds.map((id: string) => {
             const it = targetItems.find((ti: any) => ti.id === id);
             const label = it ? getItemName(it) : id;

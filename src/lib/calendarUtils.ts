@@ -151,6 +151,9 @@ export const getItemsForDate = (
  * Get the name value of an item from a collection
  */
 export const getNameValue = (item: any, collection: any): string => {
+  if (!collection || !collection.properties) {
+    return item?.name || 'Sans titre';
+  }
   const nameField = collection.properties.find(
     (p: any) => p.name === 'Nom' || p.id === 'name'
   );
