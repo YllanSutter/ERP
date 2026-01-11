@@ -1,3 +1,19 @@
+  // Utilitaire : vérifie si l'item correspond à au moins une des valeurs filtrées (supporte array ou valeur simple)
+  function itemMatchesTypeValues(itemValue: any, typeValues: string[]): boolean {
+    if (!typeValues || typeValues.length === 0) return true;
+    // Si itemValue est un tableau (ex: multi_select, relation multiple)
+    if (Array.isArray(itemValue)) {
+      return typeValues.some(v => itemValue.includes(v));
+    }
+    // Si itemValue est une chaîne et au moins un filtre est une sous-chaîne (insensible à la casse)
+    if (typeof itemValue === 'string') {
+      return typeValues.some(v =>
+        typeof v === 'string' && v.trim() !== '' && itemValue.toLowerCase().includes(v.toLowerCase())
+      );
+    }
+    // Sinon égalité stricte (pour les nombres, booléens, etc.)
+    return typeValues.includes(itemValue);
+  }
   // Affiche une durée en heures et minutes (ex: 7h00, 3h30)
   function formatDurationHeureMinute(duree: number): string {
     if (typeof duree !== 'number' || isNaN(duree)) return '';
@@ -39,11 +55,11 @@ import {
 const months = MONTH_NAMES;
 
 const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete }) => {
-    useEffect(() => {
-      if (dashboard) {
-        console.log('[DASHBOARD] Champ date sélectionné (globalDateField) :', dashboard.globalDateField);
-      }
-    }, [dashboard]);
+    // useEffect(() => {
+    //   if (dashboard) {
+    //     console.log('[DASHBOARD] Champ date sélectionné (globalDateField) :', dashboard.globalDateField);
+    //   }
+    // }, [dashboard]);
    
   const years = useMemo(() => {
     const current = new Date().getFullYear();
@@ -59,8 +75,8 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       // Log collections entières (attention à la taille en console)
       // console.log('[DASHBOARD] collections:', collections);
       if (collection) {
-        console.log('[DASHBOARD] collection sélectionnée:', collection);
-        console.log('[DASHBOARD] properties:', collection.properties);
+        // console.log('[DASHBOARD] collection sélectionnée:', collection);
+        // console.log('[DASHBOARD] properties:', collection.properties);
         // console.log('[DASHBOARD] items:', collection.items);
       }
       // if (dashboard) {
@@ -142,14 +158,14 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
   // Détermination dynamique du typeField à utiliser (multi_select)
   const resolvedTypeField = useMemo(() => {
-    // Si dashboard.typeField pointe sur une propriété multi_select, on l'utilise
+    // Si dashboard.typeField pointe sur une propriété existante, on l'utilise
     if (dashboard?.typeField) {
-      const prop = properties.find((p: any) => p.id === dashboard.typeField && p.type === 'multi_select');
+      const prop = properties.find((p: any) => p.id === dashboard.typeField);
       if (prop) return dashboard.typeField;
     }
-    // Sinon, on prend la première propriété multi_select
-    const firstMulti = properties.find((p: any) => p.type === 'multi_select');
-    return firstMulti ? firstMulti.id : null;
+    // Sinon, on prend la première propriété disponible (hors "id")
+    const first = properties.find((p: any) => p.id !== 'id');
+    return first ? first.id : null;
   }, [dashboard?.typeField, properties]);
 
   const typeOptions = useMemo(() => {
@@ -251,6 +267,10 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         typeValues = Array.isArray(leaf.typeValues) ? leaf.typeValues.filter((v: any) => !!v) : [];
       }
 
+      // Déterminer le champ de filtre à utiliser pour cette feuille
+      const filterField = leaf.filterField;
+      const filterProp = filterField ? groupProperties.find((p: any) => p.id === filterField) : null;
+
       // Pour chaque jour du mois
       daysOfMonth.forEach((day) => {
         const key = day.toLocaleDateString('fr-CA'); // format YYYY-MM-DD
@@ -260,15 +280,35 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
         // Pour chaque item, on utilise la logique de getEventStyle pour savoir s'il couvre ce jour et quelle part de durée afficher
         groupItems.forEach((item: any) => {
-          // Filtrage par type hiérarchique si applicable
-          const typeField = resolvedTypeField;
-          if (typeValues.length > 0 && typeField) {
-            const itemType = item[typeField];
-            let match = true;
-            if (Array.isArray(itemType)) {
-              match = typeValues.every((v: any) => itemType.includes(v));
-            } else {
-              match = typeValues.every((v: any) => itemType === v);
+          // Filtrage par champ de filtre spécifique à la feuille
+          if (typeValues.length > 0 && filterField) {
+            const propDebug = filterProp;
+            // Log systématique du type de champ utilisé pour le filtrage
+            console.log('[DASHBOARD][FILTER][DEBUG][filterField]', {
+              feuille: leaf.label,
+              filterField,
+              type: propDebug?.type,
+              propDebug
+            });
+            const itemValue = item[filterField];
+            const match = itemMatchesTypeValues(itemValue, typeValues);
+            // 1. Log la valeur du champ relation pour chaque item
+            // 2. Log le résultat du test de filtrage pour chaque item
+            // 3. Log l'item complet pour debug
+            console.log('----------------');
+            console.log(propDebug?.type);
+            console.log('----------------');
+            if (filterField && propDebug && propDebug.type === 'relation') {
+              console.log('[DASHBOARD][FILTER][DEBUG][relation]', {
+                feuille: leaf.label,
+                itemId: item.id,
+                itemName: item.name || item.label || item.title || '',
+                relationField: filterField,
+                relationValue: itemValue,
+                typeValues,
+                match,
+                item
+              });
             }
             if (!match) return;
           }
@@ -352,7 +392,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       const groupItems = groupCollection?.items || [];
       groupItems.forEach((item: any) => {
         if (typeValues && resolvedTypeField) {
-          if (!typeValues.includes(item[resolvedTypeField])) return;
+          if (!itemMatchesTypeValues(item[resolvedTypeField], typeValues)) return;
         }
         const value = item[dateField.id];
         if (value && value.start && value.end) {
@@ -488,13 +528,62 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                       }
 
                       // Log systématique pour chaque cellule, même vide
-                      console.log('[DASHBOARD][TD]', {
-                        semaine: week.week,
-                        jour: key,
-                        feuille: leaf.label,
-                        count: countValue,
-                        duration: cell.duration,
-                      });
+                      if(countValue != '') {
+                        // Log la sélection du filtre relation pour cette feuille
+                        if (leaf.typeValues && leaf.typeValues.length > 0) {
+                          console.log('[DASHBOARD][FILTER][typeValues]', {
+                            feuille: leaf.label,
+                            typeValues: leaf.typeValues,
+                            // Pour chaque id sélectionné, tente de retrouver le label dans les options
+                            relationLabels: (() => {
+                              // Cherche la propriété de la feuille correspondant au champ filtré
+                              const prop = (leaf.filterField && properties.find((p: any) => p.id === leaf.filterField && p.type === 'relation'));
+                              if (prop) {
+                                // Cherche la collection liée
+                                const rel = prop.relation || prop.relationTo || prop.target || {};
+                                const relatedCollectionId = rel.collectionId || rel.targetCollectionId || rel.id;
+                                const relatedCollection = collections.find((c: any) => c.id === relatedCollectionId);
+                                if (relatedCollection) {
+                                  return leaf.typeValues.map((id: string) => {
+                                    const found = relatedCollection.items?.find((it: any) => it.id === id);
+                                    return found ? `${id} (${found.name || found.label || found.title || id})` : id;
+                                  });
+                                }
+                              }
+                              return leaf.typeValues;
+                            })()
+                          });
+                        }
+                        // Log la cellule
+                        const prop = (leaf.filterField && properties.find((p: any) => p.id === leaf.filterField && p.type === 'relation'));
+                        let relationValue = null;
+                        if (prop) {
+                          // Pour chaque item de la cellule, affiche la relation (id et nom)
+                          relationValue = (Object.keys(aggregates.dailyObjectDurations[key]?.[leaf.id] || {})).map((itemId) => {
+                            const item = (collection?.items || []).find((it: any) => it.id === itemId);
+                            if (!item) return null;
+                            const relVal = item[prop.id];
+                            if (Array.isArray(relVal)) {
+                              return relVal.map((rid: string) => {
+                                const found = collections.flatMap(c => c.items || []).find((it: any) => it.id === rid);
+                                return found ? `${rid} (${found.name || found.label || found.title || rid})` : rid;
+                              });
+                            } else if (relVal) {
+                              const found = collections.flatMap(c => c.items || []).find((it: any) => it.id === relVal);
+                              return found ? `${relVal} (${found.name || found.label || found.title || relVal})` : relVal;
+                            }
+                            return null;
+                          }).flat().filter(Boolean);
+                        }
+                        console.log('[DASHBOARD][TD]', {
+                          semaine: week.week,
+                          jour: key,
+                          feuille: leaf.label,
+                          count: countValue,
+                          duration: cell.duration,
+                          relationValue
+                        });
+                      }
 
                       // Ajout du menu contextuel sur la cellule d'item si un item unique est présent ce jour-là
                       const itemIds = Object.keys(aggregates.dailyObjectDurations[key]?.[leaf.id] || {});
@@ -634,16 +723,13 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
             <tr className="bg-white/10">
               <td className="px-3 py-2 font-semibold text-white border-r border-white/10">Total Mois</td>
               {leafColumns.map((leaf) => {
-                // Pour le total mensuel, on compte 1 uniquement sur le premier jour de chaque événement (span.isStart)
+                // Nouveau calcul : additionner tous les items du mois (tous les jours)
                 let count = 0;
                 let duration = 0;
                 Object.keys(aggregates.daily).forEach((key) => {
                   const cell = aggregates.daily[key]?.[leaf.id];
-                  const span = aggregates.spansByLeafDay?.[leaf.id]?.[key];
-                  if (span && span.isStart) {
-                    count += 1;
-                  }
                   if (cell) {
+                    count += cell.count;
                     duration += cell.duration;
                   }
                 });

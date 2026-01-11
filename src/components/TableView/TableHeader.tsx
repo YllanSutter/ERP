@@ -39,8 +39,8 @@ const TableHeader: React.FC<TableHeaderProps> = ({
             <ContextMenu key={prop.id}>
               <ContextMenuTrigger asChild>
                 <th
-                  style={{ borderBottomColor: `${prop.color || '#fff'}50` }}
-                  className="px-6 py-1 text-left text-xs font-medium text-neutral-400 uppercase tracking-wider border-b border-r border-[#ffffff10] cursor-context-menu"
+                  // style={{ borderBottomColor: `${prop.color || '#fff'}50` }}
+                  className="px-6 py-3 text-left text-xs font-medium text-neutral-400 uppercase tracking-wider border-b border-r border-[#ffffff10] cursor-context-menu"
                 >
                   <div className="flex items-center gap-2 font-black">
                     <PropIcon size={14} />
@@ -81,11 +81,6 @@ const TableHeader: React.FC<TableHeaderProps> = ({
             </ContextMenu>
           );
         })}
-        {canEdit && (
-          <th className="px-6 py-3 text-right text-xs font-medium text-neutral-400 uppercase">
-            Actions
-          </th>
-        )}
       </tr>
     </thead>
   );

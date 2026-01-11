@@ -515,7 +515,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
               <span
                 key={id}
                 className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 border hover:bg-white/20 transition cursor-pointer group"
-                style={{ backgroundColor: `${tagColor}22`, borderColor: `${tagColor}55` }}
+                style={{ backgroundColor: `${baseColor}12`, borderColor: `${baseColor}35` }}
               >
                 <span>{label}</span>
                 {!readOnly && (
@@ -694,7 +694,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       <span
       
         className={cn(
-          'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-900/30 border border-blue-600/30 text-blue-300 hover:bg-blue-800/60 transition',
+          'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-blue-900/30 transition',
 
           className
         )}
@@ -721,7 +721,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
             else if (value.startsWith('https://')) newVal = 'https://' + inputVal.replace(/^https?:\/\//, '');
             onChange(newVal);
           }}
-          className="truncate max-w-[200px] bg-transparent border-none outline-none text-blue-100 px-0 py-0.5 focus:ring-0 focus:outline-none"
+          className="truncate max-w-[200px] bg-transparent border-none outline-none text-blue-300 px-0 py-0.5 focus:ring-0 focus:outline-none"
           style={{ width: `${urlLength}ch` }}
           disabled={readOnly}
         />

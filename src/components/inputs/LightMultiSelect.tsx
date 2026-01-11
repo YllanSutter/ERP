@@ -80,7 +80,7 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
           </div>
         </PopoverButton>
       )}
-      <div className="flex flex-wrap gap-1 flex-1">
+      <div className="flex  gap-1 flex-1">
         {selectedValues.length === 0 && (
           <span className="text-xs text-neutral-500 items-center flex">{placeholder}</span>
         )}

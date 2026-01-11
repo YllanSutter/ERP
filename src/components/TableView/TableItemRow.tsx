@@ -84,22 +84,26 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
               />
             </td>
           ))}
-          {canEdit && (
-            <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-              <div className="flex items-center justify-end gap-3 text-neutral-500">
-                <Icons.GripVertical size={16} className="cursor-grab" />
-                <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-400">
-                  <Icons.Trash2 size={16} />
-                </button>
-              </div>
-            </td>
-          )}
+         
         </RowComponent>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onClick={() => onViewDetail(item)}>
-          <Icons.Search size={14} className="mr-2" />
-          <span>Détails</span>
+        <ContextMenuItem >
+          <div className="flex justify-between w-full">
+            <div className="left flex items-center" onClick={() => onViewDetail(item)}>
+              <Icons.Search size={14} className="mr-2" />
+              <span>Détails</span>
+            </div>
+            {canEdit && (
+              <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                <div className="flex items-center justify-end gap-3 text-neutral-500">
+                  <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-400">
+                    <Icons.Trash2 size={16} />
+                  </button>
+                </div>
+              </td>
+            )}
+          </div>
         </ContextMenuItem>
         {contextMenuProperties.length > 0 && (
           <>
@@ -122,8 +126,11 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                     readOnly={false}
                   />
                 </div>
+                
               </ContextMenuItem>
+              
             ))}
+            
           </>
         )}
       </ContextMenuContent>
