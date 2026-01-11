@@ -55,23 +55,17 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
 
               if (isSourceMany) {
                 const currentValues = Array.isArray(value) ? value : [];
-                const size = Math.min(targetItems.length || 5, 8);
                 return (
-                  <select
-                    multiple
-                    value={currentValues}
-                    onChange={(e) => {
-                      const opts = Array.from(e.target.selectedOptions).map(o => o.value);
-                      setValue(opts);
-                    }}
-                    size={size}
-                    className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none min-h-[120px]"
-                  >
-                    {targetItems.map((ti: any) => {
-                      const label = nameField ? ti[nameField.id] || 'Sans titre' : ti.name || 'Sans titre';
-                      return <option key={ti.id} value={ti.id}>{label}</option>;
-                    })}
-                  </select>
+                  <LightMultiSelect
+                    options={targetItems.map((ti: any) => ({
+                      value: ti.id,
+                      label: nameField ? ti[nameField.id] || 'Sans titre' : ti.name || 'Sans titre'
+                    }))}
+                    values={currentValues}
+                    onChange={(vals) => setValue(vals)}
+                    placeholder="Aucun"
+                    getOptionLabel={opt => typeof opt === 'string' ? opt : (opt.label || opt.value)}
+                  />
                 );
               } else {
                 return (

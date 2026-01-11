@@ -12,13 +12,14 @@ interface LightMultiSelectProps {
   sizeClass?: string;
   className?: string;
   disabled?: boolean;
+  getOptionLabel?: (opt: OptionType) => string;
 }
 
 const getOptionValue = (opt: OptionType) => typeof opt === 'string' ? opt : opt.value;
 const getOptionColor = (opt: OptionType) => typeof opt === 'string' ? '#8b5cf6' : (opt.color || '#8b5cf6');
 const getOptionIcon = (opt: OptionType) => typeof opt === 'string' ? null : (opt.icon || null);
 
-export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, values, onChange, placeholder = 'Aucun', sizeClass = 'text-sm h-8', className, disabled = false }) => {
+export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, values, onChange, placeholder = 'Aucun', sizeClass = 'text-sm h-8', className, disabled = false, getOptionLabel }) => {
   const selectedValues: string[] = Array.isArray(values) ? values : (values ? [values] : []);
 
   // Fonction pour retirer un tag
@@ -52,6 +53,7 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
               const iconName = getOptionIcon(opt);
               const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
               const checked = selectedValues.includes(optValue);
+              const label = getOptionLabel ? getOptionLabel(opt) : (typeof opt === 'string' ? opt : (opt.label || opt.value));
               return (
                 <button
                   key={optValue}
@@ -70,7 +72,7 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
                     {checked && <Icons.Check size={12} className="text-white" />}
                   </span>
                   {OptIcon && <OptIcon size={13} className="opacity-80" />}
-                  <span className="truncate flex-1 text-left">{optValue}</span>
+                  <span className="truncate flex-1 text-left">{label}</span>
                 </button>
               );
             })}
@@ -89,6 +91,7 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
           const color = opt ? getOptionColor(opt) : '#8b5cf6';
           const iconName = opt ? getOptionIcon(opt) : null;
           const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
+          const label = opt ? (getOptionLabel ? getOptionLabel(opt) : (typeof opt === 'string' ? opt : (opt.label || opt.value))) : val;
           return (
             <span
               key={val}
@@ -96,13 +99,13 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
               style={{ backgroundColor: `${color}22`, borderColor: `${color}55` }}
             >
               {OptIcon && <OptIcon size={13} className="opacity-80" />}
-              <span className="text-xs">{val}</span>
+              <span className="text-xs">{label}</span>
               <button
                 type="button"
                 className="ml-1 text-neutral-400 hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
                 onClick={() => removeValue(val)}
                 tabIndex={-1}
-                aria-label={`Retirer ${val}`}
+                aria-label={`Retirer ${label}`}
               >
                 <Icons.X size={12} />
               </button>

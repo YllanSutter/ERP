@@ -1,5 +1,6 @@
 
 import React, { useEffect } from 'react';
+import { LightMultiSelect } from '../inputs/LightMultiSelect';
 
 interface FilterModalProps {
   properties: any[];
@@ -93,33 +94,20 @@ const DATEFIELD_KEY = 'erp_collection_datefield';
             const value = filters[field.id] || (isSourceMany ? [] : '');
             if (isSourceMany) {
               const currentValues = Array.isArray(value) ? value : [];
-              const size = Math.min(targetItems.length || 5, 8);
               return (
                 <div key={field.id} className="flex flex-col mb-2">
                   <label className="text-sm font-medium mb-1">{field.name}</label>
-                  <select
-                    multiple
-                    value={currentValues.length === 0 ? [''] : currentValues}
-                    onChange={e => {
-                      const opts = Array.from(e.target.selectedOptions).map(o => o.value);
-                      // Si l'option vide est sélectionnée seule, on vide le filtre
-                      if (opts.includes('') && opts.length === 1) {
-                        handleFilterChange(field.id, []);
-                      } else {
-                        // On retire l'option vide si elle est sélectionnée avec d'autres
-                        const filteredOpts = opts.filter(v => v !== '');
-                        handleFilterChange(field.id, filteredOpts);
-                      }
-                    }}
-                    size={size}
-                    className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none min-h-[120px]"
-                  >
-                    <option value="">-- Tous --</option>
-                    {targetItems.map((ti: any) => {
-                      const label = nameField ? ti[nameField.id] || 'Sans titre' : ti.name || 'Sans titre';
-                      return <option key={ti.id} value={ti.id}>{label}</option>;
-                    })}
-                  </select>
+                  <LightMultiSelect
+                    options={targetItems.map((ti: any) => ({
+                      value: ti.id,
+                      label: nameField ? ti[nameField.id] || 'Sans titre' : ti.name || 'Sans titre'
+                    }))}
+                    values={currentValues}
+                    onChange={(vals) => handleFilterChange(field.id, vals)}
+                    placeholder="Aucun"
+                    // Affiche le label (nom) dans les tags
+                    getOptionLabel={opt => typeof opt === 'string' ? opt : (opt.label || opt.value)}
+                  />
                 </div>
               );
             } else {

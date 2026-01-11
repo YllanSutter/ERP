@@ -3,7 +3,7 @@ import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PopoverButton } from './PopoverButton';
 
-export type OptionType = string | { value: string; color?: string; icon?: string };
+export type OptionType = string | { value: string; label?: string; color?: string; icon?: string };
 
 interface LightSelectProps {
   options: OptionType[];
