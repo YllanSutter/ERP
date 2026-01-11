@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 interface CollectionFilterPanelProps {
   collection: any;
@@ -25,6 +25,42 @@ const CollectionFilterPanel: React.FC<CollectionFilterPanelProps> = ({
   const handleFilterChange = (fieldId: string, value: any) => {
     setFilters({ ...filters, [fieldId]: value });
   };
+
+const FILTERS_KEY = 'erp_collection_filters';
+const DATEFIELD_KEY = 'erp_collection_datefield';
+
+
+  // Charger les filtres et la dateField depuis localStorage au montage
+  useEffect(() => {
+    const savedFilters = localStorage.getItem(FILTERS_KEY);
+    if (savedFilters) {
+      try {
+        const parsed = JSON.parse(savedFilters);
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+          setFilters(parsed);
+        }
+      } catch {}
+    }
+    const savedDateField = localStorage.getItem(DATEFIELD_KEY);
+    if (savedDateField && savedDateField !== '' && setDateField) {
+      setDateField(savedDateField);
+    }
+    // eslint-disable-next-line
+  }, []);
+
+  // Sauvegarder les filtres à chaque modification (sauf si vide)
+  useEffect(() => {
+    if (filters && Object.keys(filters).length > 0) {
+      localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
+    }
+  }, [filters]);
+
+  // Sauvegarder la dateField à chaque modification
+  useEffect(() => {
+    if (dateField !== undefined && dateField !== null) {
+      localStorage.setItem(DATEFIELD_KEY, dateField);
+    }
+  }, [dateField]);
 
   return (
     <div className="mb-4 p-4 border border-white/10 rounded">

@@ -233,8 +233,7 @@ const DayView: React.FC<DayViewProps> = ({
                     onViewDetail={onViewDetail}
                     onReduceDuration={reduceDuration}
                     onEventDrop={onEventDrop}
-                    weekDayDate={currentDate}
-                  />
+                    weekDayDate={currentDate} startCal={0} endCal={0}                  />
                 );
             })}
             </div>
