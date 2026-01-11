@@ -111,14 +111,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const selectedCollections = useMemo(() => collections.filter(col => selectedCollectionIds.includes(col.id)), [collections, selectedCollectionIds]);
 
 
-  // Utiliser la prop items si elle est fournie (déjà filtrée), sinon fallback sur tous les items des collections sélectionnées
-  // Correction : si la prop items est définie (même vide), on l'utilise strictement (elle doit déjà être filtrée)
+  // Fusionne tous les items des collections sélectionnées, en ajoutant __collectionId si besoin
   const mergedItems = useMemo(() => {
-    if (Array.isArray(items)) {
-      return items;
-    }
-    return selectedCollections.flatMap(col => col.items.map((it: any) => ({ ...it, __collectionId: col.id })));
-  }, [items, selectedCollections]);
+    // Toujours fusionner tous les items des collections sélectionnées, ignorer la prop items
+    const result = selectedCollections.flatMap(col => col.items.map((it: any) => ({ ...it, __collectionId: col.id })));
+    console.log('mergedItems (all selected collections):', result);
+    return result;
+  }, [selectedCollections]);
 
   // Pour chaque collection, récupérer le champ date sélectionné
   const dateFieldsByCollection: Record<string, any> = {};
@@ -310,6 +309,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             collections={selectedCollections}
             onEventDrop={handleEventDrop}
             canViewField={(fieldId: string, colId?: string) => canViewFieldFn(fieldId, colId || selectedCollections[0]?.id)}
+            getDateFieldForItem={getDateFieldForItem}
           />
         ) : (
           <DayView

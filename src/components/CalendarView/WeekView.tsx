@@ -30,6 +30,7 @@ interface WeekViewProps {
   collections?: any[];
   onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number) => void;
   canViewField?: (fieldId: string) => boolean;
+  getDateFieldForItem?: (item: any) => any;
 }
 
 const WeekView: React.FC<WeekViewProps> = ({
@@ -49,6 +50,7 @@ const WeekView: React.FC<WeekViewProps> = ({
   collections = [],
   onEventDrop,
   canViewField = () => true,
+  getDateFieldForItem: getDateFieldForItemProp,
 }) => {
   const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
@@ -87,6 +89,18 @@ const WeekView: React.FC<WeekViewProps> = ({
     if (collections && collections.length === 1) return collectionMap[collections[0].id].visibleMetaFields;
     return [];
   };
+  // Helper pour récupérer le champ date d'un item (multi-collection)
+  const getDateFieldForItem = (item: any) => {
+    if (typeof getDateFieldForItemProp === 'function') {
+      return getDateFieldForItemProp(item);
+    }
+    const col = getCollectionForItem(item);
+    if (!col) return undefined;
+    // On prend le premier champ date/date_range sélectionné (ou le premier trouvé)
+    const dateProps = col.properties.filter((p: any) => p.type === 'date' || p.type === 'date_range');
+    return dateProps[0];
+  };
+
 
   // Get week days
   const weekDays = getWeekDays(currentDate);
@@ -95,22 +109,15 @@ const WeekView: React.FC<WeekViewProps> = ({
   const toDateKeyLocal = (d: Date) => toDateKey(d);
 
 
-  // Helper pour récupérer le champ date d'un item (multi-collection)
-  const getDateFieldForItem = (item: any) => {
-    const col = getCollectionForItem(item);
-    if (!col) return undefined;
-    // On prend le premier champ date/date_range sélectionné (ou le premier trouvé)
-    const dateProps = col.properties.filter((p: any) => p.type === 'date' || p.type === 'date_range');
-    // Si CalendarView fournit un mapping, il faudrait le passer ici
-    // Pour l'instant, on prend le premier
-    return dateProps[0];
-  };
+ 
 
   // Calculate event positions and spans (par item)
   const getEventStyleLocal = (item: any) => {
     const dateField = getDateFieldForItem(item);
     if (!dateField) return undefined;
-    return getEventStyle(item, dateField, defaultDuration, endHour);
+    const style = getEventStyle(item, dateField, defaultDuration, endHour);
+    console.log('item:', item, 'dateField:', dateField, 'defaultDuration:', defaultDuration, 'computed style:', style);
+    return style;
   };
 
   // Group events by day with overflow handling
