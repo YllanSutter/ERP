@@ -142,10 +142,14 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           case 'not_equals':
             if (Array.isArray(value)) return !value.includes(filter.value);
             return value !== filter.value;
-          case 'contains':
-            if (typeof value === 'string') return value.toLowerCase().includes(String(filter.value).toLowerCase());
-            if (Array.isArray(value)) return value.some((v: any) => String(v).toLowerCase().includes(String(filter.value).toLowerCase()));
+          case 'contains': {
+            // N'appliquer contains que pour les champs texte ou url
+            if (prop && (prop.type === 'text' || prop.type === 'url')) {
+              if (typeof value === 'string') return value.toLowerCase().includes(String(filter.value).toLowerCase());
+              if (Array.isArray(value)) return value.some((v: any) => String(v).toLowerCase().includes(String(filter.value).toLowerCase()));
+            }
             return false;
+          }
           case 'greater':
             return typeof value === 'number' && value > filter.value;
           case 'less':
