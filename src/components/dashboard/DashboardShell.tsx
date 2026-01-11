@@ -39,6 +39,8 @@ interface DashboardShellProps {
   onUpdate: (patch: Partial<MonthlyDashboardConfig>) => void;
   onViewDetail: (item: any) => void;
   onDelete: (id: string) => void;
+  dashboardFilters: Record<string, any[]>;
+  setDashboardFilters: React.Dispatch<React.SetStateAction<Record<string, any[]>>>;
 }
 
 import {
@@ -55,19 +57,27 @@ import {
 
 const months = MONTH_NAMES;
 
-const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete }) => {
-      // Filtres globaux dashboard
-      const [filters, setFilters] = useState<any[]>([]);
+const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete, dashboardFilters, setDashboardFilters }) => {
+      // Filtres globaux dashboard : désormais passés en props (gérés par le parent)
+      // const [filters, setFilters] = useState<any[]>([]);
       const [showFilterModal, setShowFilterModal] = useState(false);
 
-      // Ajout d'un filtre
+      // Ajout d'un filtre (via props)
       const handleAddFilter = (property: string, operator: string, value: any) => {
-        setFilters((prev: any[]) => [...prev, { property, operator, value }]);
+        if (!dashboard || !dashboardFilters || !setDashboardFilters) return;
+        setDashboardFilters((prev: any) => ({
+          ...prev,
+          [dashboard.id]: [...(prev[dashboard.id] || []), { property, operator, value }]
+        }));
         setShowFilterModal(false);
       };
-      // Suppression d'un filtre
+      // Suppression d'un filtre (via props)
       const handleRemoveFilter = (idx: number) => {
-        setFilters((prev: any[]) => prev.filter((_, i) => i !== idx));
+        if (!dashboard || !dashboardFilters || !setDashboardFilters) return;
+        setDashboardFilters((prev: any) => ({
+          ...prev,
+          [dashboard.id]: (prev[dashboard.id] || []).filter((_: any, i: number) => i !== idx)
+        }));
       };
     // useEffect(() => {
     //   if (dashboard) {
@@ -98,57 +108,58 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       // }
     }, [collections, collection, dashboard]);
   const properties = collection?.properties || [];
-  // Préfiltrage des items selon les filtres globaux dashboard
+  // Préfiltrage des items selon les filtres globaux dashboard (par dashboard.id)
   const filteredItems = useMemo(() => {
-    if (!collection?.items) return [];
+    if (!dashboard || !collection?.items) return [];
+    const filters = dashboardFilters?.[dashboard.id] || [];
     if (!filters.length) return collection.items;
-        return collection.items.filter((item: any) => {
-          return filters.every((filter) => {
-            const prop = properties.find((p: any) => p.id === filter.property);
-            const value = item[filter.property];
-            if (!prop) return true;
-            // Gestion spéciale pour les relations : filtrer sur l'id mais afficher le nom
-            if (prop.type === 'relation') {
-              if (Array.isArray(value)) {
-                if (Array.isArray(filter.value)) {
-                  // au moins un id doit matcher
-                  return filter.value.some((v: any) => value.includes(v));
-                } else {
-                  return value.includes(filter.value);
-                }
-              } else {
-                if (Array.isArray(filter.value)) {
-                  return filter.value.includes(value);
-                } else {
-                  return value === filter.value;
-                }
-              }
+    return collection.items.filter((item: any) => {
+      return filters.every((filter: any) => {
+        const prop = properties.find((p: any) => p.id === filter.property);
+        const value = item[filter.property];
+        if (!prop) return true;
+        // Gestion spéciale pour les relations : filtrer sur l'id mais afficher le nom
+        if (prop.type === 'relation') {
+          if (Array.isArray(value)) {
+            if (Array.isArray(filter.value)) {
+              // au moins un id doit matcher
+              return filter.value.some((v: any) => value.includes(v));
+            } else {
+              return value.includes(filter.value);
             }
-            switch (filter.operator) {
-              case 'equals':
-                if (Array.isArray(value)) return value.includes(filter.value);
-                return value === filter.value;
-              case 'not_equals':
-                if (Array.isArray(value)) return !value.includes(filter.value);
-                return value !== filter.value;
-              case 'contains':
-                if (typeof value === 'string') return value.toLowerCase().includes(String(filter.value).toLowerCase());
-                if (Array.isArray(value)) return value.some((v: any) => String(v).toLowerCase().includes(String(filter.value).toLowerCase()));
-                return false;
-              case 'greater':
-                return typeof value === 'number' && value > filter.value;
-              case 'less':
-                return typeof value === 'number' && value < filter.value;
-              case 'is_empty':
-                return value == null || value === '' || (Array.isArray(value) && value.length === 0);
-              case 'is_not_empty':
-                return !(value == null || value === '' || (Array.isArray(value) && value.length === 0));
-              default:
-                return true;
+          } else {
+            if (Array.isArray(filter.value)) {
+              return filter.value.includes(value);
+            } else {
+              return value === filter.value;
             }
-          });
-        });
-  }, [collection?.items, filters, properties]);
+          }
+        }
+        switch (filter.operator) {
+          case 'equals':
+            if (Array.isArray(value)) return value.includes(filter.value);
+            return value === filter.value;
+          case 'not_equals':
+            if (Array.isArray(value)) return !value.includes(filter.value);
+            return value !== filter.value;
+          case 'contains':
+            if (typeof value === 'string') return value.toLowerCase().includes(String(filter.value).toLowerCase());
+            if (Array.isArray(value)) return value.some((v: any) => String(v).toLowerCase().includes(String(filter.value).toLowerCase()));
+            return false;
+          case 'greater':
+            return typeof value === 'number' && value > filter.value;
+          case 'less':
+            return typeof value === 'number' && value < filter.value;
+          case 'is_empty':
+            return value == null || value === '' || (Array.isArray(value) && value.length === 0);
+          case 'is_not_empty':
+            return !(value == null || value === '' || (Array.isArray(value) && value.length === 0));
+          default:
+            return true;
+        }
+      });
+    });
+  }, [dashboard, collection?.items, dashboardFilters, properties]);
 
   const [typeValuesInput, setTypeValuesInput] = useState<Record<string, string>>({});
 
@@ -931,7 +942,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
             Filtrer
           </button>
           <div className="flex flex-wrap gap-2">
-            {filters.map((filter, idx) => {
+            {(dashboard && dashboardFilters?.[dashboard.id] ? dashboardFilters[dashboard.id] : []).map((filter: any, idx: number) => {
               const prop = properties.find((p: any) => p.id === filter.property);
               return (
                 <span key={idx} className="flex items-center gap-1 px-3 py-1.5 bg-violet-500/20 text-violet-200 rounded-lg text-sm border border-violet-500/30">

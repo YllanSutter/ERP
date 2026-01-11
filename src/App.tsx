@@ -1,3 +1,21 @@
+// Nettoie récursivement un objet pour supprimer les cycles et les clés privées (commençant par _)
+function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (seen.has(obj)) return undefined;
+  seen.add(obj);
+  if (Array.isArray(obj)) {
+    return obj.map((item) => cleanForSave(item, seen)).filter((v) => v !== undefined);
+  }
+  const result: Record<string, any> = {};
+  for (const key in obj) {
+    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+    if (key.startsWith('_')) continue;
+    const val = cleanForSave(obj[key], seen);
+    if (val !== undefined) result[key] = val;
+  }
+  return result;
+}
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
@@ -30,6 +48,8 @@ import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
 import { MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 
 const App = () => {
+  // Filtres par dashboard (clé = dashboard.id)
+  const [dashboardFilters, setDashboardFilters] = useState<Record<string, any[]>>({});
   const {
     user,
     roles: userRoles,
@@ -142,6 +162,7 @@ const App = () => {
             setActiveView(data.activeView || null);
             setActiveDashboard(data.activeDashboard || null);
             setFavorites(data.favorites || { views: [], items: [] });
+            setDashboardFilters(data.dashboardFilters || {});
             setIsLoaded(true);
             return;
           }
@@ -203,14 +224,15 @@ const App = () => {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
-            collections,
-            views,
-            dashboards,
+            collections: cleanForSave(collections),
+            views: cleanForSave(views),
+            dashboards: cleanForSave(dashboards),
             dashboardSort,
             activeCollection,
+            dashboardFilters: cleanForSave(dashboardFilters),
             activeView,
             activeDashboard,
-            favorites
+            favorites: cleanForSave(favorites)
           }),
         });
       } catch (err) {
@@ -218,7 +240,7 @@ const App = () => {
       }
     };
     saveState();
-  }, [collections, views, dashboards, activeCollection, activeView, activeDashboard, favorites, isLoaded, user, canEdit]);
+  }, [collections, views, dashboards, dashboardFilters, activeCollection, activeView, activeDashboard, favorites, isLoaded, user, canEdit]);
 
   useEffect(() => {
     if (!activeCollection) return;
@@ -439,6 +461,8 @@ const App = () => {
               onDelete={(id: string) => {
                 // Optionnel : suppression d'un item depuis le dashboard
               }}
+              dashboardFilters={dashboardFilters}
+              setDashboardFilters={setDashboardFilters}
             />
           ) : !activeCollection ? (
             <motion.div
