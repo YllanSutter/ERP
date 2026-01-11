@@ -27,15 +27,36 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
     let items = collection.items || [];
     // Filtrage par champ
     items = items.filter((item: any) => {
-      // Pour chaque filtre actif
       for (const fieldId in filter) {
         const field = collection.properties.find((p: any) => p.id === fieldId);
         if (!field) continue;
         const value = item[fieldId];
         const filterValue = filter[fieldId];
-        if (!filterValue) continue;
+        // Si filtre vide (string vide ou tableau vide), on ne filtre pas
+        if (
+          filterValue === '' ||
+          filterValue === null ||
+          (Array.isArray(filterValue) && filterValue.length === 0)
+        ) continue;
         if (field.type === 'select') {
           if (value !== filterValue) return false;
+        } else if (field.type === 'relation') {
+          const relationType = field.relation?.type || 'many_to_many';
+          if (relationType === 'many_to_many' || relationType === 'one_to_many') {
+            // value: tableau d'IDs, filterValue: tableau d'IDs sélectionnés
+            if (!Array.isArray(value)) return false;
+            if (!Array.isArray(filterValue)) return false;
+            // Si aucun filtre sélectionné, on ne filtre pas
+            if (filterValue.length === 0) continue;
+            // Si le champ de l'item est vide, on ne matche rien
+            if (value.length === 0) return false;
+            // Intersection non vide
+            if (!filterValue.some((id: string) => value.includes(id))) return false;
+          } else {
+            // one_to_one : value = id, filterValue = id
+            if (filterValue === '') continue;
+            if (value !== filterValue) return false;
+          }
         } else {
           if (typeof value === 'string' && !value.toLowerCase().includes(filterValue.toLowerCase())) return false;
         }

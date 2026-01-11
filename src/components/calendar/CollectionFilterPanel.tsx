@@ -98,14 +98,22 @@ const DATEFIELD_KEY = 'erp_collection_datefield';
                   <label className="text-sm font-medium mb-1">{field.name}</label>
                   <select
                     multiple
-                    value={currentValues}
+                    value={currentValues.length === 0 ? [''] : currentValues}
                     onChange={e => {
                       const opts = Array.from(e.target.selectedOptions).map(o => o.value);
-                      handleFilterChange(field.id, opts);
+                      // Si l'option vide est sélectionnée seule, on vide le filtre
+                      if (opts.includes('') && opts.length === 1) {
+                        handleFilterChange(field.id, []);
+                      } else {
+                        // On retire l'option vide si elle est sélectionnée avec d'autres
+                        const filteredOpts = opts.filter(v => v !== '');
+                        handleFilterChange(field.id, filteredOpts);
+                      }
                     }}
                     size={size}
                     className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none min-h-[120px]"
                   >
+                    <option value="">-- Tous --</option>
                     {targetItems.map((ti: any) => {
                       const label = nameField ? ti[nameField.id] || 'Sans titre' : ti.name || 'Sans titre';
                       return <option key={ti.id} value={ti.id}>{label}</option>;
