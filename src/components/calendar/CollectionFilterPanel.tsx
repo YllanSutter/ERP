@@ -1,5 +1,6 @@
 
 import React, { useEffect } from 'react';
+
 interface FilterModalProps {
   properties: any[];
   collection: any;

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import CollectionFilterPanel from './CollectionFilterPanel';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import WeekView from '../CalendarView/WeekView';
 
 interface CalendarCollectionsManagerProps {
@@ -70,20 +71,28 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   // Rendu des panneaux de filtre et du calendrier
   return (
     <div>
-        <div className='grid grid-cols-2'>
-        {collections.map((collection) => (
-            <CollectionFilterPanel
-              key={collection.id}
-              collection={collection}
-              properties={collection.properties}
-              filters={filters[collection.id] || {}}
-              setFilters={(f: any) => setFilters((prev) => ({ ...prev, [collection.id]: f }))}
-              dateField={dateFields[collection.id]}
-              setDateField={(fieldId: string) => setDateFields((prev) => ({ ...prev, [collection.id]: fieldId }))}
-              collections={collections}
-            />
-        ))}
-        </div>
+        <Tabs defaultValue={collections[0]?.id} className="w-full mb-4">
+          <TabsList>
+            {collections.map((collection) => (
+              <TabsTrigger key={collection.id} value={collection.id}>
+                {collection.name}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {collections.map((collection) => (
+            <TabsContent key={collection.id} value={collection.id}>
+              <CollectionFilterPanel
+                collection={collection}
+                properties={collection.properties}
+                filters={filters[collection.id] || {}}
+                setFilters={(f: any) => setFilters((prev) => ({ ...prev, [collection.id]: f }))}
+                dateField={dateFields[collection.id]}
+                setDateField={(fieldId: string) => setDateFields((prev) => ({ ...prev, [collection.id]: fieldId }))}
+                collections={collections}
+              />
+            </TabsContent>
+          ))}
+        </Tabs>
       <WeekView
               currentDate={new Date()}
               items={collections.flatMap(getFilteredItems)}
