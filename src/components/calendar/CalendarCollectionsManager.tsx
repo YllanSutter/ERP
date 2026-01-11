@@ -52,12 +52,14 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
         <div className='grid grid-cols-2'>
         {collections.map((collection) => (
             <CollectionFilterPanel
-            key={collection.id}
-            collection={collection}
-            filters={filters[collection.id] || {}}
-            setFilters={(f: any) => setFilters((prev) => ({ ...prev, [collection.id]: f }))}
-            dateField={dateFields[collection.id]}
-            setDateField={(fieldId: string) => setDateFields((prev) => ({ ...prev, [collection.id]: fieldId }))}
+              key={collection.id}
+              collection={collection}
+              properties={collection.properties}
+              filters={filters[collection.id] || {}}
+              setFilters={(f: any) => setFilters((prev) => ({ ...prev, [collection.id]: f }))}
+              dateField={dateFields[collection.id]}
+              setDateField={(fieldId: string) => setDateFields((prev) => ({ ...prev, [collection.id]: fieldId }))}
+              collections={collections}
             />
         ))}
         </div>

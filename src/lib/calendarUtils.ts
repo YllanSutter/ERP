@@ -14,7 +14,7 @@ export function splitEventByWorkdays(item: any, opts: { startCal: number; endCal
   const startHour = startCal;
   const endHour = endCal;
 
-  console.log(startHour +'-'+ endHour);
+  // console.log(startHour +'-'+ endHour);
   const start = new Date(item.__eventStart || item.startDate || item.start);
   let durationMs: number;
   if (item.__eventEnd || item.endDate || item.end) {
@@ -58,7 +58,7 @@ export function splitEventByWorkdays(item: any, opts: { startCal: number; endCal
           __eventStart: new Date(segmentStart),
           __eventEnd: new Date(segmentEnd),
         };
-        console.log('segment:', seg.__eventStart.toLocaleString(), '-', seg.__eventEnd.toLocaleString());
+        // console.log('segment:', seg.__eventStart.toLocaleString(), '-', seg.__eventEnd.toLocaleString());
         events.push(seg);
         remainingMs -= (segmentEnd.getTime() - segmentStart.getTime());
         segmentStart = new Date(segmentEnd);
@@ -80,7 +80,7 @@ export function splitEventByWorkdays(item: any, opts: { startCal: number; endCal
           __eventStart: new Date(segmentStart),
           __eventEnd: new Date(segmentEnd),
         };
-        console.log('segment:', seg.__eventStart.toLocaleString(), '-', seg.__eventEnd.toLocaleString());
+        // console.log('segment:', seg.__eventStart.toLocaleString(), '-', seg.__eventEnd.toLocaleString());
         events.push(seg);
         remainingMs -= (segmentEnd.getTime() - segmentStart.getTime());
         segmentStart = new Date(segmentEnd);
@@ -91,7 +91,7 @@ export function splitEventByWorkdays(item: any, opts: { startCal: number; endCal
     current.setDate(current.getDate() + 1);
     current.setHours(startHour, 0, 0, 0);
   }
-  console.log('splitEventByWorkdays result:', events);
+  // console.log('splitEventByWorkdays result:', events);
   return events;
 }
 /**
@@ -174,7 +174,7 @@ export const calculateEventPosition = (
   const totalHours = endHour - startHour;
   const topOffset = ((startTime - startHour) / totalHours) * (hoursLength * 96);
   const heightPx = ((endTime - startTime) / totalHours) * (hoursLength * 96);
-  console.log('event pos' + startHour+ '-' + endHour);
+  // console.log('event pos' + startHour+ '-' + endHour);
   return { topOffset, heightPx };
 };
 
