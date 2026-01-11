@@ -61,15 +61,36 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           return [];
         };
         const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(getInitialSelectedCollections);
-  // Pour chaque collection sélectionnée, on choisit un champ date
-  const [selectedDateFields, setSelectedDateFields] = useState<Record<string, string>>(() => {
+
+  // Persistance du sélecteur 'collection - Temps' (champ date par collection)
+  const getInitialSelectedDateFields = () => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = window.localStorage.getItem('calendarSelectedDateFields');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object') return parsed;
+        }
+      } catch {}
+    }
+    // fallback initial : premier champ date/date_range de chaque collection
     const initial: Record<string, string> = {};
     collections.forEach(col => {
       const dateProp = col.properties.find((p: any) => p.type === 'date' || p.type === 'date_range');
       if (dateProp) initial[col.id] = dateProp.id;
     });
     return initial;
-  });
+  };
+  const [selectedDateFields, setSelectedDateFields] = useState<Record<string, string>>(getInitialSelectedDateFields);
+
+  // Sauvegarde à chaque changement
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('calendarSelectedDateFields', JSON.stringify(selectedDateFields));
+      } catch {}
+    }
+  }, [selectedDateFields]);
 
   // Hooks de permissions (par collection)
   const canEdit = (colId: string) => useCanEdit(colId);
@@ -87,23 +108,26 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>(() => {
-    try {
-      if (typeof window !== 'undefined') {
+
+  // Persistance robuste du mode d'affichage (mois/semaine/jour)
+  const getInitialViewMode = () => {
+    if (typeof window !== 'undefined') {
+      try {
         const saved = window.localStorage.getItem('calendarViewMode');
         if (saved === 'month' || saved === 'week' || saved === 'day') return saved;
-      }
-    } catch {}
+      } catch {}
+    }
     return 'month';
-  });
+  };
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>(getInitialViewMode);
 
   const setViewModePersist = (mode: 'month' | 'week' | 'day') => {
     setViewMode(mode);
-    try {
-      if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
+      try {
         window.localStorage.setItem('calendarViewMode', mode);
-      }
-    } catch {}
+      } catch {}
+    }
   };
 
 
@@ -115,7 +139,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const mergedItems = useMemo(() => {
     // Toujours fusionner tous les items des collections sélectionnées, ignorer la prop items
     const result = selectedCollections.flatMap(col => col.items.map((it: any) => ({ ...it, __collectionId: col.id })));
-    console.log('mergedItems (all selected collections):', result);
+    // console.log('mergedItems (all selected collections):', result);
     return result;
   }, [selectedCollections]);
 
@@ -220,7 +244,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 <select
                   key={col.id}
                   value={selectedDateFields[col.id] || ''}
-                  onChange={e => setSelectedDateFields(f => ({ ...f, [col.id]: e.target.value }))}
+                  onChange={e => {
+                    setSelectedDateFields(f => {
+                      const updated = { ...f, [col.id]: e.target.value };
+                      // La persistance est déjà gérée par useEffect
+                      return updated;
+                    });
+                  }}
                   className="px-3 py-1.5 bg-neutral-800/50 border border-white/10 rounded-lg text-sm text-white focus:border-violet-500 focus:outline-none min-w-[120px]"
                 >
                   {dateProps.map((prop: any) => (

@@ -116,7 +116,7 @@ const WeekView: React.FC<WeekViewProps> = ({
     const dateField = getDateFieldForItem(item);
     if (!dateField) return undefined;
     const style = getEventStyle(item, dateField, defaultDuration, endHour);
-    console.log('item:', item, 'dateField:', dateField, 'defaultDuration:', defaultDuration, 'computed style:', style);
+    // console.log('item:', item, 'dateField:', dateField, 'defaultDuration:', defaultDuration, 'computed style:', style);
     return style;
   };
 
