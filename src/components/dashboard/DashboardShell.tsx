@@ -470,7 +470,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     <tr key={rowIdx}>
                       {rowIdx === 0 && (
                         <th
-                          className="px-3 py-2 text-left border-b border-white/15"
+                          className="px-3 py-2 text-left border-b border-white/15 whitespace-nowrap"
                           rowSpan={headerRows.length + 1 - rowIdx}
                         >
                           Semaine {week.week}
