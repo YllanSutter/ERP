@@ -1,5 +1,101 @@
 /**
- * Calendar utility functions for WeekView
+ * Découpe un événement sur plusieurs jours ouvrés, en tenant compte des horaires et de la pause
+ * Retourne un tableau d'objets { ...item, __eventStart, __eventEnd }
+ */
+export const breakStart = 12;
+export const breakEnd = 13;
+export const workHoursPerDay = 7;
+export const workDayStart = 9; // Heure de début de journée de travail fixe
+export const workDayEnd = 17;
+
+export function splitEventByWorkdays(item: any, opts: { startCal: number; endCal: number; breakStart: number; breakEnd: number }) {
+  const { startCal, endCal, breakStart, breakEnd } = opts;
+
+  const startHour = startCal;
+  const endHour = endCal;
+
+  console.log(startHour +'-'+ endHour);
+  const start = new Date(item.__eventStart || item.startDate || item.start);
+  let durationMs: number;
+  if (item.__eventEnd || item.endDate || item.end) {
+    const end = new Date(item.__eventEnd || item.endDate || item.end);
+    durationMs = end.getTime() - start.getTime();
+  } else if (item.durationHours) {
+    durationMs = item.durationHours * 60 * 60 * 1000;
+  } else {
+    return [];
+  }
+  if (!start || isNaN(start.getTime()) || durationMs <= 0) return [];
+
+  const events = [];
+  let remainingMs = durationMs;
+  let current = new Date(start);
+
+  while (remainingMs > 0) {
+    // Définir les bornes de la journée
+    let dayStart = new Date(current);
+    let dayEnd = new Date(current);
+    dayStart.setHours(startHour, 0, 0, 0);
+    dayEnd.setHours(endHour, 0, 0, 0);
+
+    // Premier segment : commence à l'heure réelle si premier jour
+    let segmentStart = new Date(Math.max(dayStart.getTime(), current.getTime()));
+    // Pause
+    let pauseStart = new Date(current);
+    pauseStart.setHours(breakStart, 0, 0, 0);
+    let pauseEnd = new Date(current);
+    pauseEnd.setHours(breakEnd, 0, 0, 0);
+
+
+    // 1. Matin (avant pause)
+    if (segmentStart < pauseStart && segmentStart < dayEnd && remainingMs > 0) {
+      // La borne de fin ne doit jamais dépasser la pause ni endHour
+      let segmentEnd = new Date(Math.min(pauseStart.getTime(), dayEnd.getTime(), segmentStart.getTime() + remainingMs));
+      if (segmentEnd > dayEnd) segmentEnd = new Date(dayEnd);
+      if (segmentEnd > segmentStart) {
+        const seg = {
+          ...item,
+          __eventStart: new Date(segmentStart),
+          __eventEnd: new Date(segmentEnd),
+        };
+        console.log('segment:', seg.__eventStart.toLocaleString(), '-', seg.__eventEnd.toLocaleString());
+        events.push(seg);
+        remainingMs -= (segmentEnd.getTime() - segmentStart.getTime());
+        segmentStart = new Date(segmentEnd);
+      }
+    }
+
+    // 2. Après-midi (après pause)
+    // On saute la pause si besoin
+    if (segmentStart < dayEnd && segmentStart < pauseEnd && remainingMs > 0) {
+      segmentStart = new Date(Math.max(segmentStart.getTime(), pauseEnd.getTime()));
+    }
+    if (segmentStart < dayEnd && remainingMs > 0) {
+      // La borne de fin ne doit jamais dépasser endHour
+      let segmentEnd = new Date(Math.min(dayEnd.getTime(), segmentStart.getTime() + remainingMs));
+      if (segmentEnd > dayEnd) segmentEnd = new Date(dayEnd);
+      if (segmentEnd > segmentStart) {
+        const seg = {
+          ...item,
+          __eventStart: new Date(segmentStart),
+          __eventEnd: new Date(segmentEnd),
+        };
+        console.log('segment:', seg.__eventStart.toLocaleString(), '-', seg.__eventEnd.toLocaleString());
+        events.push(seg);
+        remainingMs -= (segmentEnd.getTime() - segmentStart.getTime());
+        segmentStart = new Date(segmentEnd);
+      }
+    }
+
+    // Passer au jour suivant si durée restante
+    current.setDate(current.getDate() + 1);
+    current.setHours(startHour, 0, 0, 0);
+  }
+  console.log('splitEventByWorkdays result:', events);
+  return events;
+}
+/**
+ * Utilitaires factorisés pour la gestion du calendrier (multi-collection)
  */
 
 export interface EventStyle {
@@ -11,285 +107,23 @@ export interface EventStyle {
   hoursPerDay: number;
   daysSpanned: number;
   hasBreak: boolean;
-  workdayDates?: Date[]; // Liste des jours ouvrés couverts par l'événement
+  workdayDates?: Date[];
 }
 
-export interface ColorSet {
-  border: string;
-  bg: string;
-  hover: string;
-  text: string;
-}
 
-export const breakStart = 12;
-export const breakEnd = 13;
-export const workHoursPerDay = 7;
-export const workDayStart = 9; // Heure de début de journée de travail fixe
-export const workDayEnd = 17; // Heure de fin de journée fixe (9h + 7h travail + 1h pause = 17h)
 
-/**
- * Generate consistent color for each item based on its ID
- */
-export const getItemColor = (itemId: string): ColorSet => {
-  let hash = 0;
-  for (let i = 0; i < itemId.length; i++) {
-    hash = itemId.charCodeAt(i) + ((hash << 5) - hash);
+export const formatTimeDisplay = (
+  hours: number,
+  minutes: number,
+  endHours?: number,
+  endMinutes?: number
+): string => {
+  const startStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  if (endHours !== undefined && endMinutes !== undefined) {
+    const endStr = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+    return `${startStr} - ${endStr}`;
   }
-  const hue = Math.abs(hash % 360);
-  return {
-    border: `hsl(${hue}, 70%, 50%)`,
-    bg: `hsl(${hue}, 70%, 15%)`,
-    hover: `hsl(${hue}, 70%, 20%)`,
-    text: `hsl(${hue}, 70%, 80%)`,
-  };
-};
-
-/**
- * Build a local (non-UTC) date key YYYY-MM-DD
- */
-export const toDateKey = (d: Date): string => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
-
-/**
- * Get week days starting from Monday to Friday (work week only)
- */
-export const getWeekDays = (currentDate: Date): Date[] => {
-  const weekDays: Date[] = [];
-  const startOfWeek = new Date(currentDate);
-  const day = startOfWeek.getDay();
-  const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // Lundi
-  startOfWeek.setDate(diff);
-
-  for (let i = 0; i < 5; i++) { // Du lundi au vendredi seulement
-    const day = new Date(startOfWeek);
-    day.setDate(startOfWeek.getDate() + i);
-    weekDays.push(day);
-  }
-  return weekDays;
-};
-
-/**
- * Get today's date
- */
-export const getToday = (): Date => {
-  return new Date();
-};
-
-/**
- * Get today's date as YYYY-MM-DD string
- */
-export const getTodayKey = (): string => {
-  return toDateKey(new Date());
-};
-
-/**
- * Get the Monday of the week for a given date
- */
-export const getMonday = (date: Date): Date => {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Sunday
-  return new Date(d.setDate(diff));
-};
-
-/**
- * Month names in French
- */
-export const MONTH_NAMES = [
-  'Janvier',
-  'Février',
-  'Mars',
-  'Avril',
-  'Mai',
-  'Juin',
-  'Juillet',
-  'Août',
-  'Septembre',
-  'Octobre',
-  'Novembre',
-  'Décembre',
-];
-
-/**
- * Get items for a specific date
- */
-export const getItemsForDate = (
-  date: Date,
-  items: any[],
-  dateField: any
-): any[] => {
-  if (!dateField) return [];
-
-  // Ignore les week-ends (samedi = 6, dimanche = 0)
-  const dayOfWeek = date.getDay();
-  if (dayOfWeek === 0 || dayOfWeek === 6) return [];
-
-  const dateStr = date.toISOString().split('T')[0];
-  return items.filter((item) => {
-    const value = item[dateField.id];
-    if (!value) return false;
-
-    if (dateField.type === 'date') {
-      const itemDate = new Date(value).toISOString().split('T')[0];
-      return itemDate === dateStr;
-    } else if (dateField.type === 'date_range') {
-      if (typeof value === 'object' && value.start && value.end) {
-        const start = new Date(value.start).toISOString().split('T')[0];
-        const end = new Date(value.end).toISOString().split('T')[0];
-        return dateStr >= start && dateStr <= end;
-      }
-    }
-    return false;
-  });
-};
-
-/**
- * Get the name value of an item from a collection
- */
-export const getNameValue = (item: any, collection: any): string => {
-  if (!collection || !collection.properties) {
-    return item?.name || 'Sans titre';
-  }
-  const nameField = collection.properties.find(
-    (p: any) => p.name === 'Nom' || p.id === 'name'
-  );
-  return nameField ? item[nameField.id] : item.name || 'Sans titre';
-};
-
-/**
- * Navigate to previous period based on view mode
- */
-export const getPreviousPeriod = (
-  currentDate: Date,
-  viewMode: 'month' | 'week' | 'day'
-): Date => {
-  const newDate = new Date(currentDate);
-  if (viewMode === 'month') {
-    newDate.setMonth(currentDate.getMonth() - 1);
-  } else if (viewMode === 'week') {
-    newDate.setDate(currentDate.getDate() - 7);
-  } else if (viewMode === 'day') {
-    newDate.setDate(currentDate.getDate() - 1);
-  }
-  return newDate;
-};
-
-/**
- * Navigate to next period based on view mode
- */
-export const getNextPeriod = (
-  currentDate: Date,
-  viewMode: 'month' | 'week' | 'day'
-): Date => {
-  const newDate = new Date(currentDate);
-  if (viewMode === 'month') {
-    newDate.setMonth(currentDate.getMonth() + 1);
-  } else if (viewMode === 'week') {
-    newDate.setDate(currentDate.getDate() + 7);
-  } else if (viewMode === 'day') {
-    newDate.setDate(currentDate.getDate() + 1);
-  }
-  return newDate;
-};
-
-/**
- * Calculate event positions and spans
- */
-export const getEventStyle = (
-  item: any,
-  dateField: any,
-  defaultDuration: number,
-  endHour: number
-): EventStyle | null => {
-  const itemValue = item[dateField.id];
-  if (!itemValue) return null;
-
-  let startDate: Date;
-  let endDate: Date;
-  let duration: number;
-
-  if (dateField.type === 'date') {
-    startDate = new Date(itemValue);
-    duration = item[`${dateField.id}_duration`] || dateField.defaultDuration || defaultDuration;
-    endDate = new Date(startDate);
-    endDate.setHours(endDate.getHours() + duration);
-  } else if (dateField.type === 'date_range') {
-    if (typeof itemValue === 'object' && itemValue.start && itemValue.end) {
-      startDate = new Date(itemValue.start);
-      endDate = new Date(itemValue.end);
-      duration = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
-    } else {
-      return null;
-    }
-  } else {
-    return null;
-  }
-
-  const startHourNum = startDate.getHours();
-  const startMinutes = startDate.getMinutes();
-  const endHourNum = endDate.getHours();
-  const endMinutes = endDate.getMinutes();
-
-  const startTimeInHours = startHourNum + startMinutes / 60;
-  const endTimeInHours = endHourNum + endMinutes / 60;
-
-  // Check if event overlaps with break time (12h-13h)
-  let adjustedEndTime = endTimeInHours;
-
-  // If event starts before break and ends after break start
-  if (startTimeInHours < breakStart && endTimeInHours > breakStart) {
-    // Add 1 hour to end time to account for break
-    adjustedEndTime = endTimeInHours + 1;
-  }
-
-  // Calculer les heures disponibles le premier jour
-  let firstDayAvailableHours: number;
-  if (startTimeInHours < breakStart) {
-    const hoursBeforeBreak = breakStart - startTimeInHours;
-    const hoursAfterBreak = workDayEnd - breakEnd;
-    firstDayAvailableHours = hoursBeforeBreak + hoursAfterBreak;
-  } else if (startTimeInHours >= breakEnd) {
-    firstDayAvailableHours = workDayEnd - startTimeInHours;
-  } else {
-    firstDayAvailableHours = workDayEnd - breakEnd;
-  }
-
-  // Calculer le nombre de jours nécessaires en sautant les week-ends
-  let durationHours = duration;
-  let daysSpanned = 1;
-  let hoursPerDay = Math.min(durationHours, firstDayAvailableHours);
-  const workdayDates: Date[] = [new Date(startDate)];
-
-  if (durationHours > firstDayAvailableHours) {
-    let remainingHours = durationHours - firstDayAvailableHours;
-    let current = new Date(startDate);
-    while (remainingHours > 0) {
-      current.setDate(current.getDate() + 1);
-      const dayOfWeek = current.getDay();
-      if (dayOfWeek === 0 || dayOfWeek === 6) {
-        continue;
-      }
-      workdayDates.push(new Date(current));
-      daysSpanned++;
-      remainingHours -= workHoursPerDay;
-    }
-  }
-
-  return {
-    startDate,
-    endDate,
-    startTimeInHours,
-    endTimeInHours: adjustedEndTime,
-    durationHours: duration,
-    hoursPerDay,
-    daysSpanned,
-    hasBreak: startTimeInHours < breakStart && endTimeInHours > breakStart,
-    workdayDates,
-  };
+  return startStr;
 };
 
 /**
@@ -326,141 +160,6 @@ export const formatFieldValue = (item: any, prop: any, collections: any[]): stri
   return '';
 };
 
-export interface EventLayoutItem {
-  item: any;
-  style: EventStyle;
-  multiDayIndex: number;
-  startTime: number;
-  endTime: number;
-  column: number;
-  totalColumns: number;
-}
-
-/**
- * Detect overlapping events and calculate columns
- */
-export const getEventLayout = (
-  dayEvents: any[],
-  multiDayIndex: number,
-  startHour: number,
-  endHour: number
-): EventLayoutItem[] => {
-
-
-  // Calculate time range for each event
-  const eventsWithTime: EventLayoutItem[] = dayEvents.map(({ item, style, multiDayIndex: mdi }) => {
-    let dayStartTime: number;
-    let dayDuration: number;
-    
-    let firstDayHours: number;
-    const startTime = style.startTimeInHours;
-    if (startTime < breakStart) {
-      const hoursBeforeBreak = breakStart - startTime;
-      const hoursAfterBreak = workDayEnd - breakEnd;
-      firstDayHours = hoursBeforeBreak + hoursAfterBreak;
-    } else if (startTime >= breakEnd) {
-      firstDayHours = workDayEnd - startTime;
-    } else {
-      firstDayHours = workDayEnd - breakEnd;
-    }
-    
-    let hoursAlreadyUsed: number;
-    if (mdi === 0) {
-      hoursAlreadyUsed = 0;
-    } else if (mdi === 1) {
-      hoursAlreadyUsed = firstDayHours;
-    } else {
-      hoursAlreadyUsed = firstDayHours + (mdi - 1) * workHoursPerDay;
-    }
-
-    if (mdi === 0) {
-      dayStartTime = style.startTimeInHours;
-      dayDuration = Math.min(style.durationHours, firstDayHours);
-    } else {
-      dayStartTime = workDayStart;
-      const remainingHours = style.durationHours - hoursAlreadyUsed;
-      
-      const availableHours = workHoursPerDay;
-      dayDuration = Math.min(remainingHours, availableHours);
-    }
-
-    // Calculer l'heure de fin en tenant compte de la pause
-    let dayEndTime: number;
-    if (dayStartTime < breakStart) {
-      const hoursBeforeBreak = breakStart - dayStartTime;
-      if (dayDuration <= hoursBeforeBreak) {
-        dayEndTime = dayStartTime + dayDuration;
-      } else {
-        const hoursAfterBreak = dayDuration - hoursBeforeBreak;
-        dayEndTime = breakEnd + hoursAfterBreak;
-      }
-    } else {
-      dayEndTime = Math.max(dayStartTime, breakEnd) + dayDuration;
-    }
-    
-    dayEndTime = Math.min(dayEndTime, workDayEnd);
-
-    return {
-      item,
-      style,
-      multiDayIndex: mdi,
-      startTime: dayStartTime,
-      endTime: dayEndTime,
-      column: 0,
-      totalColumns: 1,
-    };
-  });
-
-  // Detect overlaps and assign columns
-  const checkOverlap = (a: EventLayoutItem, b: EventLayoutItem) => {
-    return a.startTime < b.endTime && b.startTime < a.endTime;
-  };
-
-  eventsWithTime.forEach((event, i) => {
-    const overlapping = eventsWithTime.filter((other, j) => i !== j && checkOverlap(event, other));
-
-    if (overlapping.length > 0) {
-      // Find columns already used by overlapping events
-      const usedColumns = new Set(overlapping.map((e) => e.column));
-
-      // Assign first available column
-      let column = 0;
-      while (usedColumns.has(column)) {
-        column++;
-      }
-      event.column = column;
-
-      // Calculate total columns needed for this group
-      const maxColumn = Math.max(column, ...overlapping.map((e) => e.column));
-      const totalColumns = maxColumn + 1;
-
-      // Update all overlapping events
-      event.totalColumns = totalColumns;
-      overlapping.forEach((e) => {
-        e.totalColumns = Math.max(e.totalColumns, totalColumns);
-      });
-    }
-  });
-
-  return eventsWithTime;
-};
-
-/**
- * Format time display for events
- */
-export const formatTimeDisplay = (
-  hours: number,
-  minutes: number,
-  endHours?: number,
-  endMinutes?: number
-): string => {
-  const startStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  if (endHours !== undefined && endMinutes !== undefined) {
-    const endStr = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
-    return `${startStr} - ${endStr}`;
-  }
-  return startStr;
-};
 
 /**
  * Calculate position and height for event rendering
@@ -475,56 +174,148 @@ export const calculateEventPosition = (
   const totalHours = endHour - startHour;
   const topOffset = ((startTime - startHour) / totalHours) * (hoursLength * 96);
   const heightPx = ((endTime - startTime) / totalHours) * (hoursLength * 96);
+  console.log('event pos' + startHour+ '-' + endHour);
   return { topOffset, heightPx };
 };
 
-/**
- * Drag and Drop utilities
- */
-
-export interface DragDropInfo {
-  dropY: number; // Position du drop en pixels par rapport au container
-  containerHeight: number;
-  elementTop: number; // Position du haut de l'élément en cours de drag
-  startHour: number;
-  endHour: number;
+export interface ColorSet {
+  border: string;
+  bg: string;
+  hover: string;
+  text: string;
 }
 
-/**
- * Calculate the drop time based on the position where the user is dragging
- * This accounts for the top of the element being dragged
- * Snaps to nearest 15 minutes
- */
-export const calculateDropTime = (dragDropInfo: DragDropInfo): { hour: number; minutes: number } => {
-  const { dropY, containerHeight, elementTop, startHour, endHour } = dragDropInfo;
-  
-  const adjustedDropY = dropY;
-  
+export const MONTH_NAMES = [
+  'Janvier',
+  'Février',
+  'Mars',
+  'Avril',
+  'Mai',
+  'Juin',
+  'Juillet',
+  'Août',
+  'Septembre',
+  'Octobre',
+  'Novembre',
+  'Décembre',
+];
+
+export function getWeekDays(currentDate: Date): Date[] {
+  const weekDays: Date[] = [];
+  const startOfWeek = new Date(currentDate);
+  const day = startOfWeek.getDay();
+  const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+  startOfWeek.setDate(diff);
+  for (let i = 0; i < 5; i++) {
+    const day = new Date(startOfWeek);
+    day.setDate(startOfWeek.getDate() + i);
+    weekDays.push(day);
+  }
+  return weekDays;
+}
+
+export const getMonday = (date: Date): Date => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Sunday
+  return new Date(d.setDate(diff));
+};
+
+export function toDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export function getItemColor(itemId: string): ColorSet {
+  let hash = 0;
+  for (let i = 0; i < itemId.length; i++) {
+    hash = itemId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash % 360);
+  return {
+    border: `hsl(${hue}, 70%, 50%)`,
+    bg: `hsl(${hue}, 70%, 15%)`,
+    hover: `hsl(${hue}, 70%, 20%)`,
+    text: `hsl(${hue}, 70%, 80%)`,
+  };
+}
+
+export function getEventStyle(item: any, dateField: any, defaultDuration: number, endHour: number): EventStyle | null {
+  const itemValue = item[dateField.id];
+  if (!itemValue) return null;
+  let startDate: Date;
+  let endDate: Date;
+  let duration: number;
+  if (dateField.type === 'date') {
+    startDate = new Date(itemValue);
+    duration = item[`${dateField.id}_duration`] || dateField.defaultDuration || defaultDuration;
+    endDate = new Date(startDate);
+    endDate.setHours(endDate.getHours() + duration);
+  } else if (dateField.type === 'date_range') {
+    if (typeof itemValue === 'object' && itemValue.start && itemValue.end) {
+      startDate = new Date(itemValue.start);
+      endDate = new Date(itemValue.end);
+      duration = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+    } else {
+      return null;
+    }
+  } else {
+    return null;
+  }
+  const startHourNum = startDate.getHours();
+  const startMinutes = startDate.getMinutes();
+  const endHourNum = endDate.getHours();
+  const endMinutes = endDate.getMinutes();
+  const startTimeInHours = startHourNum + startMinutes / 60;
+  const endTimeInHours = endHourNum + endMinutes / 60;
+  let workdayDates: Date[] = [new Date(startDate)];
+  let durationHours = duration;
+  let firstDayAvailableHours = endHour - startTimeInHours;
+  if (durationHours > firstDayAvailableHours) {
+    let remainingHours = durationHours - firstDayAvailableHours;
+    let current = new Date(startDate);
+    while (remainingHours > 0) {
+      current.setDate(current.getDate() + 1);
+      workdayDates.push(new Date(current));
+      remainingHours -= (endHour - startHourNum);
+    }
+  }
+  return {
+    startDate,
+    endDate,
+    startTimeInHours,
+    endTimeInHours,
+    durationHours: duration,
+    hoursPerDay: endHour - startHourNum,
+    daysSpanned: workdayDates.length,
+    hasBreak: false,
+    workdayDates,
+  };
+}
+
+export function getEventLayout(dayEvents: any[], multiDayIndex: number, startHour: number, endHour: number) {
+  return dayEvents.map(({ item, style, dayIndex, multiDayIndex }) => ({
+    item,
+    style,
+    multiDayIndex,
+    startTime: style.startTimeInHours,
+    endTime: style.endTimeInHours,
+    column: 0,
+    totalColumns: 1,
+  }));
+}
+
+export function calculateDropTime({ dropY, containerHeight, startHour, endHour }: { dropY: number; containerHeight: number; startHour: number; endHour: number; }) {
   const totalHours = endHour - startHour;
-  const hourOffset = (adjustedDropY / containerHeight) * totalHours;
+  const hourOffset = (dropY / containerHeight) * totalHours;
   const newHourDecimal = startHour + hourOffset;
   const totalMinutes = newHourDecimal * 60;
   const snappedMinutes = Math.round(totalMinutes / 15) * 15;
   const snappedHourDecimal = snappedMinutes / 60;
-  
   const hour = Math.floor(snappedHourDecimal);
   const minutes = Math.round((snappedHourDecimal % 1) * 60);
-  
-  // Clamp to valid range
-  const clampedHour = Math.max(startHour, Math.min(endHour - 1, hour));
-  
-  return {
-    hour: clampedHour,
-    minutes: clampedHour === hour ? minutes : (hour < startHour ? 0 : 59),
-  };
-};
+  return { hour, minutes };
+}
 
-export const calculateDropIndicatorPosition = (
-  dropY: number,
-  containerHeight: number,
-  startHour: number,
-  endHour: number,
-  hoursLength: number
-): number => {
-  return dropY;
-};

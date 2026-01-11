@@ -19,7 +19,6 @@ interface DayViewProps {
   onViewDetail: (item: any) => void;
   hiddenFields?: string[];
   getNameValue: (item: any) => string;
-  getItemsForDate: (date: Date) => any[];
   startHour?: number;
   endHour?: number;
   defaultDuration?: number; // in hours
@@ -38,7 +37,6 @@ const DayView: React.FC<DayViewProps> = ({
   onViewDetail,
   hiddenFields = [],
   getNameValue,
-  getItemsForDate,
   startHour = 8,
   endHour = 20,
   defaultDuration = 1,

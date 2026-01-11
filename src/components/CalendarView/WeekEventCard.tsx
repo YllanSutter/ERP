@@ -1,8 +1,8 @@
+import { ColorSet, EventStyle, calculateEventPosition, formatTimeDisplay, formatFieldValue as formatFieldValueUtil, splitEventByWorkdays } from '@/lib/calendarUtils';
 import React, { Fragment } from 'react';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { motion } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
-import { ColorSet, EventStyle, calculateEventPosition, formatTimeDisplay, formatFieldValue as formatFieldValueUtil } from '@/lib/calendarUtils';
 
 interface WeekEventCardProps {
   item: any;
@@ -15,6 +15,8 @@ interface WeekEventCardProps {
   colors: ColorSet;
   startHour: number;
   endHour: number;
+  startCal: number;
+  endCal: number;
   hoursLength: number;
   hasBreakThisDay: boolean;
   visibleMetaFields: any[];
@@ -37,6 +39,8 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   colors,
   startHour,
   endHour,
+  startCal,
+  endCal,
   hoursLength,
   hasBreakThisDay,
   visibleMetaFields,
@@ -48,8 +52,6 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   weekDayDate,
 }) => {
   const dragRef = React.useRef<HTMLDivElement>(null);
-  const breakStart = 12;
-  const breakEnd = 13;
   const space = 6;
   const widthPercent = ((1 / totalColumns) * 100) - space;
   const leftPercent = (column * widthPercent) + (space/2);
@@ -102,7 +104,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
       endHour,
       hoursLength
     );
-
+    
     return (
       <ItemContextMenu
         item={item}
@@ -233,39 +235,46 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     );
   };
 
-  // If event overlaps with break, split it into two parts
-  if (hasBreakThisDay) {
-    const beforeBreakEnd = Math.min(dayEndTime, breakStart);
-    const afterBreakStart = breakEnd;
+  // Utilise la fonction utilitaire pour découper l'événement selon les horaires et la pause
+  const eventSplits = splitEventByWorkdays(
+    {
+      ...item,
+      __eventStart: style.startDate,
+      __eventEnd: style.endDate,
+    },
+    {
+      startCal,
+      endCal,
+      breakStart: 12,
+      breakEnd: 13,
+    }
+  ).filter(ev => {
+    // On ne garde que les sous-événements du jour courant (multiDayIndex)
+    const evDate = new Date(ev.__eventStart);
+    return evDate.toDateString() === weekDayDate?.toDateString();
+  });
 
-    const beforeBreakDuration = beforeBreakEnd - dayStartTime;
-    const afterBreakDuration = dayEndTime - breakStart;
-
+  if (eventSplits.length > 0) {
     return (
-      <Fragment key={`${item.id}-${multiDayIndex}`}>
-        {beforeBreakDuration > 0 && (
-          <EventItem
-            startTime={dayStartTime}
-            endTime={beforeBreakEnd}
-            duration={beforeBreakDuration}
-            displayEndTime={breakStart}
-          />
-        )}
-
-        {afterBreakDuration > 0 && (
-          <EventItem
-            startTime={afterBreakStart}
-            endTime={dayEndTime}
-            duration={afterBreakDuration}
-            displayStartTime={afterBreakStart}
-          />
-        )}
+      <Fragment>
+        {eventSplits.map((ev, idx) => {
+          const start = ev.__eventStart.getHours() + ev.__eventStart.getMinutes() / 60;
+          const end = ev.__eventEnd.getHours() + ev.__eventEnd.getMinutes() / 60;
+          return (
+            <EventItem
+              key={`${item.id}-${multiDayIndex}-split${idx}`}
+              startTime={start}
+              endTime={end}
+              duration={end - start}
+            />
+          );
+        })}
       </Fragment>
     );
   }
 
+  // Fallback : événement simple
   const dayDuration = dayEndTime - dayStartTime;
-
   return (
     <EventItem
       key={`${item.id}-${multiDayIndex}`}
