@@ -52,7 +52,7 @@ import {
   getEventStyle,
   workDayStart,
   workDayEnd,
-} from '@/lib/calendarUtils';
+} from '@/lib/calendarUtilsDash';
 
 const months = MONTH_NAMES;
 
@@ -83,7 +83,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     //     console.log('[DASHBOARD] Champ date sélectionné (globalDateField) :', dashboard.globalDateField);
     //   }
     // }, [dashboard]);
-   
+
   const years = useMemo(() => {
     const current = new Date().getFullYear();
     return [current - 1, current, current + 1];
@@ -377,6 +377,24 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         // Pour chaque item, on utilise la logique de getEventStyle pour savoir s'il couvre ce jour et quelle part de durée afficher
         groupItems.forEach((item: any) => {
           // Filtrage par champ de filtre spécifique à la feuille
+          if (allTypeValues.length > 0 && filterField) {
+            const propDebug = filterProp;
+            const itemValue = item[filterField];
+            const match = itemMatchesTypeValues(itemValue, allTypeValues, propDebug?.type);
+            // Log détaillé pour chaque item testé
+            console.log('[DASHBOARD][FILTER][DEBUG][item test]', {
+              feuille: leaf.label,
+              filterField,
+              type: propDebug?.type,
+              allTypeValues,
+              itemId: item.id,
+              itemName: item.name || item.label || item.title || '',
+              itemValue,
+              match,
+              item
+            });
+            if (!match) return;
+          }
           // if (allTypeValues.length > 0 && filterField) {
           //   const propDebug = filterProp;
           //   const itemValue = item[filterField];
@@ -603,7 +621,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   {leafColumns.map((leaf: any) => {
                       const cell = aggregates.daily[key]?.[leaf.id] || { count: 0, duration: 0 };
                       const span = spanForDay(leaf.id, key);
-                      
+
                       // Correction : afficher le nombre pour les dates simples (pas de span)
                       let countValue = '';
                       if (span && span.isStart) {
@@ -615,30 +633,30 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                       // Log systématique pour chaque cellule, même vide
                       if(countValue != '') {
                         // Log la sélection du filtre relation pour cette feuille
-                        // if (leaf.typeValues && leaf.typeValues.length > 0) {
-                        //   console.log('[DASHBOARD][FILTER][typeValues]', {
-                        //     feuille: leaf.label,
-                        //     typeValues: leaf.typeValues,
-                        //     // Pour chaque id sélectionné, tente de retrouver le label dans les options
-                        //     relationLabels: (() => {
-                        //       // Cherche la propriété de la feuille correspondant au champ filtré
-                        //       const prop = (leaf.filterField && properties.find((p: any) => p.id === leaf.filterField && p.type === 'relation'));
-                        //       if (prop) {
-                        //         // Cherche la collection liée
-                        //         const rel = prop.relation || prop.relationTo || prop.target || {};
-                        //         const relatedCollectionId = rel.collectionId || rel.targetCollectionId || rel.id;
-                        //         const relatedCollection = collections.find((c: any) => c.id === relatedCollectionId);
-                        //         if (relatedCollection) {
-                        //           return leaf.typeValues.map((id: string) => {
-                        //             const found = relatedCollection.items?.find((it: any) => it.id === id);
-                        //             return found ? `${id} (${found.name || found.label || found.title || id})` : id;
-                        //           });
-                        //         }
-                        //       }
-                        //       return leaf.typeValues;
-                        //     })()
-                        //   });
-                        // }
+                        if (leaf.typeValues && leaf.typeValues.length > 0) {
+                          console.log('[DASHBOARD][FILTER][typeValues]', {
+                            feuille: leaf.label,
+                            typeValues: leaf.typeValues,
+                            // Pour chaque id sélectionné, tente de retrouver le label dans les options
+                            relationLabels: (() => {
+                              // Cherche la propriété de la feuille correspondant au champ filtré
+                              const prop = (leaf.filterField && properties.find((p: any) => p.id === leaf.filterField && p.type === 'relation'));
+                              if (prop) {
+                                // Cherche la collection liée
+                                const rel = prop.relation || prop.relationTo || prop.target || {};
+                                const relatedCollectionId = rel.collectionId || rel.targetCollectionId || rel.id;
+                                const relatedCollection = collections.find((c: any) => c.id === relatedCollectionId);
+                                if (relatedCollection) {
+                                  return leaf.typeValues.map((id: string) => {
+                                    const found = relatedCollection.items?.find((it: any) => it.id === id);
+                                    return found ? `${id} (${found.name || found.label || found.title || id})` : id;
+                                  });
+                                }
+                              }
+                              return leaf.typeValues;
+                            })()
+                          });
+                        }
                         // Log la cellule
                         const prop = (leaf.filterField && properties.find((p: any) => p.id === leaf.filterField && p.type === 'relation'));
                         let relationValue = null;
@@ -660,6 +678,14 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                             return null;
                           }).flat().filter(Boolean);
                         }
+                        console.log('[DASHBOARD][TD]', {
+                          semaine: week.week,
+                          jour: key,
+                          feuille: leaf.label,
+                          count: countValue,
+                          duration: cell.duration,
+                          relationValue
+                        });
                         // console.log('[DASHBOARD][TD]', {
                         //   semaine: week.week,
                         //   jour: key,
@@ -1027,4 +1053,3 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 };
 
 export default DashboardShell;
-
