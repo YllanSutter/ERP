@@ -27,7 +27,8 @@
       n.children && n.children.length ? getLeaves(n.children) : [n]
     );
   };
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, Suspense } from 'react';
+const FilterModal = React.lazy(() => import('@/components/modals/FilterModal'));
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { DashboardColumnNode, MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 import DashboardColumnConfig from './DashboardColumnConfig';
@@ -55,6 +56,19 @@ import {
 const months = MONTH_NAMES;
 
 const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete }) => {
+      // Filtres globaux dashboard
+      const [filters, setFilters] = useState<any[]>([]);
+      const [showFilterModal, setShowFilterModal] = useState(false);
+
+      // Ajout d'un filtre
+      const handleAddFilter = (property: string, operator: string, value: any) => {
+        setFilters((prev: any[]) => [...prev, { property, operator, value }]);
+        setShowFilterModal(false);
+      };
+      // Suppression d'un filtre
+      const handleRemoveFilter = (idx: number) => {
+        setFilters((prev: any[]) => prev.filter((_, i) => i !== idx));
+      };
     // useEffect(() => {
     //   if (dashboard) {
     //     console.log('[DASHBOARD] Champ date sélectionné (globalDateField) :', dashboard.globalDateField);
@@ -84,7 +98,57 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       // }
     }, [collections, collection, dashboard]);
   const properties = collection?.properties || [];
-  const items = collection?.items || [];
+  // Préfiltrage des items selon les filtres globaux dashboard
+  const filteredItems = useMemo(() => {
+    if (!collection?.items) return [];
+    if (!filters.length) return collection.items;
+        return collection.items.filter((item: any) => {
+          return filters.every((filter) => {
+            const prop = properties.find((p: any) => p.id === filter.property);
+            const value = item[filter.property];
+            if (!prop) return true;
+            // Gestion spéciale pour les relations : filtrer sur l'id mais afficher le nom
+            if (prop.type === 'relation') {
+              if (Array.isArray(value)) {
+                if (Array.isArray(filter.value)) {
+                  // au moins un id doit matcher
+                  return filter.value.some((v: any) => value.includes(v));
+                } else {
+                  return value.includes(filter.value);
+                }
+              } else {
+                if (Array.isArray(filter.value)) {
+                  return filter.value.includes(value);
+                } else {
+                  return value === filter.value;
+                }
+              }
+            }
+            switch (filter.operator) {
+              case 'equals':
+                if (Array.isArray(value)) return value.includes(filter.value);
+                return value === filter.value;
+              case 'not_equals':
+                if (Array.isArray(value)) return !value.includes(filter.value);
+                return value !== filter.value;
+              case 'contains':
+                if (typeof value === 'string') return value.toLowerCase().includes(String(filter.value).toLowerCase());
+                if (Array.isArray(value)) return value.some((v: any) => String(v).toLowerCase().includes(String(filter.value).toLowerCase()));
+                return false;
+              case 'greater':
+                return typeof value === 'number' && value > filter.value;
+              case 'less':
+                return typeof value === 'number' && value < filter.value;
+              case 'is_empty':
+                return value == null || value === '' || (Array.isArray(value) && value.length === 0);
+              case 'is_not_empty':
+                return !(value == null || value === '' || (Array.isArray(value) && value.length === 0));
+              default:
+                return true;
+            }
+          });
+        });
+  }, [collection?.items, filters, properties]);
 
   const [typeValuesInput, setTypeValuesInput] = useState<Record<string, string>>({});
 
@@ -242,7 +306,8 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       const groupCollectionId = rootGroup?.collectionId || dashboard.sourceCollectionId;
       const groupCollection = collections.find((c: any) => c.id === groupCollectionId) || collection;
       const groupProperties = groupCollection?.properties || [];
-      const groupItems = groupCollection?.items || [];
+      // Utiliser les items filtrés si c'est la collection principale, sinon tous les items de la collection liée
+      const groupItems = groupCollection.id === collection?.id ? filteredItems : groupCollection?.items || [];
       // Déterminer le champ date à utiliser pour ce groupe racine
       let dateFieldId = rootGroup?.dateFieldId || dashboard.globalDateField;
       if (leaf.dateFieldOverride && leaf.dateFieldOverride.single) {
@@ -423,7 +488,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     });
 
     return { daily, spansByLeaf, spansByLeafDay, dailyObjectDurations };
-  }, [dashboard, collection, collections, properties, items, leafColumns, resolvedTypeField]);
+  }, [dashboard, collection, collections, properties, filteredItems, leafColumns, resolvedTypeField]);
 
   if (!dashboard) {
     return (
@@ -849,18 +914,48 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
   return (
     <div className="flex-1 flex flex-col gap-4 p-6 overflow-auto">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* Filtres globaux dashboard déplacés dans l'entête */}
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
           <input
             value={dashboard.name}
             onChange={(e) => onUpdate({ name: e.target.value })}
             className="bg-transparent border border-white/10 rounded px-3 py-2 text-lg font-semibold focus:outline-none focus:border-blue-500/60"
           />
-          <div className="text-xs text-neutral-500 border border-white/10 px-2 py-1 rounded">
+          {/* Filtres globaux dashboard ici */}
+          <button
+            onClick={() => setShowFilterModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M4 4h16M6 8h12M8 12h8m-6 4h4"/></svg>
+            Filtrer
+          </button>
+          <div className="flex flex-wrap gap-2">
+            {filters.map((filter, idx) => {
+              const prop = properties.find((p: any) => p.id === filter.property);
+              return (
+                <span key={idx} className="flex items-center gap-1 px-3 py-1.5 bg-violet-500/20 text-violet-200 rounded-lg text-sm border border-violet-500/30">
+                  <span>{prop?.name || filter.property} {filter.operator} {Array.isArray(filter.value) ? filter.value.join(', ') : String(filter.value)}</span>
+                  <button onClick={() => handleRemoveFilter(idx)} className="hover:bg-violet-500/30 rounded p-0.5"><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                </span>
+              );
+            })}
+          </div>
+          {showFilterModal && (
+            <Suspense fallback={<div className="text-white">Chargement…</div>}>
+              <FilterModal
+                properties={properties}
+                collections={collections}
+                onClose={() => setShowFilterModal(false)}
+                onAdd={handleAddFilter}
+              />
+            </Suspense>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="text-xs text-neutral-500 border border-white/10 px-2 py-1 rounded whitespace-nowrap">
             Mensuel • week-ends exclus
           </div>
-        </div>
-        <div className="flex items-center gap-2">
           <select
             value={dashboard.month}
             onChange={(e) => onUpdate({ month: Number(e.target.value) })}
