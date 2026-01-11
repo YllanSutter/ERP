@@ -1,18 +1,17 @@
   // Utilitaire : vérifie si l'item correspond à au moins une des valeurs filtrées (supporte array ou valeur simple)
-  function itemMatchesTypeValues(itemValue: any, typeValues: string[]): boolean {
+  // version stricte : un item doit posséder TOUS les tags/valeurs de typeValues pour apparaître dans la colonne
+  function itemMatchesTypeValues(itemValue: any, typeValues: string[], fieldType?: string): boolean {
     if (!typeValues || typeValues.length === 0) return true;
-    // Si itemValue est un tableau (ex: multi_select, relation multiple)
     if (Array.isArray(itemValue)) {
-      return typeValues.some(v => itemValue.includes(v));
+      // Tous les typeValues doivent être présents dans itemValue
+      return typeValues.every(v => itemValue.includes(v));
     }
-    // Si itemValue est une chaîne et au moins un filtre est une sous-chaîne (insensible à la casse)
-    if (typeof itemValue === 'string') {
-      return typeValues.some(v =>
+    if ((fieldType === 'text' || fieldType === 'url') && typeof itemValue === 'string') {
+      return typeValues.every(v =>
         typeof v === 'string' && v.trim() !== '' && itemValue.toLowerCase().includes(v.toLowerCase())
       );
     }
-    // Sinon égalité stricte (pour les nombres, booléens, etc.)
-    return typeValues.includes(itemValue);
+    return typeValues.every(v => v === itemValue);
   }
   // Affiche une durée en heures et minutes (ex: 7h00, 3h30)
   function formatDurationHeureMinute(duree: number): string {
@@ -314,6 +313,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     }
 
     // Pour chaque feuille (colonne finale)
+
     leafColumns.forEach((leaf: any) => {
       // Trouver le groupe racine parent (niveau 1)
       const rootGroup = leaf._parentPath && leaf._parentPath.length > 0 ? leaf._parentPath[0] : null;
@@ -336,19 +336,35 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       // Trouver le champ date dans les propriétés
       const dateField = groupProperties.find((p: any) => p.id === dateFieldId);
       if (!dateField) return;
-      // Déterminer les valeurs de type à filtrer (typeValues hiérarchiques)
-      let typeValues: string[] = [];
-      if (leaf._parentPath) {
-        typeValues = [
-          ...leaf._parentPath.flatMap((p: any) => Array.isArray(p.typeValues) ? p.typeValues.filter((v: any) => !!v) : []),
-          ...(Array.isArray(leaf.typeValues) ? leaf.typeValues.filter((v: any) => !!v) : [])
-        ];
-      } else {
-        typeValues = Array.isArray(leaf.typeValues) ? leaf.typeValues.filter((v: any) => !!v) : [];
+
+      // Log le chemin de parents pour debug
+      console.log('[DASHBOARD][DEBUG][_parentPath]', {
+        feuille: leaf.label,
+        _parentPath: leaf._parentPath?.map((p: any) => ({ label: p.label, typeValues: p.typeValues }))
+      });
+      // Correction : concaténer uniquement les typeValues du chemin courant (parents directs + feuille)
+      let allTypeValues: string[] = [];
+      if (leaf._parentPath && Array.isArray(leaf._parentPath)) {
+        leaf._parentPath.forEach((parent: any) => {
+          if (Array.isArray(parent.typeValues) && parent.typeValues.length > 0) {
+            allTypeValues = allTypeValues.concat(parent.typeValues.filter((v: any) => !!v));
+          }
+        });
+      }
+      if (Array.isArray(leaf.typeValues) && leaf.typeValues.length > 0) {
+        allTypeValues = allTypeValues.concat(leaf.typeValues.filter((v: any) => !!v));
       }
 
-      // Déterminer le champ de filtre à utiliser pour cette feuille
-      const filterField = leaf.filterField;
+      // Héritage du filterField : si non défini sur la feuille, prendre le plus proche parent qui en a un
+      let filterField = leaf.filterField;
+      if (!filterField && leaf._parentPath && Array.isArray(leaf._parentPath)) {
+        for (let i = leaf._parentPath.length - 1; i >= 0; i--) {
+          if (leaf._parentPath[i].filterField) {
+            filterField = leaf._parentPath[i].filterField;
+            break;
+          }
+        }
+      }
       const filterProp = filterField ? groupProperties.find((p: any) => p.id === filterField) : null;
 
       // Pour chaque jour du mois
@@ -361,35 +377,22 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         // Pour chaque item, on utilise la logique de getEventStyle pour savoir s'il couvre ce jour et quelle part de durée afficher
         groupItems.forEach((item: any) => {
           // Filtrage par champ de filtre spécifique à la feuille
-          if (typeValues.length > 0 && filterField) {
+          if (allTypeValues.length > 0 && filterField) {
             const propDebug = filterProp;
-            // Log systématique du type de champ utilisé pour le filtrage
-            console.log('[DASHBOARD][FILTER][DEBUG][filterField]', {
+            const itemValue = item[filterField];
+            const match = itemMatchesTypeValues(itemValue, allTypeValues, propDebug?.type);
+            // Log détaillé pour chaque item testé
+            console.log('[DASHBOARD][FILTER][DEBUG][item test]', {
               feuille: leaf.label,
               filterField,
               type: propDebug?.type,
-              propDebug
+              allTypeValues,
+              itemId: item.id,
+              itemName: item.name || item.label || item.title || '',
+              itemValue,
+              match,
+              item
             });
-            const itemValue = item[filterField];
-            const match = itemMatchesTypeValues(itemValue, typeValues);
-            // 1. Log la valeur du champ relation pour chaque item
-            // 2. Log le résultat du test de filtrage pour chaque item
-            // 3. Log l'item complet pour debug
-            console.log('----------------');
-            console.log(propDebug?.type);
-            console.log('----------------');
-            if (filterField && propDebug && propDebug.type === 'relation') {
-              console.log('[DASHBOARD][FILTER][DEBUG][relation]', {
-                feuille: leaf.label,
-                itemId: item.id,
-                itemName: item.name || item.label || item.title || '',
-                relationField: filterField,
-                relationValue: itemValue,
-                typeValues,
-                match,
-                item
-              });
-            }
             if (!match) return;
           }
           // Utiliser getEventStyle pour obtenir la répartition par jour (workdayDates)
@@ -472,7 +475,9 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       const groupItems = groupCollection?.items || [];
       groupItems.forEach((item: any) => {
         if (typeValues && resolvedTypeField) {
-          if (!itemMatchesTypeValues(item[resolvedTypeField], typeValues)) return;
+          // On cherche le type du champ pour filtrer correctement
+          const propType = groupProperties.find((p: any) => p.id === resolvedTypeField)?.type;
+          if (!itemMatchesTypeValues(item[resolvedTypeField], typeValues, propType)) return;
         }
         const value = item[dateField.id];
         if (value && value.start && value.end) {
