@@ -450,7 +450,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     const tableColumns = getTableColumns();
 
     return (
-      <div key={week.week} className="overflow-auto border border-white/15 rounded-lg shadow-inner shadow-black/40">
+      <div key={week.week} className="overflow-auto rounded-sm shadow-inner shadow-black/40">
         <table className="min-w-full text-sm table-fixed">
           <colgroup>
             <col style={{ width: '120px' }} />
@@ -676,6 +676,39 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   );
                 })}
             </tr>
+            {/* Total général de la semaine (tous les projets et durée cumulée) */}
+            <tr className="bg-neutral-900/40">
+              <td className="px-3 py-2 font-bold text-white border-r border-white/10">Total général</td>
+              {(() => {
+                let totalCount = 0;
+                let totalDuration = 0;
+                leafColumns.forEach((leaf: any) => {
+                  let count = 0;
+                  let duration = 0;
+                  week.days.forEach((day) => {
+                    const key = dayKey(day);
+                    const cell = aggregates.daily[key]?.[leaf.id];
+                    const span = spanForDay(leaf.id, key);
+                    if (span && span.isStart) {
+                      count += 1;
+                    } else if (!span && cell && cell.count) {
+                      count += cell.count;
+                    }
+                    if (cell) {
+                      duration += cell.duration;
+                    }
+                  });
+                  totalCount += count;
+                  totalDuration += duration;
+                });
+                return [
+                  <td key="total-count-label" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">Nombre</td>,
+                  <td key="total-count" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">{totalCount || ''}</td>,
+                  <td key="total-duration-label" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">Heures</td>,
+                  <td key="total-duration" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">{totalDuration ? formatDurationHeureMinute(totalDuration) : ''}</td>
+                ];
+              })()}
+            </tr>
           </tbody>
         </table>
       </div>
@@ -685,7 +718,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
   const renderMonthTotals = () => {
     if (!aggregates) return null;
     return (
-      <div className="overflow-auto border border-white/15 rounded-lg shadow-inner shadow-black/40">
+      <div className="overflow-auto rounded-sm shadow-inner shadow-black/40">
         <table className="min-w-full text-sm table-fixed">
           <colgroup>
             <col style={{ width: '120px' }} />
@@ -742,6 +775,33 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   </React.Fragment>
                 );
               })}
+            </tr>
+            {/* Total général du mois (tous les projets et durée cumulée) */}
+            <tr className="bg-neutral-900/40">
+              <td className="px-3 py-2 font-bold text-white border-r border-white/10">Total général</td>
+              {(() => {
+                let totalCount = 0;
+                let totalDuration = 0;
+                leafColumns.forEach((leaf: any) => {
+                  let count = 0;
+                  let duration = 0;
+                  Object.keys(aggregates.daily).forEach((key) => {
+                    const cell = aggregates.daily[key]?.[leaf.id];
+                    if (cell) {
+                      count += cell.count;
+                      duration += cell.duration;
+                    }
+                  });
+                  totalCount += count;
+                  totalDuration += duration;
+                });
+                return [
+                  <td key="total-count-label" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">Nombre</td>,
+                  <td key="total-count" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">{totalCount || ''}</td>,
+                  <td key="total-duration-label" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">Heures</td>,
+                  <td key="total-duration" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">{totalDuration ? formatDurationHeureMinute(totalDuration) : ''}</td>
+                ];
+              })()}
             </tr>
           </tbody>
         </table>
