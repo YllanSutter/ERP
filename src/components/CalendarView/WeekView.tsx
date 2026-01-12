@@ -50,7 +50,7 @@ const WeekView: React.FC<WeekViewProps> = ({
   canViewField = () => true,
   getDateFieldForItem,
 }) => {
-  console.log('[WeekView] rendu, items:', items);
+  // console.log('[WeekView] rendu, items:', items);
   const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
   const [dragPreview, setDragPreview] = React.useState<{ dayIndex: number; positionY: number } | null>(null);
   const weekDays = getWeekDays(currentDate);
@@ -62,7 +62,7 @@ const WeekView: React.FC<WeekViewProps> = ({
       events[dateStr] = [];
     });
     items.forEach((item) => {
-      console.log('[WeekView] item:', item.id, 'eventSegments:', item._eventSegments);
+      // console.log('[WeekView] item:', item.id, 'eventSegments:', item._eventSegments);
       if (!item._eventSegments || !Array.isArray(item._eventSegments)) return;
       item._eventSegments.forEach((segment: any, i: number) => {
         const segStart = new Date(segment.start || segment.__eventStart);
@@ -74,7 +74,7 @@ const WeekView: React.FC<WeekViewProps> = ({
         }
       });
     });
-    console.log('[WeekView] eventsByDay:', events);
+    // console.log('[WeekView] eventsByDay:', events);
     return events;
   }, [items, weekDays]);
   const getEventLayoutLocal = (dayEvents: any[], multiDayIndex: number) => getEventLayout(dayEvents, multiDayIndex, startHour, endHour);

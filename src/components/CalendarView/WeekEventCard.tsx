@@ -50,9 +50,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   onReduceDuration,
   onEventDrop,
 }) => {
-  // Debug : log des plages horaires et de l'item
-  console.log('[WeekEventCard] item:', item);
-  console.log('[WeekEventCard] eventSegments:', eventSegments);
+
   const dragRef = React.useRef<HTMLDivElement>(null);
   const space = 6;
   const widthPercent = ((1 / totalColumns) * 100) - space;
@@ -239,15 +237,15 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   // Affiche chaque plage horaire reçue en prop
   if (eventSegments && eventSegments.length > 0) {
     // Debug : log chaque segment
-    eventSegments.forEach((seg, idx) => {
-      console.log(`[WeekEventCard] Event affiché:`, {
-        itemId: item.id,
-        segmentIndex: idx,
-        start: seg.start,
-        end: seg.end,
-        label: seg.label
-      });
-    });
+    // eventSegments.forEach((seg, idx) => {
+    //   console.log(`[WeekEventCard] Event affiché:`, {
+    //     itemId: item.id,
+    //     segmentIndex: idx,
+    //     start: seg.start,
+    //     end: seg.end,
+    //     label: seg.label
+    //   });
+    // });
     return (
       <Fragment>
         {eventSegments.map((seg, idx) => (

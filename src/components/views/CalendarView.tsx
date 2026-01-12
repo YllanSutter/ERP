@@ -127,7 +127,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const mergedItems = useMemo(() => {
     // Toujours fusionner tous les items des collections sélectionnées, ignorer la prop items
     const result = selectedCollections.flatMap(col => col.items.map((it: any) => ({ ...it, __collectionId: col.id })));
-    // console.log('mergedItems (all selected collections):', result);
+    console.log('mergedItems (all selected collections):', result);
     return result;
   }, [selectedCollections]);
 
