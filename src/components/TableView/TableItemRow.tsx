@@ -99,13 +99,13 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
               <span>Détails</span>
             </div>
             {canEdit && (
-              <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+              <div className="px-6 py-4 whitespace-nowrap text-right text-sm">
                 <div className="flex items-center justify-end gap-3 text-neutral-500">
                   <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-400">
                     <Icons.Trash2 size={16} />
                   </button>
                 </div>
-              </td>
+              </div>
             )}
           </div>
         </ContextMenuItem>
