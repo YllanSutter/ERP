@@ -319,3 +319,38 @@ export function calculateDropTime({ dropY, containerHeight, startHour, endHour }
   return { hour, minutes };
 }
 
+/**
+ * Navigate to previous period based on view mode
+ */
+export const getPreviousPeriod = (
+  currentDate: Date,
+  viewMode: 'month' | 'week' | 'day'
+): Date => {
+  const newDate = new Date(currentDate);
+  if (viewMode === 'month') {
+    newDate.setMonth(currentDate.getMonth() - 1);
+  } else if (viewMode === 'week') {
+    newDate.setDate(currentDate.getDate() - 7);
+  } else if (viewMode === 'day') {
+    newDate.setDate(currentDate.getDate() - 1);
+  }
+  return newDate;
+};
+
+/**
+ * Navigate to next period based on view mode
+ */
+export const getNextPeriod = (
+  currentDate: Date,
+  viewMode: 'month' | 'week' | 'day'
+): Date => {
+  const newDate = new Date(currentDate);
+  if (viewMode === 'month') {
+    newDate.setMonth(currentDate.getMonth() + 1);
+  } else if (viewMode === 'week') {
+    newDate.setDate(currentDate.getDate() + 7);
+  } else if (viewMode === 'day') {
+    newDate.setDate(currentDate.getDate() + 1);
+  }
+  return newDate;
+};

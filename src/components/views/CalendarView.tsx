@@ -163,11 +163,37 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     onEdit(updatedItem);
   };
 
+  // --- Ajout navigation et sélecteur de vue ---
+  // Fonctions utilitaires pour navigation
+  const MONTH_NAMES = [
+    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+  ];
+  const getMonday = (date: Date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff));
+  };
+  const getPreviousPeriod = (date: Date, mode: 'month' | 'week' | 'day') => {
+    const d = new Date(date);
+    if (mode === 'month') d.setMonth(d.getMonth() - 1);
+    else if (mode === 'week') d.setDate(d.getDate() - 7);
+    else d.setDate(d.getDate() - 1);
+    return d;
+  };
+  const getNextPeriod = (date: Date, mode: 'month' | 'week' | 'day') => {
+    const d = new Date(date);
+    if (mode === 'month') d.setMonth(d.getMonth() + 1);
+    else if (mode === 'week') d.setDate(d.getDate() + 7);
+    else d.setDate(d.getDate() + 1);
+    return d;
+  };
+
+  // --- Affichage ---
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      {/* CalendarCollectionsManager centralise l'affichage du calendrier et des vues (mois, semaine, jour) */}
       <div className="rounded-lg border border-white/10 bg-gradient-to-br from-neutral-900/50 to-neutral-950/50 p-6 backdrop-blur">
-        {/* On délègue tout l'affichage à CalendarCollectionsManager */}
         <CalendarCollectionsManager
           collections={collections}
           defaultDuration={defaultDuration}

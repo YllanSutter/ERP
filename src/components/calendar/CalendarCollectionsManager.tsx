@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import MonthView from '../CalendarView/MonthView';
+import DayView from '../CalendarView/DayView';
 import CollectionFilterPanel from './CollectionFilterPanel';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import WeekView from '../CalendarView/WeekView';
@@ -16,6 +18,50 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   startHour = 8,
   endHour = 20,
 }) => {
+  // --- State pour la vue et la date courante ---
+  const MONTH_NAMES = [
+    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+  ];
+  const getMonday = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff));
+  };
+  const getPreviousPeriod = (date, mode) => {
+    const d = new Date(date);
+    if (mode === 'month') d.setMonth(d.getMonth() - 1);
+    else if (mode === 'week') d.setDate(d.getDate() - 7);
+    else d.setDate(d.getDate() - 1);
+    return d;
+  };
+  const getNextPeriod = (date, mode) => {
+    const d = new Date(date);
+    if (mode === 'month') d.setMonth(d.getMonth() + 1);
+    else if (mode === 'week') d.setDate(d.getDate() + 7);
+    else d.setDate(d.getDate() + 1);
+    return d;
+  };
+  const getInitialViewMode = () => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = window.localStorage.getItem('calendarViewMode');
+        if (saved === 'month' || saved === 'week' || saved === 'day') return saved;
+      } catch {}
+    }
+    return 'month';
+  };
+  const [viewMode, setViewMode] = useState(getInitialViewMode());
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const setViewModePersist = (mode) => {
+    setViewMode(mode);
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('calendarViewMode', mode);
+      } catch {}
+    }
+  };
   // État des filtres et du champ date par collection
   const [filters, setFilters] = useState<Record<string, any>>({});
   const [dateFields, setDateFields] = useState<Record<string, string>>({});
@@ -68,79 +114,151 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
     return items.map((item: any) => ({ ...item, __collectionId: collection.id }));
   };
 
-  // Rendu des panneaux de filtre et du calendrier
+  // Rendu header + panneaux de filtre + vue calendrier
   return (
     <div>
-        <Tabs defaultValue={collections[0]?.id} className="w-full mb-4">
-          <TabsList>
-            {collections.map((collection) => (
-              <TabsTrigger key={collection.id} value={collection.id}>
-                {collection.name}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-white">
+          {viewMode === 'month'
+            ? `${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getFullYear()}`
+            : viewMode === 'week'
+            ? `Semaine du ${getMonday(currentDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
+            : currentDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+          }
+        </h2>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1 bg-neutral-800/50 rounded-lg p-1">
+            <button
+              onClick={() => setViewModePersist('month')}
+              className={
+                'px-3 py-1.5 text-sm font-medium transition-colors ' +
+                (viewMode === 'month' ? 'bg-violet-500/30 text-violet-200' : 'text-neutral-400 hover:text-white')
+              }
+            >
+              Mois
+            </button>
+            <button
+              onClick={() => setViewModePersist('week')}
+              className={
+                'px-3 py-1.5 text-sm font-medium transition-colors ' +
+                (viewMode === 'week' ? 'bg-violet-500/30 text-violet-200' : 'text-neutral-400 hover:text-white')
+              }
+            >
+              Semaine
+            </button>
+            <button
+              onClick={() => setViewModePersist('day')}
+              className={
+                'px-3 py-1.5 text-sm font-medium transition-colors ' +
+                (viewMode === 'day' ? 'bg-violet-500/30 text-violet-200' : 'text-neutral-400 hover:text-white')
+              }
+            >
+              Jour
+            </button>
+          </div>
+          <button onClick={() => setCurrentDate(getPreviousPeriod(currentDate, viewMode))} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <button
+            onClick={() => setCurrentDate(new Date())}
+            className="px-4 py-2 text-sm font-medium bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 rounded-lg transition-colors border border-violet-500/30"
+          >
+            Aujourd'hui
+          </button>
+          <button onClick={() => setCurrentDate(getNextPeriod(currentDate, viewMode))} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+      </div>
+      <Tabs defaultValue={collections[0]?.id} className="w-full mb-4">
+        <TabsList>
           {collections.map((collection) => (
-            <TabsContent key={collection.id} value={collection.id}>
-              <CollectionFilterPanel
-                collection={collection}
-                properties={collection.properties}
-                filters={filters[collection.id] || {}}
-                setFilters={(f: any) => setFilters((prev) => ({ ...prev, [collection.id]: f }))}
-                dateField={dateFields[collection.id]}
-                setDateField={(fieldId: string) => setDateFields((prev) => ({ ...prev, [collection.id]: fieldId }))}
-                collections={collections}
-              />
-            </TabsContent>
+            <TabsTrigger key={collection.id} value={collection.id}>
+              {collection.name}
+            </TabsTrigger>
           ))}
-        </Tabs>
-      <WeekView
-              currentDate={new Date()}
-              items={collections.flatMap(getFilteredItems)}
+        </TabsList>
+        {collections.map((collection) => (
+          <TabsContent key={collection.id} value={collection.id}>
+            <CollectionFilterPanel
+              collection={collection}
+              properties={collection.properties}
+              filters={filters[collection.id] || {}}
+              setFilters={(f: any) => setFilters((prev) => ({ ...prev, [collection.id]: f }))}
+              dateField={dateFields[collection.id]}
+              setDateField={(fieldId: string) => setDateFields((prev) => ({ ...prev, [collection.id]: fieldId }))}
               collections={collections}
-              getNameValue={(item) => {
-                  const col = collections.find(c => c.id === item.__collectionId);
-                  if (!col) return item.name || 'Sans titre';
-                  const nameField = col.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
-                  return nameField ? item[nameField.id] : item.name || 'Sans titre';
-              } }
-              getItemsForDate={(date) => {
-                  // Regroupe les items filtrés de toutes les collections pour une date donnée
-                  return collections.flatMap(col => {
-                      const dateFieldId = dateFields[col.id];
-                      const dateField = col.properties.find((p: any) => p.id === dateFieldId);
-                      return getFilteredItems(col).filter((item: { [x: string]: any; }) => {
-                          if (!dateField) return false;
-                          const value = item[dateField.id];
-                          if (!value) return false;
-                          if (dateField.type === 'date') {
-                              const itemDate = new Date(value).toISOString().split('T')[0];
-                              const dateStr = date.toISOString().split('T')[0];
-                              return itemDate === dateStr;
-                          } else if (dateField.type === 'date_range') {
-                              if (typeof value === 'object' && value.start && value.end) {
-                                  const start = new Date(value.start).toISOString().split('T')[0];
-                                  const end = new Date(value.end).toISOString().split('T')[0];
-                                  const dateStr = date.toISOString().split('T')[0];
-                                  return dateStr >= start && dateStr <= end;
-                              }
-                          }
-                          return false;
-                      });
-                  });
-              } }
-              getDateFieldForItem={(item) => {
-                  const col = collections.find(c => c.id === item.__collectionId);
-                  if (!col) return undefined;
-                  const dateFieldId = dateFields[col.id];
-                  return col.properties.find((p: any) => p.id === dateFieldId);
-              } }
-              onDelete={() => { } }
-              onEdit={() => { } }
-              onViewDetail={() => { } }
-              defaultDuration={defaultDuration}
-              startHour={startHour}
-              endHour={endHour} 
             />
+          </TabsContent>
+        ))}
+      </Tabs>
+      {/* Affichage de la vue calendrier selon viewMode */}
+      {viewMode === 'month' ? (
+        <MonthView
+          currentDate={currentDate}
+          items={collections.flatMap(getFilteredItems)}
+          dateField={undefined}
+          collection={undefined}
+          onDateSelect={() => {}}
+          getNameValue={(item) => {
+            const col = collections.find(c => c.id === item.__collectionId);
+            if (!col) return item.name || 'Sans titre';
+            const nameField = col.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
+            return nameField ? item[nameField.id] : item.name || 'Sans titre';
+          }}
+          getItemsForDate={() => []}
+        />
+      ) : viewMode === 'week' ? (
+        <WeekView
+          currentDate={currentDate}
+          items={collections.flatMap(getFilteredItems)}
+          collections={collections}
+          getNameValue={(item) => {
+            const col = collections.find(c => c.id === item.__collectionId);
+            if (!col) return item.name || 'Sans titre';
+            const nameField = col.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
+            return nameField ? item[nameField.id] : item.name || 'Sans titre';
+          }}
+          getItemsForDate={() => []}
+          getDateFieldForItem={(item) => {
+            const col = collections.find(c => c.id === item.__collectionId);
+            if (!col) return undefined;
+            const dateFieldId = dateFields[col.id];
+            return col.properties.find((p: any) => p.id === dateFieldId);
+          }}
+          onDelete={() => {}}
+          onEdit={() => {}}
+          onViewDetail={() => {}}
+          defaultDuration={defaultDuration}
+          startHour={startHour}
+          endHour={endHour}
+        />
+      ) : (
+        <DayView
+          currentDate={currentDate}
+          items={collections.flatMap(getFilteredItems)}
+          collections={collections}
+          getNameValue={(item) => {
+            const col = collections.find(c => c.id === item.__collectionId);
+            if (!col) return item.name || 'Sans titre';
+            const nameField = col.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
+            return nameField ? item[nameField.id] : item.name || 'Sans titre';
+          }}
+          getItemsForDate={() => []}
+          getDateFieldForItem={(item) => {
+            const col = collections.find(c => c.id === item.__collectionId);
+            if (!col) return undefined;
+            const dateFieldId = dateFields[col.id];
+            return col.properties.find((p: any) => p.id === dateFieldId);
+          }}
+          onDelete={() => {}}
+          onEdit={() => {}}
+          onViewDetail={() => {}}
+          defaultDuration={defaultDuration}
+          startHour={startHour}
+          endHour={endHour}
+        />
+      )}
     </div>
   );
 };

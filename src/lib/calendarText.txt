@@ -1,0 +1,3 @@
+Ok ; est ce que tu peux maintentant faire en sorte que pour chaque objet et chaque temps, ça calcule automatiquement les plages horaires ou il doit etre, et que ça enregistre ça dans l'objet en bdd ; 
+
+QU'on ai un onglet avec les relations pour voir ces plages, qu'on puisse les modifier independemment, et que dans la vue calendrier, ça soit ces plages qui soient affichées
