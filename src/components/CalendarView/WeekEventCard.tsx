@@ -6,51 +6,46 @@ import { Trash2 } from 'lucide-react';
 
 interface WeekEventCardProps {
   item: any;
-  style: EventStyle;
+  eventSegments: Array<{
+    start: number;
+    end: number;
+    label?: string;
+  }>;
   multiDayIndex: number;
-  dayStartTime: number;
-  dayEndTime: number;
   column: number;
   totalColumns: number;
   colors: ColorSet;
   startHour: number;
   endHour: number;
-  startCal: number;
-  endCal: number;
   hoursLength: number;
-  hasBreakThisDay: boolean;
   visibleMetaFields: any[];
   collections: any[];
   getNameValue: (item: any) => string;
   onViewDetail: (item: any) => void;
   onReduceDuration: (item: any, hours: number) => void;
   onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number) => void;
-  weekDayDate?: Date;
 }
 
 const WeekEventCard: React.FC<WeekEventCardProps> = ({
   item,
-  style,
+  eventSegments,
   multiDayIndex,
-  dayStartTime,
-  dayEndTime,
   column,
   totalColumns,
   colors,
   startHour,
   endHour,
-  startCal,
-  endCal,
   hoursLength,
-  hasBreakThisDay,
   visibleMetaFields,
   collections,
   getNameValue,
   onViewDetail,
   onReduceDuration,
   onEventDrop,
-  weekDayDate,
 }) => {
+  // Debug : log des plages horaires et de l'item
+  console.log('[WeekEventCard] item:', item);
+  console.log('[WeekEventCard] eventSegments:', eventSegments);
   const dragRef = React.useRef<HTMLDivElement>(null);
   const space = 6;
   const widthPercent = ((1 / totalColumns) * 100) - space;
@@ -86,16 +81,14 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     startTime: number;
     endTime: number;
     duration: number;
-    displayStartTime?: number;
-    displayEndTime?: number;
+    label?: string;
   }
 
   const EventItem: React.FC<EventItemProps> = ({
     startTime,
     endTime,
     duration,
-    displayStartTime,
-    displayEndTime,
+    label,
   }) => {
     const { topOffset, heightPx } = calculateEventPosition(
       startTime,
@@ -104,7 +97,6 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
       endHour,
       hoursLength
     );
-    
     return (
       <ItemContextMenu
         item={item}
@@ -145,18 +137,16 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
           })()}
           <div className="text-[10px] opacity-70 absolute right-1 top-1">
             {(() => {
-              const dStart = displayStartTime ?? startTime;
-              const dEnd = displayEndTime ?? endTime;
-              const startH = Math.floor(dStart);
-              const startM = Math.round((dStart - startH) * 60);
-              const endH = Math.floor(dEnd);
-              const endM = Math.round((dEnd - endH) * 60);
+              const startH = Math.floor(startTime);
+              const startM = Math.round((startTime - startH) * 60);
+              const endH = Math.floor(endTime);
+              const endM = Math.round((endTime - endH) * 60);
               return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
             })()}
           </div>
-          {/* Affichage des champs dans l'ordre de collection.properties */}
+          {label && <div className="text-[9px] truncate">{label}</div>}
+          {/* ...affichage des autres champs comme avant... */}
           {(() => {
-            // Trouver la collection correspondant à l'item (pour l'ordre des propriétés)
             const itemCollection = collections.find((col: any) => col.items?.some((it: any) => it.id === item.id)) || collections[0];
             const collectionProps = itemCollection?.properties || [];
             const visibleIds = visibleMetaFields.map((f: any) => f.id);
@@ -175,7 +165,6 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
                         const opt = options.find((o: any) => (typeof o === 'string' ? o === val : o.value === val || o.label === val));
                         const color = opt?.color || opt?.bgColor || 'rgba(139,92,246,0.08)';
                         const label = opt?.label || opt?.value || val;
-                        const icon = opt?.icon;
                         return (
                           <span
                             key={val + idx}
@@ -199,7 +188,6 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
                   }
                   const color = opt?.color || opt?.bgColor || 'rgba(139,92,246,0.08)';
                   const label = opt?.label || opt?.value || val;
-                  const icon = opt?.icon;
                   return (
                     <div key={field.id} className="flex items-center flex-wrap gap-1 text-[9px] truncate">
                       <span className="mr-1">{field.name}:</span>
@@ -235,54 +223,34 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     );
   };
 
-  // Utilise la fonction utilitaire pour découper l'événement selon les horaires et la pause
-  const eventSplits = splitEventByWorkdays(
-    {
-      ...item,
-      __eventStart: style.startDate,
-      __eventEnd: style.endDate,
-    },
-    {
-      startCal,
-      endCal,
-      breakStart: 12,
-      breakEnd: 13,
-    }
-  ).filter(ev => {
-    // On ne garde que les sous-événements du jour courant (multiDayIndex)
-    const evDate = new Date(ev.__eventStart);
-    return evDate.toDateString() === weekDayDate?.toDateString();
-  });
-
-  if (eventSplits.length > 0) {
+  // Affiche chaque plage horaire reçue en prop
+  if (eventSegments && eventSegments.length > 0) {
+    // Debug : log chaque segment
+    eventSegments.forEach((seg, idx) => {
+      console.log(`[WeekEventCard] Event affiché:`, {
+        itemId: item.id,
+        segmentIndex: idx,
+        start: seg.start,
+        end: seg.end,
+        label: seg.label
+      });
+    });
     return (
       <Fragment>
-        {eventSplits.map((ev, idx) => {
-          const start = ev.__eventStart.getHours() + ev.__eventStart.getMinutes() / 60;
-          const end = ev.__eventEnd.getHours() + ev.__eventEnd.getMinutes() / 60;
-          return (
-            <EventItem
-              key={`${item.id}-${multiDayIndex}-split${idx}`}
-              startTime={start}
-              endTime={end}
-              duration={end - start}
-            />
-          );
-        })}
+        {eventSegments.map((seg, idx) => (
+          <EventItem
+            key={`${item.id}-${multiDayIndex}-seg${idx}`}
+            startTime={seg.start}
+            endTime={seg.end}
+            duration={seg.end - seg.start}
+            label={seg.label}
+          />
+        ))}
       </Fragment>
     );
   }
-
-  // Fallback : événement simple
-  const dayDuration = dayEndTime - dayStartTime;
-  return (
-    <EventItem
-      key={`${item.id}-${multiDayIndex}`}
-      startTime={dayStartTime}
-      endTime={dayEndTime}
-      duration={dayDuration}
-    />
-  );
+  // Si aucune plage, ne rien afficher
+  return null;
 };
 
 export default WeekEventCard;

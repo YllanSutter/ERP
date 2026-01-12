@@ -69,9 +69,8 @@ const DATEFIELD_KEY = 'erp_collection_datefield';
 
 
   return (
-    <div className="mb-4 p-4 border border-white/10 rounded">
-      <h3 className="font-bold mb-2">{collection.name}</h3>
-      <div className="mb-2">
+    <div className="flex gap-8 items-center">
+      <div className="flex gap-2 items-center flex-wrap">
         <label>Champ date de référence&nbsp;:</label>
         <select className="border border-white/10 rounded px-2 py-1 bg-neutral-900 text-white" value={dateField || ''} onChange={e => setDateField(e.target.value)}>
           <option value="">-- Choisir --</option>
@@ -95,8 +94,8 @@ const DATEFIELD_KEY = 'erp_collection_datefield';
             if (isSourceMany) {
               const currentValues = Array.isArray(value) ? value : [];
               return (
-                <div key={field.id} className="flex flex-col mb-2">
-                  <label className="text-sm font-medium mb-1">{field.name}</label>
+                <div key={field.id} className="flex gap-2 items-center">
+                  <label className="text-sm font-medium">{field.name}</label>
                   <LightMultiSelect
                     options={targetItems.map((ti: any) => ({
                       value: ti.id,
@@ -112,7 +111,7 @@ const DATEFIELD_KEY = 'erp_collection_datefield';
               );
             } else {
               return (
-                <div key={field.id} className="flex flex-col mb-2">
+                <div key={field.id} className="flex gap-2 items-center">
                   <label className="text-sm font-medium mb-1">{field.name}</label>
                   <select
                     value={typeof value === 'string' ? value : ''}
@@ -132,8 +131,8 @@ const DATEFIELD_KEY = 'erp_collection_datefield';
           // Champ select classique
           if (field.type === 'select' && Array.isArray(field.options)) {
             return (
-              <div key={field.id} className="flex flex-col mb-2">
-                <label className="text-sm font-medium mb-1">{field.name}</label>
+              <div key={field.id} className="flex gap-2 items-center">
+                <label className="text-sm font-medium">{field.name}</label>
                 <select
                   value={filters[field.id] || ''}
                   onChange={e => handleFilterChange(field.id, e.target.value)}
@@ -149,8 +148,8 @@ const DATEFIELD_KEY = 'erp_collection_datefield';
           }
           // Champ texte par défaut
           return (
-            <div key={field.id} className="flex flex-col mb-2">
-              <label className="text-sm font-medium mb-1">{field.name}</label>
+            <div key={field.id} className="flex gap-2 items-center">
+              <label className="text-sm font-medium">{field.name}</label>
               <input
                 type="text"
                 value={filters[field.id] || ''}

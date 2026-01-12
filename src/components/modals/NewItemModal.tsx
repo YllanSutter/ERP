@@ -23,6 +23,7 @@ import { Star } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { splitEventByWorkdays, workDayStart, workDayEnd, breakStart, breakEnd } from '@/lib/calendarUtils';
+import { updateEventSegments } from '@/lib/updateEventSegments';
 import { cn } from '@/lib/utils';
 
 interface NewItemModalProps {
@@ -74,33 +75,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   // Détection des champs date/durée pour calcul automatique des plages horaires
   const handleChange = (propId: string, value: any) => {
     const newForm = { ...formData, [propId]: value };
-    // Recherche du champ date et durée
-    const dateProp = propsList.find((p: any) => p.type === 'date');
-    const durationProp = propsList.find((p: any) => p.id === (dateProp ? `${dateProp.id}_duration` : ''));
-    if (dateProp && newForm[dateProp.id]) {
-      // Durée en heures
-      let duration = 1;
-      if (durationProp && newForm[durationProp.id]) duration = Number(newForm[durationProp.id]);
-      // Création d'un objet item minimal pour le calcul
-      const itemForCalc = {
-        startDate: newForm[dateProp.id],
-        durationHours: duration,
-      };
-      // Calcul des segments horaires
-      const segments = splitEventByWorkdays(itemForCalc, {
-        startCal: workDayStart,
-        endCal: workDayEnd,
-        breakStart,
-        breakEnd,
-      });
-      newForm._eventSegments = segments.map(seg => ({
-        start: seg.__eventStart,
-        end: seg.__eventEnd,
-      }));
-    } else {
-      newForm._eventSegments = [];
-    }
-    setFormData(newForm);
+    // Met à jour _eventSegments pour tous les champs date/durée
+    const updated = updateEventSegments(newForm, collection);
+    setFormData(updated);
   };
 
   const isFavorite = favorites && editingItem ? favorites.items.includes(editingItem.id) : false;
@@ -330,7 +307,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         </div>
         <div className="flex gap-3 mt-8">
           <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton onClick={() => onSave(formData)} className="flex-1">{editingItem ? 'Modifier' : 'Créer'}</ShinyButton>
+          <ShinyButton onClick={() => onSave(updateEventSegments(formData, collection))} className="flex-1">{editingItem ? 'Modifier' : 'Créer'}</ShinyButton>
         </div>
       </motion.div>
     </div>

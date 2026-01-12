@@ -96,37 +96,21 @@ const DayView: React.FC<DayViewProps> = ({
     return getEventStyle(item, dateField, defaultDuration, endHour);
   };
 
-  // Group events for the current day
+  // Group events for the current day à partir des plages horaires (_eventSegments)
   const dayEvents = useMemo(() => {
     const currentDayStr = toDateKey(dayDate);
-    const dayEventList: Array<{ item: any; style: any; dayIndex: number; multiDayIndex: number }> = [];
-
+    const dayEventList: Array<{ item: any; segment: any; dayIndex: number; multiDayIndex: number }> = [];
     items.forEach((item) => {
-      const style = getEventStyleLocal(item);
-      if (!style) return;
-
-      const startDateStr = toDateKey(style.startDate);
-      
-      // Calculer la différence en jours entre le début de l'événement et aujourd'hui
-      const startDate = new Date(style.startDate);
-      startDate.setHours(0, 0, 0, 0);
-      const currentDay = new Date(dayDate);
-      currentDay.setHours(0, 0, 0, 0);
-      const daysDiff = Math.floor((currentDay.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      // Inclure l'événement si :
-      // 1. Il commence aujourd'hui (daysDiff === 0)
-      // 2. Il a commencé avant et continue aujourd'hui (0 <= daysDiff < daysSpanned)
-      if (daysDiff >= 0 && daysDiff < style.daysSpanned) {
-        dayEventList.push({
-          item,
-          style,
-          dayIndex: 0,
-          multiDayIndex: daysDiff,
-        });
-      }
+      if (!item._eventSegments || !Array.isArray(item._eventSegments)) return;
+      item._eventSegments.forEach((segment: any, i: number) => {
+        const segStart = new Date(segment.start || segment.__eventStart);
+        const segEnd = new Date(segment.end || segment.__eventEnd);
+        const segDayStr = toDateKey(segStart);
+        if (segDayStr === currentDayStr) {
+          dayEventList.push({ item, segment, dayIndex: 0, multiDayIndex: i });
+        }
+      });
     });
-
     return dayEventList;
   }, [items, dayDate]);
 
@@ -206,24 +190,35 @@ const DayView: React.FC<DayViewProps> = ({
                 );
             })}
 
-            {/* Render events positioned absolutely */}
-            {getEventLayoutLocal(dayEvents, 0).map(({ item, style, multiDayIndex, startTime: dayStartTime, endTime: dayEndTime, column, totalColumns }) => {
-                const breakStart = 12;
-                const dayDuration = dayEndTime - dayStartTime;
+            {/* Render events positionnés par plage horaire */}
+            {dayEvents.map(({ item, segment, dayIndex, multiDayIndex }) => {
+                const segStart = new Date(segment.start || segment.__eventStart);
+                const segEnd = new Date(segment.end || segment.__eventEnd);
+                const startTime = segStart.getHours() + segStart.getMinutes() / 60;
+                const endTime = segEnd.getHours() + segEnd.getMinutes() / 60;
                 const colors = getItemColor(item.id);
-                const hasBreakThisDay = dayStartTime < breakStart && dayEndTime > breakStart;
+                const hasBreakThisDay = startTime < 12 && endTime > 12;
                 const visibleMetaFields = getVisibleMetaFields(item);
                 return (
                   <WeekEventCard
-                    key={`${item.id}-${multiDayIndex}`}
+                    key={`${item.id}-seg-${multiDayIndex}`}
                     item={item}
-                    style={style}
+                    style={{
+                      startTimeInHours: startTime,
+                      endTimeInHours: endTime,
+                      startDate: segStart,
+                      endDate: segEnd,
+                      durationHours: endTime - startTime,
+                      hoursPerDay: endHour - startHour,
+                      daysSpanned: 1,
+                      hasBreak: hasBreakThisDay
+                    }}
                     multiDayIndex={multiDayIndex}
-                    dayStartTime={dayStartTime}
+                    dayStartTime={startTime}
                     endHour={endHour}
-                    dayEndTime={dayEndTime}
-                    column={column}
-                    totalColumns={totalColumns}
+                    dayEndTime={endTime}
+                    column={0}
+                    totalColumns={1}
                     colors={colors}
                     startHour={startHour}
                     hoursLength={hours.length}
@@ -231,10 +226,13 @@ const DayView: React.FC<DayViewProps> = ({
                     visibleMetaFields={visibleMetaFields}
                     collections={collections}
                     getNameValue={getNameValue}
-                    onViewDetail={onViewDetail}
+                    onViewDetail={() => onViewDetail(item)}
                     onReduceDuration={reduceDuration}
                     onEventDrop={onEventDrop}
-                    weekDayDate={currentDate} startCal={0} endCal={0}                  />
+                    weekDayDate={currentDate}
+                    startCal={0}
+                    endCal={0}
+                  />
                 );
             })}
             </div>

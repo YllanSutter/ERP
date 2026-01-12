@@ -63,6 +63,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
       } catch {}
     }
   };
+
   // État des filtres et du champ date par collection
   const [filters, setFilters] = useState<Record<string, any>>({});
   const [dateFields, setDateFields] = useState<Record<string, string>>({});
@@ -210,30 +211,35 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           getItemsForDate={() => []}
         />
       ) : viewMode === 'week' ? (
-        <WeekView
-          currentDate={currentDate}
-          items={collections.flatMap(getFilteredItems)}
-          collections={collections}
-          getNameValue={(item) => {
-            const col = collections.find(c => c.id === item.__collectionId);
-            if (!col) return item.name || 'Sans titre';
-            const nameField = col.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
-            return nameField ? item[nameField.id] : item.name || 'Sans titre';
-          }}
-          getItemsForDate={() => []}
-          getDateFieldForItem={(item) => {
-            const col = collections.find(c => c.id === item.__collectionId);
-            if (!col) return undefined;
-            const dateFieldId = dateFields[col.id];
-            return col.properties.find((p: any) => p.id === dateFieldId);
-          }}
-          onDelete={() => {}}
-          onEdit={() => {}}
-          onViewDetail={() => {}}
-          defaultDuration={defaultDuration}
-          startHour={startHour}
-          endHour={endHour}
-        />
+        (() => {
+          console.log('[CalendarCollectionsManager] Rendu WeekView, items:', collections.flatMap(getFilteredItems));
+          return (
+            <WeekView
+              currentDate={currentDate}
+              items={collections.flatMap(getFilteredItems)}
+              collections={collections}
+              getNameValue={(item) => {
+                const col = collections.find(c => c.id === item.__collectionId);
+                if (!col) return item.name || 'Sans titre';
+                const nameField = col.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
+                return nameField ? item[nameField.id] : item.name || 'Sans titre';
+              }}
+              getItemsForDate={() => []}
+              getDateFieldForItem={(item) => {
+                const col = collections.find(c => c.id === item.__collectionId);
+                if (!col) return undefined;
+                const dateFieldId = dateFields[col.id];
+                return col.properties.find((p: any) => p.id === dateFieldId);
+              }}
+              onDelete={(id) => console.log('[WeekView] onDelete', id)}
+              onEdit={(item) => console.log('[WeekView] onEdit', item)}
+              onViewDetail={(item) => console.log('[WeekView] onViewDetail', item)}
+              defaultDuration={defaultDuration}
+              startHour={startHour}
+              endHour={endHour}
+            />
+          );
+        })()
       ) : (
         <DayView
           currentDate={currentDate}

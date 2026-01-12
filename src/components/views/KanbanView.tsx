@@ -4,6 +4,7 @@ import { Trash2, GripHorizontal, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { updateEventSegments } from '@/lib/updateEventSegments';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 
@@ -244,11 +245,14 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                         return (
                           <div className="flex-1 flex items-center gap-2">
                             <span className="text-neutral-500 text-xs">{firstProp.name}:</span>
-                            <div className="flex-1">
+                            <div className="flex-1 text-right">
                               <EditableProperty
                                 property={firstProp}
                                 value={item[firstProp.id]}
-                                onChange={(val) => onEdit({...item, [firstProp.id]: val})}
+                                onChange={(val) => {
+                                  const updated = updateEventSegments({ ...item, [firstProp.id]: val }, collection);
+                                  onEdit(updated);
+                                }}
                                 size="sm"
                                 collections={collections}
                                 currentItem={item}
@@ -278,18 +282,23 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                           )
                           .map((prop: any) => (
                             <div key={prop.id} className="text-xs flex justify-between items-center">
-                              <span className="text-neutral-500 block mb-1">{prop.name}:</span>
-                              <EditableProperty
-                                property={prop}
-                                value={item[prop.id]}
-                                onChange={(val) => onEdit({...item, [prop.id]: val})}
-                                size="sm"
-                                collections={collections}
-                                currentItem={item}
-                                onRelationChange={onRelationChange}
-                                onNavigateToCollection={onNavigateToCollection}
-                                readOnly={!canEdit || !canEditFieldFn(prop.id)}
-                              />
+                              <span className="text-neutral-500 block mb-1 justify-between">{prop.name}:</span>
+                              <div className="text-right">
+                                <EditableProperty
+                                  property={prop}
+                                  value={item[prop.id]}
+                                  onChange={(val) => {
+                                    const updated = updateEventSegments({ ...item, [prop.id]: val }, collection);
+                                    onEdit(updated);
+                                  }}
+                                  size="sm"
+                                  collections={collections}
+                                  currentItem={item}
+                                  onRelationChange={onRelationChange}
+                                  onNavigateToCollection={onNavigateToCollection}
+                                  readOnly={!canEdit || !canEditFieldFn(prop.id)}
+                                />
+                              </div>
                             </div>
                           ));
                       })()}

@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { updateEventSegments } from '@/lib/updateEventSegments';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -71,7 +72,10 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
               <EditableProperty
                 property={prop}
                 value={item[prop.id]}
-                onChange={(val) => onEdit({ ...item, [prop.id]: val })}
+                onChange={(val) => {
+                  const updated = updateEventSegments({ ...item, [prop.id]: val }, collections.find(c => c.id === item.__collectionId));
+                  onEdit(updated);
+                }}
                 size="md"
                 isNameField={prop.id === 'name' || prop.name === 'Nom'}
                 onViewDetail={prop.id === 'name' || prop.name === 'Nom' ? () => onViewDetail(item) : undefined}
@@ -117,7 +121,10 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                   <EditableProperty
                     property={prop}
                     value={item[prop.id]}
-                    onChange={(val) => onEdit({ ...item, [prop.id]: val })}
+                    onChange={(val) => {
+                      const updated = updateEventSegments({ ...item, [prop.id]: val }, collections.find(c => c.id === item.__collectionId));
+                      onEdit(updated);
+                    }}
                     size="sm"
                     collections={collections}
                     currentItem={item}

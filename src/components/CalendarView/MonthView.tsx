@@ -53,8 +53,19 @@ const MonthView: React.FC<MonthViewProps> = ({
         {days.map((day, idx) => {
           const date = day ? new Date(currentDate.getFullYear(), currentDate.getMonth(), day) : null;
           const isToday = date && date.toDateString() === new Date().toDateString();
-          const dayItems = date ? getItemsForDate(date) : [];
-
+          // Récupérer toutes les plages horaires pour ce jour
+          let daySegments: Array<{ item: any; segment: any }> = [];
+          if (date) {
+            items.forEach(item => {
+              if (!item._eventSegments || !Array.isArray(item._eventSegments)) return;
+              item._eventSegments.forEach((segment: any) => {
+                const segStart = new Date(segment.start || segment.__eventStart);
+                if (segStart.toDateString() === date.toDateString()) {
+                  daySegments.push({ item, segment });
+                }
+              });
+            });
+          }
           return (
             <motion.button
               key={idx}
@@ -78,9 +89,27 @@ const MonthView: React.FC<MonthViewProps> = ({
                   )}>
                     {day}
                   </span>
-                  {dayItems.length > 0 && (
-                    <div className="text-[10px] text-violet-300 font-medium">
-                      {dayItems.length}
+                  {daySegments.length > 0 && (
+                    <div className="flex flex-col gap-1 mt-1">
+                      {daySegments.map(({ item, segment }, i) => (
+                        <button
+                          key={item.id + '-' + i}
+                          className="text-[10px] text-violet-300 font-medium text-left truncate hover:underline"
+                          title={getNameValue(item)}
+                          onClick={e => {
+                            e.stopPropagation();
+                            if (item.onViewDetail) item.onViewDetail(item);
+                            else if (typeof window !== 'undefined') {
+                              // Fallback: custom event for parent
+                              const event = new CustomEvent('calendar-item-detail', { detail: item });
+                              window.dispatchEvent(event);
+                            }
+                          }}
+                        >
+                          {getNameValue(item)}<br />
+                          <span className="text-neutral-400">{new Date(segment.start || segment.__eventStart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} → {new Date(segment.end || segment.__eventEnd).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
