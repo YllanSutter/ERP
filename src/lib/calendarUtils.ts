@@ -32,6 +32,12 @@ export function splitEventByWorkdays(item: any, opts: { startCal: number; endCal
   let current = new Date(start);
 
   while (remainingMs > 0) {
+    // Si samedi (6) ou dimanche (0), passe au lundi suivant
+    while (current.getDay() === 0 || current.getDay() === 6) {
+      current.setDate(current.getDate() + 1);
+      current.setHours(startHour, 0, 0, 0);
+    }
+
     // Définir les bornes de la journée
     let dayStart = new Date(current);
     let dayEnd = new Date(current);
@@ -45,7 +51,6 @@ export function splitEventByWorkdays(item: any, opts: { startCal: number; endCal
     pauseStart.setHours(breakStart, 0, 0, 0);
     let pauseEnd = new Date(current);
     pauseEnd.setHours(breakEnd, 0, 0, 0);
-
 
     // 1. Matin (avant pause)
     if (segmentStart < pauseStart && segmentStart < dayEnd && remainingMs > 0) {

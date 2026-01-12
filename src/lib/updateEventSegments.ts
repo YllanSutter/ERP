@@ -32,8 +32,21 @@ export function updateEventSegments(item: any, collection: any): any {
         console.log('[updateEventSegments] PAS DE SEGMENT pour', prop.id, 'car durée absente ou invalide:', duration);
         return;
       }
+      // Décale la date de début au lundi si samedi/dimanche
+      let startDate = item[prop.id];
+      let startDateObj = new Date(startDate);
+      if (startDateObj.getDay() === 6) { // samedi
+        startDateObj.setDate(startDateObj.getDate() + 2);
+        startDateObj.setHours(0,0,0,0);
+        // conserve le format d'origine (string ou Date)
+        startDate = startDateObj.toISOString();
+      } else if (startDateObj.getDay() === 0) { // dimanche
+        startDateObj.setDate(startDateObj.getDate() + 1);
+        startDateObj.setHours(0,0,0,0);
+        startDate = startDateObj.toISOString();
+      }
       const itemForCalc = {
-        startDate: item[prop.id],
+        startDate,
         durationHours: duration,
       };
       console.log('[updateEventSegments] itemForCalc:', itemForCalc);
