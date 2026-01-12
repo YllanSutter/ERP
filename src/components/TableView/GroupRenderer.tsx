@@ -113,6 +113,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                 onDelete={onDelete}
                 onViewDetail={onViewDetail}
                 collections={collections}
+                collection={collection}
                 onRelationChange={onRelationChange}
                 onNavigateToCollection={onNavigateToCollection}
                 canEdit={canEdit}
