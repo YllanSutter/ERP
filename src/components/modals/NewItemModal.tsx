@@ -23,6 +23,7 @@ import { Star } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { splitEventByWorkdays, workDayStart, workDayEnd, breakStart, breakEnd } from '@/lib/calendarUtils';
+import { updateEventSegments } from '@/lib/updateEventSegments';
 import { cn } from '@/lib/utils';
 
 interface NewItemModalProps {
@@ -74,7 +75,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         data[prop.id] = prop.defaultValue;
       }
     });
-    return data;
+    // Génère _eventSegments dès la création
+    return updateEventSegments(data, collection);
   }
 
   const [formData, setFormData] = useState(getInitialFormData());
