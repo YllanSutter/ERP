@@ -25,9 +25,21 @@ interface EditablePropertyProps {
   disableNameLink?: boolean; // Désactive le lien cliquable pour le champ nom (pour édition directe)
   // Relations support
   collections?: any[];
+  collection?: any; // Ajout explicite de la collection courante
   currentItem?: any;
   onRelationChange?: (property: any, item: any, value: any) => void;
   onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
+}
+
+// Utilitaire pour grouper les segments par jour (clé: date locale)
+function groupSegmentsByDay(segments: any[]) {
+  const segmentsByDay: Record<string, any[]> = {};
+  (segments || []).forEach((seg: any) => {
+    const dayKey = new Date(seg.start || seg.__eventStart).toLocaleDateString('fr-FR');
+    if (!segmentsByDay[dayKey]) segmentsByDay[dayKey] = [];
+    segmentsByDay[dayKey].push(seg);
+  });
+  return segmentsByDay;
 }
 
 const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
@@ -41,6 +53,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   readOnly = false,
   disableNameLink = false,
   collections,
+  collection,
   currentItem,
   onRelationChange,
   onNavigateToCollection
@@ -131,14 +144,23 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     };
     const timeOptions = getTimeOptions();
     const currentTime = value ? format(new Date(value), 'HH:mm') : `${String(workDayStart).padStart(2, '0')}:00`;
+    
+      console.log(collection);
 
-    // Nouvelle logique : onChange met à jour _eventSegments si champ date
+    // handleDateChange et handleChange centralisent la logique de mise à jour _eventSegments ET de regroupement par jour
     const handleDateChange = (newDateIso: string) => {
-      if (!collections || !currentItem) return;
-      const collection = collections.find((c: any) => c.id === currentItem.__collectionId) || collections[0];
-      const updated = updateEventSegments({ ...currentItem, [property.id]: newDateIso }, collection);
+      if ((!collections && !collection) || !currentItem) return;
+      // Priorité à la prop collection explicite
+      const usedCollection = collection || (collections && currentItem.__collectionId && collections.find((c: any) => c.id === currentItem.__collectionId)) || (collections && collections[0]);
+      if (!usedCollection) return;
+      const inputObj = { ...currentItem, [property.id]: newDateIso };
+      console.log('[EditableProperty] handleDateChange - entrée updateEventSegments:', inputObj, usedCollection);
+      const updated = updateEventSegments(inputObj, usedCollection);
+      console.log('[EditableProperty] handleDateChange - sortie updateEventSegments:', updated);
+      updated._eventSegmentsByDay = groupSegmentsByDay(updated._eventSegments);
+      // LOG final
+      console.log('[EditableProperty] handleDateChange - objet mis à jour:', updated);
       if (typeof onChange === 'function') {
-        // On transmet l'objet complet (pour la sauvegarde en BDD et la propagation des segments)
         onChange(updated);
       }
       if (typeof onRelationChange === 'function') {
@@ -146,12 +168,18 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       }
     };
 
-    // Ajout : handleChange pour centraliser la logique de mise à jour _eventSegments pour date/durée
     const handleChange = (propId: string, val: any) => {
-      if (!collections || !currentItem) return;
-      const collection = collections.find((c: any) => c.id === currentItem.__collectionId) || collections[0];
-      const newItem = { ...currentItem, [propId]: val };
-      const updated = updateEventSegments(newItem, collection);
+      if ((!collections && !collection) || !currentItem) return;
+      // Priorité à la prop collection explicite
+      const usedCollection = collection || (collections && currentItem.__collectionId && collections.find((c: any) => c.id === currentItem.__collectionId)) || (collections && collections[0]);
+      if (!usedCollection) return;
+      const inputObj = { ...currentItem, [propId]: val };
+      console.log('[EditableProperty] handleChange - entrée updateEventSegments:', inputObj, usedCollection);
+      const updated = updateEventSegments(inputObj, usedCollection);
+      console.log('[EditableProperty] handleChange - sortie updateEventSegments:', updated);
+      updated._eventSegmentsByDay = groupSegmentsByDay(updated._eventSegments);
+      // LOG final
+      console.log('[EditableProperty] handleChange - objet mis à jour:', updated);
       if (typeof onChange === 'function') {
         onChange(updated);
       }

@@ -99,6 +99,7 @@ const TableView: React.FC<TableViewProps> = ({
                   canEdit={canEdit}
                   canEditField={canEditFieldFn}
                   animate={false}
+                  collection = {collection}
                 />
               ))
             )}

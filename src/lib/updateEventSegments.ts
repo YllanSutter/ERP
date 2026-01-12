@@ -9,21 +9,29 @@ import { splitEventByWorkdays, workDayStart, workDayEnd, breakStart, breakEnd } 
  */
 export function updateEventSegments(item: any, collection: any): any {
   if (!collection || !collection.properties) return item;
+  console.log('[updateEventSegments] propriétés de la collection:', collection.properties);
+  console.log('[updateEventSegments] item reçu:', item);
   const segments: Array<{ start: Date; end: Date; label?: string }> = [];
   collection.properties.forEach((prop: any) => {
     if (prop.type === 'date' && item[prop.id]) {
       // Cherche la durée associée
-      const durationProp = collection.properties.find((p: any) => p.id === `${prop.id}_duration`);
+      const durationKey = `${prop.id}_duration`;
+      console.log('[updateEventSegments] durationKey:', durationKey);
+      console.log('[updateEventSegments] clés de item:', Object.keys(item));
       let duration: number | undefined = undefined;
-      if (durationProp && item.hasOwnProperty(durationProp.id) && item[durationProp.id] !== undefined && item[durationProp.id] !== null && item[durationProp.id] !== '') {
-        duration = Number(item[durationProp.id]);
+      if (Object.prototype.hasOwnProperty.call(item, durationKey)) {
+        console.log('[updateEventSegments] valeur brute de', durationKey, ':', item[durationKey]);
+        duration = Number(item[durationKey]);
       } else if (prop.defaultDuration !== undefined && prop.defaultDuration !== null && prop.defaultDuration !== '') {
         duration = Number(prop.defaultDuration);
       }
       // DEBUG : log de la durée et de l'objet transmis à splitEventByWorkdays
       console.log('[updateEventSegments] prop:', prop.id, 'date:', item[prop.id], 'duration:', duration);
       // Si la durée est absente, nulle ou non numérique, on ne génère pas de segment
-      if (duration === undefined || isNaN(duration) || duration <= 0) return;
+      if (duration === undefined || isNaN(duration) || duration <= 0) {
+        console.log('[updateEventSegments] PAS DE SEGMENT pour', prop.id, 'car durée absente ou invalide:', duration);
+        return;
+      }
       const itemForCalc = {
         startDate: item[prop.id],
         durationHours: duration,
@@ -43,6 +51,10 @@ export function updateEventSegments(item: any, collection: any): any {
           label: prop.name,
         });
       });
+    } else {
+      if (prop.type === 'date') {
+        console.log('[updateEventSegments] PAS DE SEGMENT pour', prop.id, 'car item[prop.id] absent:', item[prop.id]);
+      }
     }
   });
   return { ...item, _eventSegments: segments };

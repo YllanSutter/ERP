@@ -26,6 +26,7 @@ export interface TableItemRowProps {
   canEditField: (fieldId: string) => boolean;
   paddingLeft?: number;
   animate?: boolean;
+  collection?:any
 }
 
 const TableItemRow: React.FC<TableItemRowProps> = ({
@@ -39,6 +40,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
   onNavigateToCollection,
   canEdit,
   canEditField,
+  collection,
   paddingLeft = 24,
   animate = true,
 }) => {
@@ -85,6 +87,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                 onRelationChange={onRelationChange}
                 onNavigateToCollection={onNavigateToCollection}
                 readOnly={!canEdit || !canEditField(prop.id)}
+                collection={collection}
               />
             </td>
           ))}
@@ -131,6 +134,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                     onRelationChange={onRelationChange}
                     onNavigateToCollection={onNavigateToCollection}
                     readOnly={false}
+                    collection={collection}
                   />
                 </div>
                 

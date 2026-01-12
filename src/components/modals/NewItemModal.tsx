@@ -78,6 +78,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   }
 
   const [formData, setFormData] = useState(getInitialFormData());
+  // console.log(collection);
   // Détection des champs date/durée pour calcul automatique des plages horaires
   const handleChange = (propId: string, value: any) => {
     setFormData({ ...formData, [propId]: value });
@@ -202,6 +203,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       onChange={(val) => handleChange(prop.id, val)}
                       size="md"
                       collections={collections}
+                      collection={collection}
                       currentItem={formData}
                       onRelationChange={(property, item, value) => {
                         if (property.type === 'relation' || property.type === 'multi_select') {
@@ -245,6 +247,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                         onChange={(val) => handleChange(prop.id, val)}
                         size="md"
                         collections={collections}
+                        collection={collection}
                         currentItem={formData}
                         onRelationChange={(property, item, value) => {
                           setFormData({ ...formData, [property.id]: value });
@@ -259,29 +262,14 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   activeTab === `_eventSegments_${dateProp.id}` && (
                     <div key={`_eventSegments_${dateProp.id}`}>
                       <label className="block text-sm font-medium text-neutral-300 mb-2">Plages horaires pour {dateProp.name}</label>
-                      {/* Calcul dynamique des sous-plages pour ce champ date */}
+                      {/* Affichage des segments déjà présents dans l'objet (depuis la BDD) */}
                       {(() => {
-                        const dateValue = formData[dateProp.id];
-                        const durationValue =
-                          formData[`${dateProp.id}_duration`] !== undefined && formData[`${dateProp.id}_duration`] !== null && formData[`${dateProp.id}_duration`] !== ''
-                            ? formData[`${dateProp.id}_duration`]
-                            : (dateProp.defaultDuration ?? 1);
-                        if (!dateValue) return <div className="text-neutral-500 text-xs">Aucune plage horaire calculée (remplir la date et la durée)</div>;
-                        const itemForCalc = {
-                          startDate: dateValue,
-                          durationHours: Number(durationValue),
-                        };
-                        const segments = splitEventByWorkdays(itemForCalc, {
-                          startCal: workDayStart,
-                          endCal: workDayEnd,
-                          breakStart,
-                          breakEnd,
-                        });
-                        if (!segments || segments.length === 0) return <div className="text-neutral-500 text-xs">Aucune plage horaire calculée</div>;
+                        const segments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
+                        if (!segments || segments.length === 0) return <div className="text-neutral-500 text-xs">Aucune plage horaire enregistrée</div>;
                         // Grouper par jour
                         const segmentsByDay: Record<string, any[]> = {};
                         segments.forEach((seg: any) => {
-                          const dayKey = new Date(seg.__eventStart).toLocaleDateString('fr-FR');
+                          const dayKey = new Date(seg.start || seg.__eventStart).toLocaleDateString('fr-FR');
                           if (!segmentsByDay[dayKey]) segmentsByDay[dayKey] = [];
                           segmentsByDay[dayKey].push(seg);
                         });
@@ -293,9 +281,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                 <ul className="space-y-2">
                                   {segs.map((seg: any, idx: number) => (
                                     <li key={idx} className="p-2 rounded bg-white/5 border border-white/10">
-                                      <span className="font-mono text-xs text-neutral-300">{new Date(seg.__eventStart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                      <span className="font-mono text-xs text-neutral-300">{new Date(seg.start || seg.__eventStart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                                       {' '}→{' '}
-                                      <span className="font-mono text-xs text-neutral-300">{new Date(seg.__eventEnd).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                      <span className="font-mono text-xs text-neutral-300">{new Date(seg.end || seg.__eventEnd).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                                     </li>
                                   ))}
                                 </ul>
