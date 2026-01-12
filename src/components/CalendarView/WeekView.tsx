@@ -167,42 +167,76 @@ const WeekView: React.FC<WeekViewProps> = ({
               {hours.map((hour) => (
                 <div key={`${dayIndex}-${hour}`} className={cn('h-24 border-b border-l border-white/5 transition-colors bg-neutral-900/30 hover:bg-neutral-800/30')} />
               ))}
-              {dayEvents.map(({ item, segment, dayIndex, multiDayIndex }) => {
-                // Prépare le segment pour WeekEventCard
-                const segStart = new Date(segment.start || segment.__eventStart);
-                const segEnd = new Date(segment.end || segment.__eventEnd);
-                const startTime = segStart.getHours() + segStart.getMinutes() / 60;
-                const endTime = segEnd.getHours() + segEnd.getMinutes() / 60;
-                const colors = getItemColor(item.id);
-                const visibleMetaFields = collections.find(c => c.id === item.__collectionId)?.properties.filter((p: any) => !hiddenFields.includes(p.id));
-                // On passe le segment courant dans eventSegments
-                const eventSegments = [{
-                  start: startTime,
-                  end: endTime,
-                  label: segment.label || undefined
-                }];
+              {dayEvents
+                  // Filtre les segments pour n'afficher que ceux dont le label correspond au champ de date sélectionné
+                  .filter(({ item, segment }) => {
+                    const dateField = getDateFieldForItem ? getDateFieldForItem(item) : null;
+                    if (!dateField) return false;
+                    const labelToMatch = dateField.name;
 
-                return (
-                  <WeekEventCard
-                    key={`${item.id}-seg-${multiDayIndex}`}
-                    item={item}
-                    eventSegments={eventSegments}
-                    multiDayIndex={multiDayIndex}
-                    column={0}
-                    totalColumns={1}
-                    colors={colors}
-                    startHour={startHour}
-                    endHour={endHour}
-                    hoursLength={hours.length}
-                    visibleMetaFields={visibleMetaFields}
-                    collections={collections}
-                    getNameValue={getNameValue}
-                    onViewDetail={() => onViewDetail(item)}
-                    onReduceDuration={() => {}}
-                    onEventDrop={onEventDrop}
-                  />
-                );
-              })}
+                    console.log(dateField.id);
+                    return segment.label === labelToMatch;
+                    
+                  })
+                  .map(({ item, segment, dayIndex, multiDayIndex }, idx, arr) => {
+
+                    console.log('test');
+                    if (idx === 0) {
+                      const affiches = arr.filter(({ item, segment }) => {
+                        const dateField = getDateFieldForItem ? getDateFieldForItem(item) : null;
+                    console.log(dateField.id);
+                        if (!dateField) return false;
+                        const labelToMatch = dateField.id;
+
+                        return segment.label === labelToMatch;
+                      }).map(({ item, segment }) => {
+                        const dateField = getDateFieldForItem ? getDateFieldForItem(item) : undefined;
+                        const dateFieldId = dateField?.id;
+                        return {
+                          id: item.id,
+                          name: item.name,
+                          date: dateFieldId,
+                          value: dateFieldId ? item[dateFieldId] : undefined,
+                          segmentLabel: segment.label
+                        };
+                      });
+                      console.log('[WeekView] éléments affichés pour ce jour:', affiches);
+                    }
+                    // Prépare le segment pour WeekEventCard
+                    const segStart = new Date(segment.start || segment.__eventStart);
+                    const segEnd = new Date(segment.end || segment.__eventEnd);
+                    const startTime = segStart.getHours() + segStart.getMinutes() / 60;
+                    const endTime = segEnd.getHours() + segEnd.getMinutes() / 60;
+                    const colors = getItemColor(item.id);
+                    const visibleMetaFields = collections.find(c => c.id === item.__collectionId)?.properties.filter((p: any) => !hiddenFields.includes(p.id));
+                    // On passe le segment courant dans eventSegments
+                    const eventSegments = [{
+                      start: startTime,
+                      end: endTime,
+                      label: segment.label || undefined
+                    }];
+
+                    return (
+                      <WeekEventCard
+                        key={`${item.id}-seg-${multiDayIndex}`}
+                        item={item}
+                        eventSegments={eventSegments}
+                        multiDayIndex={multiDayIndex}
+                        column={0}
+                        totalColumns={1}
+                        colors={colors}
+                        startHour={startHour}
+                        endHour={endHour}
+                        hoursLength={hours.length}
+                        visibleMetaFields={visibleMetaFields}
+                        collections={collections}
+                        getNameValue={getNameValue}
+                        onViewDetail={() => onViewDetail(item)}
+                        onReduceDuration={() => {}}
+                        onEventDrop={onEventDrop}
+                      />
+                    );
+                  })}
             </div>
           );
         })}

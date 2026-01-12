@@ -1,4 +1,25 @@
 import { ColorSet, EventStyle, calculateEventPosition, formatTimeDisplay, formatFieldValue as formatFieldValueUtil, splitEventByWorkdays } from '@/lib/calendarUtils';
+
+// Génère une couleur unique à partir de l'id
+function colorFromId(id: string): ColorSet {
+  // Simple hash pour générer une couleur
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  // Palette de couleurs pastel
+  const colors = [
+    '#A3E635', '#FBBF24', '#38BDF8', '#F472B6', '#F87171', '#34D399', '#818CF8', '#F9A8D4', '#FACC15', '#60A5FA', '#FCA5A5', '#4ADE80', '#FDE68A', '#A7F3D0', '#C4B5FD'
+  ];
+  const idx = Math.abs(hash) % colors.length;
+  const bg = colors[idx];
+  return {
+  border: bg,
+  bg: bg + '22', // couleur pastel + transparence
+  hover: bg + '44',
+  text: ''
+};
+}
 import React, { Fragment } from 'react';
 import {
   ContextMenu,
@@ -55,6 +76,9 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   const space = 6;
   const widthPercent = ((1 / totalColumns) * 100) - space;
   const leftPercent = (column * widthPercent) + (space/2);
+
+  // Utilise la couleur générée par l'id de l'objet
+  const objectColors = colorFromId(item.id);
 
   const handleDragStart = (e: React.DragEvent) => {
     const dragEvent = e as unknown as DragEvent;
@@ -116,11 +140,11 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
               left: `${leftPercent}%`,
               width: `${widthPercent}%`,
               minHeight: '24px',
-              borderLeft: `4px solid ${colors.border}`,
-              backgroundColor: colors.bg,
+              borderLeft: `4px solid ${objectColors.border}`,
+              backgroundColor: objectColors.bg,
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.hover)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.bg)}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = objectColors.hover)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = objectColors.bg)}
             onClick={() => onViewDetail(item)}
             onDragStart={(e: any) => handleDragStart(e)}
             onDragEnd={(e: any) => handleDragEnd(e)}

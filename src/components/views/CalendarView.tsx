@@ -123,11 +123,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const selectedCollections = useMemo(() => collections.filter(col => selectedCollectionIds.includes(col.id)), [collections, selectedCollectionIds]);
 
 
-  // Fusionne tous les items des collections sélectionnées, en ajoutant __collectionId si besoin
+  // Fusionne tous les items filtrés des collections sélectionnées, en ajoutant __collectionId si besoin
   const mergedItems = useMemo(() => {
-    // Toujours fusionner tous les items des collections sélectionnées, ignorer la prop items
-    const result = selectedCollections.flatMap(col => col.items.map((it: any) => ({ ...it, __collectionId: col.id })));
-    console.log('mergedItems (all selected collections):', result);
+    // On utilise getFilteredItems si disponible sur la collection
+    const result = selectedCollections.flatMap(col => {
+      if (typeof col.getFilteredItems === 'function') {
+        return col.getFilteredItems().map((it: any) => ({ ...it, __collectionId: col.id }));
+      }
+      // fallback : items non filtrés
+      return col.items.map((it: any) => ({ ...it, __collectionId: col.id }));
+    });
+    console.log('mergedItems (filtered):', result);
     return result;
   }, [selectedCollections]);
 

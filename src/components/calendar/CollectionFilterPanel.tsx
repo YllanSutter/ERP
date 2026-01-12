@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { LightMultiSelect } from '../inputs/LightMultiSelect';
 
@@ -28,7 +27,9 @@ const CollectionFilterPanel: React.FC<FilterModalProps> = ({
 
   // Gestion locale des filtres
   const handleFilterChange = (fieldId: string, value: any) => {
-    setFilters({ ...filters, [fieldId]: value });
+    const newFilters = { ...filters, [fieldId]: value };
+    // console.log('[CollectionFilterPanel] filtre changé', fieldId, value, newFilters);
+    setFilters(newFilters);
   };
 
 const FILTERS_KEY = 'erp_collection_filters';
@@ -67,12 +68,26 @@ const DATEFIELD_KEY = 'erp_collection_datefield';
     }
   }, [dateField]);
 
+  // Ajoute un log sur le changement de champ date
+  const handleDateFieldChange = (fieldId: string) => {
+    setDateField(fieldId);
+    // Liste complète des champs date + ceux sélectionnés dans les filtres
+    const allDateFields = collections.map(col => ({
+      collection: col.name,
+      dateFields: col.properties.filter((p: any) => p.type === 'date' || p.type === 'date_range').map((f: any) => ({ id: f.id, name: f.name })),
+      selected: typeof col.dateField === 'string' ? col.dateField : (col.id === collection.id ? fieldId : null)
+    }));
+    console.log('[CollectionFilterPanel] dateField changé:', fieldId, {
+      collection: collection.name,
+      dateFields: allDateFields
+    });
+  };
 
   return (
     <div className="flex gap-8 items-center">
       <div className="flex gap-2 items-center flex-wrap">
         <label>Champ date de référence&nbsp;:</label>
-        <select className="border border-white/10 rounded px-2 py-1 bg-neutral-900 text-white" value={dateField || ''} onChange={e => setDateField(e.target.value)}>
+        <select className="border border-white/10 rounded px-2 py-1 bg-neutral-900 text-white" value={dateField || ''} onChange={e => handleDateFieldChange(e.target.value)}>
           <option value="">-- Choisir --</option>
           {dateFields.map((field: any) => (
             <option key={field.id} value={field.id}>{field.name}</option>
