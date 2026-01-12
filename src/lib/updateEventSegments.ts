@@ -14,21 +14,32 @@ export function updateEventSegments(item: any, collection: any): any {
     if (prop.type === 'date' && item[prop.id]) {
       // Cherche la durée associée
       const durationProp = collection.properties.find((p: any) => p.id === `${prop.id}_duration`);
-      const duration = durationProp && item[durationProp.id] ? Number(item[durationProp.id]) : 1;
+      let duration: number | undefined = undefined;
+      if (durationProp && item.hasOwnProperty(durationProp.id) && item[durationProp.id] !== undefined && item[durationProp.id] !== null && item[durationProp.id] !== '') {
+        duration = Number(item[durationProp.id]);
+      } else if (prop.defaultDuration !== undefined && prop.defaultDuration !== null && prop.defaultDuration !== '') {
+        duration = Number(prop.defaultDuration);
+      }
+      // DEBUG : log de la durée et de l'objet transmis à splitEventByWorkdays
+      console.log('[updateEventSegments] prop:', prop.id, 'date:', item[prop.id], 'duration:', duration);
+      // Si la durée est absente, nulle ou non numérique, on ne génère pas de segment
+      if (duration === undefined || isNaN(duration) || duration <= 0) return;
       const itemForCalc = {
         startDate: item[prop.id],
         durationHours: duration,
       };
+      console.log('[updateEventSegments] itemForCalc:', itemForCalc);
       const segs = splitEventByWorkdays(itemForCalc, {
         startCal: workDayStart,
         endCal: workDayEnd,
         breakStart,
         breakEnd,
       });
+      console.log('[updateEventSegments] segs:', segs);
       segs.forEach(seg => {
         segments.push({
-          start: seg.__eventStart,
-          end: seg.__eventEnd,
+          start: seg.__eventStart instanceof Date ? seg.__eventStart.toISOString() : seg.__eventStart,
+          end: seg.__eventEnd instanceof Date ? seg.__eventEnd.toISOString() : seg.__eventEnd,
           label: prop.name,
         });
       });

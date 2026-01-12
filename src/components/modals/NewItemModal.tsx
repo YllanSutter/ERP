@@ -23,7 +23,6 @@ import { Star } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { splitEventByWorkdays, workDayStart, workDayEnd, breakStart, breakEnd } from '@/lib/calendarUtils';
-import { updateEventSegments } from '@/lib/updateEventSegments';
 import { cn } from '@/lib/utils';
 
 interface NewItemModalProps {
@@ -61,11 +60,18 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   function getInitialFormData() {
     if (editingItem) return editingItem;
     const data: any = {};
-    (orderedProperties && orderedProperties.length > 0 ? orderedProperties : collection.properties).forEach((prop: any) => {
+    const props = orderedProperties && orderedProperties.length > 0 ? orderedProperties : collection.properties;
+    props.forEach((prop: any) => {
       if (prop.defaultValue !== undefined && prop.defaultValue !== null) {
         data[prop.id] = prop.defaultValue;
       } else if (prop.type === 'date') {
         data[prop.id] = getRoundedNow().toISOString();
+      }
+    });
+    // Pour chaque champ *_duration, si pas de valeur, injecte la valeur par défaut
+    props.forEach((prop: any) => {
+      if (prop.id.endsWith('_duration') && data[prop.id] === undefined && prop.defaultValue !== undefined && prop.defaultValue !== null) {
+        data[prop.id] = prop.defaultValue;
       }
     });
     return data;
@@ -74,10 +80,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const [formData, setFormData] = useState(getInitialFormData());
   // Détection des champs date/durée pour calcul automatique des plages horaires
   const handleChange = (propId: string, value: any) => {
-    const newForm = { ...formData, [propId]: value };
-    // Met à jour _eventSegments pour tous les champs date/durée
-    const updated = updateEventSegments(newForm, collection);
-    setFormData(updated);
+    setFormData({ ...formData, [propId]: value });
   };
 
   const isFavorite = favorites && editingItem ? favorites.items.includes(editingItem.id) : false;
@@ -259,7 +262,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       {/* Calcul dynamique des sous-plages pour ce champ date */}
                       {(() => {
                         const dateValue = formData[dateProp.id];
-                        const durationValue = formData[`${dateProp.id}_duration`] || 1;
+                        const durationValue =
+                          formData[`${dateProp.id}_duration`] !== undefined && formData[`${dateProp.id}_duration`] !== null && formData[`${dateProp.id}_duration`] !== ''
+                            ? formData[`${dateProp.id}_duration`]
+                            : (dateProp.defaultDuration ?? 1);
                         if (!dateValue) return <div className="text-neutral-500 text-xs">Aucune plage horaire calculée (remplir la date et la durée)</div>;
                         const itemForCalc = {
                           startDate: dateValue,
@@ -307,7 +313,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         </div>
         <div className="flex gap-3 mt-8">
           <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton onClick={() => onSave(updateEventSegments(formData, collection))} className="flex-1">{editingItem ? 'Modifier' : 'Créer'}</ShinyButton>
+          <ShinyButton onClick={() => onSave(formData)} className="flex-1">{editingItem ? 'Modifier' : 'Créer'}</ShinyButton>
         </div>
       </motion.div>
     </div>

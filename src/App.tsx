@@ -9,7 +9,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
   const result: Record<string, any> = {};
   for (const key in obj) {
     if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
-    if (key.startsWith('_')) continue;
+    // On NE filtre plus les clés commençant par _ pour garder _eventSegments
     const val = cleanForSave(obj[key], seen);
     if (val !== undefined) result[key] = val;
   }

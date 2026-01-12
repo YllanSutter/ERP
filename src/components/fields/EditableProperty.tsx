@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { workDayStart, workDayEnd } from '@/lib/calendarUtils';
+import { updateEventSegments } from '@/lib/updateEventSegments';
 
 interface EditablePropertyProps {
   property: any;
@@ -110,7 +111,6 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     const selectedDate = value ? new Date(value) : undefined;
     const durationKey = `${property.id}_duration`;
     const currentDuration = currentItem?.[durationKey] || property.defaultDuration || 1;
-    
 
     // Time wheel picker (heures/minutes, pas de 15min, borné)
     const getTimeOptions = () => {
@@ -132,6 +132,34 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     const timeOptions = getTimeOptions();
     const currentTime = value ? format(new Date(value), 'HH:mm') : `${String(workDayStart).padStart(2, '0')}:00`;
 
+    // Nouvelle logique : onChange met à jour _eventSegments si champ date
+    const handleDateChange = (newDateIso: string) => {
+      if (!collections || !currentItem) return;
+      const collection = collections.find((c: any) => c.id === currentItem.__collectionId) || collections[0];
+      const updated = updateEventSegments({ ...currentItem, [property.id]: newDateIso }, collection);
+      if (typeof onChange === 'function') {
+        // On transmet l'objet complet si possible
+        onChange(updated[property.id]);
+      }
+      if (typeof onRelationChange === 'function') {
+        onRelationChange(property, updated, newDateIso);
+      }
+    };
+
+    // Ajout : handleChange pour centraliser la logique de mise à jour _eventSegments pour date/durée
+    const handleChange = (propId: string, val: any) => {
+      if (!collections || !currentItem) return;
+      const collection = collections.find((c: any) => c.id === currentItem.__collectionId) || collections[0];
+      const newItem = { ...currentItem, [propId]: val };
+      const updated = updateEventSegments(newItem, collection);
+      if (typeof onChange === 'function') {
+        onChange(updated[property.id]);
+      }
+      if (typeof onRelationChange === 'function') {
+        onRelationChange(property, updated, val);
+      }
+    };
+
     return (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -148,7 +176,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
             {value ? format(selectedDate!, 'dd MMM yyyy HH:mm', { locale: fr }) : 'Choisir une date et heure'}
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 bg-neutral-900 border-neutral-700" align="start">
+        <PopoverContent className="w-auto p-0 bg-neutral-900 border-neutral-700" align="start" {...(typeof undefined !== 'boolean' ? {} : { modal: undefined })}>
           <div className="flex flex-row gap-4 p-3">
             {/* Durée (picker vertical style heure) */}
             {onRelationChange && currentItem && (
@@ -159,7 +187,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                     value={currentDuration}
                     onChange={e => {
                       const newDuration = parseFloat(e.target.value) || 1;
-                      onRelationChange(property, { ...currentItem, [durationKey]: newDuration }, value);
+                      handleChange(durationKey, newDuration);
                     }}
                     className="w-full h-50 text-center bg-neutral-900 border-r border-white/10 text-white text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
                     size={9}
@@ -195,7 +223,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                   } else {
                     date.setHours(9, 0);
                   }
-                  onChange(date.toISOString());
+                  handleDateChange(date.toISOString());
                 }
               }}
               initialFocus
@@ -211,7 +239,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                     const [hours, minutes] = e.target.value.split(':');
                     const d = value ? new Date(value) : new Date();
                     d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-                    onChange(d.toISOString());
+                    handleChange(property.id, d.toISOString());
                   }}
                   className="w-full h-50 text-center bg-neutral-900 border-l border-white/10  text-white text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
                   size={9}

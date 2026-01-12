@@ -607,6 +607,17 @@ app.post('/api/state', requireAuth, async (req, res) => {
     // Séparer les favoris du reste de l'état
     const { favorites, ...stateData } = payload;
     const collections = stateData.collections || [];
+
+    // DEBUG: Log les _eventSegments de chaque item avant sauvegarde
+    for (const col of collections) {
+      if (col.items) {
+        for (const item of col.items) {
+          if (item._eventSegments) {
+            console.log(`[SAVE] item ${item.id} _eventSegments:`, item._eventSegments);
+          }
+        }
+      }
+    }
     
     // Vérifier les permissions pour les collections
     for (const col of collections) {
