@@ -109,7 +109,20 @@ const WeekView: React.FC<WeekViewProps> = ({
         {weekDays.map((date, dayIndex) => {
           const dateStr = toDateKey(date);
           const dayEvents = eventsByDay[dateStr] || [];
-          const layoutEvents = getEventLayoutLocal(dayEvents, 0);
+          // Ajoute la propriété style à chaque event pour getEventLayout, ignore si pas de dateField
+          const dayEventsWithStyle = dayEvents
+            .map(ev => {
+              const dateField = getDateFieldForItem
+                ? getDateFieldForItem(ev.item)
+                : (collections.find(c => c.id === ev.item.__collectionId)?.properties.find((p: any) => p.type === 'date'));
+              if (!dateField) return null;
+              return {
+                ...ev,
+                style: getEventStyle(ev.item, dateField, defaultDuration, endHour)
+              };
+            })
+            .filter(Boolean);
+          const layoutEvents = getEventLayoutLocal(dayEventsWithStyle, 0);
           const handleDayDragOver = (e: React.DragEvent) => {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';

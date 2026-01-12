@@ -138,8 +138,8 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       const collection = collections.find((c: any) => c.id === currentItem.__collectionId) || collections[0];
       const updated = updateEventSegments({ ...currentItem, [property.id]: newDateIso }, collection);
       if (typeof onChange === 'function') {
-        // On transmet l'objet complet si possible
-        onChange(updated[property.id]);
+        // On transmet l'objet complet (pour la sauvegarde en BDD et la propagation des segments)
+        onChange(updated);
       }
       if (typeof onRelationChange === 'function') {
         onRelationChange(property, updated, newDateIso);
@@ -153,7 +153,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       const newItem = { ...currentItem, [propId]: val };
       const updated = updateEventSegments(newItem, collection);
       if (typeof onChange === 'function') {
-        onChange(updated[property.id]);
+        onChange(updated);
       }
       if (typeof onRelationChange === 'function') {
         onRelationChange(property, updated, val);
