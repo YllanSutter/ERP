@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 // Mini composant Tabs local
 function Tabs({ tabs, active, onTab, className = "" }: { tabs: string[], active: string, onTab: (tab: string) => void, className?: string }) {
   return (
-    <div className={"flex gap-2 border-b border-white/10 mb-4 " + className}>
+    <div className={"flex gap-2 border-b border-white/10 mb-4 flex-wrap " + className}>
       {tabs.map(tab => (
         <button
           key={tab}
@@ -22,6 +22,7 @@ import { motion } from 'framer-motion';
 import { Star } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { splitEventByWorkdays, workDayStart, workDayEnd, breakStart, breakEnd } from '@/lib/calendarUtils';
 import { cn } from '@/lib/utils';
 
 interface NewItemModalProps {
@@ -70,8 +71,36 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   }
 
   const [formData, setFormData] = useState(getInitialFormData());
+  // Détection des champs date/durée pour calcul automatique des plages horaires
   const handleChange = (propId: string, value: any) => {
-    setFormData({ ...formData, [propId]: value });
+    const newForm = { ...formData, [propId]: value };
+    // Recherche du champ date et durée
+    const dateProp = propsList.find((p: any) => p.type === 'date');
+    const durationProp = propsList.find((p: any) => p.id === (dateProp ? `${dateProp.id}_duration` : ''));
+    if (dateProp && newForm[dateProp.id]) {
+      // Durée en heures
+      let duration = 1;
+      if (durationProp && newForm[durationProp.id]) duration = Number(newForm[durationProp.id]);
+      // Création d'un objet item minimal pour le calcul
+      const itemForCalc = {
+        startDate: newForm[dateProp.id],
+        durationHours: duration,
+      };
+      // Calcul des segments horaires
+      const segments = splitEventByWorkdays(itemForCalc, {
+        startCal: workDayStart,
+        endCal: workDayEnd,
+        breakStart,
+        breakEnd,
+      });
+      newForm._eventSegments = segments.map(seg => ({
+        start: seg.__eventStart,
+        end: seg.__eventEnd,
+      }));
+    } else {
+      newForm._eventSegments = [];
+    }
+    setFormData(newForm);
   };
 
   const isFavorite = favorites && editingItem ? favorites.items.includes(editingItem.id) : false;
@@ -80,8 +109,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const propsList = orderedProperties && orderedProperties.length > 0 ? orderedProperties : collection.properties;
   const classicProps = propsList.filter((p: any) => p.type !== 'relation');
   const relationProps = propsList.filter((p: any) => p.type === 'relation');
-
-  const [activeTab, setActiveTab] = useState(relationProps[0]?.id || '');
+  // Pour chaque champ de type 'date', créer un onglet dédié aux plages horaires
+  const dateProps = propsList.filter((p: any) => p.type === 'date');
+  const extraTabs = [
+    ...relationProps.map((p: any) => ({ id: p.id, name: p.name, type: 'relation' })),
+    ...dateProps.map((p: any) => ({ id: `_eventSegments_${p.id}`, name: `${p.name}`, type: 'segments', dateProp: p })),
+  ];
+  const [activeTab, setActiveTab] = useState(extraTabs[0]?.id || '');
 
   return (
     <div
@@ -205,19 +239,20 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           </div>
           {/* Partie droite : relations sous forme d'onglets */}
           <div className="flex-1 min-w-[0] pl-2">
-            {relationProps.length === 0 ? (
+            {extraTabs.length === 0 ? (
               <div className="text-neutral-500 text-sm">Aucune relation</div>
             ) : (
               <>
                 <Tabs
-                  tabs={relationProps.map((p: any) => p.name)}
-                  active={relationProps.find((p: any) => p.id === activeTab)?.name || relationProps[0].name}
+                  tabs={extraTabs.map((p: any) => p.name)}
+                  active={extraTabs.find((p: any) => p.id === activeTab)?.name || extraTabs[0].name}
                   onTab={tabName => {
-                    const found = relationProps.find((p: any) => p.name === tabName);
+                    const found = extraTabs.find((p: any) => p.name === tabName);
                     if (found) setActiveTab(found.id);
                   }}
                   className="mb-2"
                 />
+                {/* Onglets relations */}
                 {relationProps.map((prop: any) => (
                   prop.id === activeTab && (
                     <div key={prop.id}>
@@ -236,6 +271,56 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                         }}
                         readOnly={false}
                       />
+                    </div>
+                  )
+                ))}
+                {/* Onglets plages horaires par champ date */}
+                {dateProps.map((dateProp: any) => (
+                  activeTab === `_eventSegments_${dateProp.id}` && (
+                    <div key={`_eventSegments_${dateProp.id}`}>
+                      <label className="block text-sm font-medium text-neutral-300 mb-2">Plages horaires pour {dateProp.name}</label>
+                      {/* Calcul dynamique des sous-plages pour ce champ date */}
+                      {(() => {
+                        const dateValue = formData[dateProp.id];
+                        const durationValue = formData[`${dateProp.id}_duration`] || 1;
+                        if (!dateValue) return <div className="text-neutral-500 text-xs">Aucune plage horaire calculée (remplir la date et la durée)</div>;
+                        const itemForCalc = {
+                          startDate: dateValue,
+                          durationHours: Number(durationValue),
+                        };
+                        const segments = splitEventByWorkdays(itemForCalc, {
+                          startCal: workDayStart,
+                          endCal: workDayEnd,
+                          breakStart,
+                          breakEnd,
+                        });
+                        if (!segments || segments.length === 0) return <div className="text-neutral-500 text-xs">Aucune plage horaire calculée</div>;
+                        // Grouper par jour
+                        const segmentsByDay: Record<string, any[]> = {};
+                        segments.forEach((seg: any) => {
+                          const dayKey = new Date(seg.__eventStart).toLocaleDateString('fr-FR');
+                          if (!segmentsByDay[dayKey]) segmentsByDay[dayKey] = [];
+                          segmentsByDay[dayKey].push(seg);
+                        });
+                        return (
+                          <div className="space-y-4">
+                            {Object.entries(segmentsByDay).map(([day, segs]) => (
+                              <div key={day}>
+                                <div className="font-semibold text-sm text-violet-300 mb-1">{day}</div>
+                                <ul className="space-y-2">
+                                  {segs.map((seg: any, idx: number) => (
+                                    <li key={idx} className="p-2 rounded bg-white/5 border border-white/10">
+                                      <span className="font-mono text-xs text-neutral-300">{new Date(seg.__eventStart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                      {' '}→{' '}
+                                      <span className="font-mono text-xs text-neutral-300">{new Date(seg.__eventEnd).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )
                 ))}

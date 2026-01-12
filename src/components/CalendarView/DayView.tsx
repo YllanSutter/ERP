@@ -12,13 +12,14 @@ import {
 interface DayViewProps {
   currentDate: Date;
   items: any[];
-  dateField: any;
-  collection: any;
+  dateField?: any;
+  collection?: any;
   onDelete: (id: string) => void;
   onEdit: (item: any) => void;
   onViewDetail: (item: any) => void;
   hiddenFields?: string[];
   getNameValue: (item: any) => string;
+  getDateFieldForItem?: (item: any) => any;
   startHour?: number;
   endHour?: number;
   defaultDuration?: number; // in hours

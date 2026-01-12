@@ -23,20 +23,20 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
     'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
     'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
   ];
-  const getMonday = (date) => {
+  const getMonday = (date: string | number | Date) => {
     const d = new Date(date);
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     return new Date(d.setDate(diff));
   };
-  const getPreviousPeriod = (date, mode) => {
+  const getPreviousPeriod = (date: string | number | Date, mode: string) => {
     const d = new Date(date);
     if (mode === 'month') d.setMonth(d.getMonth() - 1);
     else if (mode === 'week') d.setDate(d.getDate() - 7);
     else d.setDate(d.getDate() - 1);
     return d;
   };
-  const getNextPeriod = (date, mode) => {
+  const getNextPeriod = (date: string | number | Date, mode: string) => {
     const d = new Date(date);
     if (mode === 'month') d.setMonth(d.getMonth() + 1);
     else if (mode === 'week') d.setDate(d.getDate() + 7);
@@ -54,11 +54,12 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   };
   const [viewMode, setViewMode] = useState(getInitialViewMode());
   const [currentDate, setCurrentDate] = useState(new Date());
-  const setViewModePersist = (mode) => {
+  const setViewModePersist = (mode: React.SetStateAction<string>) => {
     setViewMode(mode);
     if (typeof window !== 'undefined') {
       try {
-        window.localStorage.setItem('calendarViewMode', mode);
+        const modeValue = typeof mode === 'function' ? mode(viewMode) : mode;
+        window.localStorage.setItem('calendarViewMode', modeValue);
       } catch {}
     }
   };
@@ -244,8 +245,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
             const nameField = col.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
             return nameField ? item[nameField.id] : item.name || 'Sans titre';
           }}
-          getItemsForDate={() => []}
-          getDateFieldForItem={(item) => {
+          getDateFieldForItem={(item: { __collectionId: any; }) => {
             const col = collections.find(c => c.id === item.__collectionId);
             if (!col) return undefined;
             const dateFieldId = dateFields[col.id];
