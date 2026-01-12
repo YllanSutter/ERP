@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MonthView from '../CalendarView/MonthView';
 import DayView from '../CalendarView/DayView';
 import CollectionFilterPanel from './CollectionFilterPanel';
@@ -73,6 +73,35 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   // État des filtres et du champ date par collection
   const [filters, setFilters] = useState<Record<string, any>>({});
   const [dateFields, setDateFields] = useState<Record<string, string>>({});
+
+  // --- Initialisation des filtres et dateFields au montage ---
+  useEffect(() => {
+    if (!collections || collections.length === 0) return;
+    const newFilters: Record<string, any> = {};
+    const newDateFields: Record<string, string> = {};
+    collections.forEach(col => {
+      // Récupère les clés locales
+      const filtersKey = `erp_collection_filters_${col.id}`;
+      const dateFieldKey = `erp_collection_datefield_${col.id}`;
+      // Filtres
+      const savedFilters = localStorage.getItem(filtersKey);
+      if (savedFilters) {
+        try {
+          const parsed = JSON.parse(savedFilters);
+          if (parsed && typeof parsed === 'object') {
+            newFilters[col.id] = parsed;
+          }
+        } catch {}
+      }
+      // Champ date
+      const savedDateField = localStorage.getItem(dateFieldKey);
+      if (savedDateField && savedDateField !== '') {
+        newDateFields[col.id] = savedDateField;
+      }
+    });
+    setFilters(newFilters);
+    setDateFields(newDateFields);
+  }, [collections]);
 
   // Filtrage des items par collection
   const getFilteredItems = (collection: any) => {
