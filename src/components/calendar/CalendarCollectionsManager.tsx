@@ -10,6 +10,9 @@ interface CalendarCollectionsManagerProps {
   defaultDuration?: number;
   startHour?: number;
   endHour?: number;
+  onViewDetail?: (item: any) => void;
+  onEdit?: (item: any) => void;
+  onDelete?: (id: string) => void;
 }
 
 const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
@@ -17,6 +20,9 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   defaultDuration = 1,
   startHour = 8,
   endHour = 20,
+  onViewDetail = () => {},
+  onEdit = () => {},
+  onDelete = () => {},
 }) => {
   // --- State pour la vue et la date courante ---
   const MONTH_NAMES = [
@@ -212,7 +218,6 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
         />
       ) : viewMode === 'week' ? (
         (() => {
-          console.log('[CalendarCollectionsManager] Rendu WeekView, items:', collections.flatMap(getFilteredItems));
           return (
             <WeekView
               currentDate={currentDate}
@@ -231,9 +236,9 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                 const dateFieldId = dateFields[col.id];
                 return col.properties.find((p: any) => p.id === dateFieldId);
               }}
-              onDelete={(id) => console.log('[WeekView] onDelete', id)}
-              onEdit={(item) => console.log('[WeekView] onEdit', item)}
-              onViewDetail={(item) => console.log('[WeekView] onViewDetail', item)}
+              onDelete={onDelete}
+              onEdit={onEdit}
+              onViewDetail={onViewDetail}
               defaultDuration={defaultDuration}
               startHour={startHour}
               endHour={endHour}
@@ -257,9 +262,9 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
             const dateFieldId = dateFields[col.id];
             return col.properties.find((p: any) => p.id === dateFieldId);
           }}
-          onDelete={() => {}}
-          onEdit={() => {}}
-          onViewDetail={() => {}}
+          onDelete={onDelete}
+          onEdit={onEdit}
+          onViewDetail={onViewDetail}
           defaultDuration={defaultDuration}
           startHour={startHour}
           endHour={endHour}

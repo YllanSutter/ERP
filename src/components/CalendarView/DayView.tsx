@@ -203,16 +203,7 @@ const DayView: React.FC<DayViewProps> = ({
                   <WeekEventCard
                     key={`${item.id}-seg-${multiDayIndex}`}
                     item={item}
-                    style={{
-                      startTimeInHours: startTime,
-                      endTimeInHours: endTime,
-                      startDate: segStart,
-                      endDate: segEnd,
-                      durationHours: endTime - startTime,
-                      hoursPerDay: endHour - startHour,
-                      daysSpanned: 1,
-                      hasBreak: hasBreakThisDay
-                    }}
+                    style={{ startTimeInHours: startTime, endTimeInHours: endTime, startDate: segStart, endDate: segEnd }}
                     multiDayIndex={multiDayIndex}
                     dayStartTime={startTime}
                     endHour={endHour}
@@ -229,10 +220,7 @@ const DayView: React.FC<DayViewProps> = ({
                     onViewDetail={() => onViewDetail(item)}
                     onReduceDuration={reduceDuration}
                     onEventDrop={onEventDrop}
-                    weekDayDate={currentDate}
-                    startCal={0}
-                    endCal={0}
-                  />
+                    weekDayDate={currentDate} startCal={0} endCal={0}                  />
                 );
             })}
             </div>

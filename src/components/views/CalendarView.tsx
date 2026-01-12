@@ -199,6 +199,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           defaultDuration={defaultDuration}
           startHour={startHour}
           endHour={endHour}
+          onViewDetail={onViewDetail}
+          onEdit={onEdit}
+          onDelete={onDelete}
         />
       </div>
     </motion.div>

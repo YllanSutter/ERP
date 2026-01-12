@@ -1,6 +1,13 @@
 import { ColorSet, EventStyle, calculateEventPosition, formatTimeDisplay, formatFieldValue as formatFieldValueUtil, splitEventByWorkdays } from '@/lib/calendarUtils';
 import React, { Fragment } from 'react';
-import ItemContextMenu from '@/components/menus/ItemContextMenu';
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuLabel,
+} from '@/components/ui/context-menu';
 import { motion } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
 
@@ -98,128 +105,134 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
       hoursLength
     );
     return (
-      <ItemContextMenu
-        item={item}
-        onViewDetail={onViewDetail}
-        onDelete={onReduceDuration ? () => onReduceDuration(item, duration) : () => {}}
-        canEdit={!!onReduceDuration}
-        quickEditProperties={[]}
-      >
-        <motion.div
-          ref={dragRef}
-          draggable={!!onEventDrop}
-          initial={false}
-          className={`absolute rounded-sm p-0.5 px-2 grid gap-2 items-start content-start transition-colors group text-xs overflow-hidden z-10 hover:opacity-80 ${onEventDrop ? 'cursor-move' : 'cursor-default'}`}
-          style={{
-            top: `${topOffset}px`,
-            height: `${heightPx}px`,
-            left: `${leftPercent}%`,
-            width: `${widthPercent}%`,
-            minHeight: '24px',
-            borderLeft: `4px solid ${colors.border}`,
-            backgroundColor: colors.bg,
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.hover)}
-          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.bg)}
-          onClick={() => onViewDetail(item)}
-          onDragStart={(e: any) => handleDragStart(e)}
-          onDragEnd={(e: any) => handleDragEnd(e)}
-        >
-          {/* Affichage du champ nom uniquement s'il est visible */}
-          {(() => {
-            const nameField = collections[0]?.properties?.find((p: any) => p.name === 'Nom' || p.id === 'name');
-            if (nameField && visibleMetaFields.some((f: any) => f.id === nameField.id)) {
-              return (
-                <div className="font-medium truncate">{getNameValue(item)}</div>
-              );
-            }
-            return null;
-          })()}
-          <div className="text-[10px] opacity-70 absolute right-1 top-1">
-            {(() => {
-              const startH = Math.floor(startTime);
-              const startM = Math.round((startTime - startH) * 60);
-              const endH = Math.floor(endTime);
-              const endM = Math.round((endTime - endH) * 60);
-              return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
-            })()}
-          </div>
-          {label && <div className="text-[9px] truncate">{label}</div>}
-          {/* ...affichage des autres champs comme avant... */}
-          {(() => {
-            const itemCollection = collections.find((col: any) => col.items?.some((it: any) => it.id === item.id)) || collections[0];
-            const collectionProps = itemCollection?.properties || [];
-            const visibleIds = visibleMetaFields.map((f: any) => f.id);
-            return collectionProps
-              .filter((p: any) => visibleIds.includes(p.id))
-              .map((field: any) => {
-                const value = item[field.id];
-                if (value === undefined || value === null || value === '') return null;
-                // MULTI-SELECT : badges colorés
-                if (field.type === 'multi_select' && Array.isArray(value)) {
-                  const options = field.options || [];
-                  return (
-                    <div key={field.id} className="flex items-center flex-wrap gap-1 text-[9px] truncate">
-                      <span className="mr-1">{field.name}:</span>
-                      {value.map((val: any, idx: number) => {
-                        const opt = options.find((o: any) => (typeof o === 'string' ? o === val : o.value === val || o.label === val));
-                        const color = opt?.color || opt?.bgColor || 'rgba(139,92,246,0.08)';
-                        const label = opt?.label || opt?.value || val;
-                        return (
-                          <span
-                            key={val + idx}
-                            className="px-2 py-0.5 rounded bg-white/10 inline-flex items-center gap-2"
-                          >
-                            <span>{label}</span>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  );
-                }
-                // SELECT : badge coloré
-                if (field.type === 'select') {
-                  const options = field.options || [];
-                  let val = value;
-                  let opt = options.find((o: any) => (typeof o === 'string' ? o === val : o.value === val || o.label === val));
-                  if (typeof val === 'object' && val !== null) {
-                    opt = options.find((o: any) => o.value === val.value || o.label === val.label);
-                    val = val.label || val.value;
-                  }
-                  const color = opt?.color || opt?.bgColor || 'rgba(139,92,246,0.08)';
-                  const label = opt?.label || opt?.value || val;
-                  return (
-                    <div key={field.id} className="flex items-center flex-wrap gap-1 text-[9px] truncate">
-                      <span className="mr-1">{field.name}:</span>
-                      <span
-                        className="px-2 py-0.5 text-xs rounded bg-white/10 inline-flex items-center gap-2"
-                        style={{ backgroundColor: color }}
-                      >
-                        <span>{label}</span>
-                      </span>
-                    </div>
-                  );
-                }
-                // AUTRES (fallback)
-                const val = formatFieldValueUtil(item, field, collections);
-                return val ? (
-                  <div key={field.id} className="text-[9px] truncate">
-                    {field.name}: {val}
-                  </div>
-                ) : null;
-              });
-          })()}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onReduceDuration(item, duration);
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <motion.div
+            ref={dragRef}
+            draggable={!!onEventDrop}
+            initial={false}
+            className={`absolute rounded-sm p-0.5 px-2 grid gap-2 items-start content-start transition-colors group text-xs overflow-hidden z-10 hover:opacity-80 ${onEventDrop ? 'cursor-move' : 'cursor-default'}`}
+            style={{
+              top: `${topOffset}px`,
+              height: `${heightPx}px`,
+              left: `${leftPercent}%`,
+              width: `${widthPercent}%`,
+              minHeight: '24px',
+              borderLeft: `4px solid ${colors.border}`,
+              backgroundColor: colors.bg,
             }}
-            className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.hover)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.bg)}
+            onClick={() => onViewDetail(item)}
+            onDragStart={(e: any) => handleDragStart(e)}
+            onDragEnd={(e: any) => handleDragEnd(e)}
           >
-            <Trash2 size={10} />
-          </button>
-        </motion.div>
-      </ItemContextMenu>
+            {/* Affichage du champ nom uniquement s'il est visible */}
+            {(() => {
+              const nameField = collections[0]?.properties?.find((p: any) => p.name === 'Nom' || p.id === 'name');
+              if (nameField && visibleMetaFields.some((f: any) => f.id === nameField.id)) {
+                return (
+                  <div className="font-medium truncate">{getNameValue(item)}</div>
+                );
+              }
+              return null;
+            })()}
+            <div className="text-[10px] opacity-70 absolute right-1 top-1">
+              {(() => {
+                const startH = Math.floor(startTime);
+                const startM = Math.round((startTime - startH) * 60);
+                const endH = Math.floor(endTime);
+                const endM = Math.round((endTime - endH) * 60);
+                return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
+              })()}
+            </div>
+            {label && <div className="text-[9px] truncate">{label}</div>}
+            {/* ...affichage des autres champs comme avant... */}
+            {(() => {
+              const itemCollection = collections.find((col: any) => col.items?.some((it: any) => it.id === item.id)) || collections[0];
+              const collectionProps = itemCollection?.properties || [];
+              const visibleIds = visibleMetaFields.map((f: any) => f.id);
+              return collectionProps
+                .filter((p: any) => visibleIds.includes(p.id))
+                .map((field: any) => {
+                  const value = item[field.id];
+                  if (value === undefined || value === null || value === '') return null;
+                  // MULTI-SELECT : badges colorés
+                  if (field.type === 'multi_select' && Array.isArray(value)) {
+                    const options = field.options || [];
+                    return (
+                      <div key={field.id} className="flex items-center flex-wrap gap-1 text-[9px] truncate">
+                        <span className="mr-1">{field.name}:</span>
+                        {value.map((val: any, idx: number) => {
+                          const opt = options.find((o: any) => (typeof o === 'string' ? o === val : o.value === val || o.label === val));
+                          const color = opt?.color || opt?.bgColor || 'rgba(139,92,246,0.08)';
+                          const label = opt?.label || opt?.value || val;
+                          return (
+                            <span
+                              key={val + idx}
+                              className="px-2 py-0.5 rounded bg-white/10 inline-flex items-center gap-2"
+                            >
+                              <span>{label}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+                  // SELECT : badge coloré
+                  if (field.type === 'select') {
+                    const options = field.options || [];
+                    let val = value;
+                    let opt = options.find((o: any) => (typeof o === 'string' ? o === val : o.value === val || o.label === val));
+                    if (typeof val === 'object' && val !== null) {
+                      opt = options.find((o: any) => o.value === val.value || o.label === val.label);
+                      val = val.label || val.value;
+                    }
+                    const color = opt?.color || opt?.bgColor || 'rgba(139,92,246,0.08)';
+                    const label = opt?.label || opt?.value || val;
+                    return (
+                      <div key={field.id} className="flex items-center flex-wrap gap-1 text-[9px] truncate">
+                        <span className="mr-1">{field.name}:</span>
+                        <span
+                          className="px-2 py-0.5 text-xs rounded bg-white/10 inline-flex items-center gap-2"
+                          style={{ backgroundColor: color }}
+                        >
+                          <span>{label}</span>
+                        </span>
+                      </div>
+                    );
+                  }
+                  // AUTRES (fallback)
+                  const val = formatFieldValueUtil(item, field, collections);
+                  return val ? (
+                    <div key={field.id} className="text-[9px] truncate">
+                      {field.name}: {val}
+                    </div>
+                  ) : null;
+                });
+            })()}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onReduceDuration(item, duration);
+              }}
+              className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <Trash2 size={10} />
+            </button>
+          </motion.div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={() => onViewDetail(item)}>
+            <span>Détails</span>
+          </ContextMenuItem>
+          {onReduceDuration && (
+            <ContextMenuItem onClick={() => onReduceDuration(item, duration)}>
+              <span className="text-red-500">Réduire/Détruire</span>
+            </ContextMenuItem>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
     );
   };
 
