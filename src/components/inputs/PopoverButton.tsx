@@ -8,14 +8,14 @@ import { cn } from '@/lib/utils';
 interface PopoverButtonProps {
   icon?: 'Plus' | 'List' | 'Search'; // Icône à afficher
   title?: string;
-  children: React.ReactNode; // Contenu du PopoverContent
+  children: React.ReactNode;
   className?: string;
   contentClassName?: string;
   disabled?: boolean;
-  isAbsolute?: boolean; // Position absolue (pour LightSelect)
-  size?: number; // Taille de l'icône
-  top?: number; // Position top en rem (pour isAbsolute)
-  right?: number; // Position right en rem (pour isAbsolute)
+  isAbsolute?: boolean;
+  size?: number;
+  top?: number;
+  right?: number;
 }
 
 export const PopoverButton: React.FC<PopoverButtonProps> = ({

@@ -70,7 +70,10 @@ body {
   }
 }
 
-
+.text-right input
+{
+  text-align: right
+}
 
 @layer base {
   * {

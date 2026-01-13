@@ -316,7 +316,7 @@ const RelationEditor = ({
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <div className="flex gap-1 flex-1 min-w-0">
+      <div className="flex gap-1 flex-1 min-w-0 justify-end">
         {selectedIds.map((id: string) => {
           const it = targetItems.find((ti: any) => ti.id === id);
           const label = it ? getItemName(it) : id;
@@ -612,9 +612,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       return nameField ? it[nameField.id] || 'Sans titre' : it.name || 'Sans titre';
     }, [targetCollection]);
 
-    if (!collections || !currentItem || !onRelationChange) {
+    if (!collections || !currentItem ) {
       return (
-        <div className={cn("flex items-center gap-2", sizeClasses, className)}>
+        <div className={cn("flex items-center gap-2 justify-between", sizeClasses, className)}>
           <LinkedItemsViewer
             isSourceMany={isSourceMany}
             value={value}
@@ -639,7 +639,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
         targetCollection={targetCollection}
         targetItems={targetItems}
         getItemName={getItemName}
-        onRelationChange={onRelationChange}
+        onRelationChange={onRelationChange ?? (() => {})}
         readOnly={readOnly}
         className={className}
         size={size}
