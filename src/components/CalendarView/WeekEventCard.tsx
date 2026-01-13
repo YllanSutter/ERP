@@ -1,6 +1,7 @@
 import { ColorSet, EventStyle, calculateEventPosition, formatTimeDisplay, formatFieldValue as formatFieldValueUtil, splitEventByWorkdays } from '@/lib/calendarUtils';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { GripHorizontal } from 'lucide-react';
 
 // Génère une couleur unique à partir de l'id
 function colorFromId(id: string): ColorSet {
@@ -33,6 +34,7 @@ import {
 } from '@/components/ui/context-menu';
 import { motion } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
+import { updateEventSegments } from '@/lib/updateEventSegments';
 
 interface WeekEventCardProps {
   item: any;
@@ -156,6 +158,11 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, itemCollection?.id);
     const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, itemCollection?.id);
 
+    // Détermine la propriété de titre (par convention: type 'title' ou nom 'Titre' ou 'Name')
+    const titleProp =
+      collectionProps.find((prop: any) => prop.type === 'title') ||
+      collectionProps.find((prop: any) => ['Titre', 'title', 'Name', 'name'].includes(prop.name));
+
     return (
       <ContextMenu>
         <ContextMenuTrigger asChild>
@@ -175,20 +182,38 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
             }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = objectColors.hover)}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = objectColors.bg)}
-            onClick={() => onViewDetail(item)}
             onDragStart={(e: any) => handleDragStart(e)}
             onDragEnd={(e: any) => handleDragEnd(e)}
           >
-            {/* Affichage du champ nom uniquement s'il est visible */}
-            {(() => {
-              const nameField = collectionProps.find((p: any) => p.name === 'Nom' || p.id === 'name');
-              if (nameField && visibleIds.includes(nameField.id)) {
-                return (
-                  <div className="font-medium truncate">{getNameValue(item)}</div>
-                );
-              }
-              return null;
-            })()}
+            <div className="flex gap-2 items-center">
+              {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}
+              {titleProp ? (
+                <div className="flex-1 flex items-center gap-2">
+                  <span className="text-neutral-500 text-xs">{titleProp.name}:</span>
+                  <div className="flex-1 text-right">
+                    <EditableProperty
+                      property={titleProp}
+                      value={item[titleProp.id]}
+                      onChange={(val) => {
+                        if (typeof onEditField === 'function') {
+                          onEditField({ ...item, [titleProp.id]: val });
+                        }
+                      }}
+                      size="sm"
+                      collections={collections}
+                      currentItem={item}
+                      onRelationChange={typeof onRelationChange === 'function' ? onRelationChange : undefined}
+                      onNavigateToCollection={typeof onNavigateToCollection === 'function' ? onNavigateToCollection : undefined}
+                      readOnly={!canEdit || !canEditFieldFn(titleProp.id)}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <span className="font-medium text-cyan-400 text-sm flex-1 line-clamp-2 text-left">
+                  {getNameValue(item)}
+                </span>
+              )}
+            </div>
             <div className="text-[10px] opacity-70 absolute right-1 top-1">
               {(() => {
                 const startH = Math.floor(startTime);
@@ -212,7 +237,8 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
                         value={item[prop.id]}
                         onChange={(val) => {
                           if (typeof onEditField === 'function') {
-                            onEditField({ ...item, [prop.id]: val });
+                            const updated = updateEventSegments({ ...item, [prop.id]: val }, itemCollection);
+                            onEditField(updated);
                           }
                         }}
                         size="sm"
