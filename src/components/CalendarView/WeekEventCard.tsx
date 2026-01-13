@@ -1,4 +1,6 @@
 import { ColorSet, EventStyle, calculateEventPosition, formatTimeDisplay, formatFieldValue as formatFieldValueUtil, splitEventByWorkdays } from '@/lib/calendarUtils';
+import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
+import EditableProperty from '@/components/fields/EditableProperty';
 
 // Génère une couleur unique à partir de l'id
 function colorFromId(id: string): ColorSet {
@@ -44,6 +46,8 @@ interface WeekEventCardProps {
   totalColumns: number;
   colors: ColorSet;
   startHour: number;
+  hiddenFields: string[];
+  canViewField?: (fieldId: string) => boolean;
   endHour: number;
   hoursLength: number;
   visibleMetaFields: any[];
@@ -52,7 +56,13 @@ interface WeekEventCardProps {
   onViewDetail: (item: any) => void;
   onReduceDuration: (item: any, hours: number) => void;
   onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number) => void;
+  onEditField?: (updatedItem: any) => void;
+  collectionsList?: any[]; // pour compatibilité EditableProperty si besoin
+  onRelationChange?: (property: any, item: any, value: any) => void;
+  onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
 }
+
+
 
 const WeekEventCard: React.FC<WeekEventCardProps> = ({
   item,
@@ -63,6 +73,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   colors,
   startHour,
   endHour,
+  hiddenFields,
   hoursLength,
   visibleMetaFields,
   collections,
@@ -70,6 +81,9 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   onViewDetail,
   onReduceDuration,
   onEventDrop,
+  onEditField,
+  onRelationChange,
+  onNavigateToCollection,
 }) => {
 
   const dragRef = React.useRef<HTMLDivElement>(null);
@@ -111,6 +125,9 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     endTime: number;
     duration: number;
     label?: string;
+    onEditField?: (updatedItem: any) => void;
+    onRelationChange?: (property: any, item: any, value: any) => void;
+    onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
   }
 
   const EventItem: React.FC<EventItemProps> = ({
@@ -118,6 +135,9 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     endTime,
     duration,
     label,
+    onEditField,
+    onRelationChange,
+    onNavigateToCollection,
   }) => {
     const { topOffset, heightPx } = calculateEventPosition(
       startTime,
@@ -126,6 +146,16 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
       endHour,
       hoursLength
     );
+    // Trouver la collection de l'item
+    const itemCollection = collections.find((col: any) => col.items?.some((it: any) => it.id === item.id)) || collections[0];
+    const collectionProps = itemCollection?.properties || [];
+    const visibleIds = visibleMetaFields.map((f: any) => f.id);
+    // console.log(hiddenFields);
+    // Permissions
+    const canEdit = useCanEdit(itemCollection?.id);
+    const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, itemCollection?.id);
+    const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, itemCollection?.id);
+
     return (
       <ContextMenu>
         <ContextMenuTrigger asChild>
@@ -151,8 +181,8 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
           >
             {/* Affichage du champ nom uniquement s'il est visible */}
             {(() => {
-              const nameField = collections[0]?.properties?.find((p: any) => p.name === 'Nom' || p.id === 'name');
-              if (nameField && visibleMetaFields.some((f: any) => f.id === nameField.id)) {
+              const nameField = collectionProps.find((p: any) => p.name === 'Nom' || p.id === 'name');
+              if (nameField && visibleIds.includes(nameField.id)) {
                 return (
                   <div className="font-medium truncate">{getNameValue(item)}</div>
                 );
@@ -169,70 +199,33 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
               })()}
             </div>
             {label && <div className="text-[9px] truncate">{label}</div>}
-            {/* ...affichage des autres champs comme avant... */}
-            {(() => {
-              const itemCollection = collections.find((col: any) => col.items?.some((it: any) => it.id === item.id)) || collections[0];
-              const collectionProps = itemCollection?.properties || [];
-              const visibleIds = visibleMetaFields.map((f: any) => f.id);
-              return collectionProps
-                .filter((p: any) => visibleIds.includes(p.id))
-                .map((field: any) => {
-                  const value = item[field.id];
-                  if (value === undefined || value === null || value === '') return null;
-                  // MULTI-SELECT : badges colorés
-                  if (field.type === 'multi_select' && Array.isArray(value)) {
-                    const options = field.options || [];
-                    return (
-                      <div key={field.id} className="flex items-center flex-wrap gap-1 text-[9px] truncate">
-                        <span className="mr-1">{field.name}:</span>
-                        {value.map((val: any, idx: number) => {
-                          const opt = options.find((o: any) => (typeof o === 'string' ? o === val : o.value === val || o.label === val));
-                          const color = opt?.color || opt?.bgColor || 'rgba(139,92,246,0.08)';
-                          const label = opt?.label || opt?.value || val;
-                          return (
-                            <span
-                              key={val + idx}
-                              className="px-2 py-0.5 rounded bg-white/10 inline-flex items-center gap-2"
-                            >
-                              <span>{label}</span>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    );
-                  }
-                  // SELECT : badge coloré
-                  if (field.type === 'select') {
-                    const options = field.options || [];
-                    let val = value;
-                    let opt = options.find((o: any) => (typeof o === 'string' ? o === val : o.value === val || o.label === val));
-                    if (typeof val === 'object' && val !== null) {
-                      opt = options.find((o: any) => o.value === val.value || o.label === val.label);
-                      val = val.label || val.value;
-                    }
-                    const color = opt?.color || opt?.bgColor || 'rgba(139,92,246,0.08)';
-                    const label = opt?.label || opt?.value || val;
-                    return (
-                      <div key={field.id} className="flex items-center flex-wrap gap-1 text-[9px] truncate">
-                        <span className="mr-1">{field.name}:</span>
-                        <span
-                          className="px-2 py-0.5 text-xs rounded bg-white/10 inline-flex items-center gap-2"
-                          style={{ backgroundColor: color }}
-                        >
-                          <span>{label}</span>
-                        </span>
-                      </div>
-                    );
-                  }
-                  // AUTRES (fallback)
-                  const val = formatFieldValueUtil(item, field, collections);
-                  return val ? (
-                    <div key={field.id} className="text-[9px] truncate">
-                      {field.name}: {val}
+            {/* Champs éditables comme dans KanbanView */}
+            <div className="space-y-1 w-full">
+              {collectionProps
+                .filter((prop: any) => visibleIds.includes(prop.id) && !hiddenFields.includes(prop.id) && canViewFieldFn(prop.id))
+                .map((prop: any) => (
+                  <div key={prop.id} className="flex items-center gap-1 text-[9px] truncate">
+                    <span className="text-neutral-500 block mb-1">{prop.name}:</span>
+                    <div className="flex-1 text-right">
+                      <EditableProperty
+                        property={prop}
+                        value={item[prop.id]}
+                        onChange={(val) => {
+                          if (typeof onEditField === 'function') {
+                            onEditField({ ...item, [prop.id]: val });
+                          }
+                        }}
+                        size="sm"
+                        collections={collections}
+                        currentItem={item}
+                        onRelationChange={typeof onRelationChange === 'function' ? onRelationChange : undefined}
+                        onNavigateToCollection={typeof onNavigateToCollection === 'function' ? onNavigateToCollection : undefined}
+                        readOnly={!canEdit || !canEditFieldFn(prop.id)}
+                      />
                     </div>
-                  ) : null;
-                });
-            })()}
+                  </div>
+                ))}
+            </div>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -279,6 +272,9 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
             endTime={seg.end}
             duration={seg.end - seg.start}
             label={seg.label}
+            onEditField={onEditField}
+            onRelationChange={onRelationChange}
+            onNavigateToCollection={onNavigateToCollection}
           />
         ))}
       </Fragment>

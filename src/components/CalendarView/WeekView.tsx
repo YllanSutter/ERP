@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import EditableProperty from '@/components/fields/EditableProperty';
 import WeekEventCard from '@/components/CalendarView/WeekEventCard';
 import {
   getWeekDays,
@@ -31,6 +30,7 @@ interface WeekViewProps {
   onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number) => void;
   canViewField?: (fieldId: string) => boolean;
   getDateFieldForItem?: (item: any) => any;
+  onEditField?: (updatedItem: any) => void;
 }
 
 const WeekView: React.FC<WeekViewProps> = ({
@@ -40,7 +40,7 @@ const WeekView: React.FC<WeekViewProps> = ({
   onDelete,
   onEdit,
   onViewDetail,
-  hiddenFields = [],
+  hiddenFields,
   getNameValue,
   getItemsForDate,
   startHour = 8,
@@ -50,7 +50,6 @@ const WeekView: React.FC<WeekViewProps> = ({
   canViewField = () => true,
   getDateFieldForItem,
 }) => {
-  // console.log('[WeekView] rendu, items:', items);
   const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
   const [dragPreview, setDragPreview] = React.useState<{ dayIndex: number; positionY: number } | null>(null);
   const weekDays = getWeekDays(currentDate);
@@ -174,17 +173,16 @@ const WeekView: React.FC<WeekViewProps> = ({
                     if (!dateField) return false;
                     const labelToMatch = dateField.name;
 
-                    console.log(dateField.id);
+                    // console.log(dateField.id);
                     return segment.label === labelToMatch;
                     
                   })
                   .map(({ item, segment, dayIndex, multiDayIndex }, idx, arr) => {
 
-                    console.log('test');
                     if (idx === 0) {
                       const affiches = arr.filter(({ item, segment }) => {
                         const dateField = getDateFieldForItem ? getDateFieldForItem(item) : null;
-                    console.log(dateField.id);
+                        // console.log(dateField.id);
                         if (!dateField) return false;
                         const labelToMatch = dateField.id;
 
@@ -200,7 +198,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                           segmentLabel: segment.label
                         };
                       });
-                      console.log('[WeekView] éléments affichés pour ce jour:', affiches);
+                      // console.log('[WeekView] éléments affichés pour ce jour:', affiches);
                     }
                     // Prépare le segment pour WeekEventCard
                     const segStart = new Date(segment.start || segment.__eventStart);
@@ -208,7 +206,8 @@ const WeekView: React.FC<WeekViewProps> = ({
                     const startTime = segStart.getHours() + segStart.getMinutes() / 60;
                     const endTime = segEnd.getHours() + segEnd.getMinutes() / 60;
                     const colors = getItemColor(item.id);
-                    const visibleMetaFields = collections.find(c => c.id === item.__collectionId)?.properties.filter((p: any) => !hiddenFields.includes(p.id));
+                    // console.log(collections);
+                    const visibleMetaFields = collections.find(c => c.id === item.__collectionId)?.properties.filter((p: any) => !(hiddenFields ?? []).includes(p.id));
                     // On passe le segment courant dans eventSegments
                     const eventSegments = [{
                       start: startTime,
@@ -231,9 +230,12 @@ const WeekView: React.FC<WeekViewProps> = ({
                         visibleMetaFields={visibleMetaFields}
                         collections={collections}
                         getNameValue={getNameValue}
+                        hiddenFields={hiddenFields ?? []}
                         onViewDetail={() => onViewDetail(item)}
                         onReduceDuration={() => {}}
+                        canViewField={canViewField}
                         onEventDrop={onEventDrop}
+                        // onEditField={onEditField}
                       />
                     );
                   })}

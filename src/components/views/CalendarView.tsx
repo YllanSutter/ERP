@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import CalendarCollectionsManager from '../calendar/CalendarCollectionsManager';
+import WeekView from '../CalendarView/WeekView';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 
 interface CalendarViewProps {
@@ -25,7 +26,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   onDelete,
   onViewDetail,
   dateProperty,
-  hiddenFields = [],
+  hiddenFields,
   onChangeDateProperty,
   startHour = 8,
   endHour = 20,
@@ -133,7 +134,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       // fallback : items non filtrés
       return col.items.map((it: any) => ({ ...it, __collectionId: col.id }));
     });
-    console.log('mergedItems (filtered):', result);
+    // console.log('mergedItems (filtered):', result);
     return result;
   }, [selectedCollections]);
 
@@ -197,6 +198,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   // --- Affichage ---
+  // Pour l'exemple, on affiche la vue semaine (à adapter selon viewMode si besoin)
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <div className="rounded-lg border border-white/10 bg-gradient-to-br from-neutral-900/50 to-neutral-950/50 p-6 backdrop-blur">
@@ -208,6 +210,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           onViewDetail={onViewDetail}
           onEdit={onEdit}
           onDelete={onDelete}
+          hiddenFields={hiddenFields}
+          onEditField={onEdit}
         />
       </div>
     </motion.div>

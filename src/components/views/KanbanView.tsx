@@ -26,7 +26,7 @@ interface KanbanViewProps {
 
 const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDelete, onViewDetail, groupBy, hiddenFields = [], onChangeGroupBy, collections = [], onRelationChange, onNavigateToCollection, filters = [], orderedProperties }) => {
   const [draggedItem, setDraggedItem] = useState<any>(null);
-  
+  console.log(hiddenFields);
   // Hooks de permissions
   const canEdit = useCanEdit(collection?.id);
   const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, collection?.id);

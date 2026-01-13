@@ -13,6 +13,8 @@ interface CalendarCollectionsManagerProps {
   onViewDetail?: (item: any) => void;
   onEdit?: (item: any) => void;
   onDelete?: (id: string) => void;
+  hiddenFields?: string[];
+  onEditField?: (updatedItem: any) => void;
 }
 
 const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
@@ -20,6 +22,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   defaultDuration = 1,
   startHour = 8,
   endHour = 20,
+  hiddenFields,
   onViewDetail = () => {},
   onEdit = () => {},
   onDelete = () => {},
@@ -262,6 +265,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                 const dateFieldId = dateFields[col.id];
                 return col.properties.find((p: any) => p.id === dateFieldId);
               }}
+              hiddenFields={hiddenFields}
+              onEditField={onEdit}
               onDelete={onDelete}
               onEdit={onEdit}
               onViewDetail={onViewDetail}
