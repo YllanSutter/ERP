@@ -26,6 +26,7 @@ import { splitEventByWorkdays, workDayStart, workDayEnd, breakStart, breakEnd } 
 import { updateEventSegments } from '@/lib/updateEventSegments';
 import { cn } from '@/lib/utils';
 
+
 interface NewItemModalProps {
   collection: any;
   onClose: () => void;
@@ -83,7 +84,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     return updateEventSegments(data, col);
   }
 
+
+
   const [formData, setFormData] = useState(getInitialFormData(selectedCollection));
+
+  const handleChange = (propId: string, value: any) => {
+    setFormData({ ...formData, [propId]: value });
+  };
   // Quand la collection change, on réinitialise les champs
   React.useEffect(() => {
     if (!editingItem) setFormData(getInitialFormData(selectedCollection));
