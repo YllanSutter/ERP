@@ -52,7 +52,7 @@ import {
   getEventStyle,
   workDayStart,
   workDayEnd,
-} from '@/lib/calendarUtilsDash';
+} from '@/lib/calendarUtils';
 
 const months = MONTH_NAMES;
 

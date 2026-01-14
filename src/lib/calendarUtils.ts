@@ -116,6 +116,48 @@ export interface EventStyle {
 }
 
 
+/**
+ * Get items for a specific date
+ */
+export const getItemsForDate = (
+  date: Date,
+  items: any[],
+  dateField: any
+): any[] => {
+  if (!dateField) return [];
+
+  // Ignore les week-ends (samedi = 6, dimanche = 0)
+  const dayOfWeek = date.getDay();
+  if (dayOfWeek === 0 || dayOfWeek === 6) return [];
+
+  const dateStr = date.toISOString().split('T')[0];
+  return items.filter((item) => {
+    const value = item[dateField.id];
+    if (!value) return false;
+
+    if (dateField.type === 'date') {
+      const itemDate = new Date(value).toISOString().split('T')[0];
+      return itemDate === dateStr;
+    } else if (dateField.type === 'date_range') {
+      if (typeof value === 'object' && value.start && value.end) {
+        const start = new Date(value.start).toISOString().split('T')[0];
+        const end = new Date(value.end).toISOString().split('T')[0];
+        return dateStr >= start && dateStr <= end;
+      }
+    }
+    return false;
+  });
+};
+
+/**
+ * Get the name value of an item from a collection
+ */
+export const getNameValue = (item: any, collection: any): string => {
+  const nameField = collection.properties.find(
+    (p: any) => p.name === 'Nom' || p.id === 'name'
+  );
+  return nameField ? item[nameField.id] : item.name || 'Sans titre';
+};
 
 export const formatTimeDisplay = (
   hours: number,

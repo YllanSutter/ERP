@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { getNameValue as getNameValueLib } from '@/lib/calendarUtilsDash';
+import { getNameValue as getNameValueLib } from '@/lib/calendarUtils';
 import { motion } from 'framer-motion';
 import CalendarCollectionsManager from '../calendar/CalendarCollectionsManager';
-import WeekView from '../CalendarView/WeekView';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 
 interface CalendarViewProps {
