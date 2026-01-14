@@ -538,6 +538,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       <div key={week.week} className="overflow-auto rounded-sm shadow-inner shadow-black/40">
         <table className="min-w-full text-sm table-fixed">
           <colgroup>
+            <col style={{ width: '30px' }} /> {/* Colonne total durée */}
             <col style={{ width: '120px' }} />
             {leafColumns.map((leaf: any) => (
               <React.Fragment key={leaf.id}>
@@ -551,22 +552,41 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
               const headerRows = getTableHeaderRows();
               return (
                 <>
-                  {headerRows.map((row, rowIdx) => (
-                    <tr key={rowIdx}>
-                      {rowIdx === 0 && (
-                        <th
-                          className="px-3 py-2 text-left border-b border-white/15 whitespace-nowrap"
-                          rowSpan={headerRows.length + 1 - rowIdx}
-                        >
-                          Semaine {week.week}
-                          {week.days.length > 0 && (
-                            <span className="ml-2 text-xs text-neutral-400 font-normal">
-                              du {week.days[0].toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
-                              {' '}au {week.days[week.days.length - 1].toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
-                            </span>
-                          )}
-                        </th>
+                  {/* Ligne d'entête principale : Total durée + Semaine + colonnes dynamiques */}
+                  <tr>
+                    <th
+                      className="px-3 py-2 text-left border-b border-white/15 whitespace-nowrap"
+                      rowSpan={headerRows.length}
+                    >
+                      Total durée
+                    </th>
+                    <th
+                      className="px-3 py-2 text-left border-b border-white/15 whitespace-nowrap"
+                      rowSpan={headerRows.length}
+                    >
+                      Semaine {week.week}
+                      {week.days.length > 0 && (
+                        <span className="ml-2 text-xs text-neutral-400 font-normal">
+                          du {week.days[0].toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+                          {' '}au {week.days[week.days.length - 1].toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+                        </span>
                       )}
+                    </th>
+                    {headerRows[0].map((cell: any, i: number) => (
+                      <th
+                        key={i}
+                        colSpan={cell.colSpan}
+                        rowSpan={cell.rowSpan}
+                        className={`px-3 py-2 text-center border-b border-l border-white/10 ${cell.isLeaf ? 'bg-neutral-900/60' : 'bg-neutral-900/80'}`}
+                      >
+                        {cell.label}
+                      </th>
+                    ))}
+                  </tr>
+                  {/* Les autres lignes d'entête dynamiques (hors première) */}
+                  {headerRows.slice(1).map((row, rowIdx) => (
+                    <tr key={rowIdx + 1}>
+                      {/* On saute les deux premières colonnes (Total durée + Semaine) */}
                       {row.map((cell: any, i: number) => (
                         <th
                           key={i}
@@ -581,6 +601,8 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   ))}
                   {/* Ligne des métriques (Nb/Durée) pour chaque feuille profonde */}
                   <tr className="bg-neutral-900/60 text-neutral-400">
+                    <th className="px-3 py-1 text-left border-b border-l border-white/10 max-w-[50px]">Durée totale</th>
+                    <th className="px-3 py-1 text-left border-b border-l border-white/10">Jour</th>
                     {leafColumns.map((leaf: any) => (
                       <React.Fragment key={leaf.id + '-metrics'}>
                         <th className="px-3 py-1 text-left border-b border-l border-white/10">Nombre</th>
@@ -595,15 +617,22 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           <tbody>
             {week.days.map((day) => {
               const key = dayKey(day);
+              // Calculer la durée totale pour ce jour (somme de toutes les feuilles)
+              const totalDuration = leafColumns.reduce((acc, leaf) => {
+                const cell = aggregates.daily[key]?.[leaf.id];
+                return acc + (cell && cell.duration ? cell.duration : 0);
+              }, 0);
               return (
                 <tr key={`${week.week}-${key}`} className="border-b border-white/10 odd:bg-neutral-900/40">
+                  <td className="px-3 py-2 text-right text-white border-r border-white/10 font-bold max-w-[50px]">
+                    {totalDuration ? formatDurationHeureMinute(totalDuration) : ''}
+                  </td>
                   <td className="px-3 py-2 text-neutral-200 font-medium border-r border-white/10">
                     {day.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' })}
                   </td>
                   {leafColumns.map((leaf: any) => {
                       const cell = aggregates.daily[key]?.[leaf.id] || { count: 0, duration: 0 };
                       const span = spanForDay(leaf.id, key);
-
                       // Correction : afficher le nombre pour les dates simples (pas de span)
                       let countValue = '';
                       if (span && span.isStart) {
@@ -611,73 +640,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                       } else if (!span && cell.count > 0) {
                         countValue = cell.count.toString();
                       }
-
-                      // Log systématique pour chaque cellule, même vide
-                      if(countValue != '') {
-                        // Log la sélection du filtre relation pour cette feuille
-                        // if (leaf.typeValues && leaf.typeValues.length > 0) {
-                        //   console.log('[DASHBOARD][FILTER][typeValues]', {
-                        //     feuille: leaf.label,
-                        //     typeValues: leaf.typeValues,
-                        //     // Pour chaque id sélectionné, tente de retrouver le label dans les options
-                        //     relationLabels: (() => {
-                        //       // Cherche la propriété de la feuille correspondant au champ filtré
-                        //       const prop = (leaf.filterField && properties.find((p: any) => p.id === leaf.filterField && p.type === 'relation'));
-                        //       if (prop) {
-                        //         // Cherche la collection liée
-                        //         const rel = prop.relation || prop.relationTo || prop.target || {};
-                        //         const relatedCollectionId = rel.collectionId || rel.targetCollectionId || rel.id;
-                        //         const relatedCollection = collections.find((c: any) => c.id === relatedCollectionId);
-                        //         if (relatedCollection) {
-                        //           return leaf.typeValues.map((id: string) => {
-                        //             const found = relatedCollection.items?.find((it: any) => it.id === id);
-                        //             return found ? `${id} (${found.name || found.label || found.title || id})` : id;
-                        //           });
-                        //         }
-                        //       }
-                        //       return leaf.typeValues;
-                        //     })()
-                        //   });
-                        // }
-                        // Log la cellule
-                        const prop = (leaf.filterField && properties.find((p: any) => p.id === leaf.filterField && p.type === 'relation'));
-                        let relationValue = null;
-                        if (prop) {
-                          // Pour chaque item de la cellule, affiche la relation (id et nom)
-                          relationValue = (Object.keys(aggregates.dailyObjectDurations[key]?.[leaf.id] || {})).map((itemId) => {
-                            const item = (collection?.items || []).find((it: any) => it.id === itemId);
-                            if (!item) return null;
-                            const relVal = item[prop.id];
-                            if (Array.isArray(relVal)) {
-                              return relVal.map((rid: string) => {
-                                const found = collections.flatMap(c => c.items || []).find((it: any) => it.id === rid);
-                                return found ? `${rid} (${found.name || found.label || found.title || rid})` : rid;
-                              });
-                            } else if (relVal) {
-                              const found = collections.flatMap(c => c.items || []).find((it: any) => it.id === relVal);
-                              return found ? `${relVal} (${found.name || found.label || found.title || relVal})` : relVal;
-                            }
-                            return null;
-                          }).flat().filter(Boolean);
-                        }
-                        // console.log('[DASHBOARD][TD]', {
-                        //   semaine: week.week,
-                        //   jour: key,
-                        //   feuille: leaf.label,
-                        //   count: countValue,
-                        //   duration: cell.duration,
-                        //   relationValue
-                        // });
-                        // console.log('[DASHBOARD][TD]', {
-                        //   semaine: week.week,
-                        //   jour: key,
-                        //   feuille: leaf.label,
-                        //   count: countValue,
-                        //   duration: cell.duration,
-                        //   relationValue
-                        // });
-                      }
-
+                      // ...existing code...
                       // Ajout du menu contextuel sur la cellule d'item si un item unique est présent ce jour-là
                       const itemIds = Object.keys(aggregates.dailyObjectDurations[key]?.[leaf.id] || {});
                       // Pour chaque item, retrouver la bonne collection (par item.collectionId)
@@ -726,7 +689,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                             span.isStart ? 'rounded-l-md' : ''
                           } border-white/30 bg-white/10${hasObject ? ' bg-white/5' : ''}`
                         : `px-3 py-2 text-right text-white border-l border-white/10 bg-neutral-900/20${hasObject ? ' bg-white/10' : ''}`;
-
                       // Afficher tous les items avec leur menu contextuel
                       return (
                         <React.Fragment key={`${week.week}-${key}-${leaf.id}`}>
@@ -738,35 +700,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                 </tr>
               );
             })}
-            {/* Total semaine */}
-            <tr className="bg-white/5">
-              <td className="px-3 py-2 font-semibold text-white border-r border-white/10">Total Semaine {week.week}</td>
-              {leafColumns.map((leaf: any) => {
-                  let count = 0;
-                  let duration = 0;
-                  week.days.forEach((day) => {
-                    const key = dayKey(day);
-                    const cell = aggregates.daily[key]?.[leaf.id];
-                    const span = spanForDay(leaf.id, key);
-                    if (span && span.isStart) {
-                      count += 1;
-                    } else if (!span && cell && cell.count) {
-                      count += cell.count;
-                    }
-                    if (cell) {
-                      duration += cell.duration;
-                    }
-                  });
-                  return (
-                    <React.Fragment key={`week-total-${week.week}-${leaf.id}`}>
-                      <td className="px-3 py-2 text-right text-white border-l border-white/10">{count || ''}</td>
-                      <td className="px-3 py-2 text-right text-white border-l border-white/10">
-                        {duration ? duration.toFixed(1) : ''}
-                      </td>
-                    </React.Fragment>
-                  );
-                })}
-            </tr>
             {/* Total général de la semaine (tous les projets et durée cumulée) */}
             <tr className="bg-neutral-900/40">
               <td className="px-3 py-2 font-bold text-white border-r border-white/10">Total général</td>
@@ -793,10 +726,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   totalDuration += duration;
                 });
                 return [
-                  <td key="total-count-label" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">Nombre</td>,
-                  <td key="total-count" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">{totalCount || ''}</td>,
-                  <td key="total-duration-label" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">Heures</td>,
-                  <td key="total-duration" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">{totalDuration ? formatDurationHeureMinute(totalDuration) : ''}</td>
+                  <td key="total-count" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">{totalCount || 0} projet(s) - {totalDuration ? formatDurationHeureMinute(totalDuration) : '0h00'}</td>
                 ];
               })()}
             </tr>
