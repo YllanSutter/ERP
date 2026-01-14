@@ -94,19 +94,23 @@ const applyRelationChangeInternal = (
   return updatedCollections2;
 };
 
+
 export const useItems = (
   collections: any[],
   setCollections: (collections: any[]) => void,
   activeCollection: string | null
 ) => {
-  const saveItem = (item: any, editingItem: any) => {
+  // Ajout d'un paramètre optionnel collectionId pour cibler la bonne collection
+  const saveItem = (item: any, editingItem: any, collectionId?: string) => {
     let newItem = { ...item };
     if (!editingItem && !item.id) {
       newItem.id = Date.now().toString();
     }
 
+    // Détermination de la collection cible
+    const targetCollectionId = collectionId || item.__collectionId || activeCollection;
     let updatedCollections = collections.map((col) => {
-      if (col.id === activeCollection) {
+      if (col.id === targetCollectionId) {
         if (editingItem || item.id) {
           return {
             ...col,
@@ -118,7 +122,7 @@ export const useItems = (
       return col;
     });
 
-    const sourceCollection = collections.find((c) => c.id === activeCollection)!;
+    const sourceCollection = collections.find((c) => c.id === targetCollectionId)!;
     const relationProps = (sourceCollection.properties || []).filter(
       (p: any) => p.type === 'relation'
     );

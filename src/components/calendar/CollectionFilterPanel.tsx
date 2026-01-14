@@ -9,6 +9,7 @@ interface FilterModalProps {
   dateField?: string;
   setDateField: (fieldId: string) => void;
   collections?: any[]; // Ajout de la prop collections
+  onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
 }
 
 const CollectionFilterPanel: React.FC<FilterModalProps> = ({

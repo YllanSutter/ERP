@@ -15,6 +15,7 @@ interface CalendarCollectionsManagerProps {
   onDelete?: (id: string) => void;
   hiddenFields?: string[];
   onEditField?: (updatedItem: any) => void;
+  onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
 }
 
 const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
@@ -26,6 +27,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   onViewDetail = () => {},
   onEdit = () => {},
   onDelete = () => {},
+  onShowNewItemModalForCollection,
 }) => {
   // --- State pour la vue et la date courante ---
   const MONTH_NAMES = [
@@ -225,7 +227,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               dateField={dateFields[collection.id]}
               setDateField={(fieldId: string) => setDateFields((prev) => ({ ...prev, [collection.id]: fieldId }))}
               collections={collections}
-            />
+                onShowNewItemModalForCollection={onShowNewItemModalForCollection}
+              />
           </TabsContent>
         ))}
       </Tabs>
@@ -273,6 +276,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               defaultDuration={defaultDuration}
               startHour={startHour}
               endHour={endHour}
+              onShowNewItemModalForCollection={onShowNewItemModalForCollection}
             />
           );
         })()

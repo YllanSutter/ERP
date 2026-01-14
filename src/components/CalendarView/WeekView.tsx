@@ -31,6 +31,7 @@ interface WeekViewProps {
   canViewField?: (fieldId: string) => boolean;
   getDateFieldForItem?: (item: any) => any;
   onEditField?: (updatedItem: any) => void;
+  onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
 }
 
 const WeekView: React.FC<WeekViewProps> = ({
@@ -49,6 +50,7 @@ const WeekView: React.FC<WeekViewProps> = ({
   onEventDrop,
   canViewField = () => true,
   getDateFieldForItem,
+  onShowNewItemModalForCollection,
 }) => {
   const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
   const [dragPreview, setDragPreview] = React.useState<{ dayIndex: number; positionY: number } | null>(null);
@@ -235,6 +237,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                         onReduceDuration={() => {}}
                         canViewField={canViewField}
                         onEventDrop={onEventDrop}
+                        onShowNewItemModalForCollection={onShowNewItemModalForCollection}
                         // onEditField={onEditField}
                       />
                     );

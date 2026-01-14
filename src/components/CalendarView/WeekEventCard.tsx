@@ -62,6 +62,7 @@ interface WeekEventCardProps {
   collectionsList?: any[]; // pour compatibilité EditableProperty si besoin
   onRelationChange?: (property: any, item: any, value: any) => void;
   onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
+  onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
 }
 
 
@@ -86,6 +87,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   onEditField,
   onRelationChange,
   onNavigateToCollection,
+  onShowNewItemModalForCollection,
 }) => {
 
   const dragRef = React.useRef<HTMLDivElement>(null);
@@ -132,7 +134,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
   }
 
-  const EventItem: React.FC<EventItemProps> = ({
+  const EventItem: React.FC<EventItemProps & { onShowNewItemModalForCollection?: (collection: any, item?: any) => void }> = ({
     startTime,
     endTime,
     duration,
@@ -140,6 +142,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     onEditField,
     onRelationChange,
     onNavigateToCollection,
+    onShowNewItemModalForCollection,
   }) => {
     const { topOffset, heightPx } = calculateEventPosition(
       startTime,
@@ -267,6 +270,9 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
           <ContextMenuItem onClick={() => onViewDetail(item)}>
             <span>Détails</span>
           </ContextMenuItem>
+          <ContextMenuItem onClick={() => onShowNewItemModalForCollection && onShowNewItemModalForCollection(itemCollection, item)}>
+            <span>Créer un item dans « {itemCollection?.name || 'cette collection'} »</span>
+          </ContextMenuItem>
           {onReduceDuration && (
             <ContextMenuItem onClick={() => onReduceDuration(item, duration)}>
               <span className="text-red-500">Réduire/Détruire</span>
@@ -301,6 +307,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
             onEditField={onEditField}
             onRelationChange={onRelationChange}
             onNavigateToCollection={onNavigateToCollection}
+            onShowNewItemModalForCollection={typeof onShowNewItemModalForCollection === 'function' ? onShowNewItemModalForCollection : undefined}
           />
         ))}
       </Fragment>

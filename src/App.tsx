@@ -72,6 +72,7 @@ const App = () => {
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
   const [showNewPropertyModal, setShowNewPropertyModal] = useState(false);
   const [showNewItemModal, setShowNewItemModal] = useState(false);
+  const [modalCollection, setModalCollection] = useState<any>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showNewViewModal, setShowNewViewModal] = useState(false);
@@ -449,13 +450,9 @@ const App = () => {
               collections={collections}
               onUpdate={(patch) => activeDashboard && handleUpdateDashboard(activeDashboard, patch)}
               onViewDetail={(item: any) => {
+                const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
                 setEditingItem(item);
-                // Sélectionne la bonne collection (priorité à _collection si présent)
-                if (item && item._collection && item._collection.id) {
-                  setActiveCollection(item._collection.id);
-                } else if (item && item.collectionId) {
-                  setActiveCollection(item.collectionId);
-                }
+                setModalCollection(itemCollection || null);
                 setShowNewItemModal(true);
               }}
               onDelete={(id: string) => {
@@ -537,10 +534,10 @@ const App = () => {
                     onEdit={(item: any) => itemHooks.updateItem(item)}
                     onDelete={itemHooks.deleteItem}
                     onViewDetail={(item: any) => {
-                      if (canEdit) {
-                        setEditingItem(item);
-                        setShowNewItemModal(true);
-                      }
+                      const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
+                      setEditingItem(item);
+                      setModalCollection(itemCollection || null);
+                      setShowNewItemModal(true);
                     }}
                     hiddenFields={activeViewConfig?.hiddenFields || []}
                     orderedProperties={orderedProperties}
@@ -575,10 +572,10 @@ const App = () => {
                     onEdit={(item: any) => itemHooks.updateItem(item)}
                     onDelete={itemHooks.deleteItem}
                     onViewDetail={(item: any) => {
-                      if (canEdit) {
-                        setEditingItem(item);
-                        setShowNewItemModal(true);
-                      }
+                      const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
+                      setEditingItem(item);
+                      setModalCollection(itemCollection || null);
+                      setShowNewItemModal(true);
                     }}
                     groupBy={activeViewConfig?.groupBy}
                     hiddenFields={activeViewConfig?.hiddenFields || []}
@@ -607,10 +604,10 @@ const App = () => {
                     onEdit={(item: any) => itemHooks.updateItem(item)}
                     onDelete={itemHooks.deleteItem}
                     onViewDetail={(item: any) => {
-                      if (canEdit) {
-                        setEditingItem(item);
-                        setShowNewItemModal(true);
-                      }
+                      const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
+                      setEditingItem(item);
+                      setModalCollection(itemCollection || null);
+                      setShowNewItemModal(true);
                     }}
                     dateProperty={activeViewConfig?.dateProperty}
                     hiddenFields={activeViewConfig?.hiddenFields || []}
@@ -622,6 +619,11 @@ const App = () => {
                       );
                       updatedViews[activeCollection][viewIndex].dateProperty = propId;
                       setViews(updatedViews);
+                    }}
+                    onShowNewItemModalForCollection={(collection, item) => {
+                      setModalCollection(collection);
+                      setEditingItem(item || null);
+                      setShowNewItemModal(true);
                     }}
                   />
                 )}
@@ -702,18 +704,29 @@ const App = () => {
       )}
       {showNewItemModal && (
         <NewItemModal
-          collection={currentCollection!}
+          collection={modalCollection || currentCollection!}
           collections={collections}
           favorites={favorites}
-          orderedProperties={orderedProperties}
+          orderedProperties={(() => {
+            const col = modalCollection || currentCollection;
+            if (!col) return [];
+            const view = views[col.id]?.find((v: any) => v.id === activeView);
+            return view?.fieldOrder
+              ? view.fieldOrder.map((fid: string) => col.properties.find((p: any) => p.id === fid)).filter(Boolean)
+              : col.properties;
+          })()}
           onClose={() => {
             setShowNewItemModal(false);
             setEditingItem(null);
+            setModalCollection(null);
           }}
           onSave={(item) => {
-            itemHooks.saveItem(item, editingItem);
+            // On passe la bonne collection cible à saveItem
+            const colId = (modalCollection && modalCollection.id) || (item && item.__collectionId) || (currentCollection && currentCollection.id);
+            itemHooks.saveItem(item, editingItem, colId);
             setShowNewItemModal(false);
             setEditingItem(null);
+            setModalCollection(null);
           }}
           editingItem={editingItem}
           onToggleFavoriteItem={(itemId: string) => {

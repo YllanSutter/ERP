@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { getNameValue as getNameValueLib } from '@/lib/calendarUtilsDash';
 import { motion } from 'framer-motion';
 import CalendarCollectionsManager from '../calendar/CalendarCollectionsManager';
 import WeekView from '../CalendarView/WeekView';
@@ -17,6 +18,7 @@ interface CalendarViewProps {
   endHour?: number;
   defaultDuration?: number; // in hours
   collections?: any[];
+  onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({
@@ -32,6 +34,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   endHour = 20,
   defaultDuration = 1,
   collections = [],
+  onShowNewItemModalForCollection,
 }) => {
   // Sélection multiple de collections
   // Persistance du multi-sélecteur de collections
@@ -199,21 +202,28 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // --- Affichage ---
   // Pour l'exemple, on affiche la vue semaine (à adapter selon viewMode si besoin)
+  // --- Affichage ---
+  // Pour l'exemple, on affiche la vue semaine (à adapter selon viewMode si besoin)
+  // Fonction utilitaire pour WeekView/WeekEventCard
+  const getNameValue = (item: any) => {
+    const collection = collections.find(col => col.id === item.__collectionId) || collections[0];
+    return getNameValueLib(item, collection);
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-      <div className="rounded-lg border border-white/10 bg-gradient-to-br from-neutral-900/50 to-neutral-950/50 p-6 backdrop-blur">
-        <CalendarCollectionsManager
-          collections={collections}
-          defaultDuration={defaultDuration}
-          startHour={startHour}
-          endHour={endHour}
-          onViewDetail={onViewDetail}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          hiddenFields={hiddenFields}
-          onEditField={onEdit}
-        />
-      </div>
+      <CalendarCollectionsManager
+        collections={collections}
+        defaultDuration={defaultDuration}
+        startHour={startHour}
+        endHour={endHour}
+        hiddenFields={hiddenFields}
+        onViewDetail={onViewDetail}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onEditField={onEdit}
+        onShowNewItemModalForCollection={onShowNewItemModalForCollection}
+      />
     </motion.div>
   );
 };
