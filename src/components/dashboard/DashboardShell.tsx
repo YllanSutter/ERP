@@ -355,6 +355,10 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         allTypeValues = allTypeValues.concat(leaf.typeValues.filter((v: any) => !!v));
       }
 
+      console.log('-------------');
+      console.log(allTypeValues);
+      console.log('-------------');
+
       // Héritage du filterField : si non défini sur la feuille, prendre le plus proche parent qui en a un
       let filterField = leaf.filterField;
       if (!filterField && leaf._parentPath && Array.isArray(leaf._parentPath)) {
@@ -633,30 +637,30 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                       // Log systématique pour chaque cellule, même vide
                       if(countValue != '') {
                         // Log la sélection du filtre relation pour cette feuille
-                        // if (leaf.typeValues && leaf.typeValues.length > 0) {
-                        //   console.log('[DASHBOARD][FILTER][typeValues]', {
-                        //     feuille: leaf.label,
-                        //     typeValues: leaf.typeValues,
-                        //     // Pour chaque id sélectionné, tente de retrouver le label dans les options
-                        //     relationLabels: (() => {
-                        //       // Cherche la propriété de la feuille correspondant au champ filtré
-                        //       const prop = (leaf.filterField && properties.find((p: any) => p.id === leaf.filterField && p.type === 'relation'));
-                        //       if (prop) {
-                        //         // Cherche la collection liée
-                        //         const rel = prop.relation || prop.relationTo || prop.target || {};
-                        //         const relatedCollectionId = rel.collectionId || rel.targetCollectionId || rel.id;
-                        //         const relatedCollection = collections.find((c: any) => c.id === relatedCollectionId);
-                        //         if (relatedCollection) {
-                        //           return leaf.typeValues.map((id: string) => {
-                        //             const found = relatedCollection.items?.find((it: any) => it.id === id);
-                        //             return found ? `${id} (${found.name || found.label || found.title || id})` : id;
-                        //           });
-                        //         }
-                        //       }
-                        //       return leaf.typeValues;
-                        //     })()
-                        //   });
-                        // }
+                        if (leaf.typeValues && leaf.typeValues.length > 0) {
+                          console.log('[DASHBOARD][FILTER][typeValues]', {
+                            feuille: leaf.label,
+                            typeValues: leaf.typeValues,
+                            // Pour chaque id sélectionné, tente de retrouver le label dans les options
+                            relationLabels: (() => {
+                              // Cherche la propriété de la feuille correspondant au champ filtré
+                              const prop = (leaf.filterField && properties.find((p: any) => p.id === leaf.filterField && p.type === 'relation'));
+                              if (prop) {
+                                // Cherche la collection liée
+                                const rel = prop.relation || prop.relationTo || prop.target || {};
+                                const relatedCollectionId = rel.collectionId || rel.targetCollectionId || rel.id;
+                                const relatedCollection = collections.find((c: any) => c.id === relatedCollectionId);
+                                if (relatedCollection) {
+                                  return leaf.typeValues.map((id: string) => {
+                                    const found = relatedCollection.items?.find((it: any) => it.id === id);
+                                    return found ? `${id} (${found.name || found.label || found.title || id})` : id;
+                                  });
+                                }
+                              }
+                              return leaf.typeValues;
+                            })()
+                          });
+                        }
                         // Log la cellule
                         const prop = (leaf.filterField && properties.find((p: any) => p.id === leaf.filterField && p.type === 'relation'));
                         let relationValue = null;

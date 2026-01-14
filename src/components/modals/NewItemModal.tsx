@@ -160,7 +160,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   // Pour chaque champ de type 'date', créer un onglet dédié aux plages horaires
   const dateProps = propsList.filter((p: any) => p.type === 'date');
   const extraTabs = [
-    ...relationProps.map((p: any) => ({ id: p.id, name: p.name, type: 'relation' })),
+    { id: '__relations__', name: 'Relation', type: 'relation' },
     ...dateProps.map((p: any) => ({ id: `_eventSegments_${p.id}`, name: `${p.name}`, type: 'segments', dateProp: p })),
   ];
   const [activeTab, setActiveTab] = useState(extraTabs[0]?.id || '');
@@ -317,29 +317,37 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   }}
                   className="mb-2"
                 />
-                {/* Onglets relations */}
-                {relationProps.map((prop: any) => (
-                  prop.id === activeTab && (
-                    <div key={prop.id}>
-                      <label className="block text-sm font-medium text-neutral-300 mb-2">
-                        {prop.name} {prop.required && <span className="text-red-500">*</span>}
-                      </label>
-                      <EditableProperty
-                        property={prop}
-                        value={formData[prop.id]}
-                        onChange={(val) => handleChange(prop.id, val)}
-                        size="md"
-                        collections={collections}
-                        collection={collection}
-                        currentItem={formData}
-                        onRelationChange={(property, item, value) => {
-                          setFormData({ ...formData, [property.id]: value });
-                        }}
-                        readOnly={false}
-                      />
-                    </div>
-                  )
-                ))}
+                {/* Onglet unique pour toutes les relations */}
+                {activeTab === '__relations__' && (
+                  <div>
+                    {relationProps.length === 0 ? (
+                      <div className="text-neutral-500 text-sm">Aucune relation</div>
+                    ) : (
+                      <div className="space-y-4">
+                        {relationProps.map((prop: any) => (
+                          <div className="flex justify-between" key={prop.id}>
+                            <label className="block text-sm font-medium text-neutral-300 mb-2">
+                              {prop.name} {prop.required && <span className="text-red-500">*</span>}
+                            </label>
+                            <EditableProperty
+                              property={prop}
+                              value={formData[prop.id]}
+                              onChange={(val) => handleChange(prop.id, val)}
+                              size="md"
+                              collections={collections}
+                              collection={collection}
+                              currentItem={formData}
+                              onRelationChange={(property, item, value) => {
+                                setFormData({ ...formData, [property.id]: value });
+                              }}
+                              readOnly={false}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Onglets plages horaires par champ date */}
                 {dateProps.map((dateProp: any) => (
                   activeTab === `_eventSegments_${dateProp.id}` && (
@@ -384,7 +392,19 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         </div>
         <div className="flex gap-3 mt-8">
           <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton onClick={() => onSave({ ...formData, __collectionId: selectedCollectionId })} className="flex-1">{editingItem ? 'Modifier' : 'Créer'}</ShinyButton>
+          <ShinyButton
+            onClick={() => {
+              let dataToSave = { ...formData, __collectionId: selectedCollectionId };
+              if (!isReallyEditing) {
+                const { id, ...rest } = dataToSave;
+                dataToSave = rest;
+              }
+              onSave(dataToSave);
+            }}
+            className="flex-1"
+          >
+            {isReallyEditing ? 'Modifier' : 'Créer'}
+          </ShinyButton>
         </div>
       </motion.div>
     </div>
