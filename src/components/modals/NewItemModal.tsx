@@ -37,17 +37,21 @@ interface NewItemModalProps {
   orderedProperties?: any[];
 }
 
-const NewItemModal: React.FC<NewItemModalProps> = ({ 
-  collection, 
-  onClose, 
-  onSave, 
-  editingItem, 
+
+const NewItemModal: React.FC<NewItemModalProps> = ({
+  collection,
+  onClose,
+  onSave,
+  editingItem,
   collections,
   favorites,
   onToggleFavoriteItem,
   orderedProperties
 }) => {
-  // Préremplissage date : si création (pas editingItem), on préremplit les champs date
+  // Ajout d'un sélecteur de collection (pour création uniquement)
+  const [selectedCollectionId, setSelectedCollectionId] = useState(collection.id);
+  const selectedCollection = collections.find((c: any) => c.id === selectedCollectionId) || collection;
+
   function getRoundedNow() {
     const now = new Date();
     const minutes = now.getMinutes();
@@ -58,10 +62,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     return now;
   }
 
-  function getInitialFormData() {
+  function getInitialFormData(col = selectedCollection) {
     if (editingItem) return editingItem;
     const data: any = {};
-    const props = orderedProperties && orderedProperties.length > 0 ? orderedProperties : collection.properties;
+    const props = orderedProperties && orderedProperties.length > 0 ? orderedProperties : col.properties;
     props.forEach((prop: any) => {
       if (prop.defaultValue !== undefined && prop.defaultValue !== null) {
         data[prop.id] = prop.defaultValue;
@@ -76,20 +80,23 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       }
     });
     // Génère _eventSegments dès la création
-    return updateEventSegments(data, collection);
+    return updateEventSegments(data, col);
   }
 
-  const [formData, setFormData] = useState(getInitialFormData());
-  // console.log(collection);
-  // Détection des champs date/durée pour calcul automatique des plages horaires
-  const handleChange = (propId: string, value: any) => {
-    setFormData({ ...formData, [propId]: value });
-  };
+  const [formData, setFormData] = useState(getInitialFormData(selectedCollection));
+  // Quand la collection change, on réinitialise les champs
+  React.useEffect(() => {
+    if (!editingItem) setFormData(getInitialFormData(selectedCollection));
+    // eslint-disable-next-line
+  }, [selectedCollectionId]);
 
   const isFavorite = favorites && editingItem ? favorites.items.includes(editingItem.id) : false;
 
-  // Utiliser l'ordre passé en props si dispo, sinon collection.properties
-  const propsList = orderedProperties && orderedProperties.length > 0 ? orderedProperties : collection.properties;
+  // Pour la création, on recalcule dynamiquement les champs selon la collection sélectionnée
+  // Pour l'édition, on garde orderedProperties (pour garder l'ordre de la vue courante)
+  const propsList = editingItem
+    ? (orderedProperties && orderedProperties.length > 0 ? orderedProperties : selectedCollection.properties)
+    : selectedCollection.properties;
   const classicProps = propsList.filter((p: any) => p.type !== 'relation');
   const relationProps = propsList.filter((p: any) => p.type === 'relation');
   // Pour chaque champ de type 'date', créer un onglet dédié aux plages horaires
@@ -112,7 +119,21 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/10">
-          <h3 className="text-xl font-bold">{editingItem ? 'Modifier' : 'Nouveau'} {collection.name}</h3>
+          <h3 className="text-xl font-bold">{editingItem ? 'Modifier' : 'Nouveau'} {selectedCollection.name}</h3>
+          {!editingItem && (
+            <div className="gap-4 flex items-center">
+              <label className="block text-sm font-medium text-neutral-300">Collection</label>
+              <select
+                className="px-3 py-2 rounded bg-neutral-800 text-white border border-white/10 focus:border-violet-500"
+                value={selectedCollectionId}
+                onChange={e => setSelectedCollectionId(e.target.value)}
+              >
+                {collections.map((col: any) => (
+                  <option key={col.id} value={col.id}>{col.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {editingItem && onToggleFavoriteItem && (
             <button
               onClick={() => onToggleFavoriteItem(editingItem.id)}
@@ -129,6 +150,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           )}
         </div>
         <div className="flex gap-2">
+          {/* Sélecteur de collection (création uniquement) */}
+          
           {/* Partie gauche : champs classiques */}
           <div className="flex-1 min-w-[0] pr-4 border-r border-white/10 relative">
             {/* Grande barre verticale à droite des labels */}
@@ -303,7 +326,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         </div>
         <div className="flex gap-3 mt-8">
           <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton onClick={() => onSave(formData)} className="flex-1">{editingItem ? 'Modifier' : 'Créer'}</ShinyButton>
+          <ShinyButton onClick={() => onSave({ ...formData, __collectionId: selectedCollectionId })} className="flex-1">{editingItem ? 'Modifier' : 'Créer'}</ShinyButton>
         </div>
       </motion.div>
     </div>

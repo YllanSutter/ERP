@@ -722,11 +722,13 @@ const App = () => {
           }}
           onSave={(item) => {
             // On passe la bonne collection cible à saveItem
-            const colId = (modalCollection && modalCollection.id) || (item && item.__collectionId) || (currentCollection && currentCollection.id);
+            const colId = item.__collectionId || (modalCollection && modalCollection.id) || (currentCollection && currentCollection.id);
+            // On mémorise la dernière collection utilisée pour la préselection
+            setModalCollection(collections.find(c => c.id === colId) || null);
             itemHooks.saveItem(item, editingItem, colId);
             setShowNewItemModal(false);
             setEditingItem(null);
-            setModalCollection(null);
+            // setModalCollection(null); // On ne reset plus pour garder la préselection
           }}
           editingItem={editingItem}
           onToggleFavoriteItem={(itemId: string) => {
