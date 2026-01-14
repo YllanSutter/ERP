@@ -63,15 +63,17 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     return now;
   }
 
-  function getInitialFormData(col = selectedCollection) {
-    if (editingItem) return editingItem;
-    const data: any = {};
+  // Fusionne l'item prérempli (editingItem) avec les valeurs par défaut
+  function getInitialFormData(col = selectedCollection, prefill: any = editingItem) {
+    const data: any = { ...(prefill || {}) };
     const props = orderedProperties && orderedProperties.length > 0 ? orderedProperties : col.properties;
     props.forEach((prop: any) => {
-      if (prop.defaultValue !== undefined && prop.defaultValue !== null) {
-        data[prop.id] = prop.defaultValue;
-      } else if (prop.type === 'date') {
-        data[prop.id] = getRoundedNow().toISOString();
+      if (data[prop.id] === undefined) {
+        if (prop.defaultValue !== undefined && prop.defaultValue !== null) {
+          data[prop.id] = prop.defaultValue;
+        } else if (prop.type === 'date') {
+          data[prop.id] = getRoundedNow().toISOString();
+        }
       }
     });
     // Pour chaque champ *_duration, si pas de valeur, injecte la valeur par défaut
@@ -86,22 +88,71 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
 
 
-  const [formData, setFormData] = useState(getInitialFormData(selectedCollection));
+  const [formData, setFormData] = useState(getInitialFormData(selectedCollection, editingItem));
+  React.useEffect(() => {
+    // ...
+  }, [formData, selectedCollection]);
 
   const handleChange = (propId: string, value: any) => {
     setFormData({ ...formData, [propId]: value });
   };
-  // Quand la collection change, on réinitialise les champs
+
+
+  // State temporaire pour propager la valeur du champ date
+  const [pendingDateValue, setPendingDateValue] = useState<string | undefined>(undefined);
+
+  const handleCollectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newCollectionId = e.target.value;
+    if (!editingItem) {
+      // Cherche la première valeur trouvée dans formData parmi tous les champs date de la collection courante
+      let previousDateValue = undefined;
+      const prevCol = collections.find((c: any) => c.id === selectedCollectionId) || collection;
+      const prevDateFields = prevCol.properties.filter((p: any) => p.type === 'date');
+      if (formData && prevDateFields.length > 0) {
+        for (let i = 0; i < prevDateFields.length; i++) {
+          const field = prevDateFields[i];
+          if (formData[field.id]) {
+            previousDateValue = formData[field.id];
+            break;
+          }
+        }
+      }
+      setPendingDateValue(previousDateValue);
+    }
+    setSelectedCollectionId(newCollectionId);
+  };
+
+  // Quand selectedCollectionId change, si pendingDateValue est défini, on préremplit tous les champs date
   React.useEffect(() => {
-    if (!editingItem) setFormData(getInitialFormData(selectedCollection));
+    if (!editingItem && pendingDateValue !== undefined) {
+      const newCol = collections.find((c: any) => c.id === selectedCollectionId) || collection;
+      const dateFields = newCol.properties.filter((p: any) => p.type === 'date');
+      let prefill: any = {};
+      if (pendingDateValue) {
+        dateFields.forEach((field: any) => {
+          prefill[field.id] = pendingDateValue;
+        });
+      }
+      setFormData(getInitialFormData(newCol, prefill));
+      setPendingDateValue(undefined);
+    }
     // eslint-disable-next-line
   }, [selectedCollectionId]);
+
+  // Quand la modal reçoit un nouvel editingItem (préremplissage), on met à jour le formData
+  React.useEffect(() => {
+    if (!editingItem) return;
+    setFormData(getInitialFormData(selectedCollection, editingItem));
+    // eslint-disable-next-line
+  }, [editingItem]);
 
   const isFavorite = favorites && editingItem ? favorites.items.includes(editingItem.id) : false;
 
   // Pour la création, on recalcule dynamiquement les champs selon la collection sélectionnée
   // Pour l'édition, on garde orderedProperties (pour garder l'ordre de la vue courante)
-  const propsList = editingItem
+  // Si editingItem.isNew, on force le mode création
+  const isReallyEditing = editingItem && editingItem.id && !editingItem.isNew;
+  const propsList = isReallyEditing
     ? (orderedProperties && orderedProperties.length > 0 ? orderedProperties : selectedCollection.properties)
     : selectedCollection.properties;
   const classicProps = propsList.filter((p: any) => p.type !== 'relation');
@@ -126,14 +177,14 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/10">
-          <h3 className="text-xl font-bold">{editingItem ? 'Modifier' : 'Nouveau'} {selectedCollection.name}</h3>
-          {!editingItem && (
+          <h3 className="text-xl font-bold">{isReallyEditing ? 'Modifier' : 'Nouveau'} {selectedCollection.name}</h3>
+          {!isReallyEditing && (
             <div className="gap-4 flex items-center">
               <label className="block text-sm font-medium text-neutral-300">Collection</label>
               <select
                 className="px-3 py-2 rounded bg-neutral-800 text-white border border-white/10 focus:border-violet-500"
                 value={selectedCollectionId}
-                onChange={e => setSelectedCollectionId(e.target.value)}
+                onChange={handleCollectionChange}
               >
                 {collections.map((col: any) => (
                   <option key={col.id} value={col.id}>{col.name}</option>

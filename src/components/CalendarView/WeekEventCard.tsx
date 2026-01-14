@@ -187,6 +187,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = objectColors.bg)}
             onDragStart={(e: any) => handleDragStart(e)}
             onDragEnd={(e: any) => handleDragEnd(e)}
+            onContextMenu={(e) => { e.stopPropagation(); }}
           >
             <div className="flex gap-2 items-center">
               {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}

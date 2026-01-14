@@ -166,26 +166,51 @@ const WeekView: React.FC<WeekViewProps> = ({
                 <div className="absolute left-0 right-0 border-t-2 border-blue-500 pointer-events-none z-50" style={{ top: `${dragPreview.positionY}px` }} />
               )}
               {hours.map((hour) => {
-                // Cherche s'il y a un event à cet horaire précis
-                const hasEvent = (eventsByDay[dateStr] || []).some(({ segment }) => {
-                  const segStart = new Date(segment.start || segment.__eventStart);
-                  return segStart.getHours() === hour;
-                });
+                // Cherche s'il y a un event effectivement affiché à cet horaire précis (dans la vue courante)
+                // Ne bloque la création que si un event est effectivement affiché (filtré par label/champ date)
+                const hasEvent = dayEvents
+                  .filter(({ item, segment }) => {
+                    const dateField = getDateFieldForItem ? getDateFieldForItem(item) : null;
+                    if (!dateField) return false;
+                    return segment.label === dateField.name;
+                  })
+                  .some(({ segment }) => {
+                    const segStart = new Date(segment.start || segment.__eventStart);
+                    const segEnd = new Date(segment.end || segment.__eventEnd);
+                    // La case est occupée si le segment chevauche l'heure de la case
+                    const caseStart = hour;
+                    const caseEnd = hour + 1;
+                    const segStartHour = segStart.getHours() + segStart.getMinutes() / 60;
+                    const segEndHour = segEnd.getHours() + segEnd.getMinutes() / 60;
+                    return segStartHour < caseEnd && segEndHour > caseStart;
+                  });
                 return (
                   <div
                     key={`${dayIndex}-${hour}`}
                     className={cn('h-24 border-b border-l border-white/5 transition-colors bg-neutral-900/30 hover:bg-neutral-800/30')}
-                    onContextMenu={hasEvent || !onShowNewItemModalForCollection ? undefined : (e) => {
+                    onContextMenu={(e) => {
+                      // Si clic sur un event, ne rien faire ici (le WeekEventCard gère son propre clic)
+                      // if (hasEvent) return;
                       e.preventDefault();
-                      // Trouve la collection du jour
-                      const col = collections.find(c => c.items.some((it: { _eventSegments: {
+                      e.stopPropagation();
+                      // Trouve la collection du jour, ou fallback sur la première collection qui a un champ date
+                      let col = collections.find(c => c.items.some((it: { _eventSegments: {
                         start: any; __eventStart: any; 
-}[]; }) => toDateKey(new Date(it._eventSegments?.[0]?.start || it._eventSegments?.[0]?.__eventStart)) === dateStr))
-                        || collections[0];
+                          }[]; }) => toDateKey(new Date(it._eventSegments?.[0]?.start || it._eventSegments?.[0]?.__eventStart)) === dateStr));
+                      if (!col) {
+                        col = collections.find(c => c.properties.some((p: any) => p.type === 'date')) || collections[0];
+                      }
                       if (!col) return;
-                      // Trouve le champ date principal de la collection
-                      const dateField = col.properties.find((p: any) => p.type === 'date');
-                      if (!dateField) return onShowNewItemModalForCollection(col);
+                      // Récupère tous les champs de type 'date' de la collection
+                      const dateFields = col.properties.filter((p: any) => p.type === 'date');
+                      if (!dateFields.length) {
+                        if (onShowNewItemModalForCollection) {
+                          return onShowNewItemModalForCollection(col);
+                        }
+                        return;
+                      }
+
+                      // ...
                       // Calcule l'heure/minute selon la position du clic
                       const container = e.currentTarget as HTMLElement;
                       const rect = container.getBoundingClientRect();
@@ -198,12 +223,25 @@ const WeekView: React.FC<WeekViewProps> = ({
                       if (minutes === 60) { minutes = 45; }
                       const slotDate = new Date(date);
                       slotDate.setHours(hour, minutes, 0, 0);
-                      // Préremplit l'item avec la bonne date
-                      const newItem = { [dateField.id]: slotDate.toISOString() };
-                      onShowNewItemModalForCollection(col, newItem);
+                      // Préremplit l'item avec toutes les clés de type date de toutes les collections
+                      const newItem: any = {};
+                      collections.forEach((collection) => {
+                        (collection.properties || []).forEach((prop: any) => {
+                          if (prop.type === 'date') {
+                            newItem[prop.id] = slotDate.toISOString();
+                          }
+                        });
+                      });
+                      // ...
+                      if (onShowNewItemModalForCollection) {
+                        // Ajoute un flag isNew pour forcer le mode création côté modal
+                        const newItemWithFlag = { ...newItem, isNew: true };
+                        // ...
+                        onShowNewItemModalForCollection(col, newItemWithFlag);
+                      }
                     }}
-                    title={hasEvent ? undefined : 'Créer un événement'}
-                    style={{ cursor: hasEvent ? undefined : 'context-menu' }}
+                    title={'Créer un événement'}
+                    style={{ cursor: 'context-menu' }}
                   />
                 );
               })}
