@@ -165,9 +165,48 @@ const WeekView: React.FC<WeekViewProps> = ({
               {dragPreview && dragPreview.dayIndex === dayIndex && (
                 <div className="absolute left-0 right-0 border-t-2 border-blue-500 pointer-events-none z-50" style={{ top: `${dragPreview.positionY}px` }} />
               )}
-              {hours.map((hour) => (
-                <div key={`${dayIndex}-${hour}`} className={cn('h-24 border-b border-l border-white/5 transition-colors bg-neutral-900/30 hover:bg-neutral-800/30')} />
-              ))}
+              {hours.map((hour) => {
+                // Cherche s'il y a un event à cet horaire précis
+                const hasEvent = (eventsByDay[dateStr] || []).some(({ segment }) => {
+                  const segStart = new Date(segment.start || segment.__eventStart);
+                  return segStart.getHours() === hour;
+                });
+                return (
+                  <div
+                    key={`${dayIndex}-${hour}`}
+                    className={cn('h-24 border-b border-l border-white/5 transition-colors bg-neutral-900/30 hover:bg-neutral-800/30')}
+                    onContextMenu={hasEvent || !onShowNewItemModalForCollection ? undefined : (e) => {
+                      e.preventDefault();
+                      // Trouve la collection du jour
+                      const col = collections.find(c => c.items.some((it: { _eventSegments: {
+                        start: any; __eventStart: any; 
+}[]; }) => toDateKey(new Date(it._eventSegments?.[0]?.start || it._eventSegments?.[0]?.__eventStart)) === dateStr))
+                        || collections[0];
+                      if (!col) return;
+                      // Trouve le champ date principal de la collection
+                      const dateField = col.properties.find((p: any) => p.type === 'date');
+                      if (!dateField) return onShowNewItemModalForCollection(col);
+                      // Calcule l'heure/minute selon la position du clic
+                      const container = e.currentTarget as HTMLElement;
+                      const rect = container.getBoundingClientRect();
+                      const y = e.clientY - rect.top;
+                      const percent = Math.max(0, Math.min(1, y / rect.height));
+                      const minutesInSlot = 60;
+                      let minutes = Math.round(percent * minutesInSlot);
+                      // Arrondi à 15min
+                      minutes = Math.round(minutes / 15) * 15;
+                      if (minutes === 60) { minutes = 45; }
+                      const slotDate = new Date(date);
+                      slotDate.setHours(hour, minutes, 0, 0);
+                      // Préremplit l'item avec la bonne date
+                      const newItem = { [dateField.id]: slotDate.toISOString() };
+                      onShowNewItemModalForCollection(col, newItem);
+                    }}
+                    title={hasEvent ? undefined : 'Créer un événement'}
+                    style={{ cursor: hasEvent ? undefined : 'context-menu' }}
+                  />
+                );
+              })}
               {dayEvents
                   // Filtre les segments pour n'afficher que ceux dont le label correspond au champ de date sélectionné
                   .filter(({ item, segment }) => {
