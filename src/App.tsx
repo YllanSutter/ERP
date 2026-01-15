@@ -64,6 +64,7 @@ const App = () => {
     useEffect(() => {
       if (!socket) return;
       const reloadState = async () => {
+        console.log('[SYNC] Réception de l’événement stateUpdated, rechargement de l’état...');
         try {
           const res = await fetch(`${API_URL}/state`, { credentials: 'include' });
           if (res.ok) {
@@ -258,32 +259,34 @@ const App = () => {
     loadUsers();
   }, [user]);
 
+  // Sauvegarde et synchro temps réel de l'état global à chaque changement (collections, vues, dashboards, etc.)
   useEffect(() => {
     if (!isLoaded || !user || !canEdit) return;
     const saveState = async () => {
-      try {
-        await fetch(`${API_URL}/state`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            collections: cleanForSave(collections),
-            views: cleanForSave(views),
-            dashboards: cleanForSave(dashboards),
-            dashboardSort,
-            activeCollection,
-            dashboardFilters: cleanForSave(dashboardFilters),
-            activeView,
-            activeDashboard,
-            favorites: cleanForSave(favorites)
-          }),
-        });
-      } catch (err) {
-        console.error('Impossible de sauvegarder les données', err);
-      }
+        console.log('[SYNC] Envoi de l’état global au serveur');
+        try {
+          await fetch(`${API_URL}/state`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              collections: cleanForSave(collections),
+              views: cleanForSave(views),
+              dashboards: cleanForSave(dashboards),
+              dashboardSort,
+              activeCollection,
+              dashboardFilters: cleanForSave(dashboardFilters),
+              activeView,
+              activeDashboard,
+              favorites: cleanForSave(favorites)
+            }),
+          });
+        } catch (err) {
+          console.error('Impossible de sauvegarder les données', err);
+        }
     };
     saveState();
-  }, [collections, views, dashboards, dashboardFilters, activeCollection, activeView, activeDashboard, favorites, isLoaded, user, canEdit]);
+  }, [JSON.stringify(collections), JSON.stringify(views), JSON.stringify(dashboards), JSON.stringify(dashboardFilters), activeCollection, activeView, activeDashboard, JSON.stringify(favorites), isLoaded, user, canEdit]);
 
   useEffect(() => {
     if (!activeCollection) return;

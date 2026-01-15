@@ -31,11 +31,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   useEffect(() => {
     const socket = io({ transports: ['polling'] });
     socket.on('usersConnected', (users: any[]) => {
-      console.log('[SOCKET][CLIENT] usersConnected reçu:', users);
+      // console.log('[SOCKET][CLIENT] usersConnected reçu:', users);
       setConnectedUsers(users);
     });
     if (user && user.id && user.name) {
-      console.log('[SOCKET][CLIENT] emit identify', user.id, user.name);
+      // console.log('[SOCKET][CLIENT] emit identify', user.id, user.name);
       socket.emit('identify', { id: user.id, name: user.name });
     }
     return () => {
