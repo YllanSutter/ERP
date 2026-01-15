@@ -357,7 +357,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       }
       // Trouver le champ date dans les propriétés
       const dateField = groupProperties.find((p: any) => p.id === dateFieldId);
-      console.log(dateField);
+      // console.log(dateField);
       if (!dateField) return;
 
       // ...
@@ -416,14 +416,14 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           if (totalHours > 0) {
             dailyObjectDurations[key][leaf.id][item.id] = totalHours;
             // Log du temps affiché pour cette cellule/item/colonne
-            console.log('[DASHBOARD][DUREE][CELL]', {
-              jour: key,
-              feuille: leaf.label,
-              itemId: item.id,
-              itemName: item.name,
-              totalHours,
-              segmentsForDay: segmentsForDay.map((seg: { start: any; end: any; label: any; }) => ({ start: seg.start, end: seg.end, label: seg.label }))
-            });
+            // console.log('[DASHBOARD][DUREE][CELL]', {
+            //   jour: key,
+            //   feuille: leaf.label,
+            //   itemId: item.id,
+            //   itemName: item.name,
+            //   totalHours,
+            //   segmentsForDay: segmentsForDay.map((seg: { start: any; end: any; label: any; }) => ({ start: seg.start, end: seg.end, label: seg.label }))
+            // });
           }
         });
 

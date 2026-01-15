@@ -29,7 +29,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   // Ajout de la liste des utilisateurs connectés
   const [connectedUsers, setConnectedUsers] = useState<any[]>([]);
   useEffect(() => {
-    const socket = io();
+    const socket = io({ transports: ['polling'] });
     socket.on('usersConnected', (users: any[]) => {
       setConnectedUsers(users);
     });

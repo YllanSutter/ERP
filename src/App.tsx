@@ -51,14 +51,14 @@ import { MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 const App = () => {
   // Connexion socket.io
   const [socket, setSocket] = useState<any>(null);
-    // Connexion à socket.io au montage
-    useEffect(() => {
-      const s = io(API_URL, { withCredentials: true });
-      setSocket(s);
-      return () => {
-        s.disconnect();
-      };
-    }, []);
+  // Connexion à socket.io au montage (force transport polling pour Railway)
+  useEffect(() => {
+    const s = io(API_URL, { withCredentials: true, transports: ['polling'] });
+    setSocket(s);
+    return () => {
+      s.disconnect();
+    };
+  }, []);
 
     // Hot reload sur événement 'stateUpdated' reçu du serveur
     useEffect(() => {
