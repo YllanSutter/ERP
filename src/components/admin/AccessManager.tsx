@@ -263,25 +263,24 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
               <button
                 className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs shadow"
                 style={{ minWidth: 80 }}
-                onClick={() => {
-                  // Exporter collections (avec vues), favoris, comptes et rôles (pas les logs)
-                  const favorites: any[] = []; // Remplacez ceci par la vraie source des favoris si disponible
-                  const exportData = {
-                    collections: collections.map(col => ({ ...col })),
-                    views: undefined, // les vues sont dans chaque collection
-                    favorites,
-                    roles,
-                    users,
-                  };
-                  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = 'erp_export.json';
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
+                onClick={async () => {
+                  // Exporter tout le contenu de la table app_state
+                  try {
+                    const res = await fetch(`${API_URL}/appstate`, { credentials: 'include' });
+                    if (!res.ok) throw new Error('Erreur export appstate');
+                    const data = await res.json();
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'erp_appstate_export.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  } catch (err) {
+                    alert('Erreur lors de l\'export appstate.');
+                  }
                 }}
               >
                 Exporter
@@ -298,17 +297,20 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                     try {
                       const text = await file.text();
                       const data = JSON.parse(text);
-                      // Accepte le format objet avec .collections ou un tableau direct
-                      if ((Array.isArray(data)) || (typeof data === 'object' && data !== null && Array.isArray(data.collections))) {
-                        if (typeof onImportCollections === 'function') {
-                          onImportCollections(data);
-                        }
-                        alert('Données importées !');
-                      } else {
-                        alert('Le fichier ne contient pas de collections valides.');
+                      if (!Array.isArray(data)) {
+                        alert('Le fichier doit contenir un tableau d\'appstate.');
+                        return;
                       }
+                      const res = await fetch(`${API_URL}/appstate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(data),
+                      });
+                      if (!res.ok) throw new Error('Erreur import appstate');
+                      alert('Import appstate réussi !');
                     } catch (err) {
-                      alert('Erreur lors de l\'importation.');
+                      alert('Erreur lors de l\'import appstate.');
                     }
                   }}
                 />

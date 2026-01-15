@@ -553,6 +553,43 @@ app.post('/api/permissions', requireAuth, requirePermission('can_manage_permissi
 });
 
 // --- State routes (protected + filtered) -------------------------------
+
+// --- Export/Import app_state (admin only) ---
+app.get('/api/appstate', requireAuth, async (req, res) => {
+  // Seuls les admins peuvent exporter tout l'appstate
+  const isAdmin = req.auth.roles.some((r) => r.name === 'admin');
+  if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const result = await pool.query('SELECT * FROM app_state ORDER BY id ASC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Failed to export app_state', err);
+    res.status(500).json({ error: 'Failed to export app_state' });
+  }
+});
+
+app.post('/api/appstate', requireAuth, async (req, res) => {
+  // Seuls les admins peuvent importer tout l'appstate
+  const isAdmin = req.auth.roles.some((r) => r.name === 'admin');
+  if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const data = req.body;
+    if (!Array.isArray(data)) return res.status(400).json({ error: 'Array of app_state rows required' });
+    // On efface tout puis on insère tout (mode "remplacement total")
+    await pool.query('DELETE FROM app_state');
+    for (const row of data) {
+      // On ne fait confiance qu'aux champs connus
+      await pool.query(
+        'INSERT INTO app_state (id, user_id, data) VALUES ($1, $2, $3)',
+        [row.id, row.user_id, row.data]
+      );
+    }
+    res.json({ ok: true, count: data.length });
+  } catch (err) {
+    console.error('Failed to import app_state', err);
+    res.status(500).json({ error: 'Failed to import app_state' });
+  }
+});
 const filterStateForUser = (data, ctx) => {
   if (!data || !data.collections) return data;
   const filteredCollections = (data.collections || []).map((col) => {
