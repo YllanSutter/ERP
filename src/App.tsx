@@ -74,9 +74,7 @@ const App = () => {
               setViews(data.views);
               setDashboards(data.dashboards || defaultDashboards);
               setDashboardSort(data.dashboardSort || 'created');
-              setActiveCollection(data.activeCollection || null);
-              setActiveView(data.activeView || null);
-              setActiveDashboard(data.activeDashboard || null);
+              // NE PAS toucher à activeCollection, activeView, activeDashboard ici !
               setFavorites(data.favorites || { views: [], items: [] });
               setDashboardFilters(data.dashboardFilters || {});
               setIsLoaded(true);
