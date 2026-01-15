@@ -64,7 +64,7 @@ const App = () => {
     useEffect(() => {
       if (!socket) return;
       const reloadState = async () => {
-        console.log('[SYNC] Réception de l’événement stateUpdated, rechargement de l’état...');
+        // console.log('[SYNC] Réception de l’événement stateUpdated, rechargement de l’état...');
         try {
           const res = await fetch(`${API_URL}/state`, { credentials: 'include' });
           if (res.ok) {
@@ -282,7 +282,7 @@ const App = () => {
   useEffect(() => {
     if (!isLoaded || !user || !canEdit) return;
     const saveState = async () => {
-      console.log('[SYNC] Envoi de l’état global au serveur (hors vue utilisateur)');
+      // console.log('[SYNC] Envoi de l’état global au serveur (hors vue utilisateur)');
       try {
         await fetch(`${API_URL}/state`, {
           method: 'POST',

@@ -327,18 +327,18 @@ const loadUserContext = async (userId, impersonateRoleId = null) => {
 const requireAuth = async (req, res, next) => {
   try {
     // Log cookies et headers pour debug
-    console.log('[AUTH] Cookies:', req.cookies);
-    console.log('[AUTH] Authorization header:', req.headers.authorization);
+    // console.log('[AUTH] Cookies:', req.cookies);
+    // console.log('[AUTH] Authorization header:', req.headers.authorization);
     const token = req.cookies.auth_token || req.cookies.access_token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
     if (!token) {
-      console.log('[AUTH] Aucun token trouvé');
+      // console.log('[AUTH] Aucun token trouvé');
       return res.status(401).json({ error: 'Unauthenticated' });
     }
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
     } catch (e) {
-      console.log('[AUTH] JWT non valide');
+      // console.log('[AUTH] JWT non valide');
       return res.status(401).json({ error: 'Invalid token' });
     }
     const baseCtx = await loadUserContext(decoded.sub);
@@ -614,7 +614,7 @@ app.get('/api/state', requireAuth, async (req, res) => {
 
 app.post('/api/state', requireAuth, async (req, res) => {
   try {
-    console.log('[API] POST /api/state reçu');
+    // console.log('[API] POST /api/state reçu');
     const payload = req.body ?? {};
     const userId = req.auth.user.id;
     // Séparer les favoris du reste de l'état
@@ -649,7 +649,7 @@ app.post('/api/state', requireAuth, async (req, res) => {
     await logAudit(userId, 'state.save', 'app_state', 'global', { collections: collections.length });
     // Émettre l'événement socket.io pour le hot reload
     if (global.io) {
-      console.log('[SOCKET] Emission de stateUpdated à tous les clients');
+      // console.log('[SOCKET] Emission de stateUpdated à tous les clients');
       global.io.emit('stateUpdated');
     }
     return res.json({ ok: true });
@@ -679,7 +679,7 @@ let serverInstance;
   try {
     await bootstrap();
     serverInstance = app.listen(PORT, () => {
-      console.log(`API server listening on http://localhost:${PORT}`);
+      // console.log(`API server listening on http://localhost:${PORT}`);
     });
     // Initialisation socket.io
     const io = new SocketIOServer(serverInstance, {
@@ -694,19 +694,19 @@ let serverInstance;
     // Helper pour envoyer la liste à tous
     function broadcastUsers() {
       const users = Array.from(connectedUsers.values());
-      console.log('[SOCKET] broadcast usersConnected:', users.map(u => u?.email || u?.name || u?.id));
+      // console.log('[SOCKET] broadcast usersConnected:', users.map(u => u?.email || u?.name || u?.id));
       io.emit('usersConnected', users);
     }
 
     io.on('connection', async (socket) => {
-      console.log('[SOCKET] Nouvelle connexion', socket.id);
+      // console.log('[SOCKET] Nouvelle connexion', socket.id);
         // Identification par événement 'identify' (plus fiable que le cookie)
         let user = null;
         socket.on('identify', async (payload) => {
           if (payload && payload.id && payload.name) {
             user = { id: payload.id, name: payload.name };
             connectedUsers.set(socket.id, user);
-            console.log('[SOCKET] identify reçu:', user);
+            // console.log('[SOCKET] identify reçu:', user);
             broadcastUsers();
           }
         });
@@ -726,7 +726,7 @@ let serverInstance;
             if (result.rowCount) {
               user = result.rows[0];
               connectedUsers.set(socket.id, user);
-              console.log('[SOCKET] Utilisateur connecté (cookie):', user.email || user.name || user.id);
+              // console.log('[SOCKET] Utilisateur connecté (cookie):', user.email || user.name || user.id);
               broadcastUsers();
             }
           }
@@ -735,24 +735,24 @@ let serverInstance;
         }
 
         socket.on('whoIsConnected', () => {
-          console.log('[SOCKET] whoIsConnected reçu de', socket.id);
+          // console.log('[SOCKET] whoIsConnected reçu de', socket.id);
           broadcastUsers();
         });
 
         socket.on('disconnect', () => {
-          console.log('[SOCKET] Déconnexion', socket.id);
+          // console.log('[SOCKET] Déconnexion', socket.id);
           connectedUsers.delete(socket.id);
           broadcastUsers();
         });
 
       // Répondre à la demande explicite
       socket.on('whoIsConnected', () => {
-        console.log('[SOCKET] whoIsConnected reçu de', socket.id);
+        // console.log('[SOCKET] whoIsConnected reçu de', socket.id);
         broadcastUsers();
       });
 
       socket.on('disconnect', () => {
-        console.log('[SOCKET] Déconnexion', socket.id);
+        // console.log('[SOCKET] Déconnexion', socket.id);
         connectedUsers.delete(socket.id);
         broadcastUsers();
       });
@@ -765,7 +765,7 @@ let serverInstance;
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('SIGTERM signal received: closing HTTP server');
+  // console.log('SIGTERM signal received: closing HTTP server');
   await pool.end();
   process.exit(0);
 });
