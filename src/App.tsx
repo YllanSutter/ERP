@@ -278,28 +278,32 @@ const App = () => {
     loadUsers();
   }, [user]);
 
-  // Fonction manuelle pour sauvegarder l'état global (à appeler en onBlur)
-  const saveState = async () => {
+  // Sauvegarde et synchro temps réel de l'état global à chaque changement (collections, vues, dashboards, etc.)
+  useEffect(() => {
     if (!isLoaded || !user || !canEdit) return;
-    try {
-      await fetch(`${API_URL}/state`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          collections: cleanForSave(collections),
-          views: cleanForSave(views),
-          dashboards: cleanForSave(dashboards),
-          dashboardSort,
-          dashboardFilters: cleanForSave(dashboardFilters),
-          favorites: cleanForSave(favorites)
-          // Ne synchronise plus activeCollection, activeView, activeDashboard
-        }),
-      });
-    } catch (err) {
-      console.error('Impossible de sauvegarder les données', err);
-    }
-  };
+    const saveState = async () => {
+      // console.log('[SYNC] Envoi de l’état global au serveur (hors vue utilisateur)');
+      try {
+        await fetch(`${API_URL}/state`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            collections: cleanForSave(collections),
+            views: cleanForSave(views),
+            dashboards: cleanForSave(dashboards),
+            dashboardSort,
+            dashboardFilters: cleanForSave(dashboardFilters),
+            favorites: cleanForSave(favorites)
+            // Ne synchronise plus activeCollection, activeView, activeDashboard
+          }),
+        });
+      } catch (err) {
+        console.error('Impossible de sauvegarder les données', err);
+      }
+    };
+    saveState();
+  }, [JSON.stringify(collections), JSON.stringify(views), JSON.stringify(dashboards), JSON.stringify(dashboardFilters), JSON.stringify(favorites), isLoaded, user, canEdit]);
 
   useEffect(() => {
     if (!activeCollection) return;
@@ -621,7 +625,6 @@ const App = () => {
                     }}
                     onNavigateToCollection={handleNavigateToCollection}
                     groups={activeViewConfig?.groups || []}
-                    saveState={saveState}
                   />
                 )}
                 {activeViewConfig?.type === 'kanban' && (

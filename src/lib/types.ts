@@ -59,5 +59,4 @@ export interface TableViewProps {
   onRelationChange: (prop: Property, item: Item, value: any) => void;
   onNavigateToCollection: (collectionId: string, linkedIds?: string[]) => void;
   groups?: string[];
-  saveState?: () => void;
 }

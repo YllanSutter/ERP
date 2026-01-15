@@ -16,7 +16,6 @@ interface EditablePropertyProps {
   property: any;
   value: any;
   onChange: (value: any) => void;
-  onBlur?: () => void;
   size?: 'sm' | 'md' | 'lg';
   isNameField?: boolean;
   onViewDetail?: () => void;
@@ -44,7 +43,6 @@ const SimpleInput = ({
   type, 
   value, 
   onChange, 
-  onBlur,
   sizeClasses, 
   className, 
   readOnly, 
@@ -53,7 +51,6 @@ const SimpleInput = ({
   type: string; 
   value: any; 
   onChange: (value: any) => void; 
-  onBlur?: () => void;
   sizeClasses: any; 
   className?: string; 
   readOnly?: boolean; 
@@ -63,7 +60,6 @@ const SimpleInput = ({
     type={type}
     value={value || ''}
     onChange={(e) => onChange(e.target.value)}
-    onBlur={onBlur}
     placeholder={placeholder}
     disabled={readOnly}
     className={cn(
@@ -428,7 +424,6 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   property,
   value,
   onChange,
-  onBlur,
   size = 'md',
   isNameField = false,
   onViewDetail,
@@ -673,7 +668,6 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       type={inputType} 
       value={value} 
       onChange={onChange} 
-      onBlur={onBlur}
       sizeClasses={sizeClasses} 
       className={className} 
       readOnly={readOnly}

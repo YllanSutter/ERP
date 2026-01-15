@@ -26,8 +26,7 @@ export interface TableItemRowProps {
   canEditField: (fieldId: string) => boolean;
   paddingLeft?: number;
   animate?: boolean;
-  collection?: any;
-  saveState?: () => void;
+  collection?:any
 }
 
 const TableItemRow: React.FC<TableItemRowProps> = ({
@@ -44,7 +43,6 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
   collection,
   paddingLeft = 24,
   animate = true,
-  saveState,
 }) => {
   const RowComponent = animate ? motion.tr : 'tr';
   const motionProps = animate
@@ -80,7 +78,6 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                   const updated = updateEventSegments({ ...item, [prop.id]: val }, collections.find(c => c.id === item.__collectionId));
                   onEdit(updated);
                 }}
-                onBlur={typeof saveState === 'function' ? saveState : undefined}
                 size="md"
                 isNameField={prop.id === 'name' || prop.name === 'Nom'}
                 onViewDetail={prop.id === 'name' || prop.name === 'Nom' ? () => onViewDetail(item) : undefined}
