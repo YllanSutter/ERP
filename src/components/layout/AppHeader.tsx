@@ -34,12 +34,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       console.log('[SOCKET][CLIENT] usersConnected reçu:', users);
       setConnectedUsers(users);
     });
-    console.log('[SOCKET][CLIENT] emit whoIsConnected');
-    socket.emit('whoIsConnected');
+    if (user && user.id && user.name) {
+      console.log('[SOCKET][CLIENT] emit identify', user.id, user.name);
+      socket.emit('identify', { id: user.id, name: user.name });
+    }
     return () => {
       socket.disconnect();
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   return (
     <motion.div

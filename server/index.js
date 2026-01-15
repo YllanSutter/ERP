@@ -686,28 +686,46 @@ let serverInstance;
 
     io.on('connection', async (socket) => {
       console.log('[SOCKET] Nouvelle connexion', socket.id);
-      // Récupérer l'utilisateur via le cookie si possible
-      let user = null;
-      try {
-        // Extraire le token JWT du cookie si présent
-        const cookie = socket.handshake.headers.cookie || '';
-        const match = cookie.match(/auth_token=([^;]+)/);
-        if (match) {
-          const token = match[1];
-          const decoded = jwt.verify(token, JWT_SECRET);
-          // Charger l'utilisateur depuis la base
-          const result = await pool.query('SELECT id, name, email FROM users WHERE id = $1', [decoded.id]);
-          if (result.rowCount) {
-            user = result.rows[0];
-            console.log('[SOCKET] Utilisateur connecté:', user.email || user.name || user.id);
+        // Identification par événement 'identify' (plus fiable que le cookie)
+        let user = null;
+        socket.on('identify', async (payload) => {
+          if (payload && payload.id && payload.name) {
+            user = { id: payload.id, name: payload.name };
             connectedUsers.set(socket.id, user);
+            console.log('[SOCKET] identify reçu:', user);
             broadcastUsers();
           }
+        });
+
+        // (Optionnel) fallback cookie pour compatibilité ancienne version
+        try {
+          const cookie = socket.handshake.headers.cookie || '';
+          const match = cookie.match(/auth_token=([^;]+)/);
+          if (match) {
+            const token = match[1];
+            const decoded = jwt.verify(token, JWT_SECRET);
+            const result = await pool.query('SELECT id, name, email FROM users WHERE id = $1', [decoded.id]);
+            if (result.rowCount) {
+              user = result.rows[0];
+              connectedUsers.set(socket.id, user);
+              console.log('[SOCKET] Utilisateur connecté (cookie):', user.email || user.name || user.id);
+              broadcastUsers();
+            }
+          }
+        } catch (e) {
+          console.log('[SOCKET] Connexion sans utilisateur identifié', socket.id);
         }
-      } catch (e) {
-        console.log('[SOCKET] Connexion sans utilisateur identifié', socket.id);
-        // Pas d'utilisateur valide
-      }
+
+        socket.on('whoIsConnected', () => {
+          console.log('[SOCKET] whoIsConnected reçu de', socket.id);
+          broadcastUsers();
+        });
+
+        socket.on('disconnect', () => {
+          console.log('[SOCKET] Déconnexion', socket.id);
+          connectedUsers.delete(socket.id);
+          broadcastUsers();
+        });
 
       // Répondre à la demande explicite
       socket.on('whoIsConnected', () => {
