@@ -602,6 +602,7 @@ app.get('/api/state', requireAuth, async (req, res) => {
 
 app.post('/api/state', requireAuth, async (req, res) => {
   try {
+    console.log('[API] POST /api/state reçu');
     const payload = req.body ?? {};
     const userId = req.auth.user.id;
     // Séparer les favoris du reste de l'état
@@ -636,6 +637,7 @@ app.post('/api/state', requireAuth, async (req, res) => {
     await logAudit(userId, 'state.save', 'app_state', 'global', { collections: collections.length });
     // Émettre l'événement socket.io pour le hot reload
     if (global.io) {
+      console.log('[SOCKET] Emission de stateUpdated à tous les clients');
       global.io.emit('stateUpdated');
     }
     return res.json({ ok: true });
@@ -700,7 +702,11 @@ let serverInstance;
         // (Optionnel) fallback cookie pour compatibilité ancienne version
         try {
           const cookie = socket.handshake.headers.cookie || '';
-          const match = cookie.match(/auth_token=([^;]+)/);
+          // Accepte auth_token OU access_token
+          let match = cookie.match(/auth_token=([^;]+)/);
+          if (!match) {
+            match = cookie.match(/access_token=([^;]+)/);
+          }
           if (match) {
             const token = match[1];
             const decoded = jwt.verify(token, JWT_SECRET);
