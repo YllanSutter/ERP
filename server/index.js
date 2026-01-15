@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import pkg from 'pg';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Server as SocketIOServer } from 'socket.io';
 
 const { Pool } = pkg;
 const __filename = fileURLToPath(import.meta.url);
@@ -603,33 +604,28 @@ app.post('/api/state', requireAuth, async (req, res) => {
   try {
     const payload = req.body ?? {};
     const userId = req.auth.user.id;
-    
     // Séparer les favoris du reste de l'état
     const { favorites, ...stateData } = payload;
     const collections = stateData.collections || [];
-
     // DEBUG: Log les _eventSegments de chaque item avant sauvegarde
     for (const col of collections) {
       if (col.items) {
         for (const item of col.items) {
           if (item._eventSegments) {
-            console.log(`[SAVE] item ${item.id} _eventSegments:`, item._eventSegments);
+            // console.log(`[SAVE] item ${item.id} _eventSegments:`, item._eventSegments);
           }
         }
       }
     }
-    
     // Vérifier les permissions pour les collections
     for (const col of collections) {
       if (!hasPermission(req.auth, { collection_id: col.id }, 'can_write')) {
         return res.status(403).json({ error: `Forbidden to write collection ${col.id}` });
       }
     }
-
     // Sauvegarder l'état global (sans favoris) dans app_state
     const stateStr = JSON.stringify(stateData);
     await pool.query('UPDATE app_state SET data = $1 WHERE user_id IS NULL', [stateStr]);
-    
     // Sauvegarder les favoris de l'utilisateur
     const favoriteViews = favorites?.views || [];
     const favoriteItems = favorites?.items || [];
@@ -637,8 +633,11 @@ app.post('/api/state', requireAuth, async (req, res) => {
       'UPDATE users SET favorite_views = $1, favorite_items = $2 WHERE id = $3',
       [favoriteViews, favoriteItems, userId]
     );
-    
     await logAudit(userId, 'state.save', 'app_state', 'global', { collections: collections.length });
+    // Émettre l'événement socket.io pour le hot reload
+    if (global.io) {
+      global.io.emit('stateUpdated');
+    }
     return res.json({ ok: true });
   } catch (err) {
     console.error('Failed to save state', err);
@@ -661,12 +660,18 @@ app.get('*', (req, res) => {
 });
 
 // --- Bootstrap and start -----------------------------------------------
+let serverInstance;
 (async () => {
   try {
     await bootstrap();
-    app.listen(PORT, () => {
+    serverInstance = app.listen(PORT, () => {
       console.log(`API server listening on http://localhost:${PORT}`);
     });
+    // Initialisation socket.io
+    const io = new SocketIOServer(serverInstance, {
+      cors: { origin: CLIENT_ORIGIN, credentials: true }
+    });
+    global.io = io;
   } catch (err) {
     console.error('Failed to bootstrap server', err);
     process.exit(1);

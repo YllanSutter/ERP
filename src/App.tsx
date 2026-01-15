@@ -17,6 +17,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
 }
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { io } from 'socket.io-client';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import KanbanView from '@/components/views/KanbanView';
@@ -48,6 +49,47 @@ import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
 import { MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 
 const App = () => {
+  // Connexion socket.io
+  const [socket, setSocket] = useState<any>(null);
+    // Connexion à socket.io au montage
+    useEffect(() => {
+      const s = io(API_URL, { withCredentials: true });
+      setSocket(s);
+      return () => {
+        s.disconnect();
+      };
+    }, []);
+
+    // Hot reload sur événement 'stateUpdated' reçu du serveur
+    useEffect(() => {
+      if (!socket) return;
+      const reloadState = async () => {
+        try {
+          const res = await fetch(`${API_URL}/state`, { credentials: 'include' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.collections && data?.views) {
+              setCollections(data.collections);
+              setViews(data.views);
+              setDashboards(data.dashboards || defaultDashboards);
+              setDashboardSort(data.dashboardSort || 'created');
+              setActiveCollection(data.activeCollection || null);
+              setActiveView(data.activeView || null);
+              setActiveDashboard(data.activeDashboard || null);
+              setFavorites(data.favorites || { views: [], items: [] });
+              setDashboardFilters(data.dashboardFilters || {});
+              setIsLoaded(true);
+            }
+          }
+        } catch (err) {
+          console.error('Impossible de recharger les données', err);
+        }
+      };
+      socket.on('stateUpdated', reloadState);
+      return () => {
+        socket.off('stateUpdated', reloadState);
+      };
+    }, [socket]);
   // Filtres par dashboard (clé = dashboard.id)
   const [dashboardFilters, setDashboardFilters] = useState<Record<string, any[]>>({});
   const {
