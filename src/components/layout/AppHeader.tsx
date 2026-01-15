@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import { useAuth } from '@/auth/AuthProvider';
 import { useCanEdit, useCanManagePermissions } from '@/lib/hooks/useCanEdit';
+import { io } from 'socket.io-client';
 
 interface AppHeaderProps {
   impersonatedRoleId: string | null;
@@ -21,10 +22,22 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   onShowAccessManager
 }) => {
   const { user, logout, isAdminBase } = useAuth();
-  
   // Hooks de permissions
   const canEdit = useCanEdit();
   const canManagePermissions = useCanManagePermissions();
+
+  // Ajout de la liste des utilisateurs connectés
+  const [connectedUsers, setConnectedUsers] = useState<any[]>([]);
+  useEffect(() => {
+    const socket = io();
+    socket.on('usersConnected', (users: any[]) => {
+      setConnectedUsers(users);
+    });
+    socket.emit('whoIsConnected');
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   return (
     <motion.div
@@ -49,6 +62,12 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         </ShinyButton>
       </div>
       <div className="flex items-center gap-3">
+        {/* Affiche tous les utilisateurs connectés */}
+        {connectedUsers.map((u: any) => (
+          <div key={u.id} className="text-sm text-neutral-400 grid items-center justify-center bg-neutral-700 size-[22px] rounded-full">
+            <span className="text-white font-bold text-xs leading-none text-center">{u.name?.charAt(0) || 'U'}</span>
+          </div>
+        ))}
         <div className="text-sm text-neutral-400 grid items-center justify-center bg-neutral-700 size-[22px] rounded-full">
           <span className="text-white font-bold text-xs leading-none text-center">{user?.name.charAt(0) || 'Utilisateur'}</span>
         </div>
