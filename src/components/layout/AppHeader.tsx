@@ -31,8 +31,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   useEffect(() => {
     const socket = io({ transports: ['polling'] });
     socket.on('usersConnected', (users: any[]) => {
+      console.log('[SOCKET][CLIENT] usersConnected reçu:', users);
       setConnectedUsers(users);
     });
+    console.log('[SOCKET][CLIENT] emit whoIsConnected');
     socket.emit('whoIsConnected');
     return () => {
       socket.disconnect();

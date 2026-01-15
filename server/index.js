@@ -672,6 +672,55 @@ let serverInstance;
       cors: { origin: CLIENT_ORIGIN, credentials: true }
     });
     global.io = io;
+
+    // --- Gestion utilisateurs connectés ---
+    // Map socket.id -> user info
+    const connectedUsers = new Map();
+
+    // Helper pour envoyer la liste à tous
+    function broadcastUsers() {
+      const users = Array.from(connectedUsers.values());
+      console.log('[SOCKET] broadcast usersConnected:', users.map(u => u?.email || u?.name || u?.id));
+      io.emit('usersConnected', users);
+    }
+
+    io.on('connection', async (socket) => {
+      console.log('[SOCKET] Nouvelle connexion', socket.id);
+      // Récupérer l'utilisateur via le cookie si possible
+      let user = null;
+      try {
+        // Extraire le token JWT du cookie si présent
+        const cookie = socket.handshake.headers.cookie || '';
+        const match = cookie.match(/auth_token=([^;]+)/);
+        if (match) {
+          const token = match[1];
+          const decoded = jwt.verify(token, JWT_SECRET);
+          // Charger l'utilisateur depuis la base
+          const result = await pool.query('SELECT id, name, email FROM users WHERE id = $1', [decoded.id]);
+          if (result.rowCount) {
+            user = result.rows[0];
+            console.log('[SOCKET] Utilisateur connecté:', user.email || user.name || user.id);
+            connectedUsers.set(socket.id, user);
+            broadcastUsers();
+          }
+        }
+      } catch (e) {
+        console.log('[SOCKET] Connexion sans utilisateur identifié', socket.id);
+        // Pas d'utilisateur valide
+      }
+
+      // Répondre à la demande explicite
+      socket.on('whoIsConnected', () => {
+        console.log('[SOCKET] whoIsConnected reçu de', socket.id);
+        broadcastUsers();
+      });
+
+      socket.on('disconnect', () => {
+        console.log('[SOCKET] Déconnexion', socket.id);
+        connectedUsers.delete(socket.id);
+        broadcastUsers();
+      });
+    });
   } catch (err) {
     console.error('Failed to bootstrap server', err);
     process.exit(1);
