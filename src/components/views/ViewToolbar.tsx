@@ -91,7 +91,11 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   
   // Filtrer les propriétés que l'utilisateur peut voir
   const viewableProperties = orderedProperties.filter(prop => canViewFieldFn(prop.id));
-  const IconComponent = (Icons as any)[currentCollection.icon] || Icons.Folder;
+  // Sécurise l'accès à l'icône de la collection
+  let IconComponent = Icons.Folder;
+  if (currentCollection && typeof currentCollection.icon === 'string' && (Icons as any)[currentCollection.icon]) {
+    IconComponent = (Icons as any)[currentCollection.icon];
+  }
 
   return (
     <motion.div
@@ -103,7 +107,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <IconComponent size={18} style={{ color: '#fff' }} />
-          <h2 className="text-xl font-bold">{currentCollection?.name}</h2>
+          <h2 className="text-xl font-bold">{currentCollection?.name || 'Aucune collection'}</h2>
         </div>
         <ShinyButton
           onClick={() => {
