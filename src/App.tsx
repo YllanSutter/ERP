@@ -1,20 +1,4 @@
-// Nettoie récursivement un objet pour supprimer les cycles et les clés privées (commençant par _)
-function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
-  if (obj === null || typeof obj !== 'object') return obj;
-  if (seen.has(obj)) return undefined;
-  seen.add(obj);
-  if (Array.isArray(obj)) {
-    return obj.map((item) => cleanForSave(item, seen)).filter((v) => v !== undefined);
-  }
-  const result: Record<string, any> = {};
-  for (const key in obj) {
-    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
-    // On NE filtre plus les clés commençant par _ pour garder _eventSegments
-    const val = cleanForSave(obj[key], seen);
-    if (val !== undefined) result[key] = val;
-  }
-  return result;
-}
+
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
@@ -51,44 +35,25 @@ import { MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 const App = () => {
   // Connexion socket.io (même logique que AppHeader)
   const [socket, setSocket] = useState<any>(null);
-  useEffect(() => {
-    // Utilise la même origine que la page (cookies/session OK)
-    const s = io({ transports: ['polling'] });
-    setSocket(s);
-    return () => {
-      s.disconnect();
-    };
-  }, []);
 
-    // Hot reload sur événement 'stateUpdated' reçu du serveur
-    useEffect(() => {
-      if (!socket) return;
-      const reloadState = async () => {
-        // console.log('[SYNC] Réception de l’événement stateUpdated, rechargement de l’état...');
-        try {
-          const res = await fetch(`${API_URL}/state`, { credentials: 'include' });
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.collections && data?.views) {
-              setCollections(data.collections);
-              setViews(data.views);
-              setDashboards(data.dashboards || defaultDashboards);
-              setDashboardSort(data.dashboardSort || 'created');
-              // NE PAS toucher à activeCollection, activeView, activeDashboard ici !
-              setFavorites(data.favorites || { views: [], items: [] });
-              setDashboardFilters(data.dashboardFilters || {});
-              setIsLoaded(true);
-            }
-          }
-        } catch (err) {
-          console.error('Impossible de recharger les données', err);
-        }
-      };
-      socket.on('stateUpdated', reloadState);
-      return () => {
-        socket.off('stateUpdated', reloadState);
-      };
-    }, [socket]);
+
+    // Nettoie récursivement un objet pour supprimer les cycles et les clés privées (commençant par _)
+function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (seen.has(obj)) return undefined;
+  seen.add(obj);
+  if (Array.isArray(obj)) {
+    return obj.map((item) => cleanForSave(item, seen)).filter((v) => v !== undefined);
+  }
+  const result: Record<string, any> = {};
+  for (const key in obj) {
+    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+    // On NE filtre plus les clés commençant par _ pour garder _eventSegments
+    const val = cleanForSave(obj[key], seen);
+    if (val !== undefined) result[key] = val;
+  }
+  return result;
+}
   // Filtres par dashboard (clé = dashboard.id)
   const [dashboardFilters, setDashboardFilters] = useState<Record<string, any[]>>({});
   const {
@@ -179,7 +144,73 @@ const App = () => {
   const visibleViews = useMemo(() => currentViews.filter(canSeeView), [currentViews, userRoleIds, user?.id]);
   const activeViewConfig =
     visibleViews.find((v: any) => v.id === activeView) || visibleViews[0] || null;
+  useEffect(() => {
+    // Utilise la même origine que la page (cookies/session OK)
+    const s = io({ transports: ['polling'] });
+    setSocket(s);
+    return () => {
+      s.disconnect();
+    };
+  }, []);
 
+    // Hot reload sur événement 'stateUpdated' reçu du serveur
+    // Pour éviter les reloads en boucle, on garde l'heure du dernier reload et un flag local
+    const lastReloadRef = React.useRef(0);
+    const ignoreNextReloadRef = React.useRef(false);
+
+    // Quand on sauvegarde l'état, on ignore le prochain reload (car c'est nous qui avons modifié)
+    useEffect(() => {
+      if (!isLoaded || !user || !canEdit) return;
+      ignoreNextReloadRef.current = true;
+    }, [
+      collections.length,
+      views && Object.keys(views).length,
+      dashboards.length,
+      dashboardSort,
+      Object.keys(dashboardFilters).length,
+      favorites.views.length,
+      favorites.items.length
+    ]);
+
+    useEffect(() => {
+      if (!socket) return;
+      const reloadState = async () => {
+        const now = Date.now();
+        if (ignoreNextReloadRef.current) {
+          // On ignore ce reload car il fait suite à notre propre modification
+          ignoreNextReloadRef.current = false;
+          // console.log('[SYNC] Ignoré: reloadState déclenché par notre propre modification.');
+          return;
+        }
+        if (now - lastReloadRef.current < 5000) {
+          // console.log('[SYNC] Ignoré: reloadState trop fréquent.');
+          return;
+        }
+        lastReloadRef.current = now;
+        try {
+          const res = await fetch(`${API_URL}/state`, { credentials: 'include' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.collections && data?.views) {
+              setCollections(data.collections);
+              setViews(data.views);
+              setDashboards(data.dashboards || defaultDashboards);
+              setDashboardSort(data.dashboardSort || 'created');
+              // NE PAS toucher à activeCollection, activeView, activeDashboard ici !
+              setFavorites(data.favorites || { views: [], items: [] });
+              setDashboardFilters(data.dashboardFilters || {});
+              setIsLoaded(true);
+            }
+          }
+        } catch (err) {
+          console.error('Impossible de recharger les données', err);
+        }
+      };
+      socket.on('stateUpdated', reloadState);
+      return () => {
+        socket.off('stateUpdated', reloadState);
+      };
+    }, [socket, isLoaded, user, canEdit]);
   useEffect(() => {
     const loadState = async () => {
       if (authLoading) return;
@@ -303,7 +334,18 @@ const App = () => {
       }
     };
     saveState();
-  }, [JSON.stringify(collections), JSON.stringify(views), JSON.stringify(dashboards), JSON.stringify(dashboardFilters), JSON.stringify(favorites), isLoaded, user, canEdit]);
+  }, [
+    collections.length,
+    Object.keys(views).length,
+    dashboards.length,
+    dashboardSort,
+    Object.keys(dashboardFilters).length,
+    favorites.views.length,
+    favorites.items.length,
+    isLoaded,
+    user,
+    canEdit
+  ]);
 
   useEffect(() => {
     if (!activeCollection) return;

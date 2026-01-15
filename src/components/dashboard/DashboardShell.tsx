@@ -1,5 +1,29 @@
-  // Utilitaire : vérifie si l'item correspond à au moins une des valeurs filtrées (supporte array ou valeur simple)
-  // version stricte : un item doit posséder TOUS les tags/valeurs de typeValues pour apparaître dans la colonne
+import React, { useEffect, useMemo, useState, Suspense } from 'react';
+const FilterModal = React.lazy(() => import('@/components/modals/FilterModal'));
+import ItemContextMenu from '@/components/menus/ItemContextMenu';
+import { DashboardColumnNode, MonthlyDashboardConfig } from '@/lib/dashboardTypes';
+import DashboardColumnConfig from './DashboardColumnConfig';
+import {
+  getMonday,
+  MONTH_NAMES,
+  getItemsForDate as getItemsForDateUtil,
+  getNameValue as getNameValueUtil,
+  getEventStyle,
+} from '@/lib/calendarUtils';
+
+interface DashboardShellProps {
+  dashboard: MonthlyDashboardConfig | null;
+  collections: any[];
+  onUpdate: (patch: Partial<MonthlyDashboardConfig>) => void;
+  onViewDetail: (item: any) => void;
+  onDelete: (id: string) => void;
+  dashboardFilters: Record<string, any[]>;
+  setDashboardFilters: React.Dispatch<React.SetStateAction<Record<string, any[]>>>;
+}
+
+
+const months = MONTH_NAMES;
+
   function itemMatchesTypeValues(itemValue: any, typeValues: string[], fieldType?: string): boolean {
     if (!typeValues || typeValues.length === 0) return true;
     if (Array.isArray(itemValue)) {
@@ -26,35 +50,7 @@
       n.children && n.children.length ? getLeaves(n.children) : [n]
     );
   };
-import React, { useEffect, useMemo, useState, Suspense } from 'react';
-const FilterModal = React.lazy(() => import('@/components/modals/FilterModal'));
-import ItemContextMenu from '@/components/menus/ItemContextMenu';
-import { DashboardColumnNode, MonthlyDashboardConfig } from '@/lib/dashboardTypes';
-import DashboardColumnConfig from './DashboardColumnConfig';
 
-interface DashboardShellProps {
-  dashboard: MonthlyDashboardConfig | null;
-  collections: any[];
-  onUpdate: (patch: Partial<MonthlyDashboardConfig>) => void;
-  onViewDetail: (item: any) => void;
-  onDelete: (id: string) => void;
-  dashboardFilters: Record<string, any[]>;
-  setDashboardFilters: React.Dispatch<React.SetStateAction<Record<string, any[]>>>;
-}
-
-import {
-  getMonday,
-  MONTH_NAMES,
-  getItemsForDate as getItemsForDateUtil,
-  getNameValue as getNameValueUtil,
-  getPreviousPeriod,
-  getNextPeriod,
-  getEventStyle,
-  workDayStart,
-  workDayEnd,
-} from '@/lib/calendarUtils';
-
-const months = MONTH_NAMES;
 
 const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete, dashboardFilters, setDashboardFilters }) => {
       // Early return pour garantir l'ordre des hooks
@@ -545,13 +541,13 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       <div key={week.week} className="overflow-auto rounded-sm shadow-inner shadow-black/40">
         <table className="min-w-full text-sm table-fixed">
           <colgroup>
-            <col style={{ width: '30px' }} /> {/* Colonne total durée */}
-            <col style={{ width: '120px' }} />
-            {leafColumns.map((leaf: any) => (
-              <React.Fragment key={leaf.id}>
-                <col style={{ width: '100px' }} />
-                <col style={{ width: '100px' }} />
-              </React.Fragment>
+            <col style={{ width: "30px" }} />
+            <col style={{ width: "120px" }} />
+            {leafColumns.map((leaf) => (
+              <col key={leaf.id + "-count"} style={{ width: "100px" }} />
+            ))}
+            {leafColumns.map((leaf) => (
+              <col key={leaf.id + "-duration"} style={{ width: "100px" }} />
             ))}
           </colgroup>
           <thead className="bg-neutral-900/90">
@@ -751,10 +747,10 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           <colgroup>
             <col style={{ width: '120px' }} />
             {leafColumns.map((_, i) => (
-              <col key={i} style={{ width: '80px' }} />
+              <col key={i + '-count'} style={{ width: '80px' }} />
             ))}
             {leafColumns.map((_, i) => (
-              <col key={i + leafColumns.length} style={{ width: '100px' }} />
+              <col key={i + '-duration'} style={{ width: '100px' }} />
             ))}
           </colgroup>
           <thead className="bg-neutral-900/90">
