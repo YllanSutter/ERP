@@ -107,9 +107,16 @@ const App = () => {
   const [views, setViews] = useState<Record<string, any[]>>(defaultViews);
   const [dashboards, setDashboards] = useState<MonthlyDashboardConfig[]>(defaultDashboards);
   const [dashboardSort, setDashboardSort] = useState<'created' | 'name-asc' | 'name-desc'>('created');
-  const [activeCollection, setActiveCollection] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<string | null>(null);
-  const [activeDashboard, setActiveDashboard] = useState<string | null>(null);
+  // Navigation utilisateur persistée localement
+  const [activeCollection, setActiveCollection] = useState<string | null>(() => {
+    return localStorage.getItem('erp_activeCollection') || null;
+  });
+  const [activeView, setActiveView] = useState<string | null>(() => {
+    return localStorage.getItem('erp_activeView') || null;
+  });
+  const [activeDashboard, setActiveDashboard] = useState<string | null>(() => {
+    return localStorage.getItem('erp_activeDashboard') || null;
+  });
   const [isLoaded, setIsLoaded] = useState(false);
 
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
@@ -183,9 +190,6 @@ const App = () => {
         setViews(defaultViews);
         setDashboards(defaultDashboards);
         setDashboardSort('created');
-        setActiveCollection(null);
-        setActiveView(null);
-        setActiveDashboard(null);
         setIsLoaded(true);
         return;
       }
@@ -202,9 +206,6 @@ const App = () => {
             setViews(data.views);
             setDashboards(data.dashboards || defaultDashboards);
             setDashboardSort(data.dashboardSort || 'created');
-            setActiveCollection(data.activeCollection || null);
-            setActiveView(data.activeView || null);
-            setActiveDashboard(data.activeDashboard || null);
             setFavorites(data.favorites || { views: [], items: [] });
             setDashboardFilters(data.dashboardFilters || {});
             setIsLoaded(true);
@@ -218,14 +219,34 @@ const App = () => {
       setViews(defaultViews);
       setDashboards(defaultDashboards);
       setDashboardSort('created');
-      setActiveCollection(null);
-      setActiveView(null);
-      setActiveDashboard(null);
       setIsLoaded(true);
     };
 
     loadState();
   }, [authLoading, user, logout]);
+
+  // Persiste la navigation utilisateur dans le localStorage
+  useEffect(() => {
+    if (activeCollection) {
+      localStorage.setItem('erp_activeCollection', activeCollection);
+    } else {
+      localStorage.removeItem('erp_activeCollection');
+    }
+  }, [activeCollection]);
+  useEffect(() => {
+    if (activeView) {
+      localStorage.setItem('erp_activeView', activeView);
+    } else {
+      localStorage.removeItem('erp_activeView');
+    }
+  }, [activeView]);
+  useEffect(() => {
+    if (activeDashboard) {
+      localStorage.setItem('erp_activeDashboard', activeDashboard);
+    } else {
+      localStorage.removeItem('erp_activeDashboard');
+    }
+  }, [activeDashboard]);
 
   useEffect(() => {
     const loadRoles = async () => {
