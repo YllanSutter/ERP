@@ -326,9 +326,21 @@ const loadUserContext = async (userId, impersonateRoleId = null) => {
 
 const requireAuth = async (req, res, next) => {
   try {
-    const token = req.cookies.access_token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
-    if (!token) return res.status(401).json({ error: 'Unauthenticated' });
-    const decoded = jwt.verify(token, JWT_SECRET);
+    // Log cookies et headers pour debug
+    console.log('[AUTH] Cookies:', req.cookies);
+    console.log('[AUTH] Authorization header:', req.headers.authorization);
+    const token = req.cookies.auth_token || req.cookies.access_token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+    if (!token) {
+      console.log('[AUTH] Aucun token trouvé');
+      return res.status(401).json({ error: 'Unauthenticated' });
+    }
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (e) {
+      console.log('[AUTH] JWT non valide');
+      return res.status(401).json({ error: 'Invalid token' });
+    }
     const baseCtx = await loadUserContext(decoded.sub);
     if (!baseCtx) return res.status(401).json({ error: 'Invalid user' });
 
