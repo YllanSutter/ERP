@@ -22,6 +22,7 @@ const TableView: React.FC<TableViewProps> = ({
   onRelationChange,
   onNavigateToCollection,
   groups = [],
+  saveState,
 }) => {
   const { itemsMap, groupedStructure, expandedGroups, toggleGroup } = useGrouping(
     items,
@@ -99,7 +100,8 @@ const TableView: React.FC<TableViewProps> = ({
                   canEdit={canEdit}
                   canEditField={canEditFieldFn}
                   animate={false}
-                  collection = {collection}
+                  collection={collection}
+                  saveState={saveState}
                 />
               ))
             )}
