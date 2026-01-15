@@ -49,11 +49,11 @@ import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
 import { MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 
 const App = () => {
-  // Connexion socket.io
+  // Connexion socket.io (même logique que AppHeader)
   const [socket, setSocket] = useState<any>(null);
-  // Connexion à socket.io au montage (force transport polling pour Railway)
   useEffect(() => {
-    const s = io(API_URL, { withCredentials: true, transports: ['polling'] });
+    // Utilise la même origine que la page (cookies/session OK)
+    const s = io({ transports: ['polling'] });
     setSocket(s);
     return () => {
       s.disconnect();
