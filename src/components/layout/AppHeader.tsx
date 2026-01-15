@@ -44,6 +44,28 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Génère une couleur de fond pseudo-aléatoire à partir de l'id utilisateur
+  function getUserColor(id: string) {
+    // Palette pastel
+    const colors = [
+      '#f87171', // rouge
+      '#fbbf24', // jaune
+      '#34d399', // vert
+      '#60a5fa', // bleu
+      '#a78bfa', // violet
+      '#f472b6', // rose
+      '#38bdf8', // cyan
+      '#facc15', // or
+      '#fb7185', // rose foncé
+      '#4ade80', // vert clair
+    ];
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+      hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  }
+
   return (
     <motion.div
       initial={{ y: -20, opacity: 0 }}
@@ -67,15 +89,18 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         </ShinyButton>
       </div>
       <div className="flex items-center gap-3">
-        {/* Affiche tous les utilisateurs connectés */}
+        {/* Affiche tous les utilisateurs connectés avec couleur et uppercase */}
         {connectedUsers.map((u: any) => (
-          <div key={u.id} className="text-sm text-neutral-400 grid items-center justify-center bg-neutral-700 size-[22px] rounded-full">
-            <span className="text-white font-bold text-xs leading-none text-center">{u.name?.charAt(0) || 'U'}</span>
+          <div
+            key={u.id}
+            className="text-sm text-neutral-400 grid items-center justify-center size-[22px] rounded-full"
+            style={{ background: getUserColor(u.id) }}
+          >
+            <span className="text-white font-bold text-xs leading-none text-center" title={u.name}>
+              {(u.name?.charAt(0) || 'U').toUpperCase()}
+            </span>
           </div>
         ))}
-        <div className="text-sm text-neutral-400 grid items-center justify-center bg-neutral-700 size-[22px] rounded-full">
-          <span className="text-white font-bold text-xs leading-none text-center">{user?.name.charAt(0) || 'Utilisateur'}</span>
-        </div>
         {isAdminBase && (
           <div className="flex items-center gap-2 text-xs text-neutral-400">
             <span className="text-neutral-500">Rôle effectif :</span>
