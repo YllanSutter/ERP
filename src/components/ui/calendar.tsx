@@ -23,6 +23,12 @@ function Calendar({
 }) {
   const defaultClassNames = getDefaultClassNames()
 
+  // Masquer samedi (6) et dimanche (0)
+  const hideWeekends = (date: Date) => {
+    const day = date.getDay();
+    return day === 0 || day === 6;
+  };
+
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -37,6 +43,10 @@ function Calendar({
         formatMonthDropdown: (date) =>
           date.toLocaleString("default", { month: "short" }),
         ...formatters,
+      }}
+      modifiers={{
+        ...props.modifiers,
+        hidden: hideWeekends,
       }}
       classNames={{
         root: cn("w-fit", defaultClassNames.root),
@@ -85,8 +95,11 @@ function Calendar({
         table: "w-full border-collapse",
         weekdays: cn("flex", defaultClassNames.weekdays),
         weekday: cn(
+          // Masque les intitulés samedi (6) et dimanche (0)
           "text-muted-foreground flex-1 select-none rounded-md text-[0.8rem] font-normal",
-          defaultClassNames.weekday
+          defaultClassNames.weekday,
+          // Ajoute la classe invisible si c'est dimanche ou samedi
+          (weekday: any, index: number) => (index === 0 || index === 6 ? "invisible" : "")
         ),
         week: cn("mt-2 flex w-full", defaultClassNames.week),
         week_number_header: cn(
@@ -152,6 +165,32 @@ function Calendar({
           return (
             <ChevronDownIcon className={cn("size-4", className)} {...props} />
           )
+        },
+        Weekdays: () => {
+          // Affiche explicitement les abréviations françaises pour lundi à vendredi
+          const frWeekdays = [
+            { label: 'Lun', aria: 'Lundi' },
+            { label: 'Mar', aria: 'Mardi' },
+            { label: 'Mer', aria: 'Mercredi' },
+            { label: 'Jeu', aria: 'Jeudi' },
+            { label: 'Ven', aria: 'Vendredi' },
+          ];
+          return (
+            <tr className="flex rdp-weekdays">
+              {frWeekdays.map((d, i) => (
+                <th
+                  key={i}
+                  aria-label={d.aria}
+                  className={cn(
+                    "text-muted-foreground flex-1 select-none rounded-md text-[0.8rem] font-normal rdp-weekday"
+                  )}
+                  scope="col"
+                >
+                  {d.label}
+                </th>
+              ))}
+            </tr>
+          );
         },
         DayButton: CalendarDayButton,
         WeekNumber: ({ children, ...props }) => {
