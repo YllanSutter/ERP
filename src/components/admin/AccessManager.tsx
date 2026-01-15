@@ -264,11 +264,12 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                 className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs shadow"
                 style={{ minWidth: 80 }}
                 onClick={async () => {
-                  // Exporter tout le contenu de la table app_state
+                  // Exporter tout le contenu de la table app_state + CSV par collection
                   try {
                     const res = await fetch(`${API_URL}/appstate`, { credentials: 'include' });
                     if (!res.ok) throw new Error('Erreur export appstate');
                     const data = await res.json();
+                    // Export JSON brut
                     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -278,8 +279,64 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
+
+                    // Export CSV par collection (dans un zip)
+                    // On ne peut parser que les collections du state global (user_id == null)
+                    const globalRow = data.find((row: { user_id: null; }) => row.user_id === null);
+                    if (!globalRow) return;
+                    let state;
+                    try {
+                      state = JSON.parse(globalRow.data);
+                    } catch (e) {
+                      alert('Impossible de parser le state global pour CSV');
+                      return;
+                    }
+                    const collections = Array.isArray(state.collections) ? state.collections : [];
+                    if (collections.length === 0) return;
+
+                    // Génère un CSV pour chaque collection
+                    // Utilise JSZip pour zip (ajoute la dépendance si besoin)
+                    let JSZip;
+                    try {
+                      JSZip = (await import('jszip')).default;
+                    } catch (e) {
+                      alert('JSZip est requis pour l\'export CSV.');
+                      return;
+                    }
+                    const zip = new JSZip();
+                    for (const col of collections) {
+                      const items = Array.isArray(col.items) ? col.items : [];
+                      if (items.length === 0) continue;
+                      // Colonnes = toutes les clés rencontrées dans les items
+                      const allKeys = Array.from(new Set(items.flatMap((item: {}) => Object.keys(item))));
+                      // En-tête CSV
+                      const header = allKeys.join(',');
+                      const csvRows = [header];
+                      for (const item of items) {
+                        const row = allKeys.map(k => {
+                          let v = (item as Record<string, any>)[k as string];
+                          if (typeof v === 'object' && v !== null) v = JSON.stringify(v);
+                          if (typeof v === 'string' && (v.includes(',') || v.includes('"') || v.includes('\n'))) {
+                            v = '"' + v.replace(/"/g, '""') + '"';
+                          }
+                          return v ?? '';
+                        }).join(',');
+                        csvRows.push(row);
+                      }
+                      const csvContent = csvRows.join('\n');
+                      zip.file(`${col.name || col.id || 'collection'}.csv`, csvContent);
+                    }
+                    const zipBlob = await zip.generateAsync({ type: 'blob' });
+                    const zipUrl = URL.createObjectURL(zipBlob);
+                    const azip = document.createElement('a');
+                    azip.href = zipUrl;
+                    azip.download = 'erp_collections_csv.zip';
+                    document.body.appendChild(azip);
+                    azip.click();
+                    document.body.removeChild(azip);
+                    URL.revokeObjectURL(zipUrl);
                   } catch (err) {
-                    alert('Erreur lors de l\'export appstate.');
+                    alert('Erreur lors de l\'export appstate ou CSV.');
                   }
                 }}
               >
