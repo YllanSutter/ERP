@@ -57,6 +57,14 @@ import {
 const months = MONTH_NAMES;
 
 const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete, dashboardFilters, setDashboardFilters }) => {
+  // Early return pour garantir l'ordre des hooks
+  if (!dashboard) {
+    return (
+      <div className="flex items-center justify-center h-full text-neutral-500">
+        <p>Dashboard non accessible</p>
+      </div>
+    );
+  }
 
       const [showFilterModal, setShowFilterModal] = useState(false);
 

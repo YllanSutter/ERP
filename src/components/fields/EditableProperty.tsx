@@ -428,6 +428,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   property,
   value,
   onChange,
+  onBlur,
   size = 'md',
   isNameField = false,
   onViewDetail,
