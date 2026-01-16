@@ -327,18 +327,18 @@ const loadUserContext = async (userId, impersonateRoleId = null) => {
 const requireAuth = async (req, res, next) => {
   try {
     // Log cookies et headers pour debug
-    // console.log('[AUTH] Cookies:', req.cookies);
-    // console.log('[AUTH] Authorization header:', req.headers.authorization);
+     console.log('[AUTH] Cookies:', req.cookies);
+     console.log('[AUTH] Authorization header:', req.headers.authorization);
     const token = req.cookies.auth_token || req.cookies.access_token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
     if (!token) {
-      // console.log('[AUTH] Aucun token trouvé');
+       console.log('[AUTH] Aucun token trouvé');
       return res.status(401).json({ error: 'Unauthenticated' });
     }
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
     } catch (e) {
-      // console.log('[AUTH] JWT non valide');
+       console.log('[AUTH] JWT non valide');
       return res.status(401).json({ error: 'Invalid token' });
     }
     const baseCtx = await loadUserContext(decoded.sub);
@@ -628,19 +628,17 @@ const filterStateForUser = (data, ctx) => {
 app.get('/api/state', requireAuth, async (req, res) => {
   try {
     const userId = req.auth.user.id;
-    // Récupérer l'état global (collections, views, activeCollection, activeView)
-    const globalResult = await pool.query('SELECT data FROM app_state WHERE user_id IS NULL');
-    const globalData = globalResult.rows.length > 0 ? JSON.parse(globalResult.rows[0].data) : {};
-    
+    // Récupérer l'état utilisateur (collections, views, etc.)
+    const userStateResult = await pool.query('SELECT data FROM app_state WHERE user_id = $1', [userId]);
+    const userData = userStateResult.rows.length > 0 ? JSON.parse(userStateResult.rows[0].data) : {};
     // Récupérer les favoris de l'utilisateur
     const userResult = await pool.query('SELECT favorite_views, favorite_items FROM users WHERE id = $1', [userId]);
     const favorites = userResult.rows.length > 0 ? {
       views: userResult.rows[0].favorite_views || [],
       items: userResult.rows[0].favorite_items || []
     } : { views: [], items: [] };
-    
-    // Combiner l'état global et les favoris de l'utilisateur
-    const state = { ...globalData, favorites };
+    // Combiner l'état utilisateur et les favoris
+    const state = { ...userData, favorites };
     const filtered = filterStateForUser(state, req.auth);
     return res.json(filtered);
   } catch (err) {
@@ -651,7 +649,7 @@ app.get('/api/state', requireAuth, async (req, res) => {
 
 app.post('/api/state', requireAuth, async (req, res) => {
   try {
-    // console.log('[API] POST /api/state reçu');
+    console.log('[API] POST /api/state reçu');
     const payload = req.body ?? {};
     const userId = req.auth.user.id;
     // Séparer les favoris du reste de l'état
@@ -662,7 +660,7 @@ app.post('/api/state', requireAuth, async (req, res) => {
       if (col.items) {
         for (const item of col.items) {
           if (item._eventSegments) {
-            // console.log(`[SAVE] item ${item.id} _eventSegments:`, item._eventSegments);
+            console.log(`[SAVE] item ${item.id} _eventSegments:`, item._eventSegments);
           }
         }
       }
@@ -673,9 +671,13 @@ app.post('/api/state', requireAuth, async (req, res) => {
         return res.status(403).json({ error: `Forbidden to write collection ${col.id}` });
       }
     }
-    // Sauvegarder l'état global (sans favoris) dans app_state
+    // Sauvegarder l'état utilisateur (sans favoris) dans app_state
     const stateStr = JSON.stringify(stateData);
-    await pool.query('UPDATE app_state SET data = $1 WHERE user_id IS NULL', [stateStr]);
+    // Upsert : si la ligne existe, update, sinon insert
+    const updateRes = await pool.query('UPDATE app_state SET data = $1 WHERE user_id = $2', [stateStr, userId]);
+    if (updateRes.rowCount === 0) {
+      await pool.query('INSERT INTO app_state (user_id, data) VALUES ($1, $2)', [userId, stateStr]);
+    }
     // Sauvegarder les favoris de l'utilisateur
     const favoriteViews = favorites?.views || [];
     const favoriteItems = favorites?.items || [];
@@ -683,10 +685,10 @@ app.post('/api/state', requireAuth, async (req, res) => {
       'UPDATE users SET favorite_views = $1, favorite_items = $2 WHERE id = $3',
       [favoriteViews, favoriteItems, userId]
     );
-    await logAudit(userId, 'state.save', 'app_state', 'global', { collections: collections.length });
+    await logAudit(userId, 'state.save', 'app_state', userId, { collections: collections.length });
     // Émettre l'événement socket.io pour le hot reload
     if (global.io) {
-      // console.log('[SOCKET] Emission de stateUpdated à tous les clients');
+      console.log('[SOCKET] Emission de stateUpdated à tous les clients');
       global.io.emit('stateUpdated');
     }
     return res.json({ ok: true });
@@ -716,7 +718,7 @@ let serverInstance;
   try {
     await bootstrap();
     serverInstance = app.listen(PORT, () => {
-      // console.log(`API server listening on http://localhost:${PORT}`);
+       console.log(`API server listening on http://localhost:${PORT}`);
     });
     // Initialisation socket.io
     const io = new SocketIOServer(serverInstance, {
@@ -731,19 +733,19 @@ let serverInstance;
     // Helper pour envoyer la liste à tous
     function broadcastUsers() {
       const users = Array.from(connectedUsers.values());
-      // console.log('[SOCKET] broadcast usersConnected:', users.map(u => u?.email || u?.name || u?.id));
+       console.log('[SOCKET] broadcast usersConnected:', users.map(u => u?.email || u?.name || u?.id));
       io.emit('usersConnected', users);
     }
 
     io.on('connection', async (socket) => {
-      // console.log('[SOCKET] Nouvelle connexion', socket.id);
+       console.log('[SOCKET] Nouvelle connexion', socket.id);
         // Identification par événement 'identify' (plus fiable que le cookie)
         let user = null;
         socket.on('identify', async (payload) => {
           if (payload && payload.id && payload.name) {
             user = { id: payload.id, name: payload.name };
             connectedUsers.set(socket.id, user);
-            // console.log('[SOCKET] identify reçu:', user);
+             console.log('[SOCKET] identify reçu:', user);
             broadcastUsers();
           }
         });
@@ -763,7 +765,7 @@ let serverInstance;
             if (result.rowCount) {
               user = result.rows[0];
               connectedUsers.set(socket.id, user);
-              // console.log('[SOCKET] Utilisateur connecté (cookie):', user.email || user.name || user.id);
+               console.log('[SOCKET] Utilisateur connecté (cookie):', user.email || user.name || user.id);
               broadcastUsers();
             }
           }
@@ -772,24 +774,24 @@ let serverInstance;
         }
 
         socket.on('whoIsConnected', () => {
-          // console.log('[SOCKET] whoIsConnected reçu de', socket.id);
+           console.log('[SOCKET] whoIsConnected reçu de', socket.id);
           broadcastUsers();
         });
 
         socket.on('disconnect', () => {
-          // console.log('[SOCKET] Déconnexion', socket.id);
+           console.log('[SOCKET] Déconnexion', socket.id);
           connectedUsers.delete(socket.id);
           broadcastUsers();
         });
 
       // Répondre à la demande explicite
       socket.on('whoIsConnected', () => {
-        // console.log('[SOCKET] whoIsConnected reçu de', socket.id);
+         console.log('[SOCKET] whoIsConnected reçu de', socket.id);
         broadcastUsers();
       });
 
       socket.on('disconnect', () => {
-        // console.log('[SOCKET] Déconnexion', socket.id);
+         console.log('[SOCKET] Déconnexion', socket.id);
         connectedUsers.delete(socket.id);
         broadcastUsers();
       });
@@ -802,7 +804,7 @@ let serverInstance;
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  // console.log('SIGTERM signal received: closing HTTP server');
+   console.log('SIGTERM signal received: closing HTTP server');
   await pool.end();
   process.exit(0);
 });

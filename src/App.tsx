@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
+import { useErpSync } from '@/lib/useErpSync';
 import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import KanbanView from '@/components/views/KanbanView';
@@ -25,6 +26,7 @@ import NewViewModal from '@/components/modals/NewViewModal';
 import ViewVisibilityModal from '@/components/modals/ViewVisibilityModal';
 import DashboardShell from '@/components/dashboard/DashboardShell';
 import { API_URL, defaultCollections, defaultDashboards, defaultViews } from '@/lib/constants';
+import { useErpState } from '@/lib/useErpState';
 import { useCanEdit, useCanEditField, useCanManagePermissions } from '@/lib/hooks/useCanEdit';
 import { useCollections } from '@/lib/hooks/useCollections';
 import { useItems } from '@/lib/hooks/useItems';
@@ -67,19 +69,19 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
     impersonatedRoleId
   } = useAuth();
   const [collections, setCollections] = useState<any[]>(defaultCollections);
+  // console.log(collections);
   const [views, setViews] = useState<Record<string, any[]>>(defaultViews);
   const [dashboards, setDashboards] = useState<MonthlyDashboardConfig[]>(defaultDashboards);
   const [dashboardSort, setDashboardSort] = useState<'created' | 'name-asc' | 'name-desc'>('created');
-  // Navigation utilisateur persistée localement
-  const [activeCollection, setActiveCollection] = useState<string | null>(() => {
-    return localStorage.getItem('erp_activeCollection') || null;
-  });
-  const [activeView, setActiveView] = useState<string | null>(() => {
-    return localStorage.getItem('erp_activeView') || null;
-  });
-  const [activeDashboard, setActiveDashboard] = useState<string | null>(() => {
-    return localStorage.getItem('erp_activeDashboard') || null;
-  });
+  // State ERP global (activeCollection, activeView, activeDashboard)
+  const {
+    activeCollection,
+    setActiveCollection,
+    activeView,
+    setActiveView,
+    activeDashboard,
+    setActiveDashboard
+  } = useErpState();
   const [isLoaded, setIsLoaded] = useState(false);
 
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
@@ -125,7 +127,6 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
   const itemHooks = useItems(collections, setCollections, activeCollection);
 
   const viewHooks = useViews(views, setViews, activeCollection, activeView, setActiveView);
-
   const currentCollection = collections.find((c) => c.id === activeCollection);
   const { currentViews } = viewHooks;
   const activeDashboardConfig = dashboards.find((d) => d.id === activeDashboard) || null;
@@ -153,147 +154,31 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
     };
   }, []);
 
+  // Synchronisation ERP (sauvegarde, socket, hot reload)
+  useErpSync({
+    collections,
+    views,
+    dashboards,
+    dashboardSort,
+    dashboardFilters,
+    favorites,
+    isLoaded,
+    user,
+    canEdit,
+    setCollections,
+    setViews,
+    setDashboards,
+    setDashboardSort,
+    setDashboardFilters,
+    setFavorites,
+    setIsLoaded,
+    API_URL,
+    cleanForSave,
+    socket
+  });
+ useEffect(() => {
     // Hot reload sur événement 'stateUpdated' reçu du serveur
     // Pour éviter les reloads en boucle, on garde l'heure du dernier reload et un flag local
-    const lastReloadRef = React.useRef(0);
-    const ignoreNextReloadRef = React.useRef(false);
-
-    // Quand on sauvegarde l'état, on ignore le prochain reload (car c'est nous qui avons modifié)
-    useEffect(() => {
-      if (!isLoaded || !user || !canEdit) return;
-      ignoreNextReloadRef.current = true;
-    }, [
-      collections.length,
-      views && Object.keys(views).length,
-      dashboards.length,
-      dashboardSort,
-      Object.keys(dashboardFilters).length,
-      favorites.views.length,
-      favorites.items.length
-    ]);
-
-    useEffect(() => {
-      if (!socket) return;
-      const reloadState = async () => {
-        const now = Date.now();
-        if (ignoreNextReloadRef.current) {
-          // On ignore ce reload car il fait suite à notre propre modification
-          ignoreNextReloadRef.current = false;
-          // console.log('[SYNC] Ignoré: reloadState déclenché par notre propre modification.');
-          return;
-        }
-        if (now - lastReloadRef.current < 5000) {
-          // console.log('[SYNC] Ignoré: reloadState trop fréquent.');
-          return;
-        }
-        lastReloadRef.current = now;
-        try {
-          const res = await fetch(`${API_URL}/state`, { credentials: 'include' });
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.collections && data?.views) {
-              setCollections(data.collections);
-              setViews(data.views);
-              setDashboards(data.dashboards || defaultDashboards);
-              setDashboardSort(data.dashboardSort || 'created');
-              // NE PAS toucher à activeCollection, activeView, activeDashboard ici !
-              setFavorites(data.favorites || { views: [], items: [] });
-              setDashboardFilters(data.dashboardFilters || {});
-              setIsLoaded(true);
-            }
-          }
-        } catch (err) {
-          console.error('Impossible de recharger les données', err);
-        }
-      };
-      socket.on('stateUpdated', reloadState);
-      return () => {
-        socket.off('stateUpdated', reloadState);
-      };
-    }, [socket, isLoaded, user, canEdit]);
-  useEffect(() => {
-    const loadState = async () => {
-      if (authLoading) return;
-      if (!user) {
-        setCollections(defaultCollections);
-        setViews(defaultViews);
-        setDashboards(defaultDashboards);
-        setDashboardSort('created');
-        setIsLoaded(true);
-        return;
-      }
-      try {
-        const res = await fetch(`${API_URL}/state`, { credentials: 'include' });
-        if (res.status === 401) {
-          await logout();
-          return;
-        }
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.collections && data?.views) {
-            setCollections(data.collections);
-            setViews(data.views);
-            setDashboards(data.dashboards || defaultDashboards);
-            setDashboardSort(data.dashboardSort || 'created');
-            setFavorites(data.favorites || { views: [], items: [] });
-            setDashboardFilters(data.dashboardFilters || {});
-            setIsLoaded(true);
-            return;
-          }
-        }
-      } catch (err) {
-        console.error('Impossible de charger les données', err);
-      }
-      setCollections(defaultCollections);
-      setViews(defaultViews);
-      setDashboards(defaultDashboards);
-      setDashboardSort('created');
-      setIsLoaded(true);
-    };
-
-    loadState();
-  }, [authLoading, user, logout]);
-
-  // Persiste la navigation utilisateur dans le localStorage
-  useEffect(() => {
-    if (activeCollection) {
-      localStorage.setItem('erp_activeCollection', activeCollection);
-    } else {
-      localStorage.removeItem('erp_activeCollection');
-    }
-  }, [activeCollection]);
-  useEffect(() => {
-    if (activeView) {
-      localStorage.setItem('erp_activeView', activeView);
-    } else {
-      localStorage.removeItem('erp_activeView');
-    }
-  }, [activeView]);
-  useEffect(() => {
-    if (activeDashboard) {
-      localStorage.setItem('erp_activeDashboard', activeDashboard);
-    } else {
-      localStorage.removeItem('erp_activeDashboard');
-    }
-  }, [activeDashboard]);
-
-  useEffect(() => {
-    const loadRoles = async () => {
-      if (!canManagePermissions) return;
-      try {
-        const res = await fetch(`${API_URL}/roles`, { credentials: 'include' });
-        if (res.ok) {
-          const data = await res.json();
-          setAvailableRoles(data || []);
-        }
-      } catch (err) {
-        console.error('Impossible de charger les rôles', err);
-      }
-    };
-    loadRoles();
-  }, [canManagePermissions]);
-
-  useEffect(() => {
     const loadUsers = async () => {
       if (!user) return;
       try {
@@ -308,44 +193,6 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
     };
     loadUsers();
   }, [user]);
-
-  // Sauvegarde et synchro temps réel de l'état global à chaque changement (collections, vues, dashboards, etc.)
-  useEffect(() => {
-    if (!isLoaded || !user || !canEdit) return;
-    const saveState = async () => {
-      // console.log('[SYNC] Envoi de l’état global au serveur (hors vue utilisateur)');
-      try {
-        await fetch(`${API_URL}/state`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            collections: cleanForSave(collections),
-            views: cleanForSave(views),
-            dashboards: cleanForSave(dashboards),
-            dashboardSort,
-            dashboardFilters: cleanForSave(dashboardFilters),
-            favorites: cleanForSave(favorites)
-            // Ne synchronise plus activeCollection, activeView, activeDashboard
-          }),
-        });
-      } catch (err) {
-        console.error('Impossible de sauvegarder les données', err);
-      }
-    };
-    saveState();
-  }, [
-    collections.length,
-    Object.keys(views).length,
-    dashboards.length,
-    dashboardSort,
-    Object.keys(dashboardFilters).length,
-    favorites.views.length,
-    favorites.items.length,
-    isLoaded,
-    user,
-    canEdit
-  ]);
 
   useEffect(() => {
     if (!activeCollection) return;
@@ -462,20 +309,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
 
   return (
     <div className="h-screen flex flex-col bg-[#030303] text-white">
-      <style>{`
-        @property --gradient-angle {
-          syntax: "<angle>";
-          initial-value: 0deg;
-          inherits: false;
-        }
-        @keyframes border-spin {
-          from { --gradient-angle: 0deg; }
-          to { --gradient-angle: 360deg; }
-        }
-        .animate-border-spin {
-          animation: border-spin 2s linear infinite;
-        }
-      `}</style>
+      
 
       <AppHeader
         impersonatedRoleId={impersonatedRoleId}
