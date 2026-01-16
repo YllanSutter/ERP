@@ -161,29 +161,40 @@ export function useErpSync({
     };
   }, [socket, isLoaded, user, canEdit]);
 
-  // Sauvegarde et synchro temps réel de l'état global à chaque changement
+  // Sauvegarde et synchro temps réel de l'état global à chaque changement, avec debounce
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (!isLoaded || !user || !canEdit) return;
-    const saveState = async () => {
-      try {
-        await fetch(`${API_URL}/state`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            collections: cleanForSave(collections),
-            views: cleanForSave(views),
-            dashboards: cleanForSave(dashboards),
-            dashboardSort,
-            dashboardFilters: cleanForSave(dashboardFilters),
-            favorites: cleanForSave(favorites)
-          }),
-        });
-      } catch (err) {
-        console.error('Impossible de sauvegarder les données', err);
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+    debounceTimeout.current = setTimeout(() => {
+      const saveState = async () => {
+        try {
+          await fetch(`${API_URL}/state`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              collections: cleanForSave(collections),
+              views: cleanForSave(views),
+              dashboards: cleanForSave(dashboards),
+              dashboardSort,
+              dashboardFilters: cleanForSave(dashboardFilters),
+              favorites: cleanForSave(favorites)
+            }),
+          });
+        } catch (err) {
+          console.error('Impossible de sauvegarder les données', err);
+        }
+      };
+      saveState();
+    }, 500); // 500ms de délai après la dernière modif
+    return () => {
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
       }
     };
-    saveState();
   }, useStringifyDeps ? [
     JSON.stringify(collections),
     JSON.stringify(views),
