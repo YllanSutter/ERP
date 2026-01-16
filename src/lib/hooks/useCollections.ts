@@ -176,7 +176,7 @@ export const useCollections = (
     // Switch to another collection if we deleted the active one
     if (activeCollection === collectionId) {
       setActiveCollection(updatedCollections[0].id);
-      setActiveView('default');
+      // setActiveView('default');
     }
   };
 

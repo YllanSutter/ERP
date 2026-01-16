@@ -629,7 +629,7 @@ app.get('/api/state', requireAuth, async (req, res) => {
   try {
     const userId = req.auth.user.id;
     // Récupérer l'état utilisateur (collections, views, etc.)
-    const userStateResult = await pool.query('SELECT data FROM app_state WHERE user_id = $1', [userId]);
+    const userStateResult = await pool.query('SELECT data FROM app_state LIMIT 1');
     const userData = userStateResult.rows.length > 0 ? JSON.parse(userStateResult.rows[0].data) : {};
     // Récupérer les favoris de l'utilisateur
     const userResult = await pool.query('SELECT favorite_views, favorite_items FROM users WHERE id = $1', [userId]);
@@ -674,9 +674,9 @@ app.post('/api/state', requireAuth, async (req, res) => {
     // Sauvegarder l'état utilisateur (sans favoris) dans app_state
     const stateStr = JSON.stringify(stateData);
     // Upsert : si la ligne existe, update, sinon insert
-    const updateRes = await pool.query('UPDATE app_state SET data = $1 WHERE user_id = $2', [stateStr, userId]);
+   const updateRes = await pool.query('UPDATE app_state SET data = $1', [stateStr]);
     if (updateRes.rowCount === 0) {
-      await pool.query('INSERT INTO app_state (user_id, data) VALUES ($1, $2)', [userId, stateStr]);
+      await pool.query('INSERT INTO app_state (data) VALUES ($1)', [stateStr]);
     }
     // Sauvegarder les favoris de l'utilisateur
     const favoriteViews = favorites?.views || [];

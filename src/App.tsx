@@ -200,16 +200,17 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
       if (activeView !== null) setActiveView(null);
       return;
     }
-    const isAccessible = visibleViews.some((v: any) => v.id === activeView);
-    if (!activeView || !isAccessible) {
+    // Si la vue active existe dans la collection courante, on la garde
+    const found = visibleViews.find((v: any) => v.id === activeView);
+    if (!found) {
       setActiveView(visibleViews[0].id);
     }
+    // Sinon, on ne touche pas à activeView
   }, [activeCollection, activeView, visibleViews]);
 
   const handleNavigateToCollection = (collectionId: string, linkedIds?: string[]) => {
     setActiveDashboard(null);
     setActiveCollection(collectionId);
-    setActiveView('default');
     if (linkedIds && linkedIds.length > 0) {
       setRelationFilter({ collectionId, ids: linkedIds });
     } else {

@@ -134,7 +134,12 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                   className="relative group"
                 >
                   <button
-                    onClick={() => onSetActiveView(view.id)}
+                    onClick={() => {
+                      onSetActiveView(view.id);
+                      setTimeout(() => {
+                        console.log('activeView enregistré en localStorage :', localStorage.getItem('erp_activeView'));
+                      }, 100);
+                    }}
                     className={cn(
                       'px-4 py-2 pr-9 rounded-lg text-sm font-medium transition-all relative inline-flex items-center',
                       activeView === view.id
