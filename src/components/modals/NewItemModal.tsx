@@ -82,6 +82,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         data[prop.id] = prop.defaultValue;
       }
     });
+    // Si on édite, on force l'id dans le formData
+    if (editingItem && editingItem.id) {
+      data.id = editingItem.id;
+    }
     // Génère _eventSegments dès la création
     return updateEventSegments(data, col);
   }

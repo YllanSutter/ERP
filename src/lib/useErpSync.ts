@@ -54,6 +54,7 @@ interface UseErpSyncParams {
   API_URL: string;
   cleanForSave: (obj: any) => any;
   socket: any;
+  useStringifyDeps?: boolean; // Ajout du flag optionnel
 }
 
 export function useErpSync({
@@ -75,7 +76,8 @@ export function useErpSync({
   setIsLoaded,
   API_URL,
   cleanForSave,
-  socket
+  socket,
+  useStringifyDeps = true
 }: UseErpSyncParams) {
   // Hot reload sur événement 'stateUpdated' reçu du serveur
   const lastReloadRef = useRef(0);
@@ -182,7 +184,17 @@ export function useErpSync({
       }
     };
     saveState();
-  }, [
+  }, useStringifyDeps ? [
+    JSON.stringify(collections),
+    JSON.stringify(views),
+    JSON.stringify(dashboards),
+    dashboardSort,
+    JSON.stringify(dashboardFilters),
+    JSON.stringify(favorites),
+    isLoaded,
+    user,
+    canEdit
+  ] : [
     collections.length,
     collections.map((col: Collection) => (Array.isArray(col.items) ? col.items.length : 0)).reduce((a: number, b: number) => a + b, 0),
     Object.keys(views).length,

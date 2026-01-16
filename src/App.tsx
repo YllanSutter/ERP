@@ -618,6 +618,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
         <NewPropertyModal
           onClose={() => setShowNewPropertyModal(false)}
           onSave={(property) => {
+
             collectionHooks.addProperty(property);
             setShowNewPropertyModal(false);
           }}
@@ -660,6 +661,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
             setModalCollection(null);
           }}
           onSave={(item) => {
+            console.log(item);
             // On passe la bonne collection cible à saveItem
             const colId = item.__collectionId || (modalCollection && modalCollection.id) || (currentCollection && currentCollection.id);
             // On mémorise la dernière collection utilisée pour la préselection

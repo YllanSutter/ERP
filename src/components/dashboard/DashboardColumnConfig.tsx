@@ -213,8 +213,8 @@ const DashboardColumnConfig = ({
 
   // Rendu récursif des noeuds (groupes, feuilles, sous-groupes...)
   const renderNode = (node: any, depth = 0, parentPath: any[] = []) => {
-    // Ajoute le chemin de parent pour chaque noeud (utile pour getRootGroup)
-    node._parentPath = parentPath;
+    // Ne jamais modifier node directement pour éviter les cycles !
+    const nodeWithParent = { ...node, _parentPath: parentPath };
     const isGroup = !!node.groupField;
     const isLeaf = !isGroup;
     // Pour les groupes racine (depth === 0), on permet de choisir la collection et le champ date
@@ -226,7 +226,7 @@ const DashboardColumnConfig = ({
       groupDateFields = (groupCollection?.properties || []).filter((p: any) => p.type === 'date' || p.type === 'date_range');
     }
     // Propriétés pour ce noeud (dépend de la collection racine parent)
-    const nodeProperties = getNodeProperties(node);
+    const nodeProperties = getNodeProperties(nodeWithParent);
     return (
       <div key={node.id} className={`bg-neutral-900 border border-white/10 rounded px-3 py-2 mb-2 ml-${depth * 4}`}> 
         <div className="flex items-center gap-2 mb-2">
@@ -311,8 +311,8 @@ const DashboardColumnConfig = ({
                 ))}
               </select>
               {node.filterField && (() => {
-                const options = getOptions(node.filterField, node);
-                const props = getNodeProperties(node);
+                const options = getOptions(node.filterField, nodeWithParent);
+                const props = getNodeProperties(nodeWithParent);
                 const prop = props.find((p: any) => p.id === node.filterField);
                 if (!prop) return null;
                 if (prop.type === 'relation') {
@@ -406,7 +406,7 @@ const DashboardColumnConfig = ({
             {(node.children || []).length === 0 && (
               <div className="text-xs text-neutral-500">Ajoute une sous-colonne ou un sous-groupe.</div>
             )}
-            {(node.children || []).map((child: any) => renderNode(child, depth + 1, [...parentPath, node]))}
+            {(node.children || []).map((child: any) => renderNode(child, depth + 1, [...parentPath, nodeWithParent]))}
           </div>
         )}
       </div>

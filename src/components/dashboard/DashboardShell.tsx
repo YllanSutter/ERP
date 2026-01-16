@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, Suspense } from 'react';
+import { useErpSync } from '@/lib/useErpSync';
 const FilterModal = React.lazy(() => import('@/components/modals/FilterModal'));
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { DashboardColumnNode, MonthlyDashboardConfig } from '@/lib/dashboardTypes';
@@ -53,6 +54,8 @@ const months = MONTH_NAMES;
 
 
 const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete, dashboardFilters, setDashboardFilters }) => {
+  // Exemple d'utilisation si besoin de synchronisation ERP dans le dashboard :
+  // useErpSync({ collections, ...autresProps, useStringifyDeps: false });
       // Early return pour garantir l'ordre des hooks
       if (!dashboard) {
         return (
