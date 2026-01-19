@@ -11,6 +11,7 @@ import {
   workDayStart,
   workDayEnd
 } from '@/lib/calendarUtils';
+import { updateEventSegments } from '@/lib/updateEventSegments';
 
 interface WeekViewProps {
   currentDate: Date;
@@ -139,12 +140,19 @@ const WeekView: React.FC<WeekViewProps> = ({
               setDragPreview({ dayIndex, positionY: adjustedDropY });
             } catch (e) {}
           };
-          const handleDayDragLeave = () => { setDragPreview(null); };
+          const handleDayDragLeave = () => {
+            console.log('[DND] handleDayDragLeave');
+            setDragPreview(null);
+          };
           const handleDayDrop = (e: React.DragEvent) => {
+            console.log('[DND] handleDayDrop');
             e.preventDefault();
             e.stopPropagation();
             const dragData = e.dataTransfer.getData('application/json');
-            if (!dragData) return;
+            if (!dragData) {
+              console.warn('[DND] handleDayDrop: pas de dragData');
+              return;
+            }
             try {
               const data = JSON.parse(dragData);
               const item = { ...data };
@@ -156,7 +164,10 @@ const WeekView: React.FC<WeekViewProps> = ({
               const adjustedDropY = Math.max(0, dropY - dragStartOffsetY);
               const { hour, minutes } = calculateDropTime({ dropY: adjustedDropY, containerHeight: rect.height, startHour, endHour });
               if (onEventDrop) {
+                console.log('[DND] handleDayDrop: onEventDrop est défini, appel avec', { item, date, hour, minutes });
                 onEventDrop(item, date, hour, minutes);
+              } else {
+                console.warn('[DND] handleDayDrop: onEventDrop est undefined');
               }
             } catch (e) { console.error('Error parsing drag data:', e); } finally { setDragPreview(null); }
           };
@@ -318,7 +329,34 @@ const WeekView: React.FC<WeekViewProps> = ({
                           if (onEdit) onEdit(updatedItem);
                         }}
                         canViewField={canViewField}
-                        onEventDrop={onEventDrop}
+                        onEventDrop={(item, newDate, newHours, newMinutes) => {
+                          console.log('[DND] >>> onEventDrop appelé', { item, newDate, newHours, newMinutes });
+                          const dateField = getDateFieldForItem
+                            ? getDateFieldForItem(item)
+                            : (collections.find(c => c.id === item.__collectionId)?.properties.find((p: any) => p.type === 'date'));
+                          if (!dateField) {
+                            console.warn('[DND] Aucun champ date trouvé pour l’item', item);
+                            return;
+                          }
+                          const newStart = new Date(newDate);
+                          newStart.setHours(newHours, newMinutes, 0, 0);
+                          console.log('[DND] Nouvelle date calculée', newStart.toISOString());
+                          const updatedItem = {
+                            ...item,
+                            [dateField.id]: newStart.toISOString(),
+                          };
+                          console.log('[DND] Item modifié', updatedItem);
+                          // Recalcule _eventSegments
+                          const updatedWithSegments = updateEventSegments(updatedItem, collections.find(c => c.id === item.__collectionId));
+                          console.log('[DND] Item avec _eventSegments recalculé', updatedWithSegments);
+                          // Appelle onEdit pour déclencher la synchro globale/store/socket
+                          if (onEdit) {
+                            console.log('[DND] Appel de onEdit');
+                            onEdit(updatedWithSegments);
+                          } else {
+                            console.warn('[DND] onEdit non défini');
+                          }
+                        }}
                         onShowNewItemModalForCollection={onShowNewItemModalForCollection}
                         // onEditField={onEditField}
                       />

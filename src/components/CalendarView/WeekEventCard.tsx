@@ -99,18 +99,16 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   const objectColors = colorFromId(item.id);
 
   const handleDragStart = (e: React.DragEvent) => {
+    console.log('[DND] handleDragStart', { item });
     const dragEvent = e as unknown as DragEvent;
     dragEvent.dataTransfer!.effectAllowed = 'move';
-    
     // Capture la position relative du click par rapport au haut de l'élément
     const element = e.currentTarget as HTMLElement;
     const elementRect = element.getBoundingClientRect();
     const clickYRelative = e.clientY - elementRect.top;
-    
     if (dragRef.current) {
       dragRef.current.style.opacity = '0.5';
     }
-    
     const data = { 
       ...item,
       __dragStartOffsetY: clickYRelative // Position du click par rapport au haut
@@ -119,6 +117,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   };
 
   const handleDragEnd = (e: React.DragEvent) => {
+    console.log('[DND] handleDragEnd', { item });
     if (dragRef.current) {
       dragRef.current.style.opacity = '1';
     }
@@ -172,6 +171,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
           <motion.div
             ref={dragRef}
             draggable={!!onEventDrop}
+            onMouseDown={() => console.log('[DND] mouseDown sur event', { item, onEventDrop })}
             initial={false}
             className={`absolute rounded-sm p-0.5 px-2 grid gap-2 items-start content-start transition-colors group text-xs overflow-hidden z-10 hover:opacity-80 ${onEventDrop ? 'cursor-move' : 'cursor-default'}`}
             style={{

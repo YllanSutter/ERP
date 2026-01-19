@@ -4,6 +4,7 @@ import DayView from '../CalendarView/DayView';
 import CollectionFilterPanel from './CollectionFilterPanel';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import WeekView from '../CalendarView/WeekView';
+import { updateEventSegments } from '@/lib/updateEventSegments';
 
 interface CalendarCollectionsManagerProps {
   collections: any[];
@@ -29,6 +30,29 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   onDelete = () => {},
   onShowNewItemModalForCollection,
 }) => {
+  // Fonction pour gérer le déplacement d'un événement (drag & drop)
+  const onEventDrop = (item: any, newDate: Date, newHours: number, newMinutes: number) => {
+    // Trouver la collection de l'item
+    const col = collections.find((c) => c.id === item.__collectionId);
+    if (!col) {
+      console.warn('[onEventDrop] Collection non trouvée pour', item);
+      return;
+    }
+    // Trouver le champ date sélectionné pour cette collection
+    const dateFieldId = dateFields[col.id];
+    const dateField = col.properties.find((p: any) => p.id === dateFieldId);
+    if (!dateField) {
+      console.warn('[onEventDrop] Champ date non trouvé pour', item);
+      return;
+    }
+    // Mettre à jour la date de l'item
+    const newDateObj = new Date(newDate);
+    newDateObj.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
+    const updatedItem = { ...item, [dateField.id]: newDateObj.toISOString() };
+    // Recalculer _eventSegments avant de sauvegarder
+    const updatedWithSegments = updateEventSegments(updatedItem, col);
+    onEdit(updatedWithSegments);
+  };
   // --- State pour la vue et la date courante ---
   const MONTH_NAMES = [
     'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -277,6 +301,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               startHour={startHour}
               endHour={endHour}
               onShowNewItemModalForCollection={onShowNewItemModalForCollection}
+              onEventDrop={onEventDrop}
             />
           );
         })()
