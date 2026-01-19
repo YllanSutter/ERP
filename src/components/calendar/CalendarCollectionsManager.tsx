@@ -30,6 +30,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   onDelete = () => {},
   onShowNewItemModalForCollection,
 }) => {
+  // Option pour déplacer tout ou seulement le segment
+  const [moveAllSegments, setMoveAllSegments] = useState(true);
   // Fonction pour gérer le déplacement d'un événement (drag & drop)
   /**
    * Déplace uniquement le segment concerné (par défaut), ou tous les segments si moveAllSegments=true
@@ -40,7 +42,9 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
    * @param options { moveAllSegments?: boolean, segmentIndex?: number }
    */
   const onEventDrop = (item: any, newDate: Date, newHours: number, newMinutes: number, options?: { moveAllSegments?: boolean, segmentIndex?: number }) => {
-    console.log('[onEventDrop] Appel avec options:', options);
+    // On utilise la valeur de moveAllSegments de l'état si non précisé
+    const moveAll = options?.moveAllSegments !== undefined ? options.moveAllSegments : moveAllSegments;
+    console.log('[onEventDrop] Appel avec options:', options, 'moveAllSegments:', moveAll);
     const col = collections.find((c) => c.id === item.__collectionId);
     if (!col) {
       console.warn('[onEventDrop] Collection non trouvée pour', item);
@@ -52,7 +56,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
       console.warn('[onEventDrop] Champ date non trouvé pour', item);
       return;
     }
-    if (options?.moveAllSegments) {
+    if (moveAll) {
       // Comportement classique : déplace tout (recalcule tout)
       const newDateObj = new Date(newDate);
       newDateObj.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
@@ -250,6 +254,32 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               Jour
             </button>
           </div>
+          {/* Option de déplacement visible seulement en vue calendrier (week ou day) */}
+          {(viewMode === 'week' || viewMode === 'day') && (
+            <div className="flex items-center gap-2 bg-neutral-800/50 rounded-lg px-4 py-3 ml-2">
+              <span className="text-xs text-neutral-400">Déplacement :</span>
+              <label className="flex items-center gap-1 text-xs cursor-pointer">
+                <input
+                  type="radio"
+                  name="moveAllSegments"
+                  checked={moveAllSegments}
+                  onChange={() => setMoveAllSegments(true)}
+                  className="accent-violet-500"
+                />
+                <span>Tous</span>
+              </label>
+              <label className="flex items-center gap-1 text-xs cursor-pointer">
+                <input
+                  type="radio"
+                  name="moveAllSegments"
+                  checked={!moveAllSegments}
+                  onChange={() => setMoveAllSegments(false)}
+                  className="accent-violet-500"
+                />
+                <span>Segment seul</span>
+              </label>
+            </div>
+          )}
           <button onClick={() => setCurrentDate(getPreviousPeriod(currentDate, viewMode))} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg>
           </button>
