@@ -28,7 +28,7 @@ interface WeekViewProps {
   startCal?: number;
   endCal?: number;
   defaultDuration?: number; // in hours
-  onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number) => void;
+  onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number, options?: { segmentIndex?: number, moveAllSegments?: boolean }) => void;
   canViewField?: (fieldId: string) => boolean;
   getDateFieldForItem?: (item: any) => any;
   onEditField?: (updatedItem: any) => void;
@@ -157,6 +157,7 @@ const WeekView: React.FC<WeekViewProps> = ({
               const data = JSON.parse(dragData);
               const item = { ...data };
               delete item.__dragStartOffsetY;
+              const multiDayIndex = data.multiDayIndex ?? data.segmentIndex;
               const container = e.currentTarget as HTMLElement;
               const rect = container.getBoundingClientRect();
               const dropY = e.clientY - rect.top;
@@ -164,8 +165,8 @@ const WeekView: React.FC<WeekViewProps> = ({
               const adjustedDropY = Math.max(0, dropY - dragStartOffsetY);
               const { hour, minutes } = calculateDropTime({ dropY: adjustedDropY, containerHeight: rect.height, startHour, endHour });
               if (onEventDrop) {
-                console.log('[DND] handleDayDrop: onEventDrop est défini, appel avec', { item, date, hour, minutes });
-                onEventDrop(item, date, hour, minutes);
+                console.log('[DND] handleDayDrop: onEventDrop est défini, appel avec', { item, date, hour, minutes, multiDayIndex });
+                onEventDrop(item, date, hour, minutes, typeof multiDayIndex === 'number' ? { segmentIndex: multiDayIndex } : undefined);
               } else {
                 console.warn('[DND] handleDayDrop: onEventDrop est undefined');
               }
@@ -330,31 +331,8 @@ const WeekView: React.FC<WeekViewProps> = ({
                         }}
                         canViewField={canViewField}
                         onEventDrop={(item, newDate, newHours, newMinutes) => {
-                          console.log('[DND] >>> onEventDrop appelé', { item, newDate, newHours, newMinutes });
-                          const dateField = getDateFieldForItem
-                            ? getDateFieldForItem(item)
-                            : (collections.find(c => c.id === item.__collectionId)?.properties.find((p: any) => p.type === 'date'));
-                          if (!dateField) {
-                            console.warn('[DND] Aucun champ date trouvé pour l’item', item);
-                            return;
-                          }
-                          const newStart = new Date(newDate);
-                          newStart.setHours(newHours, newMinutes, 0, 0);
-                          console.log('[DND] Nouvelle date calculée', newStart.toISOString());
-                          const updatedItem = {
-                            ...item,
-                            [dateField.id]: newStart.toISOString(),
-                          };
-                          console.log('[DND] Item modifié', updatedItem);
-                          // Recalcule _eventSegments
-                          const updatedWithSegments = updateEventSegments(updatedItem, collections.find(c => c.id === item.__collectionId));
-                          console.log('[DND] Item avec _eventSegments recalculé', updatedWithSegments);
-                          // Appelle onEdit pour déclencher la synchro globale/store/socket
-                          if (onEdit) {
-                            console.log('[DND] Appel de onEdit');
-                            onEdit(updatedWithSegments);
-                          } else {
-                            console.warn('[DND] onEdit non défini');
+                          if (onEventDrop) {
+                            onEventDrop(item, newDate, newHours, newMinutes, { segmentIndex: multiDayIndex });
                           }
                         }}
                         onShowNewItemModalForCollection={onShowNewItemModalForCollection}

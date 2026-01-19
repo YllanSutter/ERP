@@ -57,7 +57,7 @@ interface WeekEventCardProps {
   getNameValue: (item: any) => string;
   onViewDetail: (item: any) => void;
   onReduceDuration: (item: any, hours: number) => void;
-  onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number) => void;
+  onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number, options?: { segmentIndex?: number, moveAllSegments?: boolean }) => void;
   onEditField?: (updatedItem: any) => void;
   collectionsList?: any[]; // pour compatibilité EditableProperty si besoin
   onRelationChange?: (property: any, item: any, value: any) => void;
@@ -99,7 +99,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   const objectColors = colorFromId(item.id);
 
   const handleDragStart = (e: React.DragEvent) => {
-    console.log('[DND] handleDragStart', { item });
+    console.log('[DND] handleDragStart', { item, multiDayIndex });
     const dragEvent = e as unknown as DragEvent;
     dragEvent.dataTransfer!.effectAllowed = 'move';
     // Capture la position relative du click par rapport au haut de l'élément
@@ -111,7 +111,8 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     }
     const data = { 
       ...item,
-      __dragStartOffsetY: clickYRelative // Position du click par rapport au haut
+      __dragStartOffsetY: clickYRelative, // Position du click par rapport au haut
+      multiDayIndex // Ajoute l'index du segment pour le drop
     };
     dragEvent.dataTransfer!.setData('application/json', JSON.stringify(data));
   };

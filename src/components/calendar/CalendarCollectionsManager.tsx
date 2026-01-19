@@ -31,27 +31,58 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   onShowNewItemModalForCollection,
 }) => {
   // Fonction pour gérer le déplacement d'un événement (drag & drop)
-  const onEventDrop = (item: any, newDate: Date, newHours: number, newMinutes: number) => {
-    // Trouver la collection de l'item
+  /**
+   * Déplace uniquement le segment concerné (par défaut), ou tous les segments si moveAllSegments=true
+   * @param item L'item à modifier
+   * @param newDate Nouvelle date (jour)
+   * @param newHours Nouvelle heure
+   * @param newMinutes Nouvelles minutes
+   * @param options { moveAllSegments?: boolean, segmentIndex?: number }
+   */
+  const onEventDrop = (item: any, newDate: Date, newHours: number, newMinutes: number, options?: { moveAllSegments?: boolean, segmentIndex?: number }) => {
+    console.log('[onEventDrop] Appel avec options:', options);
     const col = collections.find((c) => c.id === item.__collectionId);
     if (!col) {
       console.warn('[onEventDrop] Collection non trouvée pour', item);
       return;
     }
-    // Trouver le champ date sélectionné pour cette collection
     const dateFieldId = dateFields[col.id];
     const dateField = col.properties.find((p: any) => p.id === dateFieldId);
     if (!dateField) {
       console.warn('[onEventDrop] Champ date non trouvé pour', item);
       return;
     }
-    // Mettre à jour la date de l'item
-    const newDateObj = new Date(newDate);
-    newDateObj.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
-    const updatedItem = { ...item, [dateField.id]: newDateObj.toISOString() };
-    // Recalculer _eventSegments avant de sauvegarder
-    const updatedWithSegments = updateEventSegments(updatedItem, col);
-    onEdit(updatedWithSegments);
+    if (options?.moveAllSegments) {
+      // Comportement classique : déplace tout (recalcule tout)
+      const newDateObj = new Date(newDate);
+      newDateObj.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
+      const updatedItem = { ...item, [dateField.id]: newDateObj.toISOString() };
+      const updatedWithSegments = updateEventSegments(updatedItem, col);
+      onEdit(updatedWithSegments);
+    } else if (typeof options?.segmentIndex === 'number' && Array.isArray(item._eventSegments)) {
+      // Déplacement d'un seul segment : on ne modifie que ce segment dans _eventSegments
+      const updatedSegments = item._eventSegments.map((seg: any, idx: number) => {
+        if (idx === options.segmentIndex) {
+          // On modifie uniquement ce segment
+          const segStart = new Date(newDate);
+          segStart.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
+          const segEnd = new Date(segStart);
+          const duration = new Date(seg.end).getTime() - new Date(seg.start).getTime();
+          segEnd.setTime(segStart.getTime() + duration);
+          return { ...seg, start: segStart.toISOString(), end: segEnd.toISOString() };
+        }
+        return seg;
+      });
+      const updatedItem = { ...item, _eventSegments: updatedSegments };
+      onEdit(updatedItem);
+    } else {
+      // Fallback : comportement classique (déplace tout)
+      const newDateObj = new Date(newDate);
+      newDateObj.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
+      const updatedItem = { ...item, [dateField.id]: newDateObj.toISOString() };
+      const updatedWithSegments = updateEventSegments(updatedItem, col);
+      onEdit(updatedWithSegments);
+    }
   };
   // --- State pour la vue et la date courante ---
   const MONTH_NAMES = [
