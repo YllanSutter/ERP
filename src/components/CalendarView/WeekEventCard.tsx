@@ -259,7 +259,8 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onReduceDuration(item, duration);
+                // Passe l'index du segment à supprimer via multiDayIndex
+                onReduceDuration(item, multiDayIndex);
               }}
               className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
             >

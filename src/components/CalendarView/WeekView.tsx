@@ -311,7 +311,12 @@ const WeekView: React.FC<WeekViewProps> = ({
                         getNameValue={getNameValue}
                         hiddenFields={hiddenFields ?? []}
                         onViewDetail={() => onViewDetail(item)}
-                        onReduceDuration={() => {}}
+                        onReduceDuration={() => {
+                          // Supprime le segment correspondant (multiDayIndex)
+                          const updatedSegments = (item._eventSegments || []).filter((_: any, idx: number) => idx !== multiDayIndex);
+                          const updatedItem = { ...item, _eventSegments: updatedSegments };
+                          if (onEdit) onEdit(updatedItem);
+                        }}
                         canViewField={canViewField}
                         onEventDrop={onEventDrop}
                         onShowNewItemModalForCollection={onShowNewItemModalForCollection}

@@ -92,10 +92,18 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
 
 
-  const [formData, setFormData] = useState(getInitialFormData(selectedCollection, editingItem));
+  const [formData, setFormDataRaw] = useState(getInitialFormData(selectedCollection, editingItem));
+
+  // Setter qui recalcule _eventSegments à chaque changement
+  const setFormData = (data: any) => {
+    setFormDataRaw(updateEventSegments(data, selectedCollection));
+  };
+
+  // Recalcule _eventSegments à chaque changement de formData ou de collection
   React.useEffect(() => {
-    // ...
-  }, [formData, selectedCollection]);
+    setFormDataRaw(updateEventSegments(formData, selectedCollection));
+    // eslint-disable-next-line
+  }, [selectedCollection]);
 
   const handleChange = (propId: string, value: any) => {
     setFormData({ ...formData, [propId]: value });
@@ -146,9 +154,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   // Quand la modal reçoit un nouvel editingItem (préremplissage), on met à jour le formData
   React.useEffect(() => {
     if (!editingItem) return;
-    setFormData(getInitialFormData(selectedCollection, editingItem));
-    // eslint-disable-next-line
-  }, [editingItem]);
+    // On force la réinitialisation du formData à partir de l'editingItem reçu (qui doit contenir les _eventSegments à jour)
+    setFormDataRaw(getInitialFormData(selectedCollection, editingItem));
+  }, [editingItem, selectedCollection]);
 
   const isFavorite = favorites && editingItem ? favorites.items.includes(editingItem.id) : false;
 
