@@ -151,6 +151,60 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
       endHour,
       hoursLength
     );
+    // Gestion du redimensionnement (resize)
+    const [isResizing, setIsResizing] = React.useState(false);
+    const [resizePreviewEndTime, setResizePreviewEndTime] = React.useState<number | null>(null);
+    const resizeStartY = React.useRef<number | null>(null);
+    const initialHeight = React.useRef<number>(0);
+    const initialEndTime = React.useRef<number>(endTime);
+    // Appel du parent pour appliquer la nouvelle durée
+    const handleResizeMouseDown = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsResizing(true);
+      resizeStartY.current = e.clientY;
+      initialHeight.current = heightPx;
+      initialEndTime.current = endTime;
+      setResizePreviewEndTime(endTime);
+      document.body.style.cursor = 'ns-resize';
+    };
+    React.useEffect(() => {
+      if (!isResizing) return;
+      const handleMouseMove = (e: MouseEvent) => {
+        if (resizeStartY.current === null) return;
+        const deltaY = e.clientY - resizeStartY.current;
+        // 1h = 96px (voir calculateEventPosition)
+        const hoursDelta = deltaY / (hoursLength * 96) * (endHour - startHour);
+        let newEndTime = Math.max(startTime + 0.25, initialEndTime.current + hoursDelta); // min 15min
+        // Arrondi à 15min
+        newEndTime = Math.round(newEndTime * 4) / 4;
+        setResizePreviewEndTime(newEndTime);
+      };
+      const handleMouseUp = (e: MouseEvent) => {
+        if (resizeStartY.current === null) return;
+        const deltaY = e.clientY - resizeStartY.current;
+        const hoursDelta = deltaY / (hoursLength * 96) * (endHour - startHour);
+        let newEndTime = Math.max(startTime + 0.25, initialEndTime.current + hoursDelta);
+        newEndTime = Math.round(newEndTime * 4) / 4;
+        setIsResizing(false);
+        setResizePreviewEndTime(null);
+        resizeStartY.current = null;
+        document.body.style.cursor = '';
+        // Calcul de la nouvelle durée en heures
+        const newDuration = newEndTime - startTime;
+        // Correction : ne pas supprimer si la durée est trop courte, on limite à 15min
+        if (newDuration >= 0.25 && typeof onReduceDuration === 'function') {
+          // Passe la nouvelle durée (en heures) au parent
+          onReduceDuration(item, newDuration);
+        }
+      };
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = '';
+      };
+    }, [isResizing, startTime, endTime, duration, hoursLength, endHour, startHour, onReduceDuration, item]);
     // Trouver la collection de l'item
     const itemCollection = collections.find((col: any) => col.items?.some((it: any) => it.id === item.id)) || collections[0];
     const collectionProps = itemCollection?.properties || [];
@@ -166,23 +220,31 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
       collectionProps.find((prop: any) => prop.type === 'title') ||
       collectionProps.find((prop: any) => ['Titre', 'title', 'Name', 'name'].includes(prop.name));
 
+    // Calcul du feedback visuel pendant le resize
+    const previewEndTime = isResizing && resizePreviewEndTime !== null ? resizePreviewEndTime : endTime;
+    const previewHeightPx = isResizing && resizePreviewEndTime !== null
+      ? calculateEventPosition(startTime, resizePreviewEndTime, startHour, endHour, hoursLength).heightPx
+      : heightPx;
     return (
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <motion.div
             ref={dragRef}
-            draggable={!!onEventDrop}
+            draggable={!!onEventDrop && !isResizing}
             onMouseDown={() => console.log('[DND] mouseDown sur event', { item, onEventDrop })}
             initial={false}
-            className={`absolute rounded-sm p-0.5 px-2 grid gap-2 items-start content-start transition-colors group text-xs overflow-hidden z-10 hover:opacity-80 ${onEventDrop ? 'cursor-move' : 'cursor-default'}`}
+            className={`absolute rounded-sm p-0.5 px-2 grid gap-2 items-start content-start transition-colors group text-xs overflow-hidden z-10 hover:opacity-80 ${onEventDrop && !isResizing ? 'cursor-move' : 'cursor-default'}`}
             style={{
               top: `${topOffset}px`,
-              height: `${heightPx}px`,
+              height: `${previewHeightPx}px`,
               left: `${leftPercent}%`,
               width: `${widthPercent}%`,
               minHeight: '24px',
               borderLeft: `4px solid ${objectColors.border}`,
               backgroundColor: objectColors.bg,
+              pointerEvents: isResizing ? 'none' : undefined,
+              opacity: isResizing ? 0.85 : 1,
+              boxShadow: isResizing ? '0 0 0 2px #a5b4fc' : undefined,
             }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = objectColors.hover)}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = objectColors.bg)}
@@ -223,8 +285,8 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
               {(() => {
                 const startH = Math.floor(startTime);
                 const startM = Math.round((startTime - startH) * 60);
-                const endH = Math.floor(endTime);
-                const endM = Math.round((endTime - endH) * 60);
+                const endH = Math.floor(previewEndTime);
+                const endM = Math.round((previewEndTime - endH) * 60);
                 return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
               })()}
             </div>
@@ -257,6 +319,17 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
                   </div>
                 ))}
             </div>
+            {/* Handle de resize en bas */}
+            {canEdit && (
+              <div
+                onMouseDown={handleResizeMouseDown}
+                className="absolute left-0 right-0 bottom-0 h-2 cursor-ns-resize flex items-center justify-center z-20"
+                style={{ userSelect: 'none' }}
+                title="Redimensionner (ajuster la durée)"
+              >
+                <div className="w-8 h-1 rounded bg-neutral-400/60" />
+              </div>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
