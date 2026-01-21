@@ -12,6 +12,9 @@ interface FilterModalProps {
 }
 
 const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onClose, onAdd }) => {
+  // Onglet sélectionné : index de la collection
+  const defaultTab = collections.findIndex(c => c.properties === properties) || 0;
+  const [selectedTab, setSelectedTab] = useState(defaultTab);
   const [property, setProperty] = useState('');
   const [operator, setOperator] = useState('equals');
   const [value, setValue] = useState<any>('');
@@ -24,15 +27,34 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
     { value: 'is_empty', label: 'Est vide' },
     { value: 'is_not_empty', label: "N'est pas vide" },
   ];
-
+  // Propriétés de la collection sélectionnée
+  const currentProperties = collections[selectedTab]?.properties || [];
+  // Reset property si on change d'onglet
+  React.useEffect(() => {
+    setProperty('');
+    setValue('');
+    setOperator('equals');
+  }, [selectedTab]);
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
       <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-96 backdrop-blur">
         <h3 className="text-xl font-bold mb-6">Ajouter un filtre</h3>
+        {/* Onglets collections */}
+        <div className="flex gap-2 mb-4">
+          {collections.map((col, idx) => (
+            <button
+              key={col.id || idx}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${selectedTab === idx ? 'bg-violet-600 text-white' : 'bg-neutral-800/50 text-neutral-300 hover:bg-neutral-700'}`}
+              onClick={() => setSelectedTab(idx)}
+            >
+              {col.name || `Collection ${idx+1}`}
+            </button>
+          ))}
+        </div>
         <div className="space-y-4">
           <select value={property} onChange={(e) => setProperty(e.target.value)} className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none">
             <option value="">Sélectionner...</option>
-            {properties.map((prop: any) => (
+            {currentProperties.map((prop: any) => (
               <option key={prop.id} value={prop.id}>{prop.name}</option>
             ))}
           </select>
@@ -42,7 +64,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
             ))}
           </select>
           {!['is_empty', 'is_not_empty'].includes(operator) && (() => {
-            const selectedProp = properties.find((p: any) => p.id === property);
+            const selectedProp = currentProperties.find((p: any) => p.id === property);
             // Relation: construire options depuis la collection cible
             if (selectedProp?.type === 'relation') {
               const relation = selectedProp.relation || {};
