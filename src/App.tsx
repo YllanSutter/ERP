@@ -244,7 +244,11 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
 
   const handleUpdateDashboard = (dashboardId: string, patch: Partial<MonthlyDashboardConfig>) => {
     setDashboards((prev) =>
-      prev.map((db) => (db.id === dashboardId ? { ...db, ...patch, updatedAt: new Date().toISOString() } : db))
+      prev.map((db) =>
+        db.id === dashboardId
+          ? { ...db, ...patch, updatedAt: new Date().toISOString() }
+          : db
+      )
     );
   };
 
