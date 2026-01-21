@@ -262,8 +262,16 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       const groupCollectionId = rootGroup?.collectionId || dashboard.sourceCollectionId;
       const groupCollection = collections.find((c: any) => c.id === groupCollectionId) || collection;
       const groupProperties = groupCollection?.properties || [];
-      // Utiliser les items filtrés si c'est la collection principale, sinon tous les items de la collection liée
-      let groupItems = groupCollection.id === collection?.id ? filteredItems : groupCollection?.items || [];
+      // Utiliser les items filtrés si c'est la collection principale, sinon filtrer aussi la collection liée
+      let groupItems = [];
+      if (groupCollection.id === collection?.id) {
+        groupItems = filteredItems;
+      } else {
+        // Appliquer les mêmes filtres globaux du dashboard à la collection liée
+        const filters = dashboardFilters?.[dashboard.id] || [];
+        const fakeViewConfig = { filters };
+        groupItems = getFilteredItems(groupCollection, fakeViewConfig, { collectionId: null, ids: [] }, groupCollection.id, collections);
+      }
       // Correction : filtrage strict par tags/typeValues cumulés du chemin (parents + feuille)
       let allTypeValues: string[] = [];
       if (leaf._parentPath && Array.isArray(leaf._parentPath)) {
