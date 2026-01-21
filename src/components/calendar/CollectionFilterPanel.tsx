@@ -10,6 +10,7 @@ interface FilterModalProps {
   setDateField: (fieldId: string) => void;
   collections?: any[]; // Ajout de la prop collections
   onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
+  viewId?: string | null;
 }
 
 const CollectionFilterPanel: React.FC<FilterModalProps> = ({
@@ -19,6 +20,7 @@ const CollectionFilterPanel: React.FC<FilterModalProps> = ({
   dateField,
   setDateField,
   collections = [],
+  viewId,
 }) => {
   // Liste des champs date
   const dateFields = collection.properties.filter((p: any) => p.type === 'date' || p.type === 'date_range');
@@ -33,15 +35,16 @@ const CollectionFilterPanel: React.FC<FilterModalProps> = ({
     setFilters(newFilters);
   };
 
-// Les clés sont maintenant spécifiques à chaque collection
-const getFiltersKey = (collectionId: string) => `erp_collection_filters_${collectionId}`;
-const getDateFieldKey = (collectionId: string) => `erp_collection_datefield_${collectionId}`;
+
+// Les clés sont maintenant spécifiques à chaque collection+vue
+const getFiltersKey = (collectionId: string, viewId?: string | null) => viewId ? `erp_collection_filters_${collectionId}_${viewId}` : `erp_collection_filters_${collectionId}`;
+const getDateFieldKey = (collectionId: string, viewId?: string | null) => viewId ? `erp_collection_datefield_${collectionId}_${viewId}` : `erp_collection_datefield_${collectionId}`;
 
 
   // Charger les filtres et la dateField depuis localStorage au montage, spécifique à la collection
   useEffect(() => {
     if (!collection?.id) return;
-    const savedFilters = localStorage.getItem(getFiltersKey(collection.id));
+    const savedFilters = localStorage.getItem(getFiltersKey(collection.id, viewId));
     if (savedFilters) {
       try {
         const parsed = JSON.parse(savedFilters);
@@ -50,28 +53,28 @@ const getDateFieldKey = (collectionId: string) => `erp_collection_datefield_${co
         }
       } catch {}
     }
-    const savedDateField = localStorage.getItem(getDateFieldKey(collection.id));
+    const savedDateField = localStorage.getItem(getDateFieldKey(collection.id, viewId));
     if (savedDateField && savedDateField !== '' && setDateField) {
       setDateField(savedDateField);
     }
     // eslint-disable-next-line
-  }, [collection?.id]);
+  }, [collection?.id, viewId]);
 
   // Sauvegarder les filtres à chaque modification (sauf si vide), spécifique à la collection
   useEffect(() => {
     if (!collection?.id) return;
     if (filters && Object.keys(filters).length > 0) {
-      localStorage.setItem(getFiltersKey(collection.id), JSON.stringify(filters));
+      localStorage.setItem(getFiltersKey(collection.id, viewId), JSON.stringify(filters));
     }
-  }, [filters, collection?.id]);
+  }, [filters, collection?.id, viewId]);
 
   // Sauvegarder la dateField à chaque modification, spécifique à la collection
   useEffect(() => {
     if (!collection?.id) return;
     if (dateField !== undefined && dateField !== null) {
-      localStorage.setItem(getDateFieldKey(collection.id), dateField);
+      localStorage.setItem(getDateFieldKey(collection.id, viewId), dateField);
     }
-  }, [dateField, collection?.id]);
+  }, [dateField, collection?.id, viewId]);
 
   // Ajoute un log sur le changement de champ date
   const handleDateFieldChange = (fieldId: string) => {

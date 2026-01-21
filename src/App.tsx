@@ -551,6 +551,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                     dateProperty={activeViewConfig?.dateProperty}
                     hiddenFields={activeViewConfig?.hiddenFields || []}
                     collections={collections}
+                    viewId={activeViewConfig?.id}
                     onChangeDateProperty={(propId: string) => {
                       const updatedViews = { ...views } as Record<string, any[]>;
                       const viewIndex = updatedViews[activeCollection].findIndex(

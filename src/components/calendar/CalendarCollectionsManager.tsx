@@ -17,6 +17,7 @@ interface CalendarCollectionsManagerProps {
   hiddenFields?: string[];
   onEditField?: (updatedItem: any) => void;
   onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
+  viewId?: string;
 }
 
 const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
@@ -29,6 +30,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   onEdit = () => {},
   onDelete = () => {},
   onShowNewItemModalForCollection,
+  viewId,
 }) => {
   // Option pour déplacer tout ou seulement le segment
   const [moveAllSegments, setMoveAllSegments] = useState(true);
@@ -138,15 +140,22 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   const [filters, setFilters] = useState<Record<string, any>>({});
   const [dateFields, setDateFields] = useState<Record<string, string>>({});
 
+   // Helper pour obtenir l'id de la vue calendrier (par exemple, la première vue de type 'calendar' de la collection)
+   const getCalendarViewId = (col: any) => {
+     if (!col || !col.views) return null;
+     const calendarView = col.views.find((v: any) => v.type === 'calendar');
+     return calendarView ? calendarView.id : null;
+   };
+
   // --- Initialisation des filtres et dateFields au montage ---
   useEffect(() => {
     if (!collections || collections.length === 0) return;
     const newFilters: Record<string, any> = {};
     const newDateFields: Record<string, string> = {};
     collections.forEach(col => {
-      // Récupère les clés locales
-      const filtersKey = `erp_collection_filters_${col.id}`;
-      const dateFieldKey = `erp_collection_datefield_${col.id}`;
+      // Utilise le viewId passé en prop (celui de la vue calendrier active)
+      const filtersKey = viewId ? `erp_collection_filters_${col.id}_${viewId}` : `erp_collection_filters_${col.id}`;
+      const dateFieldKey = viewId ? `erp_collection_datefield_${col.id}_${viewId}` : `erp_collection_datefield_${col.id}`;
       // Filtres
       const savedFilters = localStorage.getItem(filtersKey);
       if (savedFilters) {
@@ -169,7 +178,10 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
 
   // Filtrage des items par collection
   const getFilteredItems = (collection: any) => {
-    const filter = filters[collection.id] || {};
+     // On cherche l'id de la vue calendrier pour cette collection
+     const viewId = getCalendarViewId(collection);
+     // On utilise la clé de filtre propre à la collection+vue
+     const filter = filters[collection.id] || {};
     const dateFieldId = dateFields[collection.id];
     const dateField = collection.properties.find((p: any) => p.id === dateFieldId);
     let items = collection.items || [];
@@ -312,8 +324,9 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               dateField={dateFields[collection.id]}
               setDateField={(fieldId: string) => setDateFields((prev) => ({ ...prev, [collection.id]: fieldId }))}
               collections={collections}
-                onShowNewItemModalForCollection={onShowNewItemModalForCollection}
-              />
+              onShowNewItemModalForCollection={onShowNewItemModalForCollection}
+              viewId={viewId}
+            />
           </TabsContent>
         ))}
       </Tabs>

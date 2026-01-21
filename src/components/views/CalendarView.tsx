@@ -18,6 +18,7 @@ interface CalendarViewProps {
   defaultDuration?: number; // in hours
   collections?: any[];
   onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
+  viewId?: string;
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({
@@ -34,6 +35,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   defaultDuration = 1,
   collections = [],
   onShowNewItemModalForCollection,
+  viewId,
 }) => {
   // Sélection multiple de collections
   // Persistance du multi-sélecteur de collections
@@ -222,6 +224,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         onDelete={onDelete}
         onEditField={onEdit}
         onShowNewItemModalForCollection={onShowNewItemModalForCollection}
+        viewId={viewId}
       />
     </motion.div>
   );
