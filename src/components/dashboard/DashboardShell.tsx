@@ -11,6 +11,7 @@ import {
   getNameValue as getNameValueUtil,
   getEventStyle,
 } from '@/lib/calendarUtils';
+import { getFilteredItems } from '@/lib/filterUtils';
 
 interface DashboardShellProps {
   dashboard: MonthlyDashboardConfig | null;
@@ -95,59 +96,14 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
   );
 
   const properties = collection?.properties || [];
+  // Utilise la logique avancée de filterUtils pour filtrer les items
   const filteredItems = useMemo(() => {
     if (!dashboard || !collection?.items) return [];
     const filters = dashboardFilters?.[dashboard.id] || [];
-    if (!filters.length) return collection.items;
-    return collection.items.filter((item: any) => {
-      return filters.every((filter: any) => {
-        const prop = properties.find((p: any) => p.id === filter.property);
-        const value = item[filter.property];
-        if (!prop) return true;
-        if (prop.type === 'relation') {
-          if (Array.isArray(value)) {
-            if (Array.isArray(filter.value)) {
-              return filter.value.some((v: any) => value.includes(v));
-            } else {
-              return value.includes(filter.value);
-            }
-          } else {
-            if (Array.isArray(filter.value)) {
-              return filter.value.includes(value);
-            } else {
-              return value === filter.value;
-            }
-          }
-        }
-        switch (filter.operator) {
-          case 'equals':
-            if (Array.isArray(value)) return value.includes(filter.value);
-            return value === filter.value;
-          case 'not_equals':
-            if (Array.isArray(value)) return !value.includes(filter.value);
-            return value !== filter.value;
-          case 'contains': {
-            // N'appliquer contains que pour les champs texte ou url
-            if (prop && (prop.type === 'text' || prop.type === 'url')) {
-              if (typeof value === 'string') return value.toLowerCase().includes(String(filter.value).toLowerCase());
-              if (Array.isArray(value)) return value.some((v: any) => String(v).toLowerCase().includes(String(filter.value).toLowerCase()));
-            }
-            return false;
-          }
-          case 'greater':
-            return typeof value === 'number' && value > filter.value;
-          case 'less':
-            return typeof value === 'number' && value < filter.value;
-          case 'is_empty':
-            return value == null || value === '' || (Array.isArray(value) && value.length === 0);
-          case 'is_not_empty':
-            return !(value == null || value === '' || (Array.isArray(value) && value.length === 0));
-          default:
-            return true;
-        }
-      });
-    });
-  }, [dashboard, collection?.items, dashboardFilters, properties]);
+    // On simule une config de vue pour getFilteredItems
+    const fakeViewConfig = { filters };
+    return getFilteredItems(collection, fakeViewConfig, { collectionId: null, ids: [] }, collection.id, collections);
+  }, [dashboard, collection, dashboardFilters, collections]);
 
   const [typeValuesInput, setTypeValuesInput] = useState<Record<string, string>>({});
 
