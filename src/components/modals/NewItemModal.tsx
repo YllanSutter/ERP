@@ -86,7 +86,12 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     if (editingItem && editingItem.id) {
       data.id = editingItem.id;
     }
-    // Génère _eventSegments dès la création
+    // Si l'item prérempli (BDD) possède déjà _eventSegments, on les garde
+    if (prefill && prefill._eventSegments) {
+      data._eventSegments = prefill._eventSegments;
+      return data;
+    }
+    // Sinon, on génère _eventSegments dynamiquement
     return updateEventSegments(data, col);
   }
 
@@ -94,19 +99,33 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   const [formData, setFormDataRaw] = useState(getInitialFormData(selectedCollection, editingItem));
 
-  // Setter qui recalcule _eventSegments à chaque changement
-  const setFormData = (data: any) => {
-    setFormDataRaw(updateEventSegments(data, selectedCollection));
+  // Setter qui recalcule _eventSegments uniquement si un champ de type 'date' est modifié
+  const setFormData = (data: any, recalcSegments: boolean = false) => {
+    if (recalcSegments) {
+      // Si on modifie un champ date, on recalcule _eventSegments
+      setFormDataRaw(updateEventSegments(data, selectedCollection));
+    } else {
+      // Si data possède déjà _eventSegments, on les garde
+      if (data._eventSegments) {
+        setFormDataRaw(data);
+      } else {
+        // Si pas de _eventSegments, on recalcule (cas création)
+        setFormDataRaw(updateEventSegments(data, selectedCollection));
+      }
+    }
   };
 
-  // Recalcule _eventSegments à chaque changement de formData ou de collection
+  // Recalcule _eventSegments à chaque changement de collection (pour initialiser correctement)
   React.useEffect(() => {
     setFormDataRaw(updateEventSegments(formData, selectedCollection));
     // eslint-disable-next-line
   }, [selectedCollection]);
 
   const handleChange = (propId: string, value: any) => {
-    setFormData({ ...formData, [propId]: value });
+    // Vérifie si le champ modifié est de type 'date'
+    const prop = (orderedProperties && orderedProperties.length > 0 ? orderedProperties : selectedCollection.properties).find((p: any) => p.id === propId);
+    const isDate = prop && prop.type === 'date';
+    setFormData({ ...formData, [propId]: value }, isDate);
   };
 
 
