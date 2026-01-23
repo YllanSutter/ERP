@@ -757,7 +757,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       return (
         <div ref={editorContainerRef} className={className + ' tiptap-editor'} style={{ minHeight: '120px' }}>
           {/* Barre d'outils Tiptap améliorée */}
-          <div className="tiptap-toolbar flex flex-wrap gap-1 mb-2 p-1 rounded bg-gray-500  dark:bg-neutral-900 border border-black/10 dark:border-white/10">
+          <div className="tiptap-toolbar flex flex-wrap gap-1 mb-2 p-1 rounded bg-gray-200  dark:bg-neutral-900 border border-black/10 dark:border-white/10">
             <button type="button" onClick={() => editor?.chain().focus().toggleBold().run()} className={editor?.isActive('bold') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Gras"><b>B</b></button>
             <button type="button" onClick={() => editor?.chain().focus().toggleItalic().run()} className={editor?.isActive('italic') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Italique"><i>I</i></button>
             <button type="button" onClick={() => editor?.chain().focus().toggleUnderline().run()} className={editor?.isActive('underline') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Souligné"><u>U</u></button>

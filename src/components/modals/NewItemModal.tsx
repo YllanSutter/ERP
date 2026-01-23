@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 // Mini composant Tabs local
 function Tabs({ tabs, active, onTab, className = "" }: { tabs: string[], active: string, onTab: (tab: string) => void, className?: string }) {
   return (
-    <div className={"flex gap-2 border-b border-white/10 mb-4 flex-wrap " + className}>
+    <div className={"flex gap-2 border-b border-black/10 dark:border-white/10 mb-4 flex-wrap " + className}>
       {tabs.map(tab => (
         <button
           key={tab}
           onClick={() => onTab(tab)}
           className={
-            "px-3 py-1 rounded-t text-sm font-medium " +
-            (active === tab ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-white")
+            "px-3 py-1 rounded-t text-sm font-medium transition-all duration-300 " +
+            (active === tab ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-black dark:hover:text-white")
           }
         >
           {tab}
@@ -206,16 +206,16 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-gray-300 dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-400 border border-white/10 rounded-2xl p-8 py-4 w-[1200px] max-h-[80vh] overflow-y-auto backdrop-blur"
+        className="bg-background dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-400 border border-black/10 dark:border-white/10 rounded-2xl p-8 py-4 w-[1200px] max-h-[80vh] overflow-y-auto backdrop-blur"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/10">
+        <div className="flex items-center justify-between mb-2 pb-2 border-b border-black/10 dark:border-white/10">
           <h3 className="text-xl font-bold">{isReallyEditing ? 'Modifier' : 'Nouveau'} {selectedCollection.name}</h3>
           {!isReallyEditing && (
             <div className="gap-4 flex items-center">
               <label className="block text-sm font-medium text-neutral-300">Collection</label>
               <select
-                className="px-3 py-2 rounded bg-neutral-800 text-white border border-white/10 focus:border-violet-500"
+                className="px-3 py-2 rounded bg-neutral-800 text-white border border-black/10 dark:border-white/10 focus:border-violet-500"
                 value={selectedCollectionId}
                 onChange={handleCollectionChange}
               >
@@ -244,10 +244,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           {/* Sélecteur de collection (création uniquement) */}
           
           {/* Partie gauche : champs classiques */}
-          <div className="flex-1 min-w-[0] pr-4 border-r border-white/10 relative">
+          <div className="flex-1 min-w-[0] pr-4 border-r border-black/10 dark:border-white/10 relative">
             {/* Grande barre verticale à droite des labels */}
             <div
-              className="pointer-events-none absolute top-0 left-[100px] w-[1px] h-full rounded bg-white/10 transition-colors duration-100 z-10"
+              className="pointer-events-none absolute top-0 left-[100px] w-[1px] h-full rounded bg-black/10 dark:bg-white/10 transition-colors duration-100 z-10"
               id="big-label-bar"
             >
               {/* Petites barres alignées à chaque label (calcul dynamique) */}
@@ -255,7 +255,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 <div
                   key={prop.id}
                   id={`mini-bar-${prop.id}`}
-                  className="absolute left-0 w-full h-[32px] rounded bg-white/0 transition-colors duration-100"
+                  className="absolute left-0 w-full h-[32px] rounded bg-black/0 dark:bg-white/0 transition-colors duration-100"
                   style={{ top: 0 }}
                   ref={el => {
                     if (!el) return;
@@ -304,8 +304,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     <label
                       id={`label-${prop.id}`}
                       className={
-                        "block text-sm font-medium text-neutral-300 whitespace-nowrap w-full px-3 py-2 rounded-l transition-colors duration-100 " +
-                        "group-hover:bg-white/5 group-focus-within:bg-white/5 focus-within:bg-white/5 hover:bg-white/5 "
+                        "block text-sm font-medium text-neutral-700 dark:text-neutral-300 whitespace-nowrap w-full px-3 py-2 rounded-l transition-colors duration-100 " +
+                        "group-hover:bg-black/5 dark:group-hover:bg-white/5 group-focus-within:bg-black/5 dark:group-focus-within:bg-white/5 focus-within:bg-black/5 dark:focus-within:bg-white/5 hover:bg-black/5 dark:hover:bg-white/5 "
                       }
                       htmlFor={`field-${prop.id}`}
                     >
@@ -430,10 +430,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                 <div className="font-semibold text-sm text-violet-300 mb-1">{day}</div>
                                 <ul className="space-y-2">
                                   {segs.map((seg: any, idx: number) => (
-                                    <li key={idx} className="p-2 rounded bg-white/5 border border-white/10">
-                                      <span className="font-mono text-xs text-neutral-300">{new Date(seg.start || seg.__eventStart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <li key={idx} className="p-2 rounded bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10">
+                                      <span className="font-mono text-xs text-neutral-700 dark:text-neutral-300">{new Date(seg.start || seg.__eventStart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                                       {' '}→{' '}
-                                      <span className="font-mono text-xs text-neutral-300">{new Date(seg.end || seg.__eventEnd).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                      <span className="font-mono text-xs text-neutral-700 dark:text-neutral-300">{new Date(seg.end || seg.__eventEnd).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                                     </li>
                                   ))}
                                 </ul>

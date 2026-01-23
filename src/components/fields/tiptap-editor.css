@@ -1,8 +1,7 @@
 /* Styles Tiptap pour un rendu moderne et aligné */
 .tiptap-editor {
-  background: #18181b;
   border-radius: 0.75rem;
-  border: 1px solid #3b3b3b;
+  border: 1px solid #ffffff20;
   padding: 1rem;
 }
 .tiptap-toolbar {
