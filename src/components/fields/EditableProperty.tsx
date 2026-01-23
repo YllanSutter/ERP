@@ -370,7 +370,7 @@ const RelationEditor = ({
               {!readOnly && (
                 <button
                   type="button"
-                  className="ml-1 text-neutral-700 hover:text-red-800 dark:text-neutral-400 dark:hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
+                  className="ml-1 text-neutral-700 hover:text-red-800 dark:text-white dark:hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
                   onClick={() => {
                     const next = selectedIds.filter((sid: string) => sid !== id);
                     onRelationChange(property, currentItem, next);

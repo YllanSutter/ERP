@@ -37,7 +37,7 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
             <span>{getOptionValue(selectedOption)}</span>
             <button
               type="button"
-              className="ml-1 text-neutral-700 hover:text-red-800 dark:text-neutral-400 dark:hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
+              className="ml-1 text-neutral-700 hover:text-red-800 dark:text-white dark:hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
               onClick={() => onChange("")}
               tabIndex={-1}
               aria-label={`Retirer ${getOptionValue(selectedOption)}`}

@@ -37,7 +37,7 @@ const GroupHeader: React.FC<GroupHeaderProps> = ({
             <Icons.ChevronRight size={18} />
           </motion.div>
           <span style={{ marginLeft: `${depth * 20}px` }}>
-            {propertyName}: <span className="text-neutral-500 dark:text-neutral-400">{label}</span>
+            {propertyName}: <span className="text-neutral-500 dark:text-white">{label}</span>
           </span>
           <span className="text-xs bg-black/10 dark:bg-white/10 px-2 py-1 rounded ml-2">
             {itemCount}

@@ -372,10 +372,10 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                   }}
                 />
               </label>
-              <button onClick={loadAll} className="p-2 rounded-lg hover:bg-white/10 text-neutral-600 dark:text-neutral-400" title="Rafraîchir">
+              <button onClick={loadAll} className="p-2 rounded-lg hover:bg-white/10 text-neutral-600 dark:text-white" title="Rafraîchir">
                 <RefreshCw size={16} />
               </button>
-              <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-neutral-600 dark:text-neutral-400">
+              <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-neutral-600 dark:text-white">
                 <X size={16} />
               </button>
             </div>
@@ -395,13 +395,13 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                     <button
                       key={r.id}
                       className={`w-full text-left px-3 py-2 rounded-lg transition ${
-                        selectedRoleId === r.id ? 'bg-cyan-500/20 text-black dark:text-white border border-cyan-500/40' : 'bg-white/5 text-neutral-500 dark:text-neutral-400'
+                        selectedRoleId === r.id ? 'bg-cyan-500/20 text-black dark:text-white border border-cyan-500/40' : 'bg-white/5 text-neutral-500 dark:text-white'
                       }`}
                       onClick={() => setSelectedRoleId(r.id)}
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-medium">{r.name}</span>
-                        {r.is_system && <span className="text-xs text-neutral-600 dark:text-neutral-400">système</span>}
+                        {r.is_system && <span className="text-xs text-neutral-600 dark:text-white">système</span>}
                       </div>
                       {r.description && <p className="text-xs text-neutral-500 mt-1">{r.description}</p>}
                     </button>
@@ -502,17 +502,17 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                         <div key="global" className="bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 rounded-lg overflow-hidden">
                           <div className="px-4 py-3 bg-cyan-500/10 border-b border-cyan-500/20">
                             <div className="text-sm font-semibold">Global</div>
-                            <div className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">Permissions appliquées à toutes les collections</div>
+                            <div className="text-xs text-neutral-600 dark:text-white mt-0.5">Permissions appliquées à toutes les collections</div>
                           </div>
                           <div className="px-4 py-3">
-                            <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Paramètres global</div>
+                            <div className="text-xs font-medium text-neutral-600 dark:text-white mb-2">Paramètres global</div>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                               {flags.map((f) => {
                                 const isChecked = !!perm[f.key];
                                 return (
                                   <label
                                     key={f.key}
-                                    className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 hover:text-black dark:text-white cursor-pointer"
+                                    className="flex items-center gap-2 text-xs text-neutral-500 dark:text-white hover:text-black cursor-pointer"
                                     title={f.hint}
                                   >
                                     <input
@@ -542,19 +542,19 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                         <div key={col.id} className="bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 rounded-lg overflow-hidden">
                           <div className="px-4 py-3 bg-white/5 border-b border-black/10 dark:border-white/5">
                             <div className="text-sm font-semibold">{col.name}</div>
-                            <div className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">Permissions de collection et propriétés</div>
+                            <div className="text-xs text-neutral-600 dark:text-white mt-0.5">Permissions de collection et propriétés</div>
                           </div>
 
                           {/* Collection-level */}
                           <div className="px-4 py-3 border-b border-black/10 dark:border-white/5">
-                            <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Collection</div>
+                            <div className="text-xs font-medium text-neutral-600 dark:text-white mb-2">Collection</div>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                               {flags.map((f) => {
                                 const isChecked = !!permCol[f.key];
                                 return (
                                   <label
                                     key={f.key}
-                                    className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 hover:text-black dark:text-white cursor-pointer"
+                                    className="flex items-center gap-2 text-xs text-neutral-500 dark:text-white hover:text-black dark:text-white cursor-pointer"
                                     title={f.hint}
                                   >
                                     <input
@@ -573,7 +573,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
 
                           {/* Properties-level */}
                           <div className="px-4 py-3">
-                            <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Propriétés (champs)</div>
+                            <div className="text-xs font-medium text-neutral-600 dark:text-white mb-2">Propriétés (champs)</div>
                             {col.properties.length === 0 ? (
                               <div className="text-xs text-neutral-500">Aucune propriété dans cette collection.</div>
                             ) : (
@@ -597,7 +597,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                                           return (
                                             <label
                                               key={f.key}
-                                              className="flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400 hover:text-black dark:text-white cursor-pointer"
+                                              className="flex items-center gap-1 text-xs text-neutral-500 dark:text-white hover:text-black dark:text-white cursor-pointer"
                                               title={`${f.label} ce champ`}
                                             >
                                               <input
@@ -631,7 +631,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold">Audit</h4>
                 </div>
-                <div className="space-y-2 max-h-64 overflow-auto pr-1 text-sm text-neutral-500 dark:text-neutral-400">
+                <div className="space-y-2 max-h-64 overflow-auto pr-1 text-sm text-neutral-500 dark:text-white">
                   {audit.map((a) => (
                     <div key={a.id} className="flex items-center justify-between border-b border-black/10 dark:border-white/5 pb-1">
                       <div>

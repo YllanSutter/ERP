@@ -226,21 +226,21 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={onShowFilterModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
         >
           <Filter size={14} />
           Filtrer
         </button>
         <button
           onClick={onShowGroupModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
         >
           <Layers size={14} />
           Grouper
         </button>
         <button
           onClick={() => canEdit && onShowNewPropertyModal()}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
           disabled={!canEdit}
         >
           <Plus size={14} />
@@ -250,7 +250,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         <div className="relative z-[1000]" ref={settingsRef}>
           <button
             onClick={() => onSetShowViewSettings(!showViewSettings)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
           >
             <Settings size={14} />
             Paramètres
@@ -262,13 +262,13 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="absolute top-full mt-2 right-0 w-72 bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur z-[1000] p-4"
+                className="absolute top-full mt-2 right-0 w-72 bg-gray-200 dark:bg-neutral-900/95 border border-black/10 dark:border-white/10 rounded-lg shadow-xl backdrop-blur z-[1000] p-4"
               >
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-white">Colonnes visibles</h4>
+                  <h4 className="text-sm font-semibold text-black dark:text-white">Colonnes visibles</h4>
                   <button
                     onClick={() => onSetShowViewSettings(false)}
-                    className="text-neutral-500 hover:text-white"
+                    className="text-neutral-700 dark:text-neutral-500 hover:text-black dark:hover:text-white"
                   >
                     <X size={14} />
                   </button>
@@ -287,7 +287,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                       return (
                         <div
                           className={cn(
-                            'flex items-center gap-3 text-sm text-neutral-300 p-2 transition-colors hover:bg-white/5  border-b border-[#ffffff20]',
+                            'flex items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300 p-2 transition-colors hover:bg-white/5  border-b border-[#ffffff20]',
                             isDragging && 'border border-cyan-500/60'
                           )}
                         >
@@ -299,7 +299,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                               type="checkbox"
                               checked={!isHidden}
                               onChange={() => onToggleFieldVisibility(prop.id)}
-                              className="peer h-4 w-4 appearance-none rounded border-2 border-white/20 bg-neutral-800 checked:bg-gradient-to-r checked:from-violet-500 checked:to-cyan-500 checked:border-transparent transition-all cursor-pointer"
+                              className="peer h-4 w-4 appearance-none rounded border-2 border-black/20 dark:border-white/20 bg-background dark:bg-neutral-800 checked:bg-neutral-400  checked:border-transparent transition-all cursor-pointer"
                             />
                             <svg
                               className="absolute left-0.5 top-0.5 h-3 w-3 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"

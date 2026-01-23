@@ -205,7 +205,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     e.stopPropagation();
                     onDuplicateDashboard(db.id);
                   }}
-                  className="p-1 rounded text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10"
+                  className="p-1 rounded text-neutral-600 dark:text-white hover:text-black dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10"
                   title="Dupliquer"
                 >
                   <Copy size={14} />

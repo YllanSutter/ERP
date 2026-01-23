@@ -40,11 +40,20 @@ const App = () => {
   const [socket, setSocket] = useState<any>(null);
 
     // Gestion du thème clair/sombre
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  // Thème persistant (clair/sombre)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('erp-theme') as 'light' | 'dark') || 'light';
+    }
+    return 'light';
+  });
   useEffect(() => {
     document.body.classList.remove('dark');
     if (theme === 'dark') {
       document.body.classList.add('dark');
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('erp-theme', theme);
     }
   }, [theme]);
 
@@ -322,7 +331,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
   }
 
   return (
-    <div className={`h-screen flex flex-col ${theme === 'dark' ? 'bg-neutral-900 text-black dark:text-white' : 'bg-white text-neutral-900'}`}> 
+    <div className={`h-screen flex flex-col ${theme === 'dark' ? 'bg-neutral-950 text-black dark:text-white' : 'bg-white text-neutral-900'}`}> 
 
       
 

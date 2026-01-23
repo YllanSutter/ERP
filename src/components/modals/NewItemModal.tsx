@@ -367,7 +367,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       <div className="space-y-4">
                         {relationProps.map((prop: any) => (
                           <div className="flex justify-between" key={prop.id}>
-                            <label className="block text-sm font-medium text-neutral-300 mb-2">
+                            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                               {prop.name} {prop.required && <span className="text-red-500">*</span>}
                             </label>
                             <EditableProperty
@@ -411,7 +411,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 {dateProps.map((dateProp: any) => (
                   activeTab === `_eventSegments_${dateProp.id}` && (
                     <div key={`_eventSegments_${dateProp.id}`}>
-                      <label className="block text-sm font-medium text-neutral-300 mb-2">Plages horaires pour {dateProp.name}</label>
+                      <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Plages horaires pour {dateProp.name}</label>
                       {/* Affichage des segments déjà présents dans l'objet (depuis la BDD) */}
                       {(() => {
                         const segments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
@@ -450,7 +450,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           </div>
         </div>
         <div className="flex gap-3 mt-8">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
+          <button onClick={onClose} className="flex-1 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg">Annuler</button>
           <ShinyButton
             onClick={() => {
               let dataToSave = { ...formData, __collectionId: selectedCollectionId };

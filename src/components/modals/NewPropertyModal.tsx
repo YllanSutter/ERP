@@ -77,7 +77,7 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
   
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-[500px] max-h-[90vh] overflow-y-auto backdrop-blur">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 w-[500px] max-h-[90vh] overflow-y-auto backdrop-blur">
         <h3 className="text-xl font-bold mb-6">Nouvelle propriété</h3>
         <div className="space-y-4">
           <input 
@@ -85,12 +85,12 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
             value={name} 
             onChange={(e) => setName(e.target.value)} 
             placeholder="Nom" 
-            className="w-full px-4 py-2 bg-neutral-900 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none" 
+            className="w-full px-4 py-2 bg-gray-200 dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none" 
           />
           <select 
             value={type} 
             onChange={(e) => setType(e.target.value)} 
-            className="bg-neutral-900 border border-white/10 rounded px-4 py-2 text-sm text-white w-full"
+            className="bg-gray-200 dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded px-4 py-2 text-sm text-neutral-700 dark:text-white w-full"
           >
             {Object.entries(PropertyTypeLabels).map(([key, label]) => (
               <option key={key} value={key}>{label}</option>
@@ -98,7 +98,7 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
           </select>
                     {type === 'rich_text' && (
                       <div>
-                        <label className="block text-sm font-medium text-neutral-300 mb-2">Valeur par défaut (texte enrichi)</label>
+                        <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Valeur par défaut (texte enrichi)</label>
                         <div className="bg-neutral-800 rounded-lg border border-white/10">
                           <EditorContent editor={richTextEditor} />
                         </div>
@@ -107,7 +107,7 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
                     )}
           {(type === 'date' || type === 'date_range') && (
             <div>
-              <label className="block text-sm font-medium text-neutral-300 mb-2">Durée par défaut (heures)</label>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Durée par défaut (heures)</label>
               <input
                 type="number"
                 value={defaultDuration}
@@ -123,11 +123,11 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
           {type === 'relation' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-2">Collection liée</label>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Collection liée</label>
                 <select 
                   value={relationTarget}
                   onChange={(e) => { setRelationTarget(e.target.value); setRelationFilterField(''); setRelationFilterValue(''); }}
-                  className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                  className="w-full px-4 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
                 >
                   <option value="">Sélectionner...</option>
                   {(collections || []).filter((c: any) => c.id !== currentCollection).map((c: any) => (
@@ -136,11 +136,11 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-2">Type de relation</label>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Type de relation</label>
                 <select 
                   value={relationType}
                   onChange={(e) => setRelationType(e.target.value)}
-                  className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                  className="w-full px-4 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
                 >
                   <option value="one_to_one">One to One</option>
                   <option value="one_to_many">One to Many</option>
@@ -150,7 +150,7 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
               {relationTarget && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-neutral-300 mb-2">Filtrer par propriété</label>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Filtrer par propriété</label>
                     <select
                       value={relationFilterField}
                       onChange={(e) => setRelationFilterField(e.target.value)}
@@ -165,7 +165,7 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-neutral-300 mb-2">Valeur du filtre</label>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Valeur du filtre</label>
                     {filterProp?.type === 'select' || filterProp?.type === 'multi_select' ? (
                       <select
                         value={relationFilterValue}
@@ -199,7 +199,7 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
           )}
         </div>
         <div className="flex gap-3 mt-8">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg">Annuler</button>
+          <button onClick={onClose} className="flex-1 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg">Annuler</button>
           <ShinyButton onClick={handleSave} className="flex-1">Créer</ShinyButton>
         </div>
       </motion.div>

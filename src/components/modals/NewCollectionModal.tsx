@@ -16,16 +16,16 @@ const NewCollectionModal: React.FC<NewCollectionModalProps> = ({ onClose, onSave
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 w-[500px] max-h-[90vh] overflow-y-auto backdrop-blur">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 w-[500px] max-h-[90vh] overflow-y-auto backdrop-blur">
         <h3 className="text-xl font-bold mb-6">Nouvelle collection</h3>
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-2">Nom</label>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Nom</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+              className="w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 borderborder-black/10 dark:border-white/10  rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
               placeholder="Nom de la collection"
             />
           </div>
@@ -39,7 +39,7 @@ const NewCollectionModal: React.FC<NewCollectionModalProps> = ({ onClose, onSave
           </div>
         </div>
         <div className="flex gap-3 mt-8">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors">Annuler</button>
+          <button onClick={onClose} className="flex-1 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg transition-colors">Annuler</button>
           <ShinyButton onClick={() => name && onSave(name, icon, color)} className="flex-1">Créer</ShinyButton>
         </div>
       </motion.div>
