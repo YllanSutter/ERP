@@ -187,6 +187,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     ? (orderedProperties && orderedProperties.length > 0 ? orderedProperties : selectedCollection.properties)
     : selectedCollection.properties;
   const classicProps = propsList.filter((p: any) => p.type !== 'relation');
+  const richTextProps = classicProps.filter((p: any) => p.type === 'rich_text');
+  const classicPropsSansRichText = classicProps.filter((p: any) => p.type !== 'rich_text');
   const relationProps = propsList.filter((p: any) => p.type === 'relation');
   // Pour chaque champ de type 'date', créer un onglet dédié aux plages horaires
   const dateProps = propsList.filter((p: any) => p.type === 'date');
@@ -204,7 +206,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 py-4 w-[900px] max-h-[80vh] overflow-y-auto backdrop-blur"
+        className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 py-4 w-[1200px] max-h-[80vh] overflow-y-auto backdrop-blur"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/10">
@@ -249,7 +251,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               id="big-label-bar"
             >
               {/* Petites barres alignées à chaque label (calcul dynamique) */}
-              {classicProps.map((prop: any) => (
+              {classicPropsSansRichText.map((prop: any) => (
                 <div
                   key={prop.id}
                   id={`mini-bar-${prop.id}`}
@@ -271,13 +273,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 />
               ))}
             </div>
-            {classicProps.length === 0 && (
+            {classicPropsSansRichText.length === 0 && (
               <div className="text-neutral-500 text-sm">Aucun champ classique</div>
             )}
             <div
               className="flex flex-col space-y-2 group/classic-fields"
             >
-              {classicProps.map((prop: any) => (
+              {classicPropsSansRichText.map((prop: any) => (
                 <div
                   key={prop.id}
                   className="flex gap-0 items-stretch group/item focus-within:z-10"
@@ -335,19 +337,26 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           </div>
           {/* Partie droite : relations sous forme d'onglets */}
           <div className="flex-1 min-w-[0] pl-2">
-            {extraTabs.length === 0 ? (
-              <div className="text-neutral-500 text-sm">Aucune relation</div>
-            ) : (
-              <>
+            {(() => {
+              // Tabs = richTextProps + extraTabs
+              const allTabs = [
+                ...extraTabs,
+                ...richTextProps.map((p: any) => ({ id: `_richText_${p.id}`, name: p.name, type: 'rich_text', prop: p }))
+              ];
+              if (allTabs.length === 0) {
+                return <div className="text-neutral-500 text-sm">Aucune relation</div>;
+              }
+              return <>
                 <Tabs
-                  tabs={extraTabs.map((p: any) => p.name)}
-                  active={extraTabs.find((p: any) => p.id === activeTab)?.name || extraTabs[0].name}
+                  tabs={allTabs.map((t: any) => t.name)}
+                  active={allTabs.find((t: any) => t.id === activeTab)?.name || allTabs[0].name}
                   onTab={tabName => {
-                    const found = extraTabs.find((p: any) => p.name === tabName);
+                    const found = allTabs.find((t: any) => t.name === tabName);
                     if (found) setActiveTab(found.id);
                   }}
                   className="mb-2"
                 />
+                
                 {/* Onglet unique pour toutes les relations */}
                 {activeTab === '__relations__' && (
                   <div>
@@ -379,6 +388,23 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     )}
                   </div>
                 )}
+                {/* Onglet rich_text */}
+                {allTabs.filter(t => t.type === 'rich_text').map(tab => (
+                  activeTab === tab.id && (
+                    <div key={tab.id} className="mb-4">
+                      <EditableProperty
+                        property={tab.prop}
+                        value={formData[tab.prop.id]}
+                        onChange={(val) => handleChange(tab.prop.id, val)}
+                        size="md"
+                        collections={collections}
+                        collection={collection}
+                        currentItem={formData}
+                        readOnly={false}
+                      />
+                    </div>
+                  )
+                ))}
                 {/* Onglets plages horaires par champ date */}
                 {dateProps.map((dateProp: any) => (
                   activeTab === `_eventSegments_${dateProp.id}` && (
@@ -417,8 +443,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     </div>
                   )
                 ))}
-              </>
-            )}
+              </>;
+            })()}
           </div>
         </div>
         <div className="flex gap-3 mt-8">
