@@ -4,6 +4,8 @@ import ShinyButton from '@/components/ui/ShinyButton';
 import OptionListEditor from '@/components/inputs/OptionListEditor';
 import IconPicker from '@/components/inputs/IconPicker';
 import { OptionType } from '@/components/inputs/LightSelect';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 
 interface NewPropertyModalProps {
   onClose: () => void;
@@ -23,7 +25,8 @@ const PropertyTypeLabels = {
   url: 'URL',
   email: 'Email',
   phone: 'Téléphone',
-  relation: 'Relation'
+  relation: 'Relation',
+  rich_text: 'Texte enrichi'
 };
 
 const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, collections, currentCollection }) => {
@@ -35,6 +38,14 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
   const [relationFilterField, setRelationFilterField] = useState('');
   const [relationFilterValue, setRelationFilterValue] = useState('');
   const [defaultDuration, setDefaultDuration] = useState(1);
+  const [richTextValue, setRichTextValue] = useState('');
+  const richTextEditor = useEditor({
+    extensions: [StarterKit],
+    content: richTextValue,
+    onUpdate: ({ editor }) => {
+      setRichTextValue(editor.getHTML());
+    },
+  });
 
   const targetCollection = (collections || []).find((c: any) => c.id === relationTarget);
   const filterProp = targetCollection?.properties?.find((p: any) => p.id === relationFilterField);
@@ -57,6 +68,9 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
         relation.filter = { fieldId: relationFilterField, value: relationFilterValue };
       }
       property.relation = relation;
+    }
+    if (type === 'rich_text') {
+      property.defaultValue = richTextValue;
     }
     onSave(property);
   };
@@ -82,6 +96,15 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
               <option key={key} value={key}>{label}</option>
             ))}
           </select>
+                    {type === 'rich_text' && (
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-300 mb-2">Valeur par défaut (texte enrichi)</label>
+                        <div className="bg-neutral-800 rounded-lg border border-white/10">
+                          <EditorContent editor={richTextEditor} />
+                        </div>
+                        <p className="text-xs text-neutral-500 mt-1">Ce texte sera utilisé par défaut lors de la création d'un nouvel élément</p>
+                      </div>
+                    )}
           {(type === 'date' || type === 'date_range') && (
             <div>
               <label className="block text-sm font-medium text-neutral-300 mb-2">Durée par défaut (heures)</label>

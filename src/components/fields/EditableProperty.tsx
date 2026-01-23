@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import './tiptap-editor.css';
 import * as Icons from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -646,6 +652,76 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
         onNavigateToCollection={onNavigateToCollection}
         isSourceMany={isSourceMany}
       />
+    );
+  }
+
+  // Rich text
+  if (property.type === 'rich_text') {
+    const editor = useEditor({
+      extensions: [StarterKit, Underline, TaskList, TaskItem],
+      content: value || '',
+      editable: !readOnly,
+      onUpdate: ({ editor }) => {
+        onChange(editor.getHTML());
+      },
+      editorProps: {
+        handleKeyDown(view, event) {
+          // Tab/Shift+Tab pour indenter/désindenter les checklists
+          if (event.key === 'Tab') {
+            const { state } = view;
+            const { $from } = state.selection;
+            const node = $from.node($from.depth);
+            if (node.type.name === 'taskItem') {
+              event.preventDefault();
+              if (event.shiftKey) {
+                editor?.chain().focus().liftListItem('taskItem').run();
+              } else {
+                editor?.chain().focus().sinkListItem('taskItem').run();
+              }
+              return true;
+            }
+          }
+          return false;
+        },
+      },
+    });
+    if (readOnly) {
+      return (
+        <div className={cn('prose prose-invert tiptap-prose max-w-full', className)} dangerouslySetInnerHTML={{ __html: value || '' }} />
+      );
+    }
+    // Patch: rendre les checkbox non focusables
+    useEffect(() => {
+      if (!editor) return;
+      const updateCheckboxTabIndex = () => {
+        const root = editor?.view?.dom;
+        if (!root) return;
+        const checkboxes = root.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+          cb.setAttribute('tabIndex', '-1');
+        });
+      };
+      updateCheckboxTabIndex();
+      editor.on('update', updateCheckboxTabIndex);
+      return () => {
+        editor.off('update', updateCheckboxTabIndex);
+      };
+    }, [editor]);
+    return (
+      <div className={className + ' tiptap-editor'} style={{ minHeight: '120px' }}>
+        {/* Barre d'outils Tiptap améliorée */}
+        <div className="tiptap-toolbar flex flex-wrap gap-1 mb-2 p-1 rounded bg-neutral-900 border border-white/10">
+          <button type="button" onClick={() => editor?.chain().focus().toggleBold().run()} className={editor?.isActive('bold') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Gras"><b>B</b></button>
+          <button type="button" onClick={() => editor?.chain().focus().toggleItalic().run()} className={editor?.isActive('italic') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Italique"><i>I</i></button>
+          <button type="button" onClick={() => editor?.chain().focus().toggleUnderline().run()} className={editor?.isActive('underline') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Souligné"><u>U</u></button>
+          <button type="button" onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} className={editor?.isActive('heading', { level: 1 }) ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Titre 1">H1</button>
+          <button type="button" onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} className={editor?.isActive('heading', { level: 2 }) ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Titre 2">H2</button>
+          <button type="button" onClick={() => editor?.chain().focus().toggleBulletList().run()} className={editor?.isActive('bulletList') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Liste à puces">• Liste</button>
+          <button type="button" onClick={() => editor?.chain().focus().toggleOrderedList().run()} className={editor?.isActive('orderedList') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Liste numérotée">1. Liste</button>
+          <button type="button" onClick={() => editor?.chain().focus().toggleTaskList().run()} className={editor?.isActive('taskList') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Cases à cocher">□</button>
+        </div>
+        <EditorContent editor={editor} />
+      </div>
     );
   }
 

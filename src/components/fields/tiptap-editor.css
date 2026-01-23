@@ -1,0 +1,101 @@
+/* Styles Tiptap pour un rendu moderne et aligné */
+.tiptap-editor {
+  background: #18181b;
+  border-radius: 0.75rem;
+  border: 1px solid #3b3b3b;
+  padding: 1rem;
+}
+.tiptap-toolbar {
+  background: #23232a;
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.tiptap-btn {
+  border: none;
+  border-radius: 0.375rem;
+  padding: 5px 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.tiptap-btn-active {
+  background: #8b5cf6;
+  color: #fff;
+}
+.tiptap-prose {
+  font-family: inherit;
+  font-size: 1rem;
+  color: #e5e7eb;
+}
+.tiptap-prose ul,
+.tiptap-prose ol {
+  margin-left: 1.5rem;
+  padding-left: 0.5rem;
+}
+.tiptap-prose li {
+  margin-bottom: 0.25rem;
+}
+.tiptap-prose .task-list {
+  list-style: none;
+  padding-left: 0;
+}
+.tiptap-prose .task-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+.tiptap-prose .task-list-item input[type="checkbox"] {
+  appearance: none;
+  width: 1.1em;
+  height: 1.1em;
+  border: 2px solid #8b5cf6;
+  border-radius: 0.3em;
+  background: #23232a;
+  margin-right: 0.4em;
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  transition: border-color 0.2s, background 0.2s;
+  pointer-events: none;
+}
+.tiptap-prose .task-list-item input[type="checkbox"]:checked::after {
+  content: '';
+  display: block;
+  position: absolute;
+  left: 0.25em;
+  top: 0.1em;
+  width: 0.5em;
+  height: 0.8em;
+  border-right: 2px solid #8b5cf6;
+  border-bottom: 2px solid #8b5cf6;
+  transform: rotate(35deg);
+}
+.tiptap-prose h1 {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 1rem 0 0.5rem 0;
+}
+.tiptap-prose h2 {
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin: 0.75rem 0 0.4rem 0;
+}
+
+.tiptap :is(ul,ol)
+{
+  list-style: initial;
+  margin-left: 20px;
+}
+.tiptap ol
+{
+  list-style: number;
+}
+.tiptap ul[data-type="taskList"] li
+{
+    display: flex;
+    gap: 5px;
+}

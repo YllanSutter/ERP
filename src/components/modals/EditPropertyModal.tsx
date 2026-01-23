@@ -7,6 +7,8 @@ import ColorPicker from '@/components/inputs/ColorPicker';
 import * as Icons from 'lucide-react';
 import { OptionType } from '@/components/inputs/LightSelect';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 
 interface EditPropertyModalProps {
   onClose: () => void;
@@ -29,6 +31,14 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
   const [defaultDuration, setDefaultDuration] = useState(property.defaultDuration || 1);
   const [showContextMenu, setShowContextMenu] = useState(property.showContextMenu || false);
   const [defaultValue, setDefaultValue] = useState(property.defaultValue ?? null);
+  const richTextEditor = useEditor({
+    extensions: [StarterKit],
+    content: defaultValue || '',
+    onUpdate: ({ editor }) => {
+      setDefaultValue(editor.getHTML());
+    },
+    editable: type === 'rich_text',
+  });
   const [showIconPopover, setShowIconPopover] = useState(false);
   const [showColorPopover, setShowColorPopover] = useState(false);
 
@@ -128,7 +138,17 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                   <option value="email">Email</option>
                   <option value="phone">Téléphone</option>
                   <option value="relation">Relation</option>
+                  <option value="rich_text">Texte enrichi</option>
                 </select>
+                          {type === 'rich_text' && (
+                            <div>
+                              <label className="block text-sm font-medium text-neutral-300 mb-2">Valeur par défaut (texte enrichi)</label>
+                              <div className="bg-neutral-800 rounded-lg border border-white/10">
+                                <EditorContent editor={richTextEditor} />
+                              </div>
+                              <p className="text-xs text-neutral-500 mt-1">Ce texte sera utilisé par défaut lors de la création d'un nouvel élément</p>
+                            </div>
+                          )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">Icône et couleur</label>
