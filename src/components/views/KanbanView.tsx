@@ -152,7 +152,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
           <select
             value={groupByProp?.id || ''}
             onChange={(e) => onChangeGroupBy?.(e.target.value)}
-            className="px-3 py-1.5 bg-neutral-800/50 border border-white/10 rounded-lg text-sm text-white focus:border-violet-500 focus:outline-none"
+            className="px-3 py-1.5 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-sm text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
           >
             {selectProps.map((prop: any) => (
               <option key={prop.id} value={prop.id}>{prop.name}</option>
@@ -179,7 +179,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                 background: `linear-gradient(to bottom right, ${columnColors[column]}30, ${columnColors[column]}05)`
               }}
             >
-              <h3 className="font-semibold text-white flex items-center justify-between">
+              <h3 className="font-semibold text-neutral-700 dark:text-white flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: columnColors[column] }} />
                   <span>{column}</span>
@@ -190,7 +190,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
 
             {/* Cards Container */}
             <div 
-              className="space-y-3 min-h-[400px] rounded-lg border border-white/5 bg-white/[0.02] p-4"
+              className="space-y-3 min-h-[400px] rounded-lg border border-black/5 dark:border-white/5 bg-black/10 dark:bg-white/10 p-4"
               onDragOver={handleDragOver}
               onDrop={() => handleDrop(column)}
             >
@@ -222,7 +222,8 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                       transition={{ delay: idx * 0.05 }}
                       whileHover={canEdit ? { scale: 1.02 } : {}}
                       className={cn(
-                        "group rounded-lg border border-white/10 bg-gradient-to-br from-neutral-800/50 to-neutral-900/50 p-4 hover:border-white/20 transition-all space-y-3",
+                        "group rounded-lg border border-black/10 dark:border-white/10 p-4 hover:border-white/20 transition-all space-y-3",
+                        "bg-gradient-to-br from-white/80 to-neutral-100/80 dark:from-neutral-800/50 dark:to-neutral-900/50",
                         canEdit && "cursor-move",
                         draggedItem?.id === item.id ? 'opacity-50 border-violet-500/50' : ''
                       )}
@@ -308,14 +309,14 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                     <div className="flex justify-end gap-2 pt-2 absolute -top-7 left-1">
                       <button
                         onClick={() => onViewDetail(item)}
-                        className="px-2 py-0.5 rounded text-xs text-white bg-blue-500/20 hover:bg-blue-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
+                        className="px-2 py-0.5 rounded text-xs text-neutral-700 dark:text-white bg-blue-500/20 hover:bg-blue-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
                       >
                         Éditer
                       </button>
                       {canEdit && (
                         <button
                           onClick={() => onDelete(item.id)}
-                          className="px-2 py-0.5 rounded text-xs text-white bg-red-500/20 hover:bg-red-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
+                          className="px-2 py-0.5 rounded text-xs text-neutral-700 dark:text-white bg-red-500/20 hover:bg-red-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
                         >
                           Supprimer
                         </button>

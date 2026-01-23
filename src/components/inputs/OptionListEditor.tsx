@@ -57,7 +57,7 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
 
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-medium text-neutral-300">Options</label>
+      <label className="block text-sm font-medium text-neutral-600 dark:text-neutral-300">Options</label>
       <div className="space-y-2">
         <DraggableList
           items={normalizedOptions.map((opt, idx) => ({ ...opt, _idx: idx }))}

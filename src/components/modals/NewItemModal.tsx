@@ -213,7 +213,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           <h3 className="text-xl font-bold">{isReallyEditing ? 'Modifier' : 'Nouveau'} {selectedCollection.name}</h3>
           {!isReallyEditing && (
             <div className="gap-4 flex items-center">
-              <label className="block text-sm font-medium text-neutral-300">Collection</label>
+              <label className="block text-sm font-medium text-neutral-600 dark:text-neutral-300">Collection</label>
               <select
                 className="px-3 py-2 rounded bg-neutral-800 text-white border border-black/10 dark:border-white/10 focus:border-violet-500"
                 value={selectedCollectionId}

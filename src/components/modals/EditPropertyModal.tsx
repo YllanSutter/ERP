@@ -83,7 +83,7 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
   
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 w-[500px] max-h-[90vh] overflow-y-auto backdrop-blur">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 min-w-[500px] max-h-[90vh] overflow-y-auto backdrop-blur">
         <h3 className="text-xl font-bold mb-6">Modifier la propriété</h3>
         <div className="space-y-6">
           <div className="space-y-4">
@@ -125,7 +125,7 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value)}
-                  className="w-full px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                  className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
                 >
                   <option value="text">Texte</option>
                   <option value="number">Nombre</option>
@@ -140,15 +140,6 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                   <option value="relation">Relation</option>
                   <option value="rich_text">Texte enrichi</option>
                 </select>
-                          {type === 'rich_text' && (
-                            <div>
-                              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Valeur par défaut (texte enrichi)</label>
-                              <div className="bg-neutral-800 rounded-lg border border-white/10">
-                                <EditorContent editor={richTextEditor} />
-                              </div>
-                              <p className="text-xs text-neutral-500 mt-1">Ce texte sera utilisé par défaut lors de la création d'un nouvel élément</p>
-                            </div>
-                          )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Icône et couleur</label>
@@ -157,7 +148,7 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                     <button
                       type="button"
                       onClick={() => setShowIconPopover((v) => !v)}
-                      className="w-9 h-9 flex items-center justify-center bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300"
+                      className="w-9 h-9 flex items-center justify-center bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 rounded-lg text-neutral-600 dark:text-neutral-300"
                       title="Choisir une icône"
                     >
                       {(Icons as any)[icon] ? React.createElement((Icons as any)[icon], { size: 14 }) : <Icons.Tag size={14} />}
@@ -238,7 +229,7 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                     <select
                       value={relationFilterField}
                       onChange={(e) => setRelationFilterField(e.target.value)}
-                      className="w-full px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                      className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
                     >
                       <option value="">Aucune</option>
                       {(collections.find((c: any) => c.id === relationTarget)?.properties || [])
@@ -254,7 +245,7 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                       <select
                         value={relationFilterValue}
                         onChange={(e) => setRelationFilterValue(e.target.value)}
-                        className="w-full px-3 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                        className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
                       >
                         <option value="">Sélectionner...</option>
                         {(filterProp.options || []).map((opt: any) => {
@@ -291,7 +282,7 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                 onChange={(e) => setShowContextMenu(e.target.checked)}
                 className="w-4 h-4 rounded border-white/10"
               />
-              <span className="text-sm font-medium text-neutral-300">Afficher dans le menu contextuel</span>
+              <span className="text-sm font-medium text-neutral-600 dark:text-neutral-300">Afficher dans le menu contextuel</span>
             </label>
             <p className="text-xs text-neutral-500 mt-2 ml-7">Cette propriété apparaîtra dans le menu contextuel au clic droit sur les objets</p>
           </div>

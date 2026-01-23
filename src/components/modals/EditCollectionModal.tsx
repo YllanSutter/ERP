@@ -41,12 +41,12 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 w-[500px] max-h-[90vh] overflow-y-auto backdrop-blur">
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 min-min-w-[500px] max-h-[90vh] overflow-y-auto backdrop-blur">
         <h3 className="text-xl font-bold mb-6">Modifier la collection</h3>
         <div className="space-y-6">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-300 mb-2">Nom</label>
+              <label className="block text-sm font-medium text-neutral-600 dark:text-neutral-300 mb-2">Nom</label>
               <input 
                 type="text" 
                 value={name} 
@@ -56,7 +56,7 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-300 mb-2">Icône et couleur</label>
+              <label className="block text-sm font-medium text-neutral-600 dark:text-neutral-300 mb-2">Icône et couleur</label>
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <button
