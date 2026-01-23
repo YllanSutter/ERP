@@ -93,11 +93,11 @@ const WeekView: React.FC<WeekViewProps> = ({
               key={idx}
               className={cn(
                 'text-center py-3 border px-2',
-                isToday ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-white/10 bg-neutral-800/30'
+                isToday ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-black/10 dark:border-white/10 bg-background dark:bg-neutral-800/30'
               )}
             >
               <div className="text-xs font-semibold text-neutral-500">{dayNamesShort[dayOfWeek]}</div>
-              <div className={cn('text-lg font-bold', isToday ? 'text-cyan-300' : 'text-white')}>{date.getDate()}</div>
+              <div className={cn('text-lg font-bold', isToday ? 'text-cyan-600 dark:text-cyan-300' : 'text-neutral-700 dark:text-white')}>{date.getDate()}</div>
             </div>
           );
         })}
@@ -199,7 +199,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                 return (
                   <div
                     key={`${dayIndex}-${hour}`}
-                    className={cn('h-24 border-b border-l border-white/5 transition-colors bg-neutral-900/30 hover:bg-neutral-800/30')}
+                    className={cn('h-24 border-b border-l border-black/10 dark:border-white/5 transition-colors bg-background dark:bg-neutral-900/30 hover:bg-gray-100 dark:hover:bg-neutral-800/30')}
                     onContextMenu={(e) => {
                       // Si clic sur un event, ne rien faire ici (le WeekEventCard gère son propre clic)
                       // if (hasEvent) return;

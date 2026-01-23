@@ -76,8 +76,8 @@ const MonthView: React.FC<MonthViewProps> = ({
               className={cn(
                 "aspect-square rounded-lg border transition-all p-2 text-xs",
                 !day && 'bg-transparent border-transparent',
-                day && 'bg-neutral-800/30 border-white/5 hover:border-white/20',
-                isToday && 'border-cyan-500/50 bg-cyan-500/10'
+                day && 'bg-gray-200 dark:bg-neutral-800/30 border-black/5 dark:border-white/5 hover:border-black/20 dark:hover:border-white/20',
+                isToday && 'border-cyan-400 dark:border-cyan-500/50 bg-cyan-100 dark:bg-cyan-500/10'
               )}
             >
               {day && (
@@ -94,7 +94,7 @@ const MonthView: React.FC<MonthViewProps> = ({
                       {daySegments.map(({ item, segment }, i) => (
                         <button
                           key={item.id + '-' + i}
-                          className="text-[10px] text-violet-300 font-medium text-left truncate hover:underline"
+                          className="text-[10px] text-violet-600 dark:text-violet-300 font-medium text-left truncate hover:underline"
                           title={getNameValue(item)}
                           onClick={e => {
                             e.stopPropagation();
@@ -107,7 +107,7 @@ const MonthView: React.FC<MonthViewProps> = ({
                           }}
                         >
                           {getNameValue(item)}<br />
-                          <span className="text-neutral-400">{new Date(segment.start || segment.__eventStart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} → {new Date(segment.end || segment.__eventEnd).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="text-neutral-700 dark:text-neutral-400">{new Date(segment.start || segment.__eventStart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} → {new Date(segment.end || segment.__eventEnd).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                         </button>
                       ))}
                     </div>

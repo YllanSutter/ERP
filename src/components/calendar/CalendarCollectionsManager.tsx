@@ -237,12 +237,12 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           }
         </h2>
         <div className="flex items-center gap-3">
-          <div className="flex gap-1 bg-neutral-800/50 rounded-lg p-1">
+          <div className="flex gap-1 bg-gray-200 dark:bg-neutral-800/50 rounded-lg p-1">
             <button
               onClick={() => setViewModePersist('month')}
               className={
                 'px-3 py-1.5 text-sm font-medium transition-colors ' +
-                (viewMode === 'month' ? 'bg-violet-500/30 text-violet-200' : 'text-neutral-400 hover:text-white')
+                (viewMode === 'month' ? 'bg-violet-500 dark:bg-violet-500/30 text-white' : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300')
               }
             >
               Mois
@@ -251,7 +251,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               onClick={() => setViewModePersist('week')}
               className={
                 'px-3 py-1.5 text-sm font-medium transition-colors ' +
-                (viewMode === 'week' ? 'bg-violet-500/30 text-violet-200' : 'text-neutral-400 hover:text-white')
+                (viewMode === 'week' ? 'bg-violet-500 dark:bg-violet-500/30 text-white' : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300')
               }
             >
               Semaine
@@ -260,7 +260,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               onClick={() => setViewModePersist('day')}
               className={
                 'px-3 py-1.5 text-sm font-medium transition-colors ' +
-                (viewMode === 'day' ? 'bg-violet-500/30 text-violet-200' : 'text-neutral-400 hover:text-white')
+                (viewMode === 'day' ? 'bg-violet-500 dark:bg-violet-500/30 text-white' : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300')
               }
             >
               Jour
@@ -268,7 +268,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           </div>
           {/* Option de déplacement visible seulement en vue calendrier (week ou day) */}
           {(viewMode === 'week' || viewMode === 'day') && (
-            <div className="flex items-center gap-2 bg-neutral-800/50 rounded-lg px-4 py-3 ml-2">
+            <div className="flex items-center gap-2  rounded-lg px-4 py-3 ml-2">
               <span className="text-xs text-neutral-400">Déplacement :</span>
               <label className="flex items-center gap-1 text-xs cursor-pointer">
                 <input
@@ -297,7 +297,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           </button>
           <button
             onClick={() => setCurrentDate(new Date())}
-            className="px-4 py-2 text-sm font-medium bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 rounded-lg transition-colors border border-violet-500/30"
+            className="px-4 py-2 text-sm font-medium bg-violet-500 dark:bg-violet-500/20 hover:bg-violet-700 dark:hover:bg-violet-500/30 text-violet-200 rounded-lg transition-colors border border-violet-500/30"
           >
             Aujourd'hui
           </button>
