@@ -56,10 +56,10 @@ const LoginPage = ({ onLogin, onRegister, loading }: LoginPageProps) => {
         <form className="space-y-4" onSubmit={handleSubmit}>
           {mode === 'register' && (
             <div className="space-y-1">
-              <label className="text-sm text-neutral-300">Nom</label>
+              <label className="text-sm text-neutral-600 dark:text-neutral-300">Nom</label>
               <input
                 type="text"
-                className="w-full bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
+                className="w-full bg-gray-200 dark:bg-neutral-900 border border-black/5 dark:border-white/10 rounded-lg px-3 py-2 text-sm"
                 placeholder="Votre nom"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -68,10 +68,10 @@ const LoginPage = ({ onLogin, onRegister, loading }: LoginPageProps) => {
           )}
 
           <div className="space-y-1">
-            <label className="text-sm text-neutral-300">Email</label>
+            <label className="text-sm text-neutral-600 dark:text-neutral-300">Email</label>
             <input
               type="email"
-              className="w-full bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
+              className="w-full bg-gray-200 dark:bg-neutral-900 border border-black/5 dark:border-white/10 rounded-lg px-3 py-2 text-sm"
               placeholder="vous@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -80,10 +80,10 @@ const LoginPage = ({ onLogin, onRegister, loading }: LoginPageProps) => {
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm text-neutral-300">Mot de passe</label>
+            <label className="text-sm text-neutral-600 dark:text-neutral-300">Mot de passe</label>
             <input
               type="password"
-              className="w-full bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
+              className="w-full bg-gray-200 dark:bg-neutral-900 border border-black/5 dark:border-white/10 rounded-lg px-3 py-2 text-sm"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

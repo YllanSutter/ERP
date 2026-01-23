@@ -116,7 +116,7 @@ export const LinkedItemsViewer: React.FC<LinkedItemsViewerProps> = ({
       top={top}
       right={right}
     >
-      <div className="text-sm text-neutral-300 max-h-80 overflow-y-auto">
+      <div className="text-sm text-neutral-600 dark:text-neutral-300 max-h-80 overflow-y-auto">
         <div className="flex items-center justify-between px-2 pb-2 border-b border-white/10">
           <span className="text-xs text-neutral-400">{targetCollection?.name}</span>
           {onNavigateToCollection && (
