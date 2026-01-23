@@ -46,7 +46,7 @@ const NameLink = ({ value, onViewDetail }: { value: any; onViewDetail: () => voi
   </button>
 );
 
-const SimpleInput = ({ 
+function SimpleInput({ 
   type, 
   value, 
   onChange, 
@@ -68,23 +68,31 @@ const SimpleInput = ({
   ref?: React.RefObject<HTMLInputElement>;
   onFocus?: React.FocusEventHandler<HTMLInputElement>;
   onClick?: React.MouseEventHandler<HTMLInputElement>;
-}) => (
-  <input
-    type={type}
-    value={value || ''}
-    onChange={(e) => onChange(e.target.value)}
-    placeholder={placeholder}
-    disabled={readOnly}
-    className={cn(
-      "w-full px-2 py-1 bg-transparent border border-transparent text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-      sizeClasses,
-      className
-    )}
-    ref={ref}
-    onFocus={onFocus}
-    onClick={onClick}
-  />
-);
+}) {
+  // Largeur dynamique en fonction du contenu (max 60ch)
+  // Pour les champs texte, largeur minimale plus grande
+  let minLen = 20;
+  if (type === 'number' || type === 'email' || type === 'tel') minLen = 12;
+  const inputLength = (value && typeof value === 'string') ? Math.min(Math.max(value.length, minLen), 60) : minLen;
+  return (
+    <input
+      type={type}
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      disabled={readOnly}
+      className={cn(
+        "px-2 py-1 bg-transparent border border-transparent text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+        sizeClasses,
+        className
+      )}
+      style={{ width: `${inputLength}ch` }}
+      ref={ref}
+      onFocus={onFocus}
+      onClick={onClick}
+    />
+  );
+}
 
 const CheckboxInput = ({ value, onChange, readOnly }: { value: any; onChange: (value: boolean) => void; readOnly?: boolean }) => (
   <input
