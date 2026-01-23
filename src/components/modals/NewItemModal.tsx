@@ -313,23 +313,24 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     </label>
                   </div>
                   <div className="flex-1 pl-4 flex items-center">
-                    <EditableProperty
-                      property={prop}
-                      value={formData[prop.id]}
-                      onChange={(val) => handleChange(prop.id, val)}
-                      size="md"
-                      collections={collections}
-                      collection={collection}
-                      currentItem={formData}
-                      onRelationChange={(property, item, value) => {
-                        if (property.type === 'relation' || property.type === 'multi_select') {
-                          setFormData({ ...formData, [property.id]: value });
-                        } else {
-                          setFormData(item);
-                        }
-                      }}
-                      readOnly={false}
-                    />
+                      <EditableProperty
+                        property={prop}
+                        value={formData[prop.id]}
+                        onChange={(val) => handleChange(prop.id, val)}
+                        size="md"
+                        collections={collections}
+                        collection={collection}
+                        currentItem={formData}
+                        onRelationChange={(property, item, value) => {
+                          if (property.type === 'relation' || property.type === 'multi_select') {
+                            setFormData({ ...formData, [property.id]: value });
+                          } else {
+                            setFormData(item);
+                          }
+                        }}
+                        readOnly={false}
+                        forceRichEditor={true}
+                      />
                   </div>
                 </div>
               ))}
@@ -401,6 +402,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                         collection={collection}
                         currentItem={formData}
                         readOnly={false}
+                        forceRichEditor={tab.type === 'rich_text'}
                       />
                     </div>
                   )
