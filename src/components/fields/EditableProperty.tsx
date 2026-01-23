@@ -53,7 +53,10 @@ const SimpleInput = ({
   sizeClasses, 
   className, 
   readOnly, 
-  placeholder 
+  placeholder,
+  ref,
+  onFocus,
+  onClick
 }: { 
   type: string; 
   value: any; 
@@ -62,6 +65,9 @@ const SimpleInput = ({
   className?: string; 
   readOnly?: boolean; 
   placeholder?: string; 
+  ref?: React.RefObject<HTMLInputElement>;
+  onFocus?: React.FocusEventHandler<HTMLInputElement>;
+  onClick?: React.MouseEventHandler<HTMLInputElement>;
 }) => (
   <input
     type={type}
@@ -74,6 +80,9 @@ const SimpleInput = ({
       sizeClasses,
       className
     )}
+    ref={ref}
+    onFocus={onFocus}
+    onClick={onClick}
   />
 );
 
@@ -659,59 +668,86 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
   // Rich text
   if (property.type === 'rich_text') {
-    if (forceRichEditor) {
-      const editor = useEditor({
-        extensions: [StarterKit, Underline, TaskList, TaskItem],
-        content: value || '',
-        editable: !readOnly,
-        onUpdate: ({ editor }) => {
-          onChange(editor.getHTML());
-        },
-        editorProps: {
-          handleKeyDown(view, event) {
-            // Tab/Shift+Tab pour indenter/désindenter les checklists
-            if (event.key === 'Tab') {
-              const { state } = view;
-              const { $from } = state.selection;
-              const node = $from.node($from.depth);
-              if (node.type.name === 'taskItem') {
-                event.preventDefault();
-                if (event.shiftKey) {
-                  editor?.chain().focus().liftListItem('taskItem').run();
-                } else {
-                  editor?.chain().focus().sinkListItem('taskItem').run();
-                }
-                return true;
+    // Si forceRichEditor, on affiche toujours l'éditeur complet (cas NewItemModal)
+    // Sinon, on affiche un input texte simple, qui se transforme en éditeur au focus/click, et revient à l'input au blur
+    const [showEditor, setShowEditor] = useState(forceRichEditor);
+    const inputRef = React.useRef<HTMLInputElement>(null);
+    const editorContainerRef = React.useRef<HTMLDivElement>(null);
+    const editor = useEditor({
+      extensions: [StarterKit, Underline, TaskList, TaskItem],
+      content: value || '',
+      editable: !readOnly,
+      onUpdate: ({ editor }) => {
+        onChange(editor.getHTML());
+      },
+      editorProps: {
+        handleKeyDown(view, event) {
+          // Tab/Shift+Tab pour indenter/désindenter les checklists
+          if (event.key === 'Tab') {
+            const { state } = view;
+            const { $from } = state.selection;
+            const node = $from.node($from.depth);
+            if (node.type.name === 'taskItem') {
+              event.preventDefault();
+              if (event.shiftKey) {
+                editor?.chain().focus().liftListItem('taskItem').run();
+              } else {
+                editor?.chain().focus().sinkListItem('taskItem').run();
               }
+              return true;
             }
-            return false;
-          },
+          }
+          return false;
         },
-      });
-      if (readOnly) {
-        return (
-          <div className={cn('prose prose-invert tiptap-prose max-w-full', className)} dangerouslySetInnerHTML={{ __html: value || '' }} />
-        );
-      }
-      // Patch: rendre les checkbox non focusables
-      useEffect(() => {
-        if (!editor) return;
-        const updateCheckboxTabIndex = () => {
-          const root = editor?.view?.dom;
-          if (!root) return;
-          const checkboxes = root.querySelectorAll('input[type="checkbox"]');
-          checkboxes.forEach(cb => {
-            cb.setAttribute('tabIndex', '-1');
-          });
-        };
-        updateCheckboxTabIndex();
-        editor.on('update', updateCheckboxTabIndex);
-        return () => {
-          editor.off('update', updateCheckboxTabIndex);
-        };
-      }, [editor]);
+      },
+    });
+
+    // Patch: rendre les checkbox non focusables
+    useEffect(() => {
+      if (!editor) return;
+      const updateCheckboxTabIndex = () => {
+        const root = editor?.view?.dom;
+        if (!root) return;
+        const checkboxes = root.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+          cb.setAttribute('tabIndex', '-1');
+        });
+      };
+      updateCheckboxTabIndex();
+      editor.on('update', updateCheckboxTabIndex);
+      return () => {
+        editor.off('update', updateCheckboxTabIndex);
+      };
+    }, [editor]);
+
+    // Gestion du blur pour revenir à l'input texte
+    useEffect(() => {
+      if (!showEditor || forceRichEditor) return;
+      const handleClickOutside = (event: MouseEvent) => {
+        if (
+          editorContainerRef.current &&
+          !editorContainerRef.current.contains(event.target as Node)
+        ) {
+          setShowEditor(false);
+        }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }, [showEditor, forceRichEditor]);
+
+    // Si readOnly, on affiche le HTML
+    if (readOnly) {
       return (
-        <div className={className + ' tiptap-editor'} style={{ minHeight: '120px' }}>
+        <div className={cn('prose prose-invert tiptap-prose max-w-full', className)} dangerouslySetInnerHTML={{ __html: value || '' }} />
+      );
+    }
+
+    // Si forceRichEditor ou showEditor, on affiche l'éditeur complet
+    if (forceRichEditor || showEditor) {
+      return (
+        <div ref={editorContainerRef} className={className + ' tiptap-editor'} style={{ minHeight: '120px' }}>
           {/* Barre d'outils Tiptap améliorée */}
           <div className="tiptap-toolbar flex flex-wrap gap-1 mb-2 p-1 rounded bg-neutral-900 border border-white/10">
             <button type="button" onClick={() => editor?.chain().focus().toggleBold().run()} className={editor?.isActive('bold') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Gras"><b>B</b></button>
@@ -726,20 +762,32 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
           <EditorContent editor={editor} />
         </div>
       );
-    } else {
-      // Affichage classique : input texte simple
-      return (
-        <SimpleInput
-          type="text"
-          value={value}
-          onChange={onChange}
-          sizeClasses={sizeClasses}
-          className={className}
-          readOnly={readOnly}
-          placeholder={value ? '' : '...'}
-        />
-      );
     }
+
+    // Sinon, input texte simple qui se transforme en éditeur au focus/click
+    // On affiche le texte sans balises HTML
+    function stripHtml(html: string) {
+      if (!html) return '';
+      // On prend la première ligne de texte sans balises
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      const text = tmp.textContent || tmp.innerText || '';
+      return text.split('\n')[0];
+    }
+    return (
+      <SimpleInput
+        type="text"
+        value={stripHtml(value)}
+        onChange={onChange}
+        sizeClasses={sizeClasses}
+        className={className}
+        readOnly={readOnly}
+        placeholder={value ? '' : '...'}
+        ref={inputRef}
+        onFocus={() => setShowEditor(true)}
+        onClick={() => setShowEditor(true)}
+      />
+    );
   }
 
   // Number
