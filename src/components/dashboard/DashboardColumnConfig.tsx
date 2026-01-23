@@ -220,7 +220,7 @@ const DashboardColumnConfig = ({
     // Propriétés pour ce noeud (dépend de la collection racine parent)
     const nodeProperties = getNodeProperties(nodeWithParent);
     return (
-      <div key={node.id} className={`bg-neutral-900 border border-white/10 rounded px-3 py-2 mb-2 ml-${depth * 4}`}> 
+      <div key={node.id} className={`border border-black/10 dark:border-white/10 rounded px-3 py-2 mb-2 ml-${depth * 4}`}> 
         <div className="flex items-center gap-2 mb-2">
           <button onClick={() => toggleNode(node.id)} className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20">
             {expandedGroups[node.id] ? '−' : '+'}
@@ -228,7 +228,7 @@ const DashboardColumnConfig = ({
           <input
             value={node.label}
             onChange={(e) => handleUpdateNode(node.id, { label: e.target.value })}
-            className="flex-1 bg-neutral-900 border border-white/10 rounded px-3 py-2 text-sm"
+            className="flex-1 border border-black/10 dark:border-white/10 rounded px-3 py-2 text-sm bg-background dark:bg-neutral-900/60"
           />
           {/* Sélecteur collection/dateField pour groupe racine */}
           {depth === 0 && (
@@ -237,7 +237,7 @@ const DashboardColumnConfig = ({
               <select
                 value={node.collectionId || ''}
                 onChange={e => handleUpdateNode(node.id, { collectionId: e.target.value })}
-                className="bg-neutral-800 border border-white/10 rounded px-2 py-1 text-xs"
+                className="bg-background dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs"
               >
                 <option value="">Collection</option>
                 {collections.map((col: any) => (
@@ -250,7 +250,7 @@ const DashboardColumnConfig = ({
                   <select
                     value={node.dateFieldId || ''}
                     onChange={e => handleUpdateNode(node.id, { dateFieldId: e.target.value })}
-                    className="bg-neutral-800 border border-white/10 rounded px-2 py-1 text-xs"
+                    className="bg-background dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs"
                   >
                     <option value="">Champ date</option>
                     {groupDateFields.map((f: any) => (
@@ -267,7 +267,7 @@ const DashboardColumnConfig = ({
               <select
                 value={node.groupField || ''}
                 onChange={(e) => handleUpdateNode(node.id, { groupField: e.target.value || null })}
-                className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs"
+                className="border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs"
               >
                 <option value="">À définir</option>
                 {nodeProperties.map((prop: any) => (
@@ -279,7 +279,7 @@ const DashboardColumnConfig = ({
                 <select
                   value={node.groupValue || ''}
                   onChange={(e) => handleUpdateNode(node.id, { groupValue: e.target.value })}
-                  className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs"
+                  className="border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs"
                 >
                   <option value="">À définir</option>
                   {getOptions(node.groupField, node).map((opt: any) => (
@@ -295,7 +295,7 @@ const DashboardColumnConfig = ({
               <select
                 value={node.filterField || ''}
                 onChange={(e) => handleUpdateNode(node.id, { filterField: e.target.value || null, typeValues: [] })}
-                className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs"
+                className="bg-background dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs"
               >
                 <option value="">À définir</option>
                 {nodeProperties.map((prop: any) => (
@@ -321,7 +321,7 @@ const DashboardColumnConfig = ({
                           const filteredVals = vals.filter(v => validIds.includes(v));
                           handleUpdateNode(node.id, { typeValues: filteredVals });
                         }}
-                        className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs focus:border-violet-500 focus:outline-none"
+                        className="border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs focus:border-violet-500 focus:outline-none"
                         size={Math.min(options.length, 6) || 2}
                       >
                         {options.map((opt: any) => (
@@ -347,7 +347,7 @@ const DashboardColumnConfig = ({
                       type="text"
                       value={node.typeValues?.[0] || ''}
                       onChange={e => handleUpdateNode(node.id, { typeValues: [e.target.value] })}
-                      className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                      className="border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
                       placeholder="Valeur..."
                     />
                   );
@@ -358,7 +358,7 @@ const DashboardColumnConfig = ({
                       type="number"
                       value={node.typeValues?.[0] || ''}
                       onChange={e => handleUpdateNode(node.id, { typeValues: [e.target.value] })}
-                      className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                      className="border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
                       placeholder="Valeur..."
                     />
                   );
@@ -380,14 +380,14 @@ const DashboardColumnConfig = ({
                     type="text"
                     value={node.typeValues?.[0] || ''}
                     onChange={e => handleUpdateNode(node.id, { typeValues: [e.target.value] })}
-                    className="bg-neutral-900 border border-white/10 rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                    className="border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
                     placeholder="Valeur..."
                   />
                 );
               })()}
             </>
           )}
-          <button onClick={() => handleRemoveNode(node.id)} className="text-red-300 hover:text-white hover:bg-red-500/20 rounded px-2 py-1 text-xs ml-2">
+          <button onClick={() => handleRemoveNode(node.id)} className="text-red-600 dark:text-red-300 hover:text-black dark:hover:text-white hover:bg-red-500/20 rounded px-2 py-1 text-xs ml-2">
             Supprimer
           </button>
           <ShinyButton onClick={() => handleAddChild(node.id, 'leaf')} className="px-2 py-1 ml-2 text-xs">+ Colonne</ShinyButton>
@@ -405,7 +405,7 @@ const DashboardColumnConfig = ({
   };
 
   return (
-    <div className="border border-white/10 rounded-lg p-4 bg-neutral-900/60 mt-20">
+    <div className="border dark:border-white/10 border-black/10 rounded-lg p-4  mt-20">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-semibold">Configuration avancée multi-niveaux</h3>

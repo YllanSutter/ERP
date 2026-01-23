@@ -554,7 +554,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                                 return (
                                   <label
                                     key={f.key}
-                                    className="flex items-center gap-2 text-xs text-neutral-500 dark:text-white hover:text-black dark:text-white cursor-pointer"
+                                    className="flex items-center gap-2 text-xs text-neutral-500 dark:text-white hover:text-black cursor-pointer"
                                     title={f.hint}
                                   >
                                     <input
@@ -597,7 +597,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                                           return (
                                             <label
                                               key={f.key}
-                                              className="flex items-center gap-1 text-xs text-neutral-500 dark:text-white hover:text-black dark:text-white cursor-pointer"
+                                              className="flex items-center gap-1 text-xs text-neutral-500 hover:text-black dark:text-white cursor-pointer"
                                               title={`${f.label} ce champ`}
                                             >
                                               <input

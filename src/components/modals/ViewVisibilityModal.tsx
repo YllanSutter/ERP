@@ -96,7 +96,7 @@ const ViewVisibilityModal: React.FC<ViewVisibilityModalProps> = ({ view, roles, 
         {mode === 'custom' && (
           <div className="space-y-4">
             <div className="bg-white/5 border border-white/10 rounded-xl p-3 max-h-48 overflow-auto space-y-2">
-              <div className="text-sm font-medium text-neutral-200 mb-1">Rôles autorisés</div>
+              <div className="text-sm font-medium text-neutral-600 dark:text-neutral-200 mb-1">Rôles autorisés</div>
               {roles.length === 0 && (
                 <div className="text-sm text-neutral-500">Aucun rôle disponible.</div>
               )}
@@ -113,14 +113,14 @@ const ViewVisibilityModal: React.FC<ViewVisibilityModalProps> = ({ view, roles, 
                   />
                   <div className="flex items-center gap-2">
                     <Users size={14} className="text-neutral-400" />
-                    <span className="text-sm text-neutral-200">{role.name}</span>
+                    <span className="text-sm text-neutral-600 dark:text-neutral-200">{role.name}</span>
                   </div>
                 </label>
               ))}
             </div>
 
             <div className="bg-white/5 border border-white/10 rounded-xl p-3 max-h-48 overflow-auto space-y-2">
-              <div className="text-sm font-medium text-neutral-200 mb-1">Utilisateurs autorisés</div>
+              <div className="text-sm font-medium text-neutral-600 dark:text-neutral-200 mb-1">Utilisateurs autorisés</div>
               {users.length === 0 && (
                 <div className="text-sm text-neutral-500">Aucun utilisateur chargé.</div>
               )}
@@ -136,7 +136,7 @@ const ViewVisibilityModal: React.FC<ViewVisibilityModalProps> = ({ view, roles, 
                     onChange={() => toggleUser(u.id)}
                   />
                   <div className="flex flex-col">
-                    <span className="text-sm text-neutral-200">{u.email || u.name || u.id}</span>
+                    <span className="text-sm text-neutral-600 dark:text-neutral-200">{u.email || u.name || u.id}</span>
                     {u.name && <span className="text-xs text-neutral-500">{u.name}</span>}
                   </div>
                 </label>

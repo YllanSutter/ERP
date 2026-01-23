@@ -206,7 +206,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-neutral-900/90 border border-white/10 rounded-2xl p-8 py-4 w-[1200px] max-h-[80vh] overflow-y-auto backdrop-blur"
+        className="bg-gray-300 dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-400 border border-white/10 rounded-2xl p-8 py-4 w-[1200px] max-h-[80vh] overflow-y-auto backdrop-blur"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-2 pb-2 border-b border-white/10">

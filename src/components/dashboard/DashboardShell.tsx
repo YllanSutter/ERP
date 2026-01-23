@@ -505,7 +505,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     const tableColumns = getTableColumns();
 
     return (
-      <div key={week.week} className="overflow-auto rounded-sm shadow-inner shadow-black/40">
+      <div key={week.week} className="overflow-auto rounded-sm shadow-inner text-neutral-700 dark:text-white shadow-black/10 dark:shadow-black/40">
         <table className="min-w-full text-sm table-fixed">
           <colgroup>
             <col style={{ width: "30px" }} />
@@ -517,7 +517,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
               <col key={leaf.id + "-duration"} style={{ width: "100px" }} />
             ))}
           </colgroup>
-          <thead className="bg-neutral-900/90">
+          <thead className="bg-gray-300 dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-400">
             {(() => {
               const headerRows = getTableHeaderRows();
               return (
@@ -525,18 +525,18 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   {/* Ligne d'entête principale : Total durée + Semaine + colonnes dynamiques */}
                   <tr>
                     <th
-                      className="px-3 py-2 text-left border-b border-white/15 whitespace-nowrap"
+                      className="px-3 py-2 text-left border-b border-black/15 dark:border-white/15 whitespace-nowrap"
                       rowSpan={headerRows.length}
                     >
                       Total durée
                     </th>
                     <th
-                      className="px-3 py-2 text-left border-b border-white/15 whitespace-nowrap"
+                      className="px-3 py-2 text-left border-b border-black/15 dark:border-white/15 whitespace-nowrap"
                       rowSpan={headerRows.length}
                     >
                       Semaine {week.week}
                       {week.days.length > 0 && (
-                        <span className="ml-2 text-xs text-neutral-400 font-normal">
+                        <span className="ml-2 text-xs text-neutral-600 dark:text-neutral-400 font-normal">
                           du {week.days[0].toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
                           {' '}au {week.days[week.days.length - 1].toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
                         </span>
@@ -547,7 +547,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                         key={i}
                         colSpan={cell.colSpan}
                         rowSpan={cell.rowSpan}
-                        className={`px-3 py-2 text-center border-b border-l border-white/10 ${cell.isLeaf ? 'bg-neutral-900/60' : 'bg-neutral-900/80'}`}
+                        className={`px-3 py-2 text-center border-b border-l border-black/10 dark:border-white/10 ${cell.isLeaf ? 'bg-gray-200 dark:bg-neutral-900/60' : 'bg-gray-300 dark:bg-neutral-900/80'}`}
                       >
                         {cell.label}
                       </th>
@@ -562,7 +562,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                           key={i}
                           colSpan={cell.colSpan}
                           rowSpan={cell.rowSpan}
-                          className={`px-3 py-2 text-center border-b border-l border-white/10 ${cell.isLeaf ? 'bg-neutral-900/60' : 'bg-neutral-900/80'}`}
+                          className={`px-3 py-2 text-center border-b border-l border-black/10 dark:border-white/10 ${cell.isLeaf ? 'bg-gray-200 dark:bg-neutral-900/60' : 'bg-gray-300 dark:bg-neutral-900/80'}`}
                         >
                           {cell.label}
                         </th>
@@ -570,13 +570,13 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     </tr>
                   ))}
                   {/* Ligne des métriques (Nb/Durée) pour chaque feuille profonde */}
-                  <tr className="bg-neutral-900/60 text-neutral-400">
-                    <th className="px-3 py-1 text-left border-b border-l border-white/10 max-w-[50px]">Durée totale</th>
-                    <th className="px-3 py-1 text-left border-b border-l border-white/10">Jour</th>
+                  <tr className="bg-gray-300 text-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-400">
+                    <th className="px-3 py-1 text-left border-b border-l border-black/10 dark:border-white/10 max-w-[50px]">Durée totale</th>
+                    <th className="px-3 py-1 text-left border-b border-l border-black/10 dark:border-white/10">Jour</th>
                     {leafColumns.map((leaf: any) => (
                       <React.Fragment key={leaf.id + '-metrics'}>
-                        <th className="px-3 py-1 text-left border-b border-l border-white/10">Nombre</th>
-                        <th className="px-3 py-1 text-left border-b border-l border-white/10">Durée</th>
+                        <th className="px-3 py-1 text-left border-b border-l border-black/10 dark:border-white/10">Nombre</th>
+                        <th className="px-3 py-1 text-left border-b border-l border-black/10 dark:border-white/10">Durée</th>
                       </React.Fragment>
                     ))}
                   </tr>
@@ -593,11 +593,11 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                 return acc + (cell && cell.duration ? cell.duration : 0);
               }, 0);
               return (
-                <tr key={`${week.week}-${key}`} className="border-b border-white/10 odd:bg-neutral-900/40">
-                  <td className="px-3 py-2 text-right text-white border-r border-white/10 font-bold max-w-[50px]">
+                <tr key={`${week.week}-${key}`} className="border-b border-black/10 dark:border-white/10 odd:bg-gray-200 dark:odd:bg-neutral-900/40">
+                  <td className="px-3 py-2 text-right text-neutral-700 dark:text-white border-r border-black/10 dark:border-white/10 font-bold max-w-[50px]">
                     {totalDuration ? formatDurationHeureMinute(totalDuration) : ''}
                   </td>
-                  <td className="px-3 py-2 text-neutral-200 font-medium border-r border-white/10">
+                  <td className="px-3 py-2 text-neutral-600 dark:text-neutral-200 font-medium border-r border-black/10 dark:border-white/10">
                     {day.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' })}
                   </td>
                   {leafColumns.map((leaf: any) => {
@@ -638,7 +638,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                                   canEdit={false}
                                   quickEditProperties={[]}
                                 >
-                                  <div className="text-[11px] text-white truncate cursor-pointer hover:underline" style={{width: '100%'}}>
+                                  <div className="text-[11px] text-neutral-700 dark:text-white truncate cursor-pointer hover:underline" style={{width: '100%'}}>
                                     {getNameValueUtil(item, item._collection)}
                                   </div>
                                 </ItemContextMenu>
@@ -646,19 +646,19 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                             </div>
                           )}
                           {span && (
-                            <div className="text-[11px] text-white truncate">{span.label}</div>
+                            <div className="text-[11px] text-neutral-700 dark:text-white truncate">{span.label}</div>
                           )}
                         </>
                       );
                       const hasObject = itemsInCell.length > 0;
                       const countClasses = span
-                        ? `px-3 py-2 text-right text-white border-l border-white/30  max-w-[130px] overflow-hidden bg-white/10${hasObject ? ' bg-white/5' : ''}`
-                        : `px-3 py-2 text-right text-white border-l border-white/30 max-w-[130px] overflow-hidden bg-neutral-900/30${hasObject ? ' bg-white/10' : ''}`;
+                        ? `px-3 py-2 text-right text-neutral-700 dark:text-white border-l border-white/30  max-w-[130px] overflow-hidden bg-white/10${hasObject ? ' bg-white/5' : ''}`
+                        : `px-3 py-2 text-right text-neutral-700 dark:text-white border-l border-white/30 max-w-[130px] overflow-hidden bg-gray-300 dark:bg-neutral-900/30${hasObject ? ' bg-white/10' : ''}`;
                       const durationClasses = span
-                        ? `px-3 py-2 text-right text-white border-l ${span.isEnd ? '' : ''} ${
+                        ? `px-3 py-2 text-right text-neutral-700 dark:text-white border-l ${span.isEnd ? '' : ''} ${
                             span.isStart ? 'rounded-l-md' : ''
                           } border-white/30 bg-white/10${hasObject ? ' bg-white/5' : ''}`
-                        : `px-3 py-2 text-right text-white border-l border-white/10 max-w-[130px] overflow-hidden bg-neutral-900/20${hasObject ? ' bg-white/10' : ''}`;
+                        : `px-3 py-2 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10 max-w-[130px] overflow-hidden bg-gray-200 dark:bg-neutral-900/20${hasObject ? ' bg-white/10' : ''}`;
                       // Afficher tous les items avec leur menu contextuel
                       return (
                         <React.Fragment key={`${week.week}-${key}-${leaf.id}`}>
@@ -671,8 +671,8 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
               );
             })}
             {/* Total général de la semaine (tous les projets et durée cumulée) */}
-            <tr className="bg-neutral-900/40">
-              <td className="px-3 py-2 font-bold text-white border-r border-white/10">Total général</td>
+            <tr className="bg-gray-300 dark:bg-neutral-900/40">
+              <td className="px-3 py-2 font-bold text-neutral-700 dark:text-white border-r border-black/10 dark:border-white/10">Total général</td>
               {(() => {
                 let totalCount = 0;
                 let totalDuration = 0;
@@ -696,7 +696,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   totalDuration += duration;
                 });
                 return [
-                  <td key="total-count" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">{totalCount || 0} projet(s) - {totalDuration ? formatDurationHeureMinute(totalDuration) : '0h00'}</td>
+                  <td key="total-count" className="px-3 py-2 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10 font-bold">{totalCount || 0} projet(s) - {totalDuration ? formatDurationHeureMinute(totalDuration) : '0h00'}</td>
                 ];
               })()}
             </tr>
@@ -720,32 +720,32 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
               <col key={i + '-duration'} style={{ width: '100px' }} />
             ))}
           </colgroup>
-          <thead className="bg-neutral-900/90">
+          <thead className="bg-gray-300 dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-400">
             <tr>
-              <th className="px-3 py-2 text-left border-b border-white/15">Total Mois</th>
+              <th className="px-3 py-2 text-left border-b border-black/15 dark:border-white/15">Total Mois</th>
               {leafColumns.map((leaf) => (
                 <th
                   key={leaf.id}
                   colSpan={2}
-                  className="px-3 py-2 text-left border-b border-l border-white/10 bg-neutral-900/70"
+                  className="px-3 py-2 text-left border-b border-l border-black/10 dark:border-white/10 bg-gray-300 dark:bg-neutral-900/70"
                 >
                   {leaf.label}
                 </th>
               ))}
             </tr>
-            <tr className="bg-neutral-900/60 text-neutral-400">
-              <th className="px-3 py-1 text-left border-b border-white/15">Mois</th>
+            <tr className="bg-gray-300 dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-400">
+              <th className="px-3 py-1 text-left border-b border-black/15 dark:border-white/15">Mois</th>
               {leafColumns.map((leaf) => (
                 <React.Fragment key={`${leaf.id}-month-metrics`}>
-                  <th className="px-3 py-1 text-left border-b border-l border-white/10">Nombre</th>
-                  <th className="px-3 py-1 text-left border-b border-l border-white/10">Durée</th>
+                  <th className="px-3 py-1 text-left border-b border-l border-black/10 dark:border-white/10">Nombre</th>
+                  <th className="px-3 py-1 text-left border-b border-l border-black/10 dark:border-white/10">Durée</th>
                 </React.Fragment>
               ))}
             </tr>
           </thead>
           <tbody>
             <tr className="bg-white/10">
-              <td className="px-3 py-2 font-semibold text-white border-r border-white/10">Total Mois</td>
+              <td className="px-3 py-2 font-semibold text-neutral-700 dark:text-white border-r border-black/10 dark:border-white/10">Total Mois</td>
               {leafColumns.map((leaf) => {
                 // Nouveau calcul : additionner tous les items du mois (tous les jours)
                 let count = 0;
@@ -759,8 +759,8 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                 });
                 return (
                   <React.Fragment key={`month-total-${leaf.id}`}>
-                    <td className="px-3 py-2 text-right text-white border-l border-white/10">{count || ''}</td>
-                    <td className="px-3 py-2 text-right text-white border-l border-white/10">
+                    <td className="px-3 py-2 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10">{count || ''}</td>
+                    <td className="px-3 py-2 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10">
                       {duration ? formatDurationHeureMinute(duration) : ''}
                     </td>
                   </React.Fragment>
@@ -768,8 +768,8 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
               })}
             </tr>
             {/* Total général du mois (tous les projets et durée cumulée) */}
-            <tr className="bg-neutral-900/40">
-              <td className="px-3 py-2 font-bold text-white border-r border-white/10">Total général</td>
+            <tr className="bg-gray-300 dark:bg-neutral-900/40">
+              <td className="px-3 py-2 font-bold text-neutral-700 dark:text-white border-r border-black/10 dark:border-white/10">Total général</td>
               {(() => {
                 let totalCount = 0;
                 let totalDuration = 0;
@@ -787,10 +787,10 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   totalDuration += duration;
                 });
                 return [
-                  <td key="total-count-label" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">Nombre</td>,
-                  <td key="total-count" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">{totalCount || ''}</td>,
-                  <td key="total-duration-label" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">Heures</td>,
-                  <td key="total-duration" className="px-3 py-2 text-right text-white border-l border-white/10 font-bold">{totalDuration ? formatDurationHeureMinute(totalDuration) : ''}</td>
+                  <td key="total-count-label" className="px-3 py-2 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10 font-bold">Nombre</td>,
+                  <td key="total-count" className="px-3 py-2 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10 font-bold">{totalCount || ''}</td>,
+                  <td key="total-duration-label" className="px-3 py-2 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10 font-bold">Heures</td>,
+                  <td key="total-duration" className="px-3 py-2 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10 font-bold">{totalDuration ? formatDurationHeureMinute(totalDuration) : ''}</td>
                 ];
               })()}
             </tr>
@@ -846,7 +846,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           <input
             value={dashboard.name}
             onChange={(e) => onUpdate({ name: e.target.value })}
-            className="bg-transparent border border-white/10 rounded px-3 py-2 text-lg font-semibold focus:outline-none focus:border-blue-500/60"
+            className="bg-transparent border border-black/10 dark:border-white/10 rounded px-3 py-2 text-lg font-semibold focus:outline-none focus:border-blue-500/60"
           />
           <div className="flex flex-wrap gap-2">
             {(dashboard && dashboardFilters?.[dashboard.id] ? dashboardFilters[dashboard.id] : []).map((filter: any, idx: number) => {
@@ -860,7 +860,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
             })}
           </div>
           {showFilterModal && (
-            <Suspense fallback={<div className="text-white">Chargement…</div>}>
+            <Suspense fallback={<div className="text-neutral-700 dark:text-white">Chargement…</div>}>
               <FilterModal
                 properties={properties}
                 collections={collections}
@@ -871,13 +871,10 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="text-xs text-neutral-500 border border-white/10 px-2 py-1 rounded whitespace-nowrap">
-            Mensuel • week-ends exclus
-          </div>
           <select
             value={dashboard.month}
             onChange={(e) => onUpdate({ month: Number(e.target.value) })}
-            className="bg-neutral-900 border border-white/10 rounded px-3 py-2 text-sm"
+            className="bg-gray-200 dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded px-3 py-2 text-sm"
           >
             {months.map((label, idx) => (
               <option key={idx} value={idx + 1}>
@@ -888,7 +885,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           <select
             value={dashboard.year}
             onChange={(e) => onUpdate({ year: Number(e.target.value) })}
-            className="bg-neutral-900 border border-white/10 rounded px-3 py-2 text-sm"
+            className="bg-gray-200 dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded px-3 py-2 text-sm"
           >
             {years.map((y) => (
               <option key={y} value={y}>
@@ -901,7 +898,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
 
 
-      <div className="flex-1  text-neutral-200 p-10">
+      <div className="flex-1  text-neutral-600 dark:text-neutral-200 p-10">
         <div className="space-y-6">
           {groupedWeeks.map((week) => renderWeekTable(week))}
           {renderMonthTotals()}

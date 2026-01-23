@@ -37,11 +37,11 @@ const LoginPage = ({ onLogin, onRegister, loading }: LoginPageProps) => {
   const disabled = busy || loading;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#030303] text-white px-6">
+    <div className="min-h-screen flex items-center justify-center bg-gray-200 dark:bg-neutral-900 text-neutral-700 dark:text-white px-6">
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-md w-full bg-neutral-900/70 border border-white/10 rounded-2xl p-8 shadow-2xl backdrop-blur"
+        className="max-w-md w-full bg-gray-300 dark:bg-neutral-900/70 border border-black/10 dark:border-white/10 rounded-2xl p-8 shadow-2xl backdrop-blur"
       >
         <div className="flex items-center gap-3 mb-6">
           <div className="h-4 w-4 rounded-full bg-gradient-to-tr from-violet-500 to-cyan-400 animate-pulse" />
