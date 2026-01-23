@@ -84,8 +84,8 @@ const MonthView: React.FC<MonthViewProps> = ({
                 <div className="flex flex-col h-full justify-between">
                   <span className={cn(
                     'font-semibold',
-                    isToday && 'text-cyan-300',
-                    !isToday && 'text-neutral-300'
+                    isToday && 'text-cyan-500',
+                    !isToday && 'text-neutral-700 dark:text-neutral-300'
                   )}>
                     {day}
                   </span>

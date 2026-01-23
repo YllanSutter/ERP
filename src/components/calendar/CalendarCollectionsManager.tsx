@@ -42,6 +42,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
    * @param newHours Nouvelle heure
    * @param newMinutes Nouvelles minutes
    * @param options { moveAllSegments?: boolean, segmentIndex?: number }
+
+  
    */
   const onEventDrop = (item: any, newDate: Date, newHours: number, newMinutes: number, options?: { moveAllSegments?: boolean, segmentIndex?: number }) => {
     // On utilise la valeur de moveAllSegments de l'état si non précisé
