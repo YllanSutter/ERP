@@ -123,27 +123,19 @@ const DashboardColumnConfig = ({
   };
 
 
-  // Ajout d'une sous-colonne ou sous-groupe dans n'importe quel noeud
+  // Ajout d'une sous-colonne dans n'importe quel noeud
   const handleAddChild = (parentId: string | null, type: 'leaf' | 'group') => {
     const addRecursive = (nodes: any[]): any[] => {
       return nodes.map((node) => {
         if (node.id === parentId) {
-          const newChild = type === 'leaf'
-            ? {
-                id: Date.now().toString(),
-                label: 'Nouvelle sous-colonne',
-                filterField: null,
-                typeValues: [],
-                dateFieldOverride: {},
-                children: [],
-              }
-            : {
-                id: Date.now().toString(),
-                label: 'Nouveau sous-groupe',
-                groupField: null,
-                groupValue: '',
-                children: [],
-              };
+          const newChild = {
+            id: Date.now().toString(),
+            label: 'Nouvelle colonne',
+            filterField: null,
+            typeValues: [],
+            dateFieldOverride: {},
+            children: [],
+          };
           return {
             ...node,
             children: [...(node.children || []), newChild],
@@ -211,7 +203,7 @@ const DashboardColumnConfig = ({
   };
 
 
-  // Rendu récursif des noeuds (groupes, feuilles, sous-groupes...)
+  // Rendu récursif des noeuds (groupes, feuilles...)
   const renderNode = (node: any, depth = 0, parentPath: any[] = []) => {
     // Ne jamais modifier node directement pour éviter les cycles !
     const nodeWithParent = { ...node, _parentPath: parentPath };
@@ -398,13 +390,12 @@ const DashboardColumnConfig = ({
           <button onClick={() => handleRemoveNode(node.id)} className="text-red-300 hover:text-white hover:bg-red-500/20 rounded px-2 py-1 text-xs ml-2">
             Supprimer
           </button>
-          <ShinyButton onClick={() => handleAddChild(node.id, 'leaf')} className="px-2 py-1 ml-2 text-xs">+ Sous-colonne</ShinyButton>
-          <ShinyButton onClick={() => handleAddChild(node.id, 'group')} className="px-2 py-1 ml-2 text-xs">+ Sous-groupe</ShinyButton>
+          <ShinyButton onClick={() => handleAddChild(node.id, 'leaf')} className="px-2 py-1 ml-2 text-xs">+ Colonne</ShinyButton>
         </div>
         {expandedGroups[node.id] && (
           <div className="space-y-3 pl-6">
             {(node.children || []).length === 0 && (
-              <div className="text-xs text-neutral-500">Ajoute une sous-colonne ou un sous-groupe.</div>
+              <div className="text-xs text-neutral-500">Ajoute une colonne ou un groupe.</div>
             )}
             {(node.children || []).map((child: any) => renderNode(child, depth + 1, [...parentPath, nodeWithParent]))}
           </div>
@@ -418,7 +409,7 @@ const DashboardColumnConfig = ({
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-semibold">Configuration avancée multi-niveaux</h3>
-          <p className="text-sm text-neutral-500">Groupes, sous-colonnes et sous-groupes imbriqués.</p>
+          <p className="text-sm text-neutral-500">Groupes et colonnes imbriqués.</p>
         </div>
         <ShinyButton onClick={handleAddGroup} className="px-4 py-2">
           Ajouter un groupe racine

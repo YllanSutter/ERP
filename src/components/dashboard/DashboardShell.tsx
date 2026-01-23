@@ -47,11 +47,11 @@ const months = MONTH_NAMES;
     return `${heures}h${minutes.toString().padStart(2, '0')}`;
   }
   // Récupérer toutes les feuilles (sous-colonnes finales) sans le chemin (pour usages simples)
-  const getLeaves = (nodes: any[]): any[] => {
-    return nodes.flatMap((n) =>
-      n.children && n.children.length ? getLeaves(n.children) : [n]
-    );
-  };
+    const getLeaves = (nodes: any[]): any[] => {
+      return nodes.flatMap((n) =>
+        n.children && n.children.length ? getLeaves(n.children) : [n]
+      );
+    };
 
 
 const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete, dashboardFilters, setDashboardFilters }) => {
