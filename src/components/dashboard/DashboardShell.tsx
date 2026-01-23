@@ -652,13 +652,13 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                       );
                       const hasObject = itemsInCell.length > 0;
                       const countClasses = span
-                        ? `px-3 py-2 text-right text-white border-l border-white/30 bg-white/10${hasObject ? ' bg-white/5' : ''}`
-                        : `px-3 py-2 text-right text-white border-l border-white/30 bg-neutral-900/30${hasObject ? ' bg-white/10' : ''}`;
+                        ? `px-3 py-2 text-right text-white border-l border-white/30  max-w-[130px] overflow-hidden bg-white/10${hasObject ? ' bg-white/5' : ''}`
+                        : `px-3 py-2 text-right text-white border-l border-white/30 max-w-[130px] overflow-hidden bg-neutral-900/30${hasObject ? ' bg-white/10' : ''}`;
                       const durationClasses = span
                         ? `px-3 py-2 text-right text-white border-l ${span.isEnd ? '' : ''} ${
                             span.isStart ? 'rounded-l-md' : ''
                           } border-white/30 bg-white/10${hasObject ? ' bg-white/5' : ''}`
-                        : `px-3 py-2 text-right text-white border-l border-white/10 bg-neutral-900/20${hasObject ? ' bg-white/10' : ''}`;
+                        : `px-3 py-2 text-right text-white border-l border-white/10 max-w-[130px] overflow-hidden bg-neutral-900/20${hasObject ? ' bg-white/10' : ''}`;
                       // Afficher tous les items avec leur menu contextuel
                       return (
                         <React.Fragment key={`${week.week}-${key}-${leaf.id}`}>
@@ -848,14 +848,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
             onChange={(e) => onUpdate({ name: e.target.value })}
             className="bg-transparent border border-white/10 rounded px-3 py-2 text-lg font-semibold focus:outline-none focus:border-blue-500/60"
           />
-          {/* Filtres globaux dashboard ici */}
-          <button
-            onClick={() => setShowFilterModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
-          >
-            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M4 4h16M6 8h12M8 12h8m-6 4h4"/></svg>
-            Filtrer
-          </button>
           <div className="flex flex-wrap gap-2">
             {(dashboard && dashboardFilters?.[dashboard.id] ? dashboardFilters[dashboard.id] : []).map((filter: any, idx: number) => {
               const prop = properties.find((p: any) => p.id === filter.property);
