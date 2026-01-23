@@ -39,7 +39,7 @@ export const PopoverButton: React.FC<PopoverButtonProps> = ({
         <button
           disabled={disabled}
           className={cn(
-            "p-1 hover:bg-white/5 text-neutral-200 opacity-30 hover:opacity-100 transition-all duration-300",
+            "p-1 hover:bg-black/10 text-neutral-800 dark:hover:bg-white/5 dark:text-neutral-200  opacity-30 hover:opacity-100 transition-all duration-300",
             !disabled && "cursor-pointer",
             disabled && "opacity-50 cursor-not-allowed",
             className

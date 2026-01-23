@@ -95,7 +95,7 @@ const getDateFieldKey = (collectionId: string, viewId?: string | null) => viewId
     <div className="flex gap-8 items-center">
       <div className="flex gap-2 items-center flex-wrap">
         <label>Champ date de référence&nbsp;:</label>
-        <select className="border border-white/10 rounded px-2 py-1 bg-neutral-900 text-white" value={dateField || ''} onChange={e => handleDateFieldChange(e.target.value)}>
+        <select className="border border-white/10 rounded px-2 py-1 bg-white dark:bg-neutral-900 text-white" value={dateField || ''} onChange={e => handleDateFieldChange(e.target.value)}>
           <option value="">-- Choisir --</option>
           {dateFields.map((field: any) => (
             <option key={field.id} value={field.id}>{field.name}</option>
@@ -139,7 +139,7 @@ const getDateFieldKey = (collectionId: string, viewId?: string | null) => viewId
                   <select
                     value={typeof value === 'string' ? value : ''}
                     onChange={e => handleFilterChange(field.id, e.target.value)}
-                    className="w-full px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                    className="w-full px-4 py-2 bg-white dark:bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
                   >
                     <option value="">Sélectionner...</option>
                     {targetItems.map((ti: any) => {
@@ -159,7 +159,7 @@ const getDateFieldKey = (collectionId: string, viewId?: string | null) => viewId
                 <select
                   value={filters[field.id] || ''}
                   onChange={e => handleFilterChange(field.id, e.target.value)}
-                  className="border border-white/10 rounded px-2 py-1 bg-neutral-900 text-white"
+                  className="border border-white/10 rounded px-2 py-1 bg-white dark:bg-neutral-900 text-white"
                 >
                   <option value="">-- Tous --</option>
                   {field.options.map((opt: any, idx: number) => (
@@ -177,7 +177,7 @@ const getDateFieldKey = (collectionId: string, viewId?: string | null) => viewId
                 type="text"
                 value={filters[field.id] || ''}
                 onChange={e => handleFilterChange(field.id, e.target.value)}
-                className="border border-white/10 rounded px-2 py-1 bg-neutral-900 text-white"
+                className="border border-white/10 rounded px-2 py-1 bg-white dark:bg-neutral-900 text-white"
                 placeholder={`Filtrer par ${field.name}`}
               />
             </div>

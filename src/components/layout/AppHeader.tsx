@@ -9,6 +9,8 @@ import { io } from 'socket.io-client';
 interface AppHeaderProps {
   impersonatedRoleId: string | null;
   availableRoles: any[];
+  theme: 'light' | 'dark';
+  setTheme: React.Dispatch<React.SetStateAction<'light' | 'dark'>>;
   onNewCollection: () => void;
   onImpersonate: (roleId: string | null) => void;
   onShowAccessManager: () => void;
@@ -19,6 +21,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   availableRoles,
   onNewCollection,
   onImpersonate,
+  theme,
+  setTheme,
   onShowAccessManager
 }) => {
   const { user, logout, isAdminBase } = useAuth();
@@ -70,9 +74,17 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     <motion.div
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className="border-b border-white/5 bg-neutral-900/50 backdrop-blur px-8 py-4 flex items-center justify-between"
+      className="border-b border-black/10 dark:border-white/5  backdrop-blur px-8 py-4 flex items-center justify-between bg-white dark:bg-neutral-900/50"
     >
       <div className="flex items-center gap-4">
+        <div className="">
+          <button
+            className={`px-3 py-2 rounded shadow ${theme === 'dark' ? 'bg-white text-neutral-900' : 'bg-neutral-900 text-white'}`}
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          >
+            {theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
+          </button>
+        </div>
         <div className="flex items-center gap-2">
           <div className="h-4 w-4 rounded-full bg-gradient-to-tr from-violet-500 to-cyan-400 animate-pulse" />
           <h1 className="text-2xl font-serif font-bold">Gestionnaire de Projet</h1>
@@ -105,7 +117,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <div className="flex items-center gap-2 text-xs text-neutral-400">
             <span className="text-neutral-500">Rôle effectif :</span>
             <select
-              className="bg-neutral-900 border border-white/10 rounded px-4 py-2 text-sm text-white"
+              className="bg-background dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded px-4 py-2 text-sm text-neutral-700 dark:text-white"
               value={impersonatedRoleId || ''}
               onChange={(e) => {
                 const val = e.target.value || null;
@@ -124,14 +136,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         {canManagePermissions && (
           <button
             onClick={onShowAccessManager}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-white/5 text-neutral-300 hover:bg-white/10 border border-white/10"
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300 hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 transition-all duration-300"
           >
             Comptes & rôles
           </button>
         )}
         <button
           onClick={logout}
-          className="px-3 py-2 rounded-lg text-sm font-medium bg-white/5 text-neutral-400 hover:bg-white/10"
+          className="px-4 py-2 rounded-lg text-sm font-medium bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300 hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 transition-all duration-300"
         >
           Déconnexion
         </button>

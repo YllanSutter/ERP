@@ -1,5 +1,6 @@
 
 
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useErpSync } from '@/lib/useErpSync';
@@ -38,6 +39,14 @@ const App = () => {
   // Connexion socket.io (même logique que AppHeader)
   const [socket, setSocket] = useState<any>(null);
 
+    // Gestion du thème clair/sombre
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  useEffect(() => {
+    document.body.classList.remove('dark');
+    if (theme === 'dark') {
+      document.body.classList.add('dark');
+    }
+  }, [theme]);
 
     // Nettoie récursivement un objet pour supprimer les cycles et les clés privées (commençant par _)
 function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
@@ -302,7 +311,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#030303] text-white">
+      <div className="min-h-screen flex items-center justify-center bg-[#030303] text-black dark:text-white">
         <div className="text-neutral-400">Chargement de l'authentification…</div>
       </div>
     );
@@ -313,7 +322,8 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[#030303] text-white">
+    <div className={`h-screen flex flex-col ${theme === 'dark' ? 'bg-neutral-900 text-black dark:text-white' : 'bg-white text-neutral-900'}`}> 
+
       
 
       <AppHeader
@@ -322,6 +332,8 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
         onNewCollection={() => setShowNewCollectionModal(true)}
         onImpersonate={impersonate}
         onShowAccessManager={() => setShowAccessManager(true)}
+        theme={theme}
+        setTheme={setTheme}
       />
 
       <div className="flex flex-1 overflow-hidden">

@@ -31,7 +31,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
 
   return (
-    <thead className="bg-neutral-900/60 border-b border-white/5">
+    <thead className="bg-gray-300 dark:bg-neutral-900/60 border-b border-black/5 dark:border-white/5">
       <tr>
         {displayProperties.map((prop: any) => {
           const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
@@ -40,7 +40,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
               <ContextMenuTrigger asChild>
                 <th
                   // style={{ borderBottomColor: `${prop.color || '#fff'}50` }}
-                  className="px-6 py-3 text-left text-xs font-medium text-neutral-400 uppercase tracking-wider border-b border-r border-[#ffffff10] cursor-context-menu"
+                  className="px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-neutral-400 uppercase tracking-wider border-b border-r border-[#ffffff10] cursor-context-menu"
                 >
                   <div className="flex items-center gap-2 font-black">
                     <PropIcon size={14} />

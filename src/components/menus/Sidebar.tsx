@@ -103,14 +103,14 @@ const Sidebar: React.FC<SidebarProps> = ({
       initial={{ x: -100, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ delay: 0.1 }}
-      className="w-64 border-r border-white/5 bg-neutral-950/50 backdrop-blur overflow-y-auto p-4"
+      className="w-64 border-r border-white/5 bg-gray-100 dark:bg-neutral-950/50 backdrop-blur overflow-y-auto p-4"
     >
       {/* Section Favoris */}
       {(favoriteViewsList.length > 0 || favoriteItemsList.length > 0) && (
         <div className="mb-6">
           <button
             onClick={() => setExpandedFavorites(!expandedFavorites)}
-            className="w-full flex items-center gap-2 text-xs font-semibold text-neutral-500 mb-3 pl-2 hover:text-neutral-400 transition-colors border-b border-white/5 pb-3"
+            className="w-full flex items-center gap-2 text-xs font-semibold text-neutral-500 mb-3 pl-2 hover:text-neutral-400 transition-colors border-b border-black/5 dark:border-white/5pb-3"
           >
             {expandedFavorites ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             Favoris
@@ -124,9 +124,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <button
                     key={view.id}
                     onClick={() => onSelectView(collectionId, view.id)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-neutral-500 font-medium hover:text-white transition-colors text-sm group"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-neutral-500 font-medium hover:text-black dark:hover:text-white transition-colors text-sm group"
                   >
-                    <IconComponent size={14} style={{ color: '#fff' }} />
+                    <IconComponent size={14} class="dark:text-white" />
                     <span className="flex-1 text-left truncate">{view.name}</span>
                     <Star
                       size={12}
@@ -143,7 +143,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <button
                     key={item.id}
                     onClick={() => onSelectItem(collection.id, item.id)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-neutral-300 hover:text-white transition-colors text-sm group"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-neutral-300 hover:text-black dark:hover:text-white transition-colors text-sm group"
                   >
                     <IconComponent size={14} style={{ color: collection.color || '#8b5cf6' }} />
                     <span className="flex-1 text-left truncate">{itemName}</span>
@@ -162,13 +162,13 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Section Dashboards */}
       <div className="mb-6">
-        <div className="flex  justify-between mb-3 pr-1 border-b border-white/5 pb-2">
+        <div className="flex justify-between mb-3 pr-1 border-b border-black/5 dark:border-white/5pb-2">
           <h2 className="text-xs font-semibold text-neutral-500 pl-2 flex items-center gap-2 ">
             Dashboards
           </h2>
           <button
             onClick={onCreateDashboard}
-            className="text-neutral-400 hover:text-white p-1 rounded hover:bg-white/10 transition-colors h-auto inline-block"
+            className="text-neutral-400 hover:text-black dark:hover:text-white p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors h-auto inline-block"
             title="Nouveau dashboard"
           >
             <Plus size={14} />
@@ -197,15 +197,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                   'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors'
                 )}
               >
-                <LayoutDashboard size={14} className="text-white" />
-                <span className="flex-1 text-left truncate text-neutral-500">{db.name}</span>
+                <LayoutDashboard size={14} className="text-neutral-600 dark:text-white" />
+                <span className="flex-1 text-left truncate text-neutral-600 hover:text-black dark:hover:text-white transition-all duration-300">{db.name}</span>
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDuplicateDashboard(db.id);
                   }}
-                  className="p-1 rounded text-neutral-400 hover:text-white hover:bg-white/10"
+                  className="p-1 rounded text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10"
                   title="Dupliquer"
                 >
                   <Copy size={14} />
@@ -216,7 +216,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     e.stopPropagation();
                     onDeleteDashboard(db.id);
                   }}
-                  className="p-1 rounded text-red-300 hover:text-white hover:bg-red-500/30"
+                  className="p-1 rounded text-red-800 dark:text-red-300 hover:text-white hover:bg-red-500/30"
                   title="Supprimer"
                 >
                   <Trash size={14} />
@@ -228,7 +228,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Section Collections */}
-      <h2 className="text-xs font-semibold text-neutral-500 mb-4 pl-2 border-b border-white/5 pb-2">Collections</h2>
+      <h2 className="text-xs font-semibold text-neutral-500 mb-4 pl-2 border-b border-black/5 dark:border-white/5pb-2">Collections</h2>
       {collections.map((col, i) => {
         const IconComponent = (Icons as any)[col.icon] || Icons.Folder;
         return (
@@ -244,11 +244,11 @@ const Sidebar: React.FC<SidebarProps> = ({
               className={cn(
                 'w-full flex items-center gap-3 px-4 pr-10 py-2.5 rounded-lg transition-all',
                 activeCollection === col.id
-                  ? 'bg-white/5  text-white'
-                  : 'hover:bg-white/5 text-neutral-600 hover:text-white'
+                  ? 'bg-white/5  text-black dark:text-white'
+                  : 'hover:bg-white/5 text-neutral-600 hover:text-black dark:hover:text-white'
               )}
             >
-              <IconComponent size={14} style={{ color: '#fff' }} />
+              <IconComponent size={14} className ="text-neutral-500 dark:text-white" />
               <span className="text-sm font-medium flex-1 text-left">{col.name}</span>
               <span className="text-xs text-neutral-500 bg-white/5 px-2 py-1 rounded">
                 {col.items.length}

@@ -36,7 +36,7 @@ const TableView: React.FC<TableViewProps> = ({
 
   if (!collection) {
     return (
-      <div className="flex items-center justify-center h-full text-neutral-500">
+      <div className="flex items-center justify-center h-full text-neutral-700 dark:text-neutral-500">
         <p>Collection non accessible</p>
       </div>
     );
@@ -48,7 +48,7 @@ const TableView: React.FC<TableViewProps> = ({
   );
 
   return (
-    <div className="bg-neutral-900/40 border border-white/5 rounded-lg overflow-hidden backdrop-blur">
+    <div className=" border border-black/10 dark:border-white/5 rounded-lg overflow-hidden backdrop-blur">
       <div className="overflow-x-auto">
         <table className="w-full">
           <TableHeader

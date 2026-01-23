@@ -102,7 +102,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       initial={{ y: -10, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.15 }}
-      className="border-b border-white/5 bg-neutral-900/30 backdrop-blur px-8 py-4 z-10"
+      className="border-b border-black/5 dark:border-white/5bg-neutral-900/30 backdrop-blur px-8 py-4 z-10"
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -141,10 +141,10 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                       }, 100);
                     }}
                     className={cn(
-                      'px-4 py-2 pr-9 rounded-lg text-sm font-medium transition-all relative inline-flex items-center',
+                      'px-4 py-2 pr-9 rounded-lg text-sm font-medium transition-all relative inline-flex items-center duration-300',
                       activeView === view.id
                         ? 'bg-gradient-to-r from-violet-600 to-cyan-600 text-white shadow-lg'
-                        : 'bg-white/5 text-neutral-400 hover:bg-white/10'
+                        : 'bg-black/5 dark:bg-white/5 text-neutral-400 hover:bg-white/10'
                     )}
                   >
                     {view.type === 'table' && <Table size={14} className="inline mr-1.5" />}
@@ -215,7 +215,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           onClick={() => canEdit && onShowNewViewModal()}
-          className="px-4 py-2 rounded-lg text-sm font-medium bg-white/5 text-neutral-400 hover:bg-white/10"
+          className="px-4 py-2 rounded-lg text-sm font-medium bg-black/5 dark:bg-white/5 text-neutral-400 hover:bg-white/10 duration-300 transition-all"
           disabled={!canEdit}
         >
           <Plus size={14} className="inline mr-1" />
@@ -226,21 +226,21 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={onShowFilterModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
         >
           <Filter size={14} />
           Filtrer
         </button>
         <button
           onClick={onShowGroupModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
         >
           <Layers size={14} />
           Grouper
         </button>
         <button
           onClick={() => canEdit && onShowNewPropertyModal()}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
           disabled={!canEdit}
         >
           <Plus size={14} />
@@ -250,7 +250,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         <div className="relative z-[1000]" ref={settingsRef}>
           <button
             onClick={() => onSetShowViewSettings(!showViewSettings)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm"
           >
             <Settings size={14} />
             Paramètres
@@ -340,7 +340,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             key={idx}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-2 px-3 py-1.5 bg-violet-500/20 text-violet-200 rounded-lg text-sm border border-violet-500/30"
+            className="flex items-center gap-2 px-3 py-1.5 bg-violet-500/20 text-neutral-700 dark:text-white rounded-lg text-sm border border-violet-500/30"
           >
             <span>
               {currentCollection?.properties.find((p: any) => p.id === filter.property)?.name}{' '}
@@ -383,7 +383,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-cyan-200 rounded-lg text-sm border border-cyan-500/30"
+            className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-neutral-700 dark:text-whiterounded-lg text-sm border border-cyan-500/30"
           >
             <span>Filtre relation : {relationFilter.ids.length} élément(s)</span>
             <button onClick={onClearRelationFilter} className="hover:bg-cyan-500/30 rounded p-0.5">
@@ -397,7 +397,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             key={idx}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-cyan-200 rounded-lg text-sm border border-cyan-500/30"
+            className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-neutral-700 dark:text-white rounded-lg text-sm border border-cyan-500/30"
           >
             <span>
               Groupé par: {currentCollection?.properties.find((p: any) => p.id === group)?.name}

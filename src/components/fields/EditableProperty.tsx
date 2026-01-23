@@ -82,7 +82,7 @@ function SimpleInput({
       placeholder={placeholder}
       disabled={readOnly}
       className={cn(
-        "px-2 py-1 bg-transparent border border-transparent text-white placeholder-neutral-600 focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+        "px-2 py-1 bg-transparent border border-transparent text-neutral-700 dark:text-white placeholder-neutral-600 focus:border-black/10 dark:focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
         sizeClasses,
         className
       )}
@@ -125,7 +125,7 @@ const UrlInput = ({
       className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-blue-900/30 transition', className)}
       title={value}
     >
-      <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-white text-blue-300">
+      <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-neutral-700 dark:hover:text-white text-blue-500 transition-all duration-300">
         <Icons.Link size={13} className="opacity-80 mr-1" />
       </a>
       <input
@@ -138,11 +138,11 @@ const UrlInput = ({
           else if (value.startsWith('https://')) newVal = 'https://' + inputVal.replace(/^https?:\/\//, '');
           onChange(newVal);
         }}
-        className="truncate max-w-[200px] bg-transparent border-none outline-none text-blue-300 px-0 py-0.5 focus:ring-0 focus:outline-none"
+        className="truncate max-w-[200px] bg-transparent border-none outline-none hover:text-neutral-700 dark:hover:text-white text-blue-500 px-0 py-0.5 focus:ring-0 focus:outline-none transition-all duration-300"
         style={{ width: `${urlLength}ch` }}
         disabled={readOnly}
       />
-      <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-white text-blue-300">
+      <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-neutral-700 dark:hover:text-white text-blue-500 transition-all duration-300">
         <Icons.ExternalLink size={12} className="ml-1 opacity-60" />
       </a>
     </span>
@@ -281,7 +281,7 @@ const RelationEditor = ({
         </button>
         <button
           onClick={() => { setIsCreating(false); setNewItemData({}); }}
-          className="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 rounded text-sm text-white"
+          className="px-3 py-2 bg-gray-300 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 rounded text-sm text-white"
         >
           Annuler
         </button>
@@ -370,7 +370,7 @@ const RelationEditor = ({
               {!readOnly && (
                 <button
                   type="button"
-                  className="ml-1 text-neutral-400 hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
+                  className="ml-1 text-neutral-700 hover:text-red-800 dark:text-neutral-400 dark:hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
                   onClick={() => {
                     const next = selectedIds.filter((sid: string) => sid !== id);
                     onRelationChange(property, currentItem, next);
@@ -408,7 +408,7 @@ const RelationEditor = ({
                   placeholder="Rechercher..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-2 py-1.5 bg-neutral-800/50 border border-white/10 rounded text-sm text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+                  className="w-full pl-8 pr-2 py-1.5 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
                 />
               </div>
             )}
@@ -417,7 +417,7 @@ const RelationEditor = ({
               <>
                 <button
                   onClick={() => setIsCreating(true)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 rounded text-sm text-violet-300"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 rounded text-sm text-neutral-700 dark:text-white"
                 >
                   <Icons.Plus size={14} />
                   Créer nouveau
@@ -538,7 +538,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
           <button
             disabled={readOnly}
             className={cn(
-              "w-full px-2 py-1 bg-transparent border border-transparent text-left text-white hover:border-white/10 rounded transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed",
+              "w-full px-2 py-1 bg-transparent border border-transparent text-left text-neutral-700 dark:text-white hover:border-black/10 dark:hover:border-white/10 rounded transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed",
               sizeClasses,
               !value && "text-neutral-600",
               className
@@ -548,7 +548,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
             {value ? format(selectedDate!, 'dd MMM yyyy HH:mm', { locale: fr }) : 'Choisir une date et heure'}
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 bg-neutral-900 border-neutral-700" align="start">
+        <PopoverContent className="w-auto p-0 bg-gray-500 dark:bg-neutral-900 border-neutral-700" align="start">
           <div className="flex flex-row gap-4 p-3">
             {onRelationChange && currentItem && (
               <div className="flex flex-col items-center justify-center min-w-[110px]">
@@ -556,7 +556,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                 <select
                   value={currentDuration}
                   onChange={e => handleEventUpdate(durationKey, parseFloat(e.target.value) || 1)}
-                  className="w-full h-50 text-center bg-neutral-900 border-r border-white/10 text-white text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
+                  className="w-full h-50 text-center bg-gray-500 dark:bg-neutral-900 border-r border-white/10 text-black dark:text-white text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
                   size={9}
                   style={{ WebkitAppearance: 'none', appearance: 'none' }}
                 >
@@ -584,7 +584,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                 }
               }}
               initialFocus
-              className="bg-neutral-900 text-white"
+              className="bg-gray-500 text-black dark:bg-neutral-900 dark:text-white"
             />
             <div className="flex flex-col items-center justify-center min-w-[110px]">
               <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure (H:M)</label>
@@ -596,7 +596,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                   d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
                   handleEventUpdate(property.id, d.toISOString());
                 }}
-                className="w-full h-50 text-center bg-neutral-900 border-l border-white/10 text-white text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
+                className="w-full h-50 text-center bg-gray-500 text-black dark:bg-neutral-900 dark:text-white border-l border-white/10 text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
                 size={9}
                 style={{ WebkitAppearance: 'none', appearance: 'none' }}
               >
@@ -757,7 +757,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       return (
         <div ref={editorContainerRef} className={className + ' tiptap-editor'} style={{ minHeight: '120px' }}>
           {/* Barre d'outils Tiptap améliorée */}
-          <div className="tiptap-toolbar flex flex-wrap gap-1 mb-2 p-1 rounded bg-neutral-900 border border-white/10">
+          <div className="tiptap-toolbar flex flex-wrap gap-1 mb-2 p-1 rounded bg-gray-500  dark:bg-neutral-900 border border-black/10 dark:border-white/10">
             <button type="button" onClick={() => editor?.chain().focus().toggleBold().run()} className={editor?.isActive('bold') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Gras"><b>B</b></button>
             <button type="button" onClick={() => editor?.chain().focus().toggleItalic().run()} className={editor?.isActive('italic') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Italique"><i>I</i></button>
             <button type="button" onClick={() => editor?.chain().focus().toggleUnderline().run()} className={editor?.isActive('underline') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Souligné"><u>U</u></button>

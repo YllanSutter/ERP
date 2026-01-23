@@ -249,7 +249,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 20, opacity: 0 }}
-          className="w-full max-w-6xl bg-neutral-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+          className="w-full max-w-6xl bg-white dark:bg-neutral-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
         >
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
             <div className="flex items-center gap-3">
@@ -261,7 +261,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
             </div>
             <div className="flex items-center gap-2">
               <button
-                className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs shadow"
+                className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs shadow "
                 style={{ minWidth: 80 }}
                 onClick={async () => {
                   // Exporter tout le contenu de la table app_state + CSV par collection
@@ -372,10 +372,10 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                   }}
                 />
               </label>
-              <button onClick={loadAll} className="p-2 rounded-lg hover:bg-white/10 text-neutral-400" title="Rafraîchir">
+              <button onClick={loadAll} className="p-2 rounded-lg hover:bg-white/10 text-neutral-600 dark:text-neutral-400" title="Rafraîchir">
                 <RefreshCw size={16} />
               </button>
-              <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-neutral-400">
+              <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-neutral-600 dark:text-neutral-400">
                 <X size={16} />
               </button>
             </div>
@@ -383,7 +383,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-6 max-h-[80svh] overflow-y-scroll">
             <div className="space-y-4">
-              <div className="bg-white/5 rounded-xl border border-white/5 p-4">
+              <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold">Rôles</h4>
                   <button onClick={() => setCreatingRole(!creatingRole)} className="text-sm text-cyan-400 flex items-center gap-1">
@@ -395,13 +395,13 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                     <button
                       key={r.id}
                       className={`w-full text-left px-3 py-2 rounded-lg transition ${
-                        selectedRoleId === r.id ? 'bg-cyan-500/20 text-white border border-cyan-500/40' : 'bg-white/5 text-neutral-300'
+                        selectedRoleId === r.id ? 'bg-cyan-500/20 text-black dark:text-white border border-cyan-500/40' : 'bg-white/5 text-neutral-500 dark:text-neutral-400'
                       }`}
                       onClick={() => setSelectedRoleId(r.id)}
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-medium">{r.name}</span>
-                        {r.is_system && <span className="text-xs text-neutral-400">système</span>}
+                        {r.is_system && <span className="text-xs text-neutral-600 dark:text-neutral-400">système</span>}
                       </div>
                       {r.description && <p className="text-xs text-neutral-500 mt-1">{r.description}</p>}
                     </button>
@@ -417,13 +417,13 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                       className="mt-3 space-y-2"
                     >
                       <input
-                        className="w-full bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
+                        className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
                         placeholder="Nom du rôle"
                         value={newRoleName}
                         onChange={(e) => setNewRoleName(e.target.value)}
                       />
                       <input
-                        className="w-full bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
+                        className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
                         placeholder="Description (optionnel)"
                         value={newRoleDesc}
                         onChange={(e) => setNewRoleDesc(e.target.value)}
@@ -436,7 +436,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                 </AnimatePresence>
               </div>
 
-              <div className="bg-white/5 rounded-xl border border-white/5 p-4">
+              <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold">Utilisateurs</h4>
                 </div>
@@ -445,7 +445,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                     const roleIds = Array.isArray(u.role_ids) ? u.role_ids : (typeof u.role_ids === 'string' ? JSON.parse(u.role_ids) : []);
                     const userRoles = roles.filter((r) => roleIds.includes(r.id));
                     return (
-                      <div key={u.id} className="rounded-lg bg-neutral-900/70 border border-white/5 p-3">
+                      <div key={u.id} className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
                         <div className="font-medium">{u.email}</div>
                         <div className="text-xs text-neutral-500 mb-2">{u.provider || 'local'}</div>
                         <div className="flex flex-wrap gap-2 mb-2">
@@ -453,7 +453,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                           {userRoles.map((r) => (
                             <button
                               key={r.id}
-                              className="px-2 py-1 text-xs rounded bg-cyan-500/20 text-cyan-100 border border-cyan-500/40"
+                              className="px-2 py-1 text-xs rounded bg-cyan-500/20 text-black dark:text-white border border-cyan-500/40"
                               onClick={() => assignRole(u.id, r.id, 'remove')}
                             >
                               {r.name} ✕
@@ -462,7 +462,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                         </div>
                         <div className="flex items-center gap-2">
                           <select
-                            className="flex-1 bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
+                            className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
                             onChange={(e) => assignRole(u.id, e.target.value, 'add')}
                             defaultValue=""
                           >
@@ -487,7 +487,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
             </div>
 
             <div className="lg:col-span-2 space-y-4">
-              <div className="bg-white/5 rounded-xl border border-white/5 p-4">
+              <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold">Permissions</h4>
                   {loading && <span className="text-xs text-neutral-500">Chargement…</span>}
@@ -499,20 +499,20 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                       const scope = { type: 'global', label: 'Global', collectionId: null, itemId: null, fieldId: null };
                       const perm = findPermission(selectedRoleId, scope) || {};
                       return (
-                        <div key="global" className="bg-neutral-900/70 border border-white/5 rounded-lg overflow-hidden">
+                        <div key="global" className="bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 rounded-lg overflow-hidden">
                           <div className="px-4 py-3 bg-cyan-500/10 border-b border-cyan-500/20">
                             <div className="text-sm font-semibold">Global</div>
-                            <div className="text-xs text-neutral-400 mt-0.5">Permissions appliquées à toutes les collections</div>
+                            <div className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">Permissions appliquées à toutes les collections</div>
                           </div>
                           <div className="px-4 py-3">
-                            <div className="text-xs font-medium text-neutral-400 mb-2">Paramètres global</div>
+                            <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Paramètres global</div>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                               {flags.map((f) => {
                                 const isChecked = !!perm[f.key];
                                 return (
                                   <label
                                     key={f.key}
-                                    className="flex items-center gap-2 text-xs text-neutral-300 hover:text-white cursor-pointer"
+                                    className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 hover:text-black dark:text-white cursor-pointer"
                                     title={f.hint}
                                   >
                                     <input
@@ -539,22 +539,22 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                       const propertyFlags = flags.filter((f) => ['can_read', 'can_write', 'can_delete'].includes(f.key));
 
                       return (
-                        <div key={col.id} className="bg-neutral-900/70 border border-white/5 rounded-lg overflow-hidden">
-                          <div className="px-4 py-3 bg-white/5 border-b border-white/5">
+                        <div key={col.id} className="bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 rounded-lg overflow-hidden">
+                          <div className="px-4 py-3 bg-white/5 border-b border-black/10 dark:border-white/5">
                             <div className="text-sm font-semibold">{col.name}</div>
-                            <div className="text-xs text-neutral-400 mt-0.5">Permissions de collection et propriétés</div>
+                            <div className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">Permissions de collection et propriétés</div>
                           </div>
 
                           {/* Collection-level */}
-                          <div className="px-4 py-3 border-b border-white/5">
-                            <div className="text-xs font-medium text-neutral-400 mb-2">Collection</div>
+                          <div className="px-4 py-3 border-b border-black/10 dark:border-white/5">
+                            <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Collection</div>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                               {flags.map((f) => {
                                 const isChecked = !!permCol[f.key];
                                 return (
                                   <label
                                     key={f.key}
-                                    className="flex items-center gap-2 text-xs text-neutral-300 hover:text-white cursor-pointer"
+                                    className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 hover:text-black dark:text-white cursor-pointer"
                                     title={f.hint}
                                   >
                                     <input
@@ -573,7 +573,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
 
                           {/* Properties-level */}
                           <div className="px-4 py-3">
-                            <div className="text-xs font-medium text-neutral-400 mb-2">Propriétés (champs)</div>
+                            <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Propriétés (champs)</div>
                             {col.properties.length === 0 ? (
                               <div className="text-xs text-neutral-500">Aucune propriété dans cette collection.</div>
                             ) : (
@@ -585,10 +585,10 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                                   return (
                                     <div
                                       key={prop.id}
-                                      className="flex items-center justify-between bg-neutral-950/60 border border-white/5 rounded-lg px-3 py-2"
+                                      className="flex items-center justify-between bg-white dark:bg-neutral-950/60 border border-black/10 dark:border-white/5 rounded-lg px-3 py-2"
                                     >
                                       <div>
-                                        <div className="text-sm font-medium text-white">{prop.name}</div>
+                                        <div className="text-sm font-medium text-black dark:text-white">{prop.name}</div>
                                         <div className="text-xs text-neutral-500">{prop.type}</div>
                                       </div>
                                       <div className="flex items-center gap-3">
@@ -597,7 +597,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                                           return (
                                             <label
                                               key={f.key}
-                                              className="flex items-center gap-1 text-xs text-neutral-300 hover:text-white cursor-pointer"
+                                              className="flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400 hover:text-black dark:text-white cursor-pointer"
                                               title={`${f.label} ce champ`}
                                             >
                                               <input
@@ -627,13 +627,13 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                 )}
               </div>
 
-              <div className="bg-white/5 rounded-xl border border-white/5 p-4">
+              <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold">Audit</h4>
                 </div>
-                <div className="space-y-2 max-h-64 overflow-auto pr-1 text-sm text-neutral-300">
+                <div className="space-y-2 max-h-64 overflow-auto pr-1 text-sm text-neutral-500 dark:text-neutral-400">
                   {audit.map((a) => (
-                    <div key={a.id} className="flex items-center justify-between border-b border-white/5 pb-1">
+                    <div key={a.id} className="flex items-center justify-between border-b border-black/10 dark:border-white/5 pb-1">
                       <div>
                         <div className="font-medium">{a.action}</div>
                         <div className="text-xs text-neutral-500">{a.target_type} / {a.target_id}</div>

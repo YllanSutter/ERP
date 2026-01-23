@@ -63,12 +63,12 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
       <ContextMenuTrigger asChild>
         <RowComponent
           {...motionProps}
-          className="hover:bg-white/5 transition-colors border-b border-white/5 cursor-context-menu"
+          className="hover:bg-white/5 transition-colors border-b border-black/5 dark:border-white/5 cursor-context-menu"
         >
           {displayProperties.map((prop: any, index: number) => (
             <td
               key={prop.id}
-              className="px-3 py-2 whitespace-nowrap text-sm text-neutral-300 relative"
+              className="px-3 py-2 whitespace-nowrap text-sm text-neutral-700 dark:text-neutral-300 relative"
               style={index === 0 ? { paddingLeft: `${paddingLeft}px` } : undefined}
             >
               <EditableProperty
