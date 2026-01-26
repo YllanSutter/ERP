@@ -246,9 +246,8 @@ const WeekView: React.FC<WeekViewProps> = ({
                       });
                       // ...
                       if (onShowNewItemModalForCollection) {
-                        // Ajoute un flag isNew pour forcer le mode création côté modal
-                        const newItemWithFlag = { ...newItem, isNew: true };
-                        // ...
+                        // Ajoute un flag isNew pour forcer le mode création côté modal et __collectionId pour la sauvegarde
+                        const newItemWithFlag = { ...newItem, isNew: true, __collectionId: col.id };
                         onShowNewItemModalForCollection(col, newItemWithFlag);
                       }
                     }}

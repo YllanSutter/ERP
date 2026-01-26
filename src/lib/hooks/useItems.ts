@@ -102,8 +102,10 @@ export const useItems = (
 ) => {
   // Ajout d'un paramètre optionnel collectionId pour cibler la bonne collection
   const saveItem = (item: any, editingItem: any, collectionId?: string) => {
+    console.log('[useItems] saveItem called', { item, editingItem, collectionId });
     let newItem = { ...item };
-    if (!editingItem && !item.id) {
+    // Toujours générer un id unique si absent
+    if (!newItem.id) {
       newItem.id = Date.now().toString();
     }
 
@@ -111,12 +113,16 @@ export const useItems = (
     const targetCollectionId = collectionId || item.__collectionId || activeCollection;
     let updatedCollections = collections.map((col) => {
       if (col.id === targetCollectionId) {
-        if (editingItem || item.id) {
+        // Si editingItem existe ET possède un id, ou si un item avec le même id existe déjà, on remplace, sinon on ajoute
+        const exists = col.items.some((i: any) => i.id === newItem.id);
+        const isEdition = editingItem && editingItem.id;
+        if (isEdition || exists) {
           return {
             ...col,
             items: col.items.map((i: any) => (i.id === newItem.id ? newItem : i))
           };
         }
+        // Ajout d'un nouvel item (cas création ou editingItem sans id)
         return { ...col, items: [...col.items, newItem] };
       }
       return col;
@@ -141,6 +147,9 @@ export const useItems = (
     });
 
     setCollections(updatedCollections);
+    // DEBUG : log l'état de la collection cible après ajout
+    const colAfter = updatedCollections.find((col) => col.id === targetCollectionId);
+    console.log('[useItems] after setCollections, items in target:', colAfter?.items);
   };
 
   const updateItem = (item: any) => {

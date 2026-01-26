@@ -687,12 +687,14 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
             setModalCollection(null);
           }}
           onSave={(item) => {
-            console.log(item);
-            // On passe la bonne collection cible à saveItem
+            // Correction : toujours utiliser __collectionId pour cibler la collection choisie dans la modale
             const colId = item.__collectionId || (modalCollection && modalCollection.id) || (currentCollection && currentCollection.id);
             // On mémorise la dernière collection utilisée pour la préselection
             setModalCollection(collections.find(c => c.id === colId) || null);
-            itemHooks.saveItem(item, editingItem, colId);
+            // On retire __collectionId de l'objet avant sauvegarde réelle (pour ne pas polluer les données)
+            const { __collectionId, ...itemToSave } = item;
+            console.log('[App] onSave: itemToSave, editingItem, colId', itemToSave, editingItem, colId);
+            itemHooks.saveItem(itemToSave, editingItem, colId);
             setShowNewItemModal(false);
             setEditingItem(null);
             // setModalCollection(null); // On ne reset plus pour garder la préselection
