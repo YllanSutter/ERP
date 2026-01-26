@@ -323,9 +323,16 @@ const WeekView: React.FC<WeekViewProps> = ({
                         getNameValue={getNameValue}
                         hiddenFields={hiddenFields ?? []}
                         onViewDetail={() => onViewDetail(item)}
-                        onReduceDuration={() => {
-                          // Supprime le segment correspondant (multiDayIndex)
-                          const updatedSegments = (item._eventSegments || []).filter((_: any, idx: number) => idx !== multiDayIndex);
+                        onReduceDuration={(_item, newDuration) => {
+                          // Redimensionne uniquement le segment courant (multiDayIndex) sans supprimer
+                          const updatedSegments = (item._eventSegments || []).map((seg: any, idx: number) => {
+                            if (idx === multiDayIndex) {
+                              const start = new Date(seg.start || seg.__eventStart);
+                              const end = new Date(start.getTime() + (newDuration * 60 * 60 * 1000));
+                              return { ...seg, end: end.toISOString() };
+                            }
+                            return seg;
+                          });
                           const updatedItem = { ...item, _eventSegments: updatedSegments };
                           if (onEdit) onEdit(updatedItem);
                         }}
