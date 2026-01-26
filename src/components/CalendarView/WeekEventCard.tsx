@@ -350,7 +350,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
             <span>Créer un item dans « {itemCollection?.name || 'cette collection'} »</span>
           </ContextMenuItem>
           {onReduceDuration && (
-            <ContextMenuItem onClick={() => onReduceDuration(item, duration)}>
+            <ContextMenuItem onClick={() => onReduceDuration(item, multiDayIndex)}>
               <span className="text-red-500">Réduire/Détruire</span>
             </ContextMenuItem>
           )}

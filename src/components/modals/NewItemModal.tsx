@@ -49,15 +49,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   onToggleFavoriteItem,
   orderedProperties
 }) => {
-  // LOGS DEBUG pour diagnostic clic droit depuis la vue semaine
-  React.useEffect(() => {
-    console.log('[NewItemModal] props:', {
-      collection,
-      editingItem,
-      collections,
-      orderedProperties,
-    });
-  }, [collection, editingItem, collections, orderedProperties]);
   // Ajout d'un sélecteur de collection (pour création uniquement)
   const [selectedCollectionId, setSelectedCollectionId] = useState(collection.id);
   const selectedCollection = collections.find((c: any) => c.id === selectedCollectionId) || collection;
@@ -596,7 +587,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 const { id, ...rest } = dataToSave;
                 dataToSave = rest;
               }
-              console.log('[NewItemModal] onSave called with:', dataToSave);
               onSave(dataToSave);
             }}
             className="flex-1"

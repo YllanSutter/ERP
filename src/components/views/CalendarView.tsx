@@ -220,7 +220,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         endHour={endHour}
         hiddenFields={hiddenFields}
         onViewDetail={onViewDetail}
-        onEdit={onEdit}
+        onEdit={(item) => onEdit(item, item.__collectionId)}
         onDelete={onDelete}
         onEditField={onEdit}
         onShowNewItemModalForCollection={onShowNewItemModalForCollection}
