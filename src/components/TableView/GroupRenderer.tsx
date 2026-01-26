@@ -22,6 +22,7 @@ interface GroupRendererProps {
   onNavigateToCollection: (collectionId: string, linkedIds?: string[]) => void;
   canEdit: boolean;
   canEditField: (fieldId: string) => boolean;
+  sortItems?: (arr: any[]) => any[];
 }
 
 const GroupRenderer: React.FC<GroupRendererProps> = ({
@@ -42,6 +43,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   onNavigateToCollection,
   canEdit,
   canEditField,
+  sortItems,
 }) => {
   const groupData = groupedStructure.structure[groupPath];
   if (!groupData) return null;
@@ -96,33 +98,29 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               onNavigateToCollection={onNavigateToCollection}
               canEdit={canEdit}
               canEditField={canEditField}
+              sortItems={sortItems}
             />
           ))}
 
           {/* Items de ce groupe */}
-          {groupData.itemIds.map(itemId => {
-            const item = itemsMap.get(itemId);
-            if (!item) return null;
-
-            return (
-              <TableItemRow
-                key={item.id}
-                item={item}
-                visibleProperties={visibleProperties}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onViewDetail={onViewDetail}
-                collections={collections}
-                collection={collection}
-                onRelationChange={onRelationChange}
-                onNavigateToCollection={onNavigateToCollection}
-                canEdit={canEdit}
-                canEditField={canEditField}
-                paddingLeft={24 + (depth + 1) * 20}
-                animate={true}
-              />
-            );
-          })}
+          {(sortItems ? sortItems(groupData.itemIds.map(itemId => itemsMap.get(itemId)).filter(Boolean)) : groupData.itemIds.map(itemId => itemsMap.get(itemId)).filter(Boolean)).map(item => (
+            <TableItemRow
+              key={item.id}
+              item={item}
+              visibleProperties={visibleProperties}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onViewDetail={onViewDetail}
+              collections={collections}
+              collection={collection}
+              onRelationChange={onRelationChange}
+              onNavigateToCollection={onNavigateToCollection}
+              canEdit={canEdit}
+              canEditField={canEditField}
+              paddingLeft={24 + (depth + 1) * 20}
+              animate={true}
+            />
+          ))}
         </>
       )}
     </React.Fragment>

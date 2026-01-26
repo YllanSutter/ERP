@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { useGrouping } from '@/lib/hooks/useGrouping';
 import { TableViewProps } from '@/lib/types';
 import GroupRenderer from '@/components/TableView/GroupRenderer';
@@ -28,6 +28,36 @@ const TableView: React.FC<TableViewProps> = ({
     groups,
     collection.properties
   );
+
+  // Tri par colonne
+  const [sortState, setSortState] = useState<{ column: string | null; direction: 'asc' | 'desc' }>({ column: null, direction: 'asc' });
+
+  const handleSort = useCallback((columnId: string) => {
+    setSortState((prev) => {
+      if (prev.column === columnId) {
+        return { column: columnId, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { column: columnId, direction: 'asc' };
+    });
+  }, []);
+
+  // Fonction de tri générique
+  const sortItems = useCallback((arr: any[]) => {
+    if (!sortState.column) return arr;
+    const col = sortState.column;
+    return [...arr].sort((a, b) => {
+      const aVal = a && col in a ? a[col] : undefined;
+      const bVal = b && col in b ? b[col] : undefined;
+      if (aVal === undefined || aVal === null) return 1;
+      if (bVal === undefined || bVal === null) return -1;
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortState.direction === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+      return sortState.direction === 'asc'
+        ? String(aVal).localeCompare(String(bVal), 'fr', { numeric: true })
+        : String(bVal).localeCompare(String(aVal), 'fr', { numeric: true });
+    });
+  }, [sortState]);
   
   // Hooks de permissions
   const canEdit = useCanEdit(collection?.id);
@@ -57,6 +87,8 @@ const TableView: React.FC<TableViewProps> = ({
             onToggleField={onToggleField}
             onDeleteProperty={onDeleteProperty}
             collectionId={collection?.id}
+            sortState={sortState}
+            onSort={handleSort}
           />
           <tbody className="divide-y divide-white/5">
             {groupedStructure ? (
@@ -81,11 +113,12 @@ const TableView: React.FC<TableViewProps> = ({
                   onNavigateToCollection={onNavigateToCollection}
                   canEdit={canEdit}
                   canEditField={canEditFieldFn}
+                  sortItems={sortItems}
                 />
               ))
             ) : (
               // Sans groupes : affichage normal
-              items.map(item => (
+              sortItems(items).map(item => (
                 <TableItemRow
                   key={item.id}
                   item={item}
