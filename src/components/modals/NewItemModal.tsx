@@ -203,6 +203,17 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]"
       onClick={onClose}
     >
+      {/* Style global pour masquer les flèches des input[type=number] */}
+      <style>{`
+        input[type=number]::-webkit-outer-spin-button,
+        input[type=number]::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type=number] {
+          -moz-appearance: textfield;
+        }
+      `}</style>
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -407,12 +418,23 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     </div>
                   )
                 ))}
-                {/* Onglets plages horaires par champ date */}
+                {/* Onglets plages horaires par champ date - affichage lisible, sans édition du label */}
                 {dateProps.map((dateProp: any) => (
                   activeTab === `_eventSegments_${dateProp.id}` && (
                     <div key={`_eventSegments_${dateProp.id}`}>
                       <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Plages horaires pour {dateProp.name}</label>
-                      {/* Affichage des segments déjà présents dans l'objet (depuis la BDD) */}
+                      <button
+                        className="mb-4 px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700"
+                        onClick={() => {
+                          const segs = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                          const now = new Date();
+                          const start = now.toISOString();
+                          const end = new Date(now.getTime() + 60*60*1000).toISOString();
+                          segs.push({ start, end, label: dateProp.name });
+                          setFormData({ ...formData, _eventSegments: segs });
+                        }}
+                        type="button"
+                      >Ajouter une plage</button>
                       {(() => {
                         const segments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
                         if (!segments || segments.length === 0) return <div className="text-neutral-500 text-xs">Aucune plage horaire enregistrée</div>;
@@ -430,10 +452,117 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                 <div className="font-semibold text-sm text-violet-300 mb-1">{day}</div>
                                 <ul className="space-y-2">
                                   {segs.map((seg: any, idx: number) => (
-                                    <li key={idx} className="p-2 rounded bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10">
-                                      <span className="font-mono text-xs text-neutral-700 dark:text-neutral-300">{new Date(seg.start || seg.__eventStart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <li key={idx} className="p-2 rounded bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 flex items-center gap-2">
+                                      {/* Heure et minutes de début */}
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={23}
+                                        value={(() => {
+                                          const d = new Date(seg.start || seg.__eventStart);
+                                          return d.getHours();
+                                        })()}
+                                        onChange={e => {
+                                          const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                                          const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
+                                          if (globalIdx !== -1) {
+                                            const d = new Date(seg.start || seg.__eventStart);
+                                            d.setHours(Number(e.target.value));
+                                            segsCopy[globalIdx] = { ...segsCopy[globalIdx], start: d.toISOString() };
+                                            setFormData({ ...formData, _eventSegments: segsCopy });
+                                          }
+                                        }}
+                                        style={{ width: 24, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center' }}
+                                      />
+                                      <span className="font-mono text-neutral-700 dark:text-neutral-300">h</span>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={59}
+                                        value={(() => {
+                                          const d = new Date(seg.start || seg.__eventStart);
+                                          return d.getMinutes().toString().padStart(2, '0');
+                                        })()}
+                                        onChange={e => {
+                                          const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                                          const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
+                                          if (globalIdx !== -1) {
+                                            const d = new Date(seg.start || seg.__eventStart);
+                                            d.setMinutes(Number(e.target.value));
+                                            segsCopy[globalIdx] = { ...segsCopy[globalIdx], start: d.toISOString() };
+                                            setFormData({ ...formData, _eventSegments: segsCopy });
+                                          }
+                                        }}
+                                        style={{ width: 24, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center', MozAppearance: 'textfield' }}
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        onWheel={e => e.currentTarget.blur()}
+                                        onKeyDown={e => (e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.preventDefault()}
+                                      />
+                                      <span className="font-mono text-neutral-700 dark:text-neutral-300">m</span>
                                       {' '}→{' '}
-                                      <span className="font-mono text-xs text-neutral-700 dark:text-neutral-300">{new Date(seg.end || seg.__eventEnd).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                      {/* Heure et minutes de fin */}
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={23}
+                                        value={(() => {
+                                          const d = new Date(seg.end || seg.__eventEnd);
+                                          return d.getHours();
+                                        })()}
+                                        onChange={e => {
+                                          const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                                          const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
+                                          if (globalIdx !== -1) {
+                                            const d = new Date(seg.end || seg.__eventEnd);
+                                            d.setHours(Number(e.target.value));
+                                            segsCopy[globalIdx] = { ...segsCopy[globalIdx], end: d.toISOString() };
+                                            setFormData({ ...formData, _eventSegments: segsCopy });
+                                          }
+                                        }}
+                                        style={{ width: 24, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center' }}
+                                      />
+                                      <span className="font-mono text-neutral-700 dark:text-neutral-300">h</span>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={59}
+                                        value={(() => {
+                                          const d = new Date(seg.end || seg.__eventEnd);
+                                          return d.getMinutes().toString().padStart(2, '0');
+                                        })()}
+                                        onChange={e => {
+                                          const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                                          const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
+                                          if (globalIdx !== -1) {
+                                            const d = new Date(seg.end || seg.__eventEnd);
+                                            d.setMinutes(Number(e.target.value));
+                                            segsCopy[globalIdx] = { ...segsCopy[globalIdx], end: d.toISOString() };
+                                            setFormData({ ...formData, _eventSegments: segsCopy });
+                                          }
+                                        }}
+                                        style={{ width: 24, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center', MozAppearance: 'textfield' }}
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        onWheel={e => e.currentTarget.blur()}
+                                        onKeyDown={e => (e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.preventDefault()}
+                                      />
+                                      <span className="font-mono text-neutral-700 dark:text-neutral-300">m</span>
+                                      <button
+                                        className="ml-2"
+                                        onClick={() => {
+                                          const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                                          const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
+                                          if (globalIdx !== -1) {
+                                            segsCopy.splice(globalIdx, 1);
+                                            setFormData({ ...formData, _eventSegments: segsCopy });
+                                          }
+                                        }}
+                                        type="button"
+                                        title="Supprimer la plage"
+                                      >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24"><path fill="#ef4444" d="M7 21q-.825 0-1.412-.587Q5 19.825 5 19V7H4q-.425 0-.712-.288Q3 6.425 3 6t.288-.713Q3.575 5 4 5h4V4q0-.825.588-1.412Q9.175 2 10 2h4q.825 0 1.413.588Q16 3.175 16 4v1h4q.425 0 .713.287Q21 5.575 21 6t-.287.712Q20.425 7 20 7h-1v12q0 .825-.587 1.413Q17.825 21 17 21Zm10-14H7v12q0 .425.288.713Q7.575 20 8 20h8q.425 0 .713-.287Q17.425 19.425 17.425 19V7ZM9 17q.425 0 .713-.288Q10 16.425 10 16v-6q0-.425-.287-.713Q9.425 9 9 9t-.713.287Q8 9.575 8 10v6q0 .425.287.713Q8.575 17 9 17Zm3 0q.425 0 .713-.288Q13 16.425 13 16v-6q0-.425-.287-.713Q12.425 9 12 9t-.713.287Q11 9.575 11 10v6q0 .425.287.713Q11.575 17 12 17Zm3 0q.425 0 .713-.288Q16 16.425 16 16v-6q0-.425-.287-.713Q15.425 9 15 9t-.713.287Q14 9.575 14 10v6q0 .425.287.713Q14.575 17 15 17ZM10 5h4V4h-4Z"/></svg>
+                                      </button>
                                     </li>
                                   ))}
                                 </ul>

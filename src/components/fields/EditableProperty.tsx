@@ -548,7 +548,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
             {value ? format(selectedDate!, 'dd MMM yyyy HH:mm', { locale: fr }) : 'Choisir une date et heure'}
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 bg-gray-500 dark:bg-neutral-900 border-neutral-700" align="start">
+        <PopoverContent className="w-auto p-0 bg-gray-200 dark:bg-neutral-900 border-neutral-700" align="start">
           <div className="flex flex-row gap-4 p-3">
             {onRelationChange && currentItem && (
               <div className="flex flex-col items-center justify-center min-w-[110px]">
@@ -556,7 +556,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                 <select
                   value={currentDuration}
                   onChange={e => handleEventUpdate(durationKey, parseFloat(e.target.value) || 1)}
-                  className="w-full h-50 text-center bg-gray-500 dark:bg-neutral-900 border-r border-white/10 text-black dark:text-white text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
+                  className="w-full h-50 text-center bg-gray-200 dark:bg-neutral-900 border-r border-white/10 text-black dark:text-white text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
                   size={9}
                   style={{ WebkitAppearance: 'none', appearance: 'none' }}
                 >
@@ -584,7 +584,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                 }
               }}
               initialFocus
-              className="bg-gray-500 text-black dark:bg-neutral-900 dark:text-white"
+              className="bg-gray-200 text-black dark:bg-neutral-900 dark:text-white"
             />
             <div className="flex flex-col items-center justify-center min-w-[110px]">
               <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure (H:M)</label>
@@ -596,7 +596,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                   d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
                   handleEventUpdate(property.id, d.toISOString());
                 }}
-                className="w-full h-50 text-center bg-gray-500 text-black dark:bg-neutral-900 dark:text-white border-l border-white/10 text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
+                className="w-full h-50 text-center bg-gray-200 text-black dark:bg-neutral-900 dark:text-white border-l border-white/10 text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
                 size={9}
                 style={{ WebkitAppearance: 'none', appearance: 'none' }}
               >
