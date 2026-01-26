@@ -638,7 +638,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                                   canEdit={false}
                                   quickEditProperties={[]}
                                 >
-                                  <div className="text-[11px] text-neutral-700 dark:text-white truncate cursor-pointer hover:underline" style={{width: '100%'}}>
+                                  <div className="text-[11px] text-neutral-500 dark:text-neutral-600 truncate cursor-pointer hover:underline" style={{width: '100%'}}>
                                     {getNameValueUtil(item, item._collection)}
                                   </div>
                                 </ItemContextMenu>
