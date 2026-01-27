@@ -354,16 +354,20 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
             // Clamp sur la journée, mais on garde l'heure/minute exacte
             if (start.toLocaleDateString('fr-CA') < key) {
               start = new Date(day);
-              // On garde l'heure de début à 00:00
               start.setHours(0, 0, 0, 0);
             }
             if (end.toLocaleDateString('fr-CA') > key) {
               end = new Date(day);
-              // On termine à 23:59
-              end.setHours(23, 59, 0, 0);
+              // On termine à 23:59:59.999 pour ne pas déborder sur le jour suivant
+              end.setHours(23, 59, 59, 999);
+              // Mais si segEnd < end (ex: événement finit avant la fin du jour), on prend segEnd
+              if (segEnd < end) end = segEnd;
             }
-            const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-            totalHours += Math.max(0, hours);
+            // Ne compter que si la plage couvre vraiment ce jour
+            if (end > start) {
+              const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+              totalHours += Math.max(0, hours);
+            }
           });
           if (totalHours > 0) {
             dailyObjectDurations[key][leaf.id][item.id] = totalHours;
