@@ -28,8 +28,17 @@ const months = MONTH_NAMES;
 
   function itemMatchesTypeValues(itemValue: any, typeValues: string[], fieldType?: string): boolean {
     if (!typeValues || typeValues.length === 0) return true;
+    // Logique OU pour les champs multi_select et select
+    if (fieldType === 'multi_select' || fieldType === 'select') {
+      if (Array.isArray(itemValue)) {
+        // Au moins une des valeurs doit être présente
+        return typeValues.some(v => itemValue.includes(v));
+      }
+      // Pour select simple
+      return typeValues.includes(itemValue);
+    }
+    // Pour les autres types, on garde le comportement actuel (ET)
     if (Array.isArray(itemValue)) {
-      // Tous les typeValues doivent être présents dans itemValue
       return typeValues.every(v => itemValue.includes(v));
     }
     if ((fieldType === 'text' || fieldType === 'url') && typeof itemValue === 'string') {
@@ -272,48 +281,29 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         const fakeViewConfig = { filters };
         groupItems = getFilteredItems(groupCollection, fakeViewConfig, { collectionId: null, ids: [] }, groupCollection.id, collections);
       }
-      // Correction : filtrage strict par tags/typeValues cumulés du chemin (parents + feuille)
-      let allTypeValues: string[] = [];
+      // Nouveau : filtrage hiérarchique par champ, chaque niveau filtre sur son propre champ si défini
+      let filteredGroupItems = groupItems;
+      // On construit la liste des filtres hiérarchiques [{field, values}]
+      let filterHierarchy: { field: string, values: string[] }[] = [];
       if (leaf._parentPath && Array.isArray(leaf._parentPath)) {
         leaf._parentPath.forEach((parent: any) => {
-          if (Array.isArray(parent.typeValues) && parent.typeValues.length > 0) {
-            allTypeValues = allTypeValues.concat(parent.typeValues.filter((v: any) => !!v));
+          if (parent.filterField && Array.isArray(parent.typeValues) && parent.typeValues.length > 0) {
+            filterHierarchy.push({ field: parent.filterField, values: parent.typeValues.filter((v: any) => !!v) });
           }
         });
       }
-      if (Array.isArray(leaf.typeValues) && leaf.typeValues.length > 0) {
-        allTypeValues = allTypeValues.concat(leaf.typeValues.filter((v: any) => !!v));
+      if (leaf.filterField && Array.isArray(leaf.typeValues) && leaf.typeValues.length > 0) {
+        filterHierarchy.push({ field: leaf.filterField, values: leaf.typeValues.filter((v: any) => !!v) });
       }
-      // Héritage du filterField : si non défini sur la feuille, prendre le plus proche parent qui en a un
-      let filterField = leaf.filterField;
-      if (!filterField && leaf._parentPath && Array.isArray(leaf._parentPath)) {
-        for (let i = leaf._parentPath.length - 1; i >= 0; i--) {
-          if (leaf._parentPath[i].filterField) {
-            filterField = leaf._parentPath[i].filterField;
-            break;
-          }
+      // On applique chaque filtre dans l'ordre, en préfiltrant à chaque étape
+      filterHierarchy.forEach(({ field, values }) => {
+        const prop = groupProperties.find((p: any) => p.id === field);
+        if (values.length > 0 && prop) {
+          filteredGroupItems = filteredGroupItems.filter((item: any) =>
+            itemMatchesTypeValues(item[field], values, prop.type)
+          );
         }
-      }
-      const filterProp = filterField ? groupProperties.find((p: any) => p.id === filterField) : null;
-      // Log : tous les objets de la collection (avant filtrage)
-      // console.log('[DASHBOARD][ITEMS][ALL]', {
-      //   feuille: leaf.label,
-      //   objets: groupItems.map((item: any) => ({ id: item.id, name: item.name, type: item[filterField], raw: item }))
-      // });
-      // Filtrage strict : l'item doit posséder TOUS les tags du chemin
-      let filteredGroupItems = groupItems;
-      if (allTypeValues.length > 0 && filterField) {
-        filteredGroupItems = groupItems.filter((item: any) => {
-          const itemValue = item[filterField];
-          return itemMatchesTypeValues(itemValue, allTypeValues, filterProp?.type);
-        });
-      }
-      // Log : objets affichés dans la colonne (après filtrage)
-      // console.log('[DASHBOARD][ITEMS][VISIBLE]', {
-      //   feuille: leaf.label,
-      //   objets: filteredGroupItems.map((item: any) => ({ id: item.id, name: item.name, type: item[filterField], raw: item }))
-      // });
-      // On utilise filteredGroupItems pour la suite
+      });
       groupItems = filteredGroupItems;
       // Déterminer le champ date à utiliser pour ce groupe racine
       let dateFieldId = rootGroup?.dateFieldId || dashboard.globalDateField;
@@ -330,15 +320,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       // console.log(dateField);
       if (!dateField) return;
 
-      // ...
-      if (!filterField && leaf._parentPath && Array.isArray(leaf._parentPath)) {
-        for (let i = leaf._parentPath.length - 1; i >= 0; i--) {
-          if (leaf._parentPath[i].filterField) {
-            filterField = leaf._parentPath[i].filterField;
-            break;
-          }
-        }
-      }
+      // (plus besoin de gérer filterField hérité ici, la logique de filtrage hiérarchique le gère déjà)
 
       // Pour chaque jour du mois
       daysOfMonth.forEach((day) => {
