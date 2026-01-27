@@ -99,25 +99,33 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   const [formData, setFormDataRaw] = useState(getInitialFormData(selectedCollection, editingItem));
 
-  // Setter qui recalcule _eventSegments uniquement si un champ de type 'date' est modifié
+  // Setter qui recalcule _eventSegments uniquement si un champ de type 'date' est modifié,
+  // mais NE recalcule PAS si _eventSegments existe déjà (pour préserver les suppressions manuelles)
   const setFormData = (data: any, recalcSegments: boolean = false) => {
     if (recalcSegments) {
-      // Si on modifie un champ date, on recalcule _eventSegments
-      setFormDataRaw(updateEventSegments(data, selectedCollection));
+      // Si on modifie un champ date, on recalcule _eventSegments UNIQUEMENT si _eventSegments n'est pas déjà présent
+      if (data._eventSegments) {
+        setFormDataRaw(data);
+      } else {
+        setFormDataRaw(updateEventSegments(data, selectedCollection));
+      }
     } else {
       // Si data possède déjà _eventSegments, on les garde
       if (data._eventSegments) {
         setFormDataRaw(data);
       } else {
-        // Si pas de _eventSegments, on recalcule (cas création)
         setFormDataRaw(updateEventSegments(data, selectedCollection));
       }
     }
   };
 
-  // Recalcule _eventSegments à chaque changement de collection (pour initialiser correctement)
+  // Lors d'un changement de collection, NE PAS régénérer _eventSegments si déjà présent dans formData
   React.useEffect(() => {
-    setFormDataRaw(updateEventSegments(formData, selectedCollection));
+    if (formData && formData._eventSegments) {
+      setFormDataRaw({ ...formData });
+    } else {
+      setFormDataRaw(updateEventSegments(formData, selectedCollection));
+    }
     // eslint-disable-next-line
   }, [selectedCollection]);
 

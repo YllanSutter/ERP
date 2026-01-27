@@ -333,53 +333,22 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         groupItems.forEach((item: any) => {
           const segments = Array.isArray(item._eventSegments) ? item._eventSegments : [];
           // On filtre par label : uniquement les segments dont le label correspond exactement à la colonne (leaf.label)
-
           const segmentsForDay = segments.filter((seg: any) => {
-            // On filtre par label égal au nom du champ dateField
             if (typeof seg.label !== 'string' || seg.label.trim() === '' || !dateField || seg.label !== dateField.name) return false;
             const segStart = new Date(seg.start);
             const segEnd = new Date(seg.end);
-            // Le segment couvre-t-il ce jour ?
-            return segStart.toLocaleDateString('fr-CA') === key || segEnd.toLocaleDateString('fr-CA') === key ||
-              (segStart < day && segEnd > day);
+            // On ne prend en compte que les segments dont le start ET le end sont le même jour (donc pas de multi-jour)
+            return segStart.toLocaleDateString('fr-CA') === key && segEnd.toLocaleDateString('fr-CA') === key;
           });
-          // Additionner la durée de toutes les plages de ce jour
           let totalHours = 0;
           segmentsForDay.forEach((seg: any) => {
             const segStart = new Date(seg.start);
             const segEnd = new Date(seg.end);
-            // Calculer la durée sur ce jour uniquement
-            let start = segStart;
-            let end = segEnd;
-            // Clamp sur la journée, mais on garde l'heure/minute exacte
-            if (start.toLocaleDateString('fr-CA') < key) {
-              start = new Date(day);
-              start.setHours(0, 0, 0, 0);
-            }
-            if (end.toLocaleDateString('fr-CA') > key) {
-              end = new Date(day);
-              // On termine à 23:59:59.999 pour ne pas déborder sur le jour suivant
-              end.setHours(23, 59, 59, 999);
-              // Mais si segEnd < end (ex: événement finit avant la fin du jour), on prend segEnd
-              if (segEnd < end) end = segEnd;
-            }
-            // Ne compter que si la plage couvre vraiment ce jour
-            if (end > start) {
-              const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-              totalHours += Math.max(0, hours);
-            }
+            const hours = (segEnd.getTime() - segStart.getTime()) / (1000 * 60 * 60);
+            totalHours += Math.max(0, hours);
           });
           if (totalHours > 0) {
             dailyObjectDurations[key][leaf.id][item.id] = totalHours;
-            // Log du temps affiché pour cette cellule/item/colonne
-            // console.log('[DASHBOARD][DUREE][CELL]', {
-            //   jour: key,
-            //   feuille: leaf.label,
-            //   itemId: item.id,
-            //   itemName: item.name,
-            //   totalHours,
-            //   segmentsForDay: segmentsForDay.map((seg: { start: any; end: any; label: any; }) => ({ start: seg.start, end: seg.end, label: seg.label }))
-            // });
           }
         });
 
