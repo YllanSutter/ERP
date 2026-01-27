@@ -686,10 +686,10 @@ app.post('/api/state', requireAuth, async (req, res) => {
       [favoriteViews, favoriteItems, userId]
     );
     await logAudit(userId, 'state.save', 'app_state', userId, { collections: collections.length });
-    // Émettre l'événement socket.io pour le hot reload
+    // Émettre l'événement socket.io pour le hot reload, avec l'id de l'utilisateur auteur
     if (global.io) {
-      console.log('[SOCKET] Emission de stateUpdated à tous les clients');
-      global.io.emit('stateUpdated');
+      console.log('[SOCKET] Emission de stateUpdated à tous les clients (userId: ' + userId + ')');
+      global.io.emit('stateUpdated', { userId });
     }
     return res.json({ ok: true });
   } catch (err) {

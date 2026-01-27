@@ -81,7 +81,8 @@ export function useErpSync({
 }: UseErpSyncParams) {
   // Hot reload sur événement 'stateUpdated' reçu du serveur
   const lastReloadRef = useRef(0);
-  const ignoreNextReloadRef = useRef(false);
+  // On mémorise la dernière sauvegarde locale pour ignorer les reloads qui suivent
+  const lastLocalSaveRef = useRef(0);
 
   // Fetch initial state when user is defined and component is mounted
   useEffect(() => {
@@ -111,7 +112,8 @@ export function useErpSync({
   // Quand on sauvegarde l'état, on ignore le prochain reload (car c'est nous qui avons modifié)
   useEffect(() => {
     if (!isLoaded || !user || !canEdit) return;
-    ignoreNextReloadRef.current = true;
+    // On note le timestamp de la dernière sauvegarde locale
+    lastLocalSaveRef.current = Date.now();
   }, [
     collections.length,
     collections.map((col: Collection) => (Array.isArray(col.items) ? col.items.length : 0)).reduce((a: number, b: number) => a + b, 0),
@@ -124,23 +126,22 @@ export function useErpSync({
   ]);
   useEffect(() => {
     if (!socket) return;
-    const reloadState = async () => {
+    const reloadState = async (payload?: { userId?: string }) => {
       const now = Date.now();
-            console.log('tyest');
-      if (ignoreNextReloadRef.current) {
-        ignoreNextReloadRef.current = false;
+      // Si l'event vient de nous-même, on ignore le reload
+      if (payload && payload.userId && user && payload.userId === user.id) {
+        // console.log('Ignoré: event stateUpdated vient de nous-même');
         return;
       }
+      // On garde aussi la protection temporelle (anti-spam)
       if (now - lastReloadRef.current < 5000) {
         return;
       }
       lastReloadRef.current = now;
       try {
-            console.log('tyest');
         const res = await fetch(`${API_URL}/state`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
-            console.log(data);
           if (data?.collections && data?.views) {
             setCollections(data.collections);
             setViews(data.views);
