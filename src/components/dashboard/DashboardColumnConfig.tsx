@@ -171,7 +171,19 @@ const DashboardColumnConfig = ({
     const updateRecursive = (nodes: any[]): any[] => {
       return nodes.map((node) => {
         if (node.id === nodeId) {
-          return { ...node, ...patch };
+          let next = { ...node, ...patch };
+          // Si on modifie le filtre et qu'une valeur est sélectionnée, on met à jour le label
+          if (
+            ('filterField' in patch || 'typeValues' in patch) &&
+            next.filterField &&
+            Array.isArray(next.typeValues) && next.typeValues.length === 1 && next.typeValues[0]
+          ) {
+            // Chercher le label de l'option si possible
+            const options = getOptions(next.filterField, next);
+            const opt = options.find((o: any) => o.value === next.typeValues[0]);
+            next.label = opt ? opt.label : next.typeValues[0];
+          }
+          return next;
         }
         if (node.children && node.children.length) {
           return { ...node, children: updateRecursive(node.children) };
