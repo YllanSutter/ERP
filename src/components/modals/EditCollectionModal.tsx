@@ -40,7 +40,7 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
+     <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]" onClick={onClose}>
       <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 min-min-w-[500px] max-h-[90vh] overflow-y-auto backdrop-blur">
         <h3 className="text-xl font-bold mb-6">Modifier la collection</h3>
         <div className="space-y-6">

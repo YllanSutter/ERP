@@ -12,7 +12,7 @@ const GroupModal: React.FC<GroupModalProps> = ({ properties, onClose, onAdd }) =
   const [property, setProperty] = useState('');
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]">
+     <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]" onClick={onClose}>
       <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 min-w-96 backdrop-blur">
         <h3 className="text-xl font-bold mb-6">Grouper par</h3>
         <select value={property} onChange={(e) => setProperty(e.target.value)} className="w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none mb-6">

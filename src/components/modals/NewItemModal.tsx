@@ -122,10 +122,19 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   }, [selectedCollection]);
 
   const handleChange = (propId: string, value: any) => {
-    // Vérifie si le champ modifié est de type 'date'
-    const prop = (orderedProperties && orderedProperties.length > 0 ? orderedProperties : selectedCollection.properties).find((p: any) => p.id === propId);
-    const isDate = prop && prop.type === 'date';
-    setFormData({ ...formData, [propId]: value }, isDate);
+    // Vérifie si le champ modifié est de type 'date' OU une durée associée à un champ date
+    const props = (orderedProperties && orderedProperties.length > 0 ? orderedProperties : selectedCollection.properties);
+    const prop = props.find((p: any) => p.id === propId);
+    let recalcSegments = false;
+    if (prop && prop.type === 'date') {
+      recalcSegments = true;
+    } else if (propId.endsWith('_duration')) {
+      // Si c'est un champ *_duration, vérifier qu'il existe un champ date correspondant
+      const datePropId = propId.replace(/_duration$/, '');
+      const dateProp = props.find((p: any) => p.id === datePropId && p.type === 'date');
+      if (dateProp) recalcSegments = true;
+    }
+    setFormData({ ...formData, [propId]: value }, recalcSegments);
   };
 
 
@@ -181,8 +190,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   // Pour la création, on recalcule dynamiquement les champs selon la collection sélectionnée
   // Pour l'édition, on garde orderedProperties (pour garder l'ordre de la vue courante)
-  // Si editingItem.isNew, on force le mode création
-  const isReallyEditing = editingItem && editingItem.id && !editingItem.isNew;
+  // Mode édition si un id existe, même si isNew traîne
+  const isReallyEditing = editingItem && editingItem.id;
   const propsList = isReallyEditing
     ? (orderedProperties && orderedProperties.length > 0 ? orderedProperties : selectedCollection.properties)
     : selectedCollection.properties;
@@ -453,6 +462,26 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                 <ul className="space-y-2">
                                   {segs.map((seg: any, idx: number) => (
                                     <li key={idx} className="p-2 rounded bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 flex items-center gap-2">
+                                      {/* Date de début (jour) */}
+                                      <input
+                                        type="date"
+                                        value={(() => {
+                                          const d = new Date(seg.start || seg.__eventStart);
+                                          return d.toISOString().slice(0, 10);
+                                        })()}
+                                        onChange={e => {
+                                          const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                                          const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
+                                          if (globalIdx !== -1) {
+                                            const d = new Date(seg.start || seg.__eventStart);
+                                            const [year, month, day] = e.target.value.split('-');
+                                            d.setFullYear(Number(year), Number(month) - 1, Number(day));
+                                            segsCopy[globalIdx] = { ...segsCopy[globalIdx], start: d.toISOString() };
+                                            setFormData({ ...formData, _eventSegments: segsCopy });
+                                          }
+                                        }}
+                                        style={{ width: 130, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center', marginRight: 4 }}
+                                      />
                                       {/* Heure et minutes de début */}
                                       <input
                                         type="number"
@@ -472,7 +501,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setFormData({ ...formData, _eventSegments: segsCopy });
                                           }
                                         }}
-                                        style={{ width: 24, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center' }}
+                                        style={{ width: 20, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center' }}
                                       />
                                       <span className="font-mono text-neutral-700 dark:text-neutral-300">h</span>
                                       <input
@@ -493,7 +522,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setFormData({ ...formData, _eventSegments: segsCopy });
                                           }
                                         }}
-                                        style={{ width: 24, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center', MozAppearance: 'textfield' }}
+                                        style={{ width: 20, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center', MozAppearance: 'textfield' }}
                                         inputMode="numeric"
                                         pattern="[0-9]*"
                                         onWheel={e => e.currentTarget.blur()}
@@ -520,7 +549,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setFormData({ ...formData, _eventSegments: segsCopy });
                                           }
                                         }}
-                                        style={{ width: 24, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center' }}
+                                        style={{ width: 20, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center' }}
                                       />
                                       <span className="font-mono text-neutral-700 dark:text-neutral-300">h</span>
                                       <input
@@ -541,7 +570,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setFormData({ ...formData, _eventSegments: segsCopy });
                                           }
                                         }}
-                                        style={{ width: 24, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center', MozAppearance: 'textfield' }}
+                                        style={{ width: 20, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center', MozAppearance: 'textfield' }}
                                         inputMode="numeric"
                                         pattern="[0-9]*"
                                         onWheel={e => e.currentTarget.blur()}

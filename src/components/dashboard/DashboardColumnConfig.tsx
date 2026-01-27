@@ -321,7 +321,7 @@ const DashboardColumnConfig = ({
                           const filteredVals = vals.filter(v => validIds.includes(v));
                           handleUpdateNode(node.id, { typeValues: filteredVals });
                         }}
-                        className="border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs focus:border-violet-500 focus:outline-none"
+                        className="border dark:bg-neutral-800 border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs focus:border-violet-500 focus:outline-none"
                         size={Math.min(options.length, 6) || 2}
                       >
                         {options.map((opt: any) => (
@@ -332,7 +332,7 @@ const DashboardColumnConfig = ({
                         {(node.typeValues || []).map((val: string) => {
                           const opt = options.find((o: any) => o.value === val);
                           return (
-                            <span key={val} className="px-2 py-0.5 rounded bg-violet-700/30 text-violet-100 text-xs border border-violet-700/40">
+                            <span key={val} className="px-2 py-0.5 rounded bg-violet-700/30 text-neutral-700 dark:text-white text-xs border border-violet-700/40">
                               {opt ? opt.label : val}
                             </span>
                           );
