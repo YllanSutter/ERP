@@ -37,8 +37,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
   }, [selectedTab]);
   return (
      <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]" onClick={onClose}>
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 min-w-96 backdrop-blur">
-        <h3 className="text-xl font-bold mb-6">Ajouter un filtre</h3>
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 min-w-96 max-h-[80vh] overflow-y-auto backdrop-blur" onClick={e => e.stopPropagation()} >        <h3 className="text-xl font-bold mb-6">Ajouter un filtre</h3>
         {/* Onglets collections */}
         <div className="flex gap-2 mb-4">
           {collections.map((col, idx) => (
