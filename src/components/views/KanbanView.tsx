@@ -190,7 +190,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
 
             {/* Cards Container */}
             <div 
-              className="space-y-3 min-h-[400px] rounded-lg border border-black/5 dark:border-white/5 bg-black/10 dark:bg-white/10 p-4"
+              className="space-y-3 max-h-[450px] rounded-lg border border-black/5 dark:border-white/5 bg-black/10 dark:bg-white/10 p-4 overflow-y-auto"
               onDragOver={handleDragOver}
               onDrop={() => handleDrop(column)}
             >
