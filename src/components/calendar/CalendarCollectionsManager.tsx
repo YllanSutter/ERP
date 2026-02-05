@@ -4,7 +4,10 @@ import DayView from '../CalendarView/DayView';
 import CollectionFilterPanel from './CollectionFilterPanel';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import WeekView from '../CalendarView/WeekView';
-import { updateEventSegments } from '@/lib/updateEventSegments';
+import { 
+  moveAllSegmentsOfItem, 
+  updateSegmentInItem 
+} from '@/lib/segmentManager';
 
 interface CalendarCollectionsManagerProps {
   collections: any[];
@@ -60,36 +63,34 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
       console.warn('[onEventDrop] Champ date non trouvé pour', item);
       return;
     }
+    
+    // NOUVEAU COMPORTEMENT: Tous les modifications passent par le segmentManager
+    // qui met en place l'item pour la sauvegarde en BDD
+    // Le serveur recalculera les segments si on modifie un champ date
+    
     if (moveAll) {
-      // Comportement classique : déplace tout (recalcule tout)
-      const newDateObj = new Date(newDate);
-      newDateObj.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
-      const updatedItem = { ...item, [dateField.id]: newDateObj.toISOString() };
-      const updatedWithSegments = updateEventSegments(updatedItem, col);
-      onEdit(updatedWithSegments);
+      // Déplace tout : modifie le champ date principal
+      // Le serveur recalculera les segments automatiquement
+      const updatedItem = moveAllSegmentsOfItem(item, dateField.id, newDate, newHours, newMinutes, col);
+      onEdit(updatedItem);
     } else if (typeof options?.segmentIndex === 'number' && Array.isArray(item._eventSegments)) {
       // Déplacement d'un seul segment : on ne modifie que ce segment dans _eventSegments
-      const updatedSegments = item._eventSegments.map((seg: any, idx: number) => {
-        if (idx === options.segmentIndex) {
-          // On modifie uniquement ce segment
-          const segStart = new Date(newDate);
-          segStart.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
-          const segEnd = new Date(segStart);
-          const duration = new Date(seg.end).getTime() - new Date(seg.start).getTime();
-          segEnd.setTime(segStart.getTime() + duration);
-          return { ...seg, start: segStart.toISOString(), end: segEnd.toISOString() };
-        }
-        return seg;
+      const duration = new Date(item._eventSegments[options.segmentIndex].end).getTime() - 
+                       new Date(item._eventSegments[options.segmentIndex].start).getTime();
+      
+      const segStart = new Date(newDate);
+      segStart.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
+      const segEnd = new Date(segStart.getTime() + duration);
+      
+      const updatedItem = updateSegmentInItem(item, options.segmentIndex, {
+        start: segStart.toISOString(),
+        end: segEnd.toISOString()
       });
-      const updatedItem = { ...item, _eventSegments: updatedSegments };
       onEdit(updatedItem);
     } else {
-      // Fallback : comportement classique (déplace tout)
-      const newDateObj = new Date(newDate);
-      newDateObj.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
-      const updatedItem = { ...item, [dateField.id]: newDateObj.toISOString() };
-      const updatedWithSegments = updateEventSegments(updatedItem, col);
-      onEdit(updatedWithSegments);
+      // Fallback : déplace tout
+      const updatedItem = moveAllSegmentsOfItem(item, dateField.id, newDate, newHours, newMinutes, col);
+      onEdit(updatedItem);
     }
   };
   // --- State pour la vue et la date courante ---

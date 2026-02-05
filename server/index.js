@@ -406,6 +406,145 @@ const requirePermission = (action, scopeBuilder = () => ({})) => {
   };
 };
 
+// --- Segment calculation function (shared logic) ---
+const breakStart = 12;
+const breakEnd = 13;
+const workDayStart = 9;
+const workDayEnd = 17;
+
+/**
+ * Calcule les segments de temps pour un item sur une période de jours de travail
+ */
+function calculateEventSegments(item, collection) {
+  if (!collection || !collection.properties) return item;
+  
+  const segments = [];
+  
+  collection.properties.forEach((prop) => {
+    if (prop.type === 'date' && item[prop.id]) {
+      const durationKey = `${prop.id}_duration`;
+      let duration = undefined;
+      
+      if (Object.prototype.hasOwnProperty.call(item, durationKey)) {
+        duration = Number(item[durationKey]);
+      } else if (prop.defaultDuration !== undefined && prop.defaultDuration !== null) {
+        duration = Number(prop.defaultDuration);
+      }
+      
+      // Si pas de durée valide, on ne génère pas de segment
+      if (duration === undefined || isNaN(duration) || duration <= 0) {
+        return;
+      }
+      
+      // Décale la date au lundi si samedi/dimanche
+      let startDate = item[prop.id];
+      let startDateObj = new Date(startDate);
+      
+      if (startDateObj.getDay() === 6) { // samedi
+        startDateObj.setDate(startDateObj.getDate() + 2);
+        startDateObj.setHours(0, 0, 0, 0);
+        startDate = startDateObj.toISOString();
+      } else if (startDateObj.getDay() === 0) { // dimanche
+        startDateObj.setDate(startDateObj.getDate() + 1);
+        startDateObj.setHours(0, 0, 0, 0);
+        startDate = startDateObj.toISOString();
+      }
+      
+      // Appelle la fonction de découpe
+      const segs = splitEventByWorkdaysServer(
+        { startDate, durationHours: duration },
+        { startCal: workDayStart, endCal: workDayEnd, breakStart, breakEnd }
+      );
+      
+      segs.forEach(seg => {
+        segments.push({
+          start: seg.__eventStart instanceof Date ? seg.__eventStart.toISOString() : seg.__eventStart,
+          end: seg.__eventEnd instanceof Date ? seg.__eventEnd.toISOString() : seg.__eventEnd,
+          label: prop.name,
+        });
+      });
+    }
+  });
+  
+  return { ...item, _eventSegments: segments };
+}
+
+/**
+ * Découpe un événement sur plusieurs jours ouvrés (version serveur)
+ */
+function splitEventByWorkdaysServer(item, opts) {
+  const { startCal, endCal, breakStart, breakEnd } = opts;
+  const start = new Date(item.startDate || item.start);
+  
+  let durationMs = 0;
+  if (item.durationHours) {
+    durationMs = item.durationHours * 60 * 60 * 1000;
+  }
+  
+  if (!start || isNaN(start.getTime()) || durationMs <= 0) {
+    return [];
+  }
+  
+  const events = [];
+  let remainingMs = durationMs;
+  let current = new Date(start);
+  
+  while (remainingMs > 0) {
+    // Saute les weekends
+    while (current.getDay() === 0 || current.getDay() === 6) {
+      current.setDate(current.getDate() + 1);
+      current.setHours(startCal, 0, 0, 0);
+    }
+    
+    // Définit les bornes de la journée
+    let dayStart = new Date(current);
+    let dayEnd = new Date(current);
+    dayStart.setHours(startCal, 0, 0, 0);
+    dayEnd.setHours(endCal, 0, 0, 0);
+    
+    let segmentStart = new Date(Math.max(dayStart.getTime(), current.getTime()));
+    
+    let pauseStart = new Date(current);
+    pauseStart.setHours(breakStart, 0, 0, 0);
+    let pauseEnd = new Date(current);
+    pauseEnd.setHours(breakEnd, 0, 0, 0);
+    
+    // Matin (avant pause)
+    if (segmentStart < pauseStart && segmentStart < dayEnd && remainingMs > 0) {
+      let segmentEnd = new Date(Math.min(pauseStart.getTime(), segmentStart.getTime() + remainingMs));
+      const segmentDuration = segmentEnd.getTime() - segmentStart.getTime();
+      
+      events.push({
+        __eventStart: new Date(segmentStart),
+        __eventEnd: new Date(segmentEnd),
+      });
+      
+      remainingMs -= segmentDuration;
+      segmentStart = new Date(pauseEnd);
+    }
+    
+    // Après-midi (après pause)
+    if (segmentStart < dayEnd && remainingMs > 0) {
+      let segmentEnd = new Date(Math.min(dayEnd.getTime(), segmentStart.getTime() + remainingMs));
+      const segmentDuration = segmentEnd.getTime() - segmentStart.getTime();
+      
+      if (segmentDuration > 0) {
+        events.push({
+          __eventStart: new Date(segmentStart),
+          __eventEnd: new Date(segmentEnd),
+        });
+        remainingMs -= segmentDuration;
+      }
+    }
+    
+    // Passe au jour suivant
+    current.setDate(current.getDate() + 1);
+    current.setHours(startCal, 0, 0, 0);
+  }
+  
+  return events;
+}
+
 const logAudit = async (userId, action, targetType, targetId, details = {}) => {
   try {
     await pool.query(
@@ -655,29 +794,48 @@ app.post('/api/state', requireAuth, async (req, res) => {
     // Séparer les favoris du reste de l'état
     const { favorites, ...stateData } = payload;
     const collections = stateData.collections || [];
-    // DEBUG: Log les _eventSegments de chaque item avant sauvegarde
-    for (const col of collections) {
+    
+    // IMPORTANT: Recalculer les segments côté serveur pour chaque item
+    // Cela garantit que les segments sont TOUJOURS en accord avec les champs date/durée
+    const processedCollections = collections.map((col) => {
+      if (!col.items) return col;
+      
+      const processedItems = col.items.map((item) => {
+        // Recalcule _eventSegments basé sur les champs date/durée de la collection
+        return calculateEventSegments(item, col);
+      });
+      
+      return { ...col, items: processedItems };
+    });
+    
+    // DEBUG: Log les _eventSegments après recalcul
+    for (const col of processedCollections) {
       if (col.items) {
         for (const item of col.items) {
-          if (item._eventSegments) {
-            console.log(`[SAVE] item ${item.id} _eventSegments:`, item._eventSegments);
+          if (item._eventSegments && item._eventSegments.length > 0) {
+            console.log(`[SAVE] item ${item.id} _eventSegments recalculés:`, item._eventSegments);
           }
         }
       }
     }
+    
     // Vérifier les permissions pour les collections
-    for (const col of collections) {
+    for (const col of processedCollections) {
       if (!hasPermission(req.auth, { collection_id: col.id }, 'can_write')) {
         return res.status(403).json({ error: `Forbidden to write collection ${col.id}` });
       }
     }
-    // Sauvegarder l'état utilisateur (sans favoris) dans app_state
-    const stateStr = JSON.stringify(stateData);
+    
+    // Sauvegarder l'état utilisateur (avec segments recalculés) dans app_state
+    const stateDataWithSegments = { ...stateData, collections: processedCollections };
+    const stateStr = JSON.stringify(stateDataWithSegments);
+    
     // Upsert : si la ligne existe, update, sinon insert
-   const updateRes = await pool.query('UPDATE app_state SET data = $1', [stateStr]);
+    const updateRes = await pool.query('UPDATE app_state SET data = $1', [stateStr]);
     if (updateRes.rowCount === 0) {
       await pool.query('INSERT INTO app_state (data) VALUES ($1)', [stateStr]);
     }
+    
     // Sauvegarder les favoris de l'utilisateur
     const favoriteViews = favorites?.views || [];
     const favoriteItems = favorites?.items || [];
@@ -685,12 +843,14 @@ app.post('/api/state', requireAuth, async (req, res) => {
       'UPDATE users SET favorite_views = $1, favorite_items = $2 WHERE id = $3',
       [favoriteViews, favoriteItems, userId]
     );
-    await logAudit(userId, 'state.save', 'app_state', userId, { collections: collections.length });
+    await logAudit(userId, 'state.save', 'app_state', userId, { collections: processedCollections.length });
+    
     // Émettre l'événement socket.io pour le hot reload, avec l'id de l'utilisateur auteur
     if (global.io) {
       console.log('[SOCKET] Emission de stateUpdated à tous les clients (userId: ' + userId + ')');
       global.io.emit('stateUpdated', { userId });
     }
+    
     return res.json({ ok: true });
   } catch (err) {
     console.error('Failed to save state', err);

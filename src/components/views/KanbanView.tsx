@@ -4,10 +4,8 @@ import { GripHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EditableProperty from '@/components/fields/EditableProperty';
-import { updateEventSegments } from '@/lib/updateEventSegments';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
-
 interface KanbanViewProps {
   collection: any;
   items: any[];
@@ -251,7 +249,8 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                                 property={firstProp}
                                 value={item[firstProp.id]}
                                 onChange={(val) => {
-                                  const updated = updateEventSegments({ ...item, [firstProp.id]: val }, collection);
+                                  // Pas de recalcul côté client - le serveur le fera
+                                  const updated = { ...item, [firstProp.id]: val };
                                   onEdit(updated);
                                 }}
                                 size="sm"
@@ -289,7 +288,8 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                                   property={prop}
                                   value={item[prop.id]}
                                   onChange={(val) => {
-                                    const updated = updateEventSegments({ ...item, [prop.id]: val }, collection);
+                                    // Pas de recalcul côté client - le serveur le fera
+                                    const updated = { ...item, [prop.id]: val };
                                     onEdit(updated);
                                   }}
                                   size="sm"

@@ -1,40 +1,34 @@
+import React, { Fragment, useState, useRef, useEffect } from 'react';
 import { ColorSet, EventStyle, calculateEventPosition, formatTimeDisplay, formatFieldValue as formatFieldValueUtil, splitEventByWorkdays } from '@/lib/calendarUtils';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 import EditableProperty from '@/components/fields/EditableProperty';
-import { GripHorizontal } from 'lucide-react';
+import { GripHorizontal, Trash2 } from 'lucide-react';
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from '@/components/ui/context-menu';
+import { motion } from 'framer-motion';
 
 // Génère une couleur unique à partir de l'id
 function colorFromId(id: string): ColorSet {
-  // Simple hash pour générer une couleur
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
     hash = id.charCodeAt(i) + ((hash << 5) - hash);
   }
-  // Palette de couleurs pastel
   const colors = [
     '#A3E635', '#FBBF24', '#38BDF8', '#F472B6', '#F87171', '#34D399', '#818CF8', '#F9A8D4', '#FACC15', '#60A5FA', '#FCA5A5', '#4ADE80', '#FDE68A', '#A7F3D0', '#C4B5FD'
   ];
   const idx = Math.abs(hash) % colors.length;
   const bg = colors[idx];
   return {
-  border: bg,
-  bg: bg + '22', // couleur pastel + transparence
-  hover: bg + '44',
-  text: ''
-};
+    border: bg,
+    bg: bg + '22',
+    hover: bg + '44',
+    text: ''
+  };
 }
-import React, { Fragment } from 'react';
-import {
-  ContextMenu,
-  ContextMenuTrigger,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuLabel,
-} from '@/components/ui/context-menu';
-import { motion } from 'framer-motion';
-import { Trash2 } from 'lucide-react';
-import { updateEventSegments } from '@/lib/updateEventSegments';
 
 interface WeekEventCardProps {
   item: any;
@@ -90,7 +84,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   onShowNewItemModalForCollection,
 }) => {
 
-  const dragRef = React.useRef<HTMLDivElement>(null);
+  const dragRef = useRef<HTMLDivElement>(null);
   const space = 6;
   const widthPercent = ((1 / totalColumns) * 100) - space;
   const leftPercent = (column * widthPercent) + (space/2);
@@ -152,11 +146,11 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
       hoursLength
     );
     // Gestion du redimensionnement (resize)
-    const [isResizing, setIsResizing] = React.useState(false);
-    const [resizePreviewEndTime, setResizePreviewEndTime] = React.useState<number | null>(null);
-    const resizeStartY = React.useRef<number | null>(null);
-    const initialHeight = React.useRef<number>(0);
-    const initialEndTime = React.useRef<number>(endTime);
+    const [isResizing, setIsResizing] = useState(false);
+    const [resizePreviewEndTime, setResizePreviewEndTime] = useState<number | null>(null);
+    const resizeStartY = useRef<number | null>(null);
+    const initialHeight = useRef<number>(0);
+    const initialEndTime = useRef<number>(endTime);
     // Appel du parent pour appliquer la nouvelle durée
     const handleResizeMouseDown = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -167,7 +161,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
       setResizePreviewEndTime(endTime);
       document.body.style.cursor = 'ns-resize';
     };
-    React.useEffect(() => {
+    useEffect(() => {
       if (!isResizing) return;
       const handleMouseMove = (e: MouseEvent) => {
         if (resizeStartY.current === null) return;
@@ -246,11 +240,11 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
               opacity: isResizing ? 0.85 : 1,
               boxShadow: isResizing ? '0 0 0 2px #a5b4fc' : undefined,
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = objectColors.hover)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = objectColors.bg)}
+            onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => (e.currentTarget.style.backgroundColor = objectColors.hover)}
+            onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => (e.currentTarget.style.backgroundColor = objectColors.bg)}
             onDragStart={(e: any) => handleDragStart(e)}
             onDragEnd={(e: any) => handleDragEnd(e)}
-            onContextMenu={(e) => { e.stopPropagation(); }}
+            onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => { e.stopPropagation(); }}
           >
             <div className="flex gap-2 items-center">
               {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}
@@ -304,7 +298,9 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
                         value={item[prop.id]}
                         onChange={(val) => {
                           if (typeof onEditField === 'function') {
-                            const updated = updateEventSegments({ ...item, [prop.id]: val }, itemCollection);
+                            // Pas de recalcul côté client - juste mettre à jour le champ
+                            // Le serveur recalculera les segments via POST /api/state
+                            const updated = { ...item, [prop.id]: val };
                             onEditField(updated);
                           }
                         }}

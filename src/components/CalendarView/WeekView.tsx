@@ -11,7 +11,7 @@ import {
   workDayStart,
   workDayEnd
 } from '@/lib/calendarUtils';
-import { updateEventSegments } from '@/lib/updateEventSegments';
+import { removeSegmentFromItem } from '@/lib/segmentManager';
 
 interface WeekViewProps {
   currentDate: Date;
@@ -325,22 +325,24 @@ const WeekView: React.FC<WeekViewProps> = ({
                         onReduceDuration={(_item, arg) => {
                           // Suppression segment : on ne supprime que si arg === multiDayIndex (entier)
                           if (typeof arg === 'number' && Number.isInteger(arg) && arg === multiDayIndex) {
-                            const updatedSegments = (item._eventSegments || []).filter((_: any, idx: number) => idx !== arg);
-                            const updatedItem = { ...item, _eventSegments: updatedSegments };
+                            const updatedItem = removeSegmentFromItem(item, arg);
                             if (onEdit) onEdit(updatedItem);
                             return;
                           }
-                          // Sinon, on réduit la durée du segment courant (comme avant)
+                          // Sinon, on réduit la durée du segment courant (modifie le champ end)
                           const newDuration = arg;
-                          const updatedSegments = (item._eventSegments || []).map((seg: any, idx: number) => {
+                          const seg = item._eventSegments?.[multiDayIndex];
+                          if (!seg) return;
+                          
+                          const start = new Date(seg.start || seg.__eventStart);
+                          const end = new Date(start.getTime() + (newDuration * 60 * 60 * 1000));
+                          
+                          const updatedItem = { ...item, _eventSegments: (item._eventSegments || []).map((s: any, idx: number) => {
                             if (idx === multiDayIndex) {
-                              const start = new Date(seg.start || seg.__eventStart);
-                              const end = new Date(start.getTime() + (newDuration * 60 * 60 * 1000));
-                              return { ...seg, end: end.toISOString() };
+                              return { ...s, end: end.toISOString() };
                             }
-                            return seg;
-                          });
-                          const updatedItem = { ...item, _eventSegments: updatedSegments };
+                            return s;
+                          }) };
                           if (onEdit) onEdit(updatedItem);
                         }}
                         canViewField={canViewField}

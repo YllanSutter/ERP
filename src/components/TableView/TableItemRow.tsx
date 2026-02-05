@@ -2,7 +2,6 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
-import { updateEventSegments } from '@/lib/updateEventSegments';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -75,7 +74,8 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                 property={prop}
                 value={item[prop.id]}
                 onChange={(val) => {
-                  const updated = updateEventSegments({ ...item, [prop.id]: val }, collections.find(c => c.id === item.__collectionId));
+                  // Pas de recalcul côté client - le serveur le fera
+                  const updated = { ...item, [prop.id]: val };
                   onEdit(updated);
                 }}
                 size="md"
@@ -125,7 +125,8 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                     property={prop}
                     value={item[prop.id]}
                     onChange={(val) => {
-                      const updated = updateEventSegments({ ...item, [prop.id]: val }, collections.find(c => c.id === item.__collectionId));
+                      // Pas de recalcul côté client - le serveur le fera
+                      const updated = { ...item, [prop.id]: val };
                       onEdit(updated);
                     }}
                     size="sm"

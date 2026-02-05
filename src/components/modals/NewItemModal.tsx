@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 // Mini composant Tabs local
 function Tabs({ tabs, active, onTab, className = "" }: { tabs: string[], active: string, onTab: (tab: string) => void, className?: string }) {
   return (
@@ -19,11 +19,11 @@ function Tabs({ tabs, active, onTab, className = "" }: { tabs: string[], active:
   );
 }
 import { motion } from 'framer-motion';
-import { Star } from 'lucide-react';
+import { Star, Trash2 } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { splitEventByWorkdays, workDayStart, workDayEnd, breakStart, breakEnd } from '@/lib/calendarUtils';
-import { updateEventSegments } from '@/lib/updateEventSegments';
+import { calculateSegmentsClient, formatSegmentDisplay } from '@/lib/calculateSegmentsClient';
 import { cn } from '@/lib/utils';
 
 
@@ -78,71 +78,58 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     });
     // Pour chaque champ *_duration, si pas de valeur, injecte la valeur par défaut
     props.forEach((prop: any) => {
-      if (prop.id.endsWith('_duration') && data[prop.id] === undefined && prop.defaultValue !== undefined && prop.defaultValue !== null) {
-        data[prop.id] = prop.defaultValue;
+      if (prop.id.endsWith('_duration') && data[prop.id] === undefined) {
+        // Priorité : defaultValue du champ → defaultDuration → 1 heure par défaut
+        if (prop.defaultValue !== undefined && prop.defaultValue !== null) {
+          data[prop.id] = prop.defaultValue;
+        } else if (prop.defaultDuration !== undefined && prop.defaultDuration !== null) {
+          data[prop.id] = prop.defaultDuration;
+        } else {
+          // Initialiser avec 1 heure par défaut pour que les segments se génèrent
+          data[prop.id] = 1;
+        }
       }
     });
     // Si on édite, on force l'id dans le formData
     if (editingItem && editingItem.id) {
       data.id = editingItem.id;
     }
-    // Si l'item prérempli (BDD) possède déjà _eventSegments, on les garde
+    // IMPORTANT: Ne PLUS recalculer les segments côté client
+    // Les segments sont maintenant calculés côté serveur dans POST /api/state
+    // On garde seulement ceux qui proviennent de la BDD (si édition)
     if (prefill && prefill._eventSegments) {
       data._eventSegments = prefill._eventSegments;
-      return data;
+    } else {
+      // Initialiser avec un array vide - sera recalculé au serveur
+      data._eventSegments = [];
     }
-    // Sinon, on génère _eventSegments dynamiquement
-    return updateEventSegments(data, col);
+    return data;
   }
 
 
 
   const [formData, setFormDataRaw] = useState(getInitialFormData(selectedCollection, editingItem));
 
-  // Setter qui recalcule _eventSegments uniquement si un champ de type 'date' est modifié,
-  // mais NE recalcule PAS si _eventSegments existe déjà (pour préserver les suppressions manuelles)
-  const setFormData = (data: any, recalcSegments: boolean = false) => {
-    if (recalcSegments) {
-      // Si on modifie un champ date, on recalcule _eventSegments UNIQUEMENT si _eventSegments n'est pas déjà présent
-      if (data._eventSegments) {
-        setFormDataRaw(data);
-      } else {
-        setFormDataRaw(updateEventSegments(data, selectedCollection));
-      }
-    } else {
-      // Si data possède déjà _eventSegments, on les garde
-      if (data._eventSegments) {
-        setFormDataRaw(data);
-      } else {
-        setFormDataRaw(updateEventSegments(data, selectedCollection));
-      }
-    }
+  // NOUVEAU COMPORTEMENT: setFormData ne recalcule PLUS côté client
+  // Tout recalcul se fait côté serveur via POST /api/state
+  const setFormData = (data: any) => {
+    setFormDataRaw(data);
   };
 
-  // Lors d'un changement de collection, NE PAS régénérer _eventSegments si déjà présent dans formData
+  // Lors d'un changement de collection, garder les segments existants
   React.useEffect(() => {
     if (formData && formData._eventSegments) {
       setFormDataRaw({ ...formData });
     } else {
-      setFormDataRaw(updateEventSegments(formData, selectedCollection));
+      setFormDataRaw({ ...formData, _eventSegments: [] });
     }
     // eslint-disable-next-line
   }, [selectedCollection]);
 
   const handleChange = (propId: string, value: any) => {
-    // Vérifie si le champ modifié est de type 'date' OU une durée associée à un champ date
-    const props = (orderedProperties && orderedProperties.length > 0 ? orderedProperties : selectedCollection.properties);
-    const prop = props.find((p: any) => p.id === propId);
-    let recalcSegments = false;
-    if (prop && prop.type === 'date') {
-      recalcSegments = true;
-    } else if (propId.endsWith('_duration')) {
-      // Si c'est un champ *_duration, vérifier qu'il existe un champ date correspondant
-      const datePropId = propId.replace(/_duration$/, '');
-      const dateProp = props.find((p: any) => p.id === datePropId && p.type === 'date');
-      if (dateProp) recalcSegments = true;
-    }
-    setFormData({ ...formData, [propId]: value }, recalcSegments);
+    // Plus besoin de vérifier si c'est un champ date
+    // Tous les changements sont envoyés au serveur qui recalculera les segments
+    setFormData({ ...formData, [propId]: value });
   };
 
 
@@ -214,6 +201,19 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     ...dateProps.map((p: any) => ({ id: `_eventSegments_${p.id}`, name: `${p.name}`, type: 'segments', dateProp: p })),
   ];
   const [activeTab, setActiveTab] = useState(extraTabs[0]?.id || '');
+
+  // Calcule les segments prégénérés côté client (pour aperçu dans le modal)
+  const previewSegments = useMemo(() => {
+    return calculateSegmentsClient(formData, selectedCollection);
+  }, [formData, selectedCollection]);
+
+  // Détecte si les segments ont changé et demande confirmation
+  const segmentsHaveChanged = useMemo(() => {
+    if (!isReallyEditing || !editingItem) return false;
+    const oldSegments = editingItem._eventSegments || [];
+    const newSegments = previewSegments;
+    return JSON.stringify(oldSegments) !== JSON.stringify(newSegments);
+  }, [previewSegments, editingItem, isReallyEditing]);
 
   return (
     <div
@@ -439,22 +439,69 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 {dateProps.map((dateProp: any) => (
                   activeTab === `_eventSegments_${dateProp.id}` && (
                     <div key={`_eventSegments_${dateProp.id}`}>
-                      <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Plages horaires pour {dateProp.name}</label>
-                      <button
-                        className="mb-4 px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700"
-                        onClick={() => {
-                          const segs = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
-                          const now = new Date();
-                          const start = now.toISOString();
-                          const end = new Date(now.getTime() + 60*60*1000).toISOString();
-                          segs.push({ start, end, label: dateProp.name });
-                          setFormData({ ...formData, _eventSegments: segs });
-                        }}
-                        type="button"
-                      >Ajouter une plage</button>
+                      <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-4">Plages horaires pour {dateProp.name}</label>
+                      
+                      {/* Section: Aperçu des plages générées automatiquement */}
+                      <div className="mb-6 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="font-semibold text-sm text-blue-400">📋 Aperçu automatique</label>
+                          {segmentsHaveChanged && isReallyEditing && (
+                            <span className="text-xs px-2 py-1 bg-orange-500/30 text-orange-300 rounded border border-orange-500/30">Modifié</span>
+                          )}
+                        </div>
+                        {(() => {
+                          const autoSegments = previewSegments.filter((seg: { label: any; }) => seg.label === dateProp.name);
+                          if (!autoSegments || autoSegments.length === 0) {
+                            return <div className="text-neutral-500 text-xs italic">Aucune plage générée (vérifier: date remplie + durée définie)</div>;
+                          }
+                          return (
+                            <div className="space-y-2">
+                              {autoSegments.map((seg: any, idx: number) => (
+                                <div key={idx} className="text-sm text-neutral-400 flex items-center gap-2">
+                                  <span className="text-blue-400">▸</span>
+                                  {formatSegmentDisplay(seg)}
+                                </div>
+                              ))}
+                              {isReallyEditing && segmentsHaveChanged && (
+                                <button
+                                  type="button"
+                                  className="mt-2 w-full px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
+                                  onClick={() => {
+                                    // Remplacer les segments manuels par les segments auto-générés
+                                    const oldManualSegs = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label !== dateProp.name);
+                                    setFormData({ ...formData, _eventSegments: [...oldManualSegs, ...autoSegments] });
+                                  }}
+                                >
+                                  Appliquer ces plages
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* Section: Édition manuelle des plages */}
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Plages personnalisées</label>
+                          <button
+                            className="px-2 py-1 text-xs rounded bg-green-600 hover:bg-green-700 text-white transition-colors"
+                            onClick={() => {
+                              const segs = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                              const now = new Date();
+                              const start = now.toISOString();
+                              const end = new Date(now.getTime() + 60*60*1000).toISOString();
+                              segs.push({ start, end, label: dateProp.name });
+                              setFormData({ ...formData, _eventSegments: segs });
+                            }}
+                            type="button"
+                          >+ Ajouter</button>
+                        </div>
+                      </div>
+
                       {(() => {
                         const segments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
-                        if (!segments || segments.length === 0) return <div className="text-neutral-500 text-xs">Aucune plage horaire enregistrée</div>;
+                        if (!segments || segments.length === 0) return <div className="text-neutral-500 text-xs">Aucune plage personnalisée</div>;
                         // Grouper par jour
                         const segmentsByDay: Record<string, any[]> = {};
                         segments.forEach((seg: any) => {
@@ -620,6 +667,12 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           <ShinyButton
             onClick={() => {
               let dataToSave = { ...formData, __collectionId: selectedCollectionId };
+              
+              // Si on crée un nouvel item et que les segments sont vides, appliquer les segments prégénérés
+              if (!isReallyEditing && (!dataToSave._eventSegments || dataToSave._eventSegments.length === 0) && previewSegments.length > 0) {
+                dataToSave._eventSegments = previewSegments;
+              }
+              
               if (!isReallyEditing) {
                 const { id, ...rest } = dataToSave;
                 dataToSave = rest;

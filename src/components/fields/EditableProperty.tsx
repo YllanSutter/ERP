@@ -16,7 +16,6 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { workDayStart, workDayEnd } from '@/lib/calendarUtils';
-import { updateEventSegments } from '@/lib/updateEventSegments';
 
 interface EditablePropertyProps {
   property: any;
@@ -152,13 +151,9 @@ const UrlInput = ({
 // Hook utilitaire pour la logique de date
 const useDateHandlers = (property: any, currentItem: any, collections: any[], collection: any, onChange: (value: any) => void, onRelationChange?: (property: any, item: any, value: any) => void) => {
   const handleEventUpdate = useCallback((propId: string, val: any) => {
-    if ((!collections && !collection) || !currentItem) return;
-    const usedCollection = collection || (collections && currentItem.__collectionId && collections.find((c: any) => c.id === currentItem.__collectionId)) || (collections && collections[0]);
-    if (!usedCollection) return;
-    
-    const inputObj = { ...currentItem, [propId]: val };
-    const updated = updateEventSegments(inputObj, usedCollection);
-    updated._eventSegmentsByDay = groupSegmentsByDay(updated._eventSegments);
+    // NOUVEAU: Ne plus recalculer les segments côté client
+    // Juste mettre à jour le champ et laisser le serveur recalculer les segments
+    const updated = { ...currentItem, [propId]: val };
     
     if (typeof onChange === 'function') onChange(updated);
     if (typeof onRelationChange === 'function') onRelationChange(property, updated, val);
