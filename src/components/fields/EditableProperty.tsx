@@ -21,7 +21,7 @@ interface EditablePropertyProps {
   property: any;
   value: any;
   onChange: (value: any) => void;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   isNameField?: boolean;
   onViewDetail?: () => void;
   className?: string;
@@ -459,7 +459,8 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   const sizeClasses = {
     sm: 'text-xs h-7',
     md: 'text-sm h-8',
-    lg: 'text-base h-9'
+    lg: 'text-base h-9',
+    xl: 'text-xl h-9'
   }[size];
 
   // Name field link
@@ -750,7 +751,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     // Si forceRichEditor ou showEditor, on affiche l'éditeur complet
     if (forceRichEditor || showEditor) {
       return (
-        <div ref={editorContainerRef} className={className + ' tiptap-editor'} style={{ minHeight: '120px' }}>
+        <div ref={editorContainerRef} className={className + ' tiptap-editor'} style={{ minHeight: '300px' }}>
           {/* Barre d'outils Tiptap améliorée */}
           <div className="tiptap-toolbar flex flex-wrap gap-1 mb-2 p-1 rounded bg-gray-100  dark:bg-neutral-900 border border-black/10 dark:border-white/10">
             <button type="button" onClick={() => editor?.chain().focus().toggleBold().run()} className={editor?.isActive('bold') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Gras"><b>B</b></button>
