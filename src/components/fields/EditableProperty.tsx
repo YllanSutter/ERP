@@ -116,35 +116,45 @@ const UrlInput = ({
   className?: string; 
   readOnly?: boolean; 
 }) => {
-  const url = value.startsWith('http://') || value.startsWith('https://') ? value : `https://${value}`;
-  const urlLength = Math.max(20, value.length);
-  
+  const protocol = value.startsWith('http://') ? 'http://' : 'https://';
+  const withoutProtocol = value.replace(/^https?:\/\//, '');
+  const url = withoutProtocol ? `${protocol}${withoutProtocol}` : '';
+  const urlLength = Math.max(20, withoutProtocol.length || 10);
+
   return (
-    <span
-      className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-blue-900/30 transition', className)}
-      title={value}
-    >
-      <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-neutral-700 dark:hover:text-white text-blue-500 transition-all duration-300">
-        <Icons.Link size={13} className="opacity-80 mr-1" />
-      </a>
+    <div className={cn('flex items-center gap-2 w-full', className)}>
+      <span className="text-neutral-500">
+        <Icons.Link size={13} className="opacity-70" />
+      </span>
+      <span className="text-xs text-neutral-500">{protocol}</span>
       <input
         type="text"
-        value={value.replace(/^https?:\/\//, '')}
+        value={withoutProtocol}
         onChange={e => {
           const inputVal = e.target.value;
-          let newVal = inputVal;
-          if (value.startsWith('http://')) newVal = 'http://' + inputVal.replace(/^https?:\/\//, '');
-          else if (value.startsWith('https://')) newVal = 'https://' + inputVal.replace(/^https?:\/\//, '');
-          onChange(newVal);
+          const nextProtocol = value.startsWith('http://') ? 'http://' : 'https://';
+          onChange(inputVal ? `${nextProtocol}${inputVal.replace(/^https?:\/\//, '')}` : '');
         }}
-        className="truncate max-w-[200px] bg-transparent border-none outline-none hover:text-neutral-700 dark:hover:text-white text-blue-500 px-0 py-0.5 focus:ring-0 focus:outline-none transition-all duration-300"
+        className={cn(
+          "flex-1 bg-transparent  text-neutral-700 dark:text-white px-0 py-0.5 focus:border-violet-500 focus:outline-none",
+          sizeClasses
+        )}
         style={{ width: `${urlLength}ch` }}
         disabled={readOnly}
+        placeholder="exemple.com"
       />
-      <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-neutral-700 dark:hover:text-white text-blue-500 transition-all duration-300">
-        <Icons.ExternalLink size={12} className="ml-1 opacity-60" />
-      </a>
-    </span>
+      {url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-neutral-500 hover:text-neutral-700 dark:hover:text-white transition-colors"
+          title="Ouvrir le lien"
+        >
+          <Icons.ExternalLink size={12} />
+        </a>
+      )}
+    </div>
   );
 };
 

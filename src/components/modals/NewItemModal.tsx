@@ -391,7 +391,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               {classicPropsSansRichText.slice(1).map((prop: any) => (
                 <div
                   key={prop.id}
-                  className="flex gap-0 items-stretch group/item focus-within:z-10"
+                  className="flex gap-0 items-stretch group/item focus-within:z-10 py-2 border-b border-black/10 dark:border-white/10 last:border-b-0"
                   onMouseOver={() => {
                     const mini = document.getElementById(`mini-bar-${prop.id}`);
                     if (mini) mini.style.background = 'rgba(255,255,255,0.15)';
@@ -413,8 +413,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     <label
                       id={`label-${prop.id}`}
                       className={
-                        "block text-sm font-medium text-neutral-700 dark:text-neutral-300 whitespace-nowrap w-full px-3 py-2 rounded-l transition-colors duration-100 " +
-                        "group-hover:bg-black/5 dark:group-hover:bg-white/5 group-focus-within:bg-black/5 dark:group-focus-within:bg-white/5 focus-within:bg-black/5 dark:focus-within:bg-white/5 hover:bg-black/5 dark:hover:bg-white/5 "
+                        "block text-sm font-medium text-neutral-700 dark:text-neutral-300 whitespace-nowrap w-full px-3 py-2 transition-colors duration-100"
                       }
                       htmlFor={`field-${prop.id}`}
                     >
