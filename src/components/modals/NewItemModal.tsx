@@ -459,11 +459,19 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 const autoSegments = previewSegments.filter((seg: { label: any; }) => seg.label === dateProp.name);
                 
                 // Résumé : nombre de plages et durée totale
-                const totalDuration = segments.reduce((acc: number, seg: any) => {
+                const getSegmentHours = (seg: any) => {
                   const start = new Date(seg.start || seg.__eventStart);
                   const end = new Date(seg.end || seg.__eventEnd);
-                  return acc + (end.getTime() - start.getTime()) / (1000 * 60 * 60); // en heures
-                }, 0);
+                  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+                  const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                  if (diffHours >= 0 && diffHours <= 24) return diffHours;
+                  const startMinutes = start.getHours() * 60 + start.getMinutes();
+                  const endMinutes = end.getHours() * 60 + end.getMinutes();
+                  let minutes = endMinutes - startMinutes;
+                  if (minutes < 0) minutes += 24 * 60;
+                  return minutes / 60;
+                };
+                const totalDuration = segments.reduce((acc: number, seg: any) => acc + getSegmentHours(seg), 0);
 
                 return (
                   <div key={`_eventSegments_${dateProp.id}`} className="pb-4 mb-4 border-b border-black/5 dark:border-white/5 last:border-0 last:pb-0 last:mb-0">
