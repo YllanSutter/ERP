@@ -3,94 +3,12 @@
  * Identique à la logique serveur mais exécuté côté client
  */
 
-const workDayStart = 9;
-const workDayEnd = 17;
-const breakStart = 12;
-const breakEnd = 13;
+import { splitEventByWorkdays, workDayStart, workDayEnd, breakStart, breakEnd } from '@/lib/calendarUtils';
 
 interface EventSegment {
   start: string;
   end: string;
   label: string;
-}
-
-/**
- * Découpe un événement sur plusieurs jours ouvrés (version client)
- */
-function splitEventByWorkdaysClient(item: any, opts: any) {
-  const { startCal, endCal, breakStart, breakEnd } = opts;
-  const start = new Date(item.startDate || item.start);
-
-  let durationMs = 0;
-  if (item.durationHours) {
-    durationMs = item.durationHours * 60 * 60 * 1000;
-  }
-
-  if (!start || isNaN(start.getTime()) || durationMs <= 0) {
-    return [];
-  }
-
-  const events = [];
-  let remainingMs = durationMs;
-  let current = new Date(start);
-
-  while (remainingMs > 0) {
-    // Saute les weekends
-    while (current.getDay() === 0 || current.getDay() === 6) {
-      current.setDate(current.getDate() + 1);
-      current.setHours(startCal, 0, 0, 0);
-    }
-
-    // Définit les bornes de la journée
-    let dayStart = new Date(current);
-    let dayEnd = new Date(current);
-    dayStart.setHours(startCal, 0, 0, 0);
-    dayEnd.setHours(endCal, 0, 0, 0);
-
-    let segmentStart = new Date(Math.max(dayStart.getTime(), current.getTime()));
-
-    let pauseStart = new Date(current);
-    pauseStart.setHours(breakStart, 0, 0, 0);
-    let pauseEnd = new Date(current);
-    pauseEnd.setHours(breakEnd, 0, 0, 0);
-
-    // Matin (avant pause)
-    if (segmentStart < pauseStart && segmentStart < dayEnd && remainingMs > 0) {
-      let segmentEnd = new Date(Math.min(pauseStart.getTime(), segmentStart.getTime() + remainingMs));
-      const segmentDuration = segmentEnd.getTime() - segmentStart.getTime();
-
-      events.push({
-        __eventStart: new Date(segmentStart),
-        __eventEnd: new Date(segmentEnd),
-      });
-
-      remainingMs -= segmentDuration;
-      current = new Date(pauseEnd);
-    }
-    // Après-midi (après pause)
-    else if (current < dayEnd && remainingMs > 0) {
-      let segmentStart = new Date(Math.max(pauseEnd.getTime(), current.getTime()));
-      let segmentEnd = new Date(Math.min(dayEnd.getTime(), segmentStart.getTime() + remainingMs));
-      const segmentDuration = segmentEnd.getTime() - segmentStart.getTime();
-
-      if (segmentDuration > 0) {
-        events.push({
-          __eventStart: new Date(segmentStart),
-          __eventEnd: new Date(segmentEnd),
-        });
-        remainingMs -= segmentDuration;
-      }
-
-      current = new Date(dayEnd);
-      current.setDate(current.getDate() + 1);
-      current.setHours(startCal, 0, 0, 0);
-    } else {
-      current.setDate(current.getDate() + 1);
-      current.setHours(startCal, 0, 0, 0);
-    }
-  }
-
-  return events;
 }
 
 /**
@@ -133,7 +51,7 @@ export function calculateSegmentsClient(item: any, collection: any): EventSegmen
         startDate = startDateObj.toISOString();
       }
 
-      const segs = splitEventByWorkdaysClient(
+      const segs = splitEventByWorkdays(
         { startDate, durationHours: duration },
         { startCal: workDayStart, endCal: workDayEnd, breakStart, breakEnd }
       );

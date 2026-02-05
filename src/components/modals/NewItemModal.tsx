@@ -22,7 +22,6 @@ import { motion } from 'framer-motion';
 import { Star, Trash2 } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import EditableProperty from '@/components/fields/EditableProperty';
-import { splitEventByWorkdays, workDayStart, workDayEnd, breakStart, breakEnd } from '@/lib/calendarUtils';
 import { calculateSegmentsClient, formatSegmentDisplay } from '@/lib/calculateSegmentsClient';
 import { cn } from '@/lib/utils';
 
@@ -234,16 +233,37 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-background dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-400 border border-black/10 dark:border-white/10 rounded-2xl p-8 py-4 w-[1200px] max-h-[80vh] overflow-y-auto backdrop-blur"
+        className="bg-background/95 dark:bg-neutral-950/90 text-neutral-700 dark:text-neutral-300 border border-black/10 dark:border-white/10 rounded-none w-screen h-screen max-w-[1600px] max-h-[90%] overflow-hidden backdrop-blur flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-2 pb-2 border-b border-black/10 dark:border-white/10">
-          <h3 className="text-xl font-bold">{isReallyEditing ? 'Modifier' : 'Nouveau'} {selectedCollection.name}</h3>
+        <div className="flex items-center justify-between px-8 py-5 border-b border-black/10 dark:border-white/10 bg-background/80 dark:bg-neutral-950/80 backdrop-blur">
+          <div className="flex-1 max-w-3xl">
+            {classicPropsSansRichText.length > 0 && (
+              <EditableProperty
+                property={classicPropsSansRichText[0]}
+                value={formData[classicPropsSansRichText[0].id]}
+                onChange={(val) => handleChange(classicPropsSansRichText[0].id, val)}
+                size="md"
+                collections={collections}
+                collection={collection}
+                currentItem={formData}
+                onRelationChange={(property, item, value) => {
+                  if (property.type === 'relation' || property.type === 'multi_select') {
+                    setFormData({ ...formData, [property.id]: value });
+                  } else {
+                    setFormData(item);
+                  }
+                }}
+                readOnly={false}
+                forceRichEditor={true}
+              />
+            )}
+          </div>
           {!isReallyEditing && (
-            <div className="gap-4 flex items-center">
-              <label className="block text-sm font-medium text-neutral-600 dark:text-neutral-300">Collection</label>
+            <div className="gap-3 flex items-center">
+              <label className="block text-xs font-medium text-neutral-500">Collection</label>
               <select
-                className="px-3 py-2 rounded bg-neutral-800 text-white border border-black/10 dark:border-white/10 focus:border-violet-500"
+                className="px-3 py-2 rounded-lg bg-neutral-800 text-white border border-black/10 dark:border-white/10 focus:border-violet-500"
                 value={selectedCollectionId}
                 onChange={handleCollectionChange}
               >
@@ -268,18 +288,53 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             </button>
           )}
         </div>
-        <div className="flex gap-2">
-          {/* Sélecteur de collection (création uniquement) */}
+        <div className="flex-1 overflow-y-auto px-8 py-6">
+          <div className="space-y-6">
+          
+          {/* Relations en haut sur toute la largeur */}
+          {relationProps.length > 0 && (
+            <div className="pb-6 border-b border-black/10 dark:border-white/10">
+              <h4 className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-4 uppercase tracking-wide">Relations</h4>
+              <div className="flex gap-4 items-center flex-wrap">
+                {relationProps.map((prop: any) => (
+                  <div className="flex items-center gap-3" key={prop.id}>
+                    <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
+                      {prop.name} {prop.required && <span className="text-red-500">*</span>}
+                    </label>
+                    <EditableProperty
+                      property={prop}
+                      value={formData[prop.id]}
+                      onChange={(val) => handleChange(prop.id, val)}
+                      size="md"
+                      collections={collections}
+                      collection={collection}
+                      currentItem={formData}
+                      onRelationChange={(property, item, value) => {
+                        setFormData({ ...formData, [property.id]: value });
+                      }}
+                      readOnly={false}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Grid à 2 colonnes : champs classiques à gauche, horaires à droite */}
+          <div className="grid grid-cols-1 xl:grid-cols-[1.6fr_0.6fr] gap-6">
           
           {/* Partie gauche : champs classiques */}
-          <div className="flex-1 min-w-[0] pr-4 border-r border-black/10 dark:border-white/10 relative">
+          <div className="min-w-[0] relative">
+            <div className="mb-4">
+              <h4 className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Détails</h4>
+            </div>
             {/* Grande barre verticale à droite des labels */}
             <div
               className="pointer-events-none absolute top-0 left-[100px] w-[1px] h-full rounded bg-black/10 dark:bg-white/10 transition-colors duration-100 z-10"
               id="big-label-bar"
             >
               {/* Petites barres alignées à chaque label (calcul dynamique) */}
-              {classicPropsSansRichText.map((prop: any) => (
+              {classicPropsSansRichText.slice(1).map((prop: any) => (
                 <div
                   key={prop.id}
                   id={`mini-bar-${prop.id}`}
@@ -301,13 +356,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 />
               ))}
             </div>
-            {classicPropsSansRichText.length === 0 && (
-              <div className="text-neutral-500 text-sm">Aucun champ classique</div>
+            {classicPropsSansRichText.length <= 1 && (
+              <div className="text-neutral-500 text-sm">Aucun champ classique supplémentaire</div>
             )}
             <div
-              className="flex flex-col space-y-2 group/classic-fields"
+              className="flex flex-col space-y-3 group/classic-fields"
             >
-              {classicPropsSansRichText.map((prop: any) => (
+              {classicPropsSansRichText.slice(1).map((prop: any) => (
                 <div
                   key={prop.id}
                   className="flex gap-0 items-stretch group/item focus-within:z-10"
@@ -364,306 +419,263 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               ))}
             </div>
           </div>
-          {/* Partie droite : relations sous forme d'onglets */}
-          <div className="flex-1 min-w-[0] pl-2">
-            {(() => {
-              // Tabs = richTextProps + extraTabs
-              const allTabs = [
-                ...extraTabs,
-                ...richTextProps.map((p: any) => ({ id: `_richText_${p.id}`, name: p.name, type: 'rich_text', prop: p }))
-              ];
-              if (allTabs.length === 0) {
-                return <div className="text-neutral-500 text-sm">Aucune relation</div>;
-              }
-              return <>
-                <Tabs
-                  tabs={allTabs.map((t: any) => t.name)}
-                  active={allTabs.find((t: any) => t.id === activeTab)?.name || allTabs[0].name}
-                  onTab={tabName => {
-                    const found = allTabs.find((t: any) => t.name === tabName);
-                    if (found) setActiveTab(found.id);
-                  }}
-                  className="mb-2"
-                />
-                
-                {/* Onglet unique pour toutes les relations */}
-                {activeTab === '__relations__' && (
-                  <div>
-                    {relationProps.length === 0 ? (
-                      <div className="text-neutral-500 text-sm">Aucune relation</div>
-                    ) : (
-                      <div className="space-y-4">
-                        {relationProps.map((prop: any) => (
-                          <div className="flex justify-between" key={prop.id}>
-                            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-                              {prop.name} {prop.required && <span className="text-red-500">*</span>}
-                            </label>
-                            <EditableProperty
-                              property={prop}
-                              value={formData[prop.id]}
-                              onChange={(val) => handleChange(prop.id, val)}
-                              size="md"
-                              collections={collections}
-                              collection={collection}
-                              currentItem={formData}
-                              onRelationChange={(property, item, value) => {
-                                setFormData({ ...formData, [property.id]: value });
+
+          {/* Colonne droite : Plages horaires */}
+          <div className="min-w-[0]">
+            <div className="mb-4">
+              <h4 className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Horaires</h4>
+            </div>
+            <div className="space-y-6">
+              {dateProps.length === 0 && (
+                <div className="text-neutral-500 text-sm">Aucun champ date</div>
+              )}
+              {dateProps.map((dateProp: any) => (
+                <div key={`_eventSegments_${dateProp.id}`} className="pb-4 mb-4 border-b border-black/5 dark:border-white/5 last:border-0 last:pb-0 last:mb-0">
+                  <label className="block text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-3">{dateProp.name}</label>
+                  <div className="mb-5 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-blue-400">Aperçu automatique</span>
+                      {segmentsHaveChanged && isReallyEditing && (
+                        <span className="text-[10px] px-2 py-0.5 bg-orange-500/30 text-orange-300 rounded border border-orange-500/30">Modifié</span>
+                      )}
+                    </div>
+                    {(() => {
+                      const autoSegments = previewSegments.filter((seg: { label: any; }) => seg.label === dateProp.name);
+                      if (!autoSegments || autoSegments.length === 0) {
+                        return <div className="text-neutral-500 text-xs italic">Aucune plage générée (vérifier: date + durée)</div>;
+                      }
+                      return (
+                        <div className="space-y-1">
+                          {autoSegments.map((seg: any, idx: number) => (
+                            <div key={idx} className="text-sm text-neutral-400 flex items-center gap-2">
+                              <span className="text-blue-400">▸</span>
+                              {formatSegmentDisplay(seg)}
+                            </div>
+                          ))}
+                          {isReallyEditing && segmentsHaveChanged && (
+                            <button
+                              type="button"
+                              className="mt-2 w-full px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
+                              onClick={() => {
+                                const oldManualSegs = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label !== dateProp.name);
+                                setFormData({ ...formData, _eventSegments: [...oldManualSegs, ...autoSegments] });
                               }}
-                              readOnly={false}
-                            />
+                            >
+                              Appliquer ces plages
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Plages personnalisées</span>
+                    <button
+                      className="px-2 py-1 text-xs rounded bg-green-600 hover:bg-green-700 text-white transition-colors"
+                      onClick={() => {
+                        const segs = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                        const now = new Date();
+                        const start = now.toISOString();
+                        const end = new Date(now.getTime() + 60*60*1000).toISOString();
+                        segs.push({ start, end, label: dateProp.name });
+                        setFormData({ ...formData, _eventSegments: segs });
+                      }}
+                      type="button"
+                    >+ Ajouter</button>
+                  </div>
+
+                  {(() => {
+                    const segments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
+                    if (!segments || segments.length === 0) return <div className="text-neutral-500 text-xs">Aucune plage personnalisée</div>;
+                    const segmentsByDay: Record<string, any[]> = {};
+                    segments.forEach((seg: any) => {
+                      const dayKey = new Date(seg.start || seg.__eventStart).toLocaleDateString('fr-FR');
+                      if (!segmentsByDay[dayKey]) segmentsByDay[dayKey] = [];
+                      segmentsByDay[dayKey].push(seg);
+                    });
+                    return (
+                      <div className="space-y-4">
+                        {Object.entries(segmentsByDay).map(([day, segs]) => (
+                          <div key={day}>
+                            <div className="font-semibold text-xs text-violet-300 mb-1">{day}</div>
+                            <ul className="space-y-2">
+                              {segs.map((seg: any, idx: number) => (
+                                <li key={idx} className="p-2 rounded bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 flex items-center gap-2">
+                                  <input
+                                    type="date"
+                                    value={(() => {
+                                      const d = new Date(seg.start || seg.__eventStart);
+                                      return d.toISOString().slice(0, 10);
+                                    })()}
+                                    onChange={e => {
+                                      const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                                      const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
+                                      if (globalIdx !== -1) {
+                                        const d = new Date(seg.start || seg.__eventStart);
+                                        const [year, month, day] = e.target.value.split('-');
+                                        d.setFullYear(Number(year), Number(month) - 1, Number(day));
+                                        segsCopy[globalIdx] = { ...segsCopy[globalIdx], start: d.toISOString() };
+                                        setFormData({ ...formData, _eventSegments: segsCopy });
+                                      }
+                                    }}
+                                    style={{ width: 130, fontSize: '0.9rem', border: 'none', background: 'transparent', textAlign: 'center', marginRight: 4 }}
+                                  />
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={23}
+                                    value={(() => {
+                                      const d = new Date(seg.start || seg.__eventStart);
+                                      return d.getHours();
+                                    })()}
+                                    onChange={e => {
+                                      const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                                      const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
+                                      if (globalIdx !== -1) {
+                                        const d = new Date(seg.start || seg.__eventStart);
+                                        d.setHours(Number(e.target.value));
+                                        segsCopy[globalIdx] = { ...segsCopy[globalIdx], start: d.toISOString() };
+                                        setFormData({ ...formData, _eventSegments: segsCopy });
+                                      }
+                                    }}
+                                    style={{ width: 20, fontSize: '0.9rem', border: 'none', background: 'transparent', textAlign: 'center' }}
+                                  />
+                                  <span className="font-mono text-neutral-700 dark:text-neutral-300">h</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={59}
+                                    value={(() => {
+                                      const d = new Date(seg.start || seg.__eventStart);
+                                      return d.getMinutes().toString().padStart(2, '0');
+                                    })()}
+                                    onChange={e => {
+                                      const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                                      const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
+                                      if (globalIdx !== -1) {
+                                        const d = new Date(seg.start || seg.__eventStart);
+                                        d.setMinutes(Number(e.target.value));
+                                        segsCopy[globalIdx] = { ...segsCopy[globalIdx], start: d.toISOString() };
+                                        setFormData({ ...formData, _eventSegments: segsCopy });
+                                      }
+                                    }}
+                                    style={{ width: 20, fontSize: '0.9rem', border: 'none', background: 'transparent', textAlign: 'center', MozAppearance: 'textfield' }}
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    onWheel={e => e.currentTarget.blur()}
+                                    onKeyDown={e => (e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.preventDefault()}
+                                  />
+                                  <span className="font-mono text-neutral-700 dark:text-neutral-300">m</span>
+                                  {' '}→{' '}
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={23}
+                                    value={(() => {
+                                      const d = new Date(seg.end || seg.__eventEnd);
+                                      return d.getHours();
+                                    })()}
+                                    onChange={e => {
+                                      const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                                      const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
+                                      if (globalIdx !== -1) {
+                                        const d = new Date(seg.end || seg.__eventEnd);
+                                        d.setHours(Number(e.target.value));
+                                        segsCopy[globalIdx] = { ...segsCopy[globalIdx], end: d.toISOString() };
+                                        setFormData({ ...formData, _eventSegments: segsCopy });
+                                      }
+                                    }}
+                                    style={{ width: 20, fontSize: '0.9rem', border: 'none', background: 'transparent', textAlign: 'center' }}
+                                  />
+                                  <span className="font-mono text-neutral-700 dark:text-neutral-300">h</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={59}
+                                    value={(() => {
+                                      const d = new Date(seg.end || seg.__eventEnd);
+                                      return d.getMinutes().toString().padStart(2, '0');
+                                    })()}
+                                    onChange={e => {
+                                      const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                                      const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
+                                      if (globalIdx !== -1) {
+                                        const d = new Date(seg.end || seg.__eventEnd);
+                                        d.setMinutes(Number(e.target.value));
+                                        segsCopy[globalIdx] = { ...segsCopy[globalIdx], end: d.toISOString() };
+                                        setFormData({ ...formData, _eventSegments: segsCopy });
+                                      }
+                                    }}
+                                    style={{ width: 20, fontSize: '0.9rem', border: 'none', background: 'transparent', textAlign: 'center', MozAppearance: 'textfield' }}
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    onWheel={e => e.currentTarget.blur()}
+                                    onKeyDown={e => (e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.preventDefault()}
+                                  />
+                                  <span className="font-mono text-neutral-700 dark:text-neutral-300">m</span>
+                                  <button
+                                    className="ml-2"
+                                    onClick={() => {
+                                      const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
+                                      const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
+                                      if (globalIdx !== -1) {
+                                        segsCopy.splice(globalIdx, 1);
+                                        setFormData({ ...formData, _eventSegments: segsCopy });
+                                      }
+                                    }}
+                                    type="button"
+                                    title="Supprimer la plage"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24"><path fill="#ef4444" d="M7 21q-.825 0-1.412-.587Q5 19.825 5 19V7H4q-.425 0-.712-.288Q3 6.425 3 6t.288-.713Q3.575 5 4 5h4V4q0-.825.588-1.412Q9.175 2 10 2h4q.825 0 1.413.588Q16 3.175 16 4v1h4q.425 0 .713.287Q21 5.575 21 6t-.287.712Q20.425 7 20 7h-1v12q0 .825-.587 1.413Q17.825 21 17 21Zm10-14H7v12q0 .425.288.713Q7.575 20 8 20h8q.425 0 .713-.287Q17.425 19.425 17.425 19V7ZM9 17q.425 0 .713-.288Q10 16.425 10 16v-6q0-.425-.287-.713Q9.425 9 9 9t-.713.287Q8 9.575 8 10v6q0 .425.287.713Q8.575 17 9 17Zm3 0q.425 0 .713-.288Q13 16.425 13 16v-6q0-.425-.287-.713Q12.425 9 12 9t-.713.287Q11 9.575 11 10v6q0 .425.287.713Q11.575 17 12 17Zm3 0q.425 0 .713-.288Q16 16.425 16 16v-6q0-.425-.287-.713Q15.425 9 15 9t-.713.287Q14 9.575 14 10v6q0 .425.287.713Q14.575 17 15 17ZM10 5h4V4h-4Z"/></svg>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         ))}
                       </div>
-                    )}
+                    );
+                  })()}
+                </div>
+              ))}
+            </div>
+          </div>
+          </div>
+
+          {/* Rich text en pleine largeur sur les deux colonnes */}
+          {richTextProps.length > 0 && (
+            <div className="pt-6 border-t border-black/10 dark:border-white/10">
+              <h4 className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-4 uppercase tracking-wide">Contenu riche</h4>
+              <div className="space-y-6">
+                {richTextProps.map((prop: any) => (
+                  <div key={prop.id} className="pb-6 border-b border-black/5 dark:border-white/5 last:border-0 last:pb-0">
+                    <div className="text-xs font-semibold text-neutral-500 mb-3">{prop.name}</div>
+                    <EditableProperty
+                      property={prop}
+                      value={formData[prop.id]}
+                      onChange={(val) => handleChange(prop.id, val)}
+                      size="md"
+                      collections={collections}
+                      collection={collection}
+                      currentItem={formData}
+                      readOnly={false}
+                      forceRichEditor={true}
+                    />
                   </div>
-                )}
-                {/* Onglet rich_text */}
-                {allTabs.filter(t => t.type === 'rich_text').map(tab => (
-                  activeTab === tab.id && (
-                    <div key={tab.id} className="mb-4">
-                      <EditableProperty
-                        property={tab.prop}
-                        value={formData[tab.prop.id]}
-                        onChange={(val) => handleChange(tab.prop.id, val)}
-                        size="md"
-                        collections={collections}
-                        collection={collection}
-                        currentItem={formData}
-                        readOnly={false}
-                        forceRichEditor={tab.type === 'rich_text'}
-                      />
-                    </div>
-                  )
                 ))}
-                {/* Onglets plages horaires par champ date - affichage lisible, sans édition du label */}
-                {dateProps.map((dateProp: any) => (
-                  activeTab === `_eventSegments_${dateProp.id}` && (
-                    <div key={`_eventSegments_${dateProp.id}`}>
-                      <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-4">Plages horaires pour {dateProp.name}</label>
-                      
-                      {/* Section: Aperçu des plages générées automatiquement */}
-                      <div className="mb-6 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
-                        <div className="flex items-center justify-between mb-3">
-                          <label className="font-semibold text-sm text-blue-400">📋 Aperçu automatique</label>
-                          {segmentsHaveChanged && isReallyEditing && (
-                            <span className="text-xs px-2 py-1 bg-orange-500/30 text-orange-300 rounded border border-orange-500/30">Modifié</span>
-                          )}
-                        </div>
-                        {(() => {
-                          const autoSegments = previewSegments.filter((seg: { label: any; }) => seg.label === dateProp.name);
-                          if (!autoSegments || autoSegments.length === 0) {
-                            return <div className="text-neutral-500 text-xs italic">Aucune plage générée (vérifier: date remplie + durée définie)</div>;
-                          }
-                          return (
-                            <div className="space-y-2">
-                              {autoSegments.map((seg: any, idx: number) => (
-                                <div key={idx} className="text-sm text-neutral-400 flex items-center gap-2">
-                                  <span className="text-blue-400">▸</span>
-                                  {formatSegmentDisplay(seg)}
-                                </div>
-                              ))}
-                              {isReallyEditing && segmentsHaveChanged && (
-                                <button
-                                  type="button"
-                                  className="mt-2 w-full px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
-                                  onClick={() => {
-                                    // Remplacer les segments manuels par les segments auto-générés
-                                    const oldManualSegs = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label !== dateProp.name);
-                                    setFormData({ ...formData, _eventSegments: [...oldManualSegs, ...autoSegments] });
-                                  }}
-                                >
-                                  Appliquer ces plages
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      {/* Section: Édition manuelle des plages */}
-                      <div className="mb-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Plages personnalisées</label>
-                          <button
-                            className="px-2 py-1 text-xs rounded bg-green-600 hover:bg-green-700 text-white transition-colors"
-                            onClick={() => {
-                              const segs = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
-                              const now = new Date();
-                              const start = now.toISOString();
-                              const end = new Date(now.getTime() + 60*60*1000).toISOString();
-                              segs.push({ start, end, label: dateProp.name });
-                              setFormData({ ...formData, _eventSegments: segs });
-                            }}
-                            type="button"
-                          >+ Ajouter</button>
-                        </div>
-                      </div>
-
-                      {(() => {
-                        const segments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
-                        if (!segments || segments.length === 0) return <div className="text-neutral-500 text-xs">Aucune plage personnalisée</div>;
-                        // Grouper par jour
-                        const segmentsByDay: Record<string, any[]> = {};
-                        segments.forEach((seg: any) => {
-                          const dayKey = new Date(seg.start || seg.__eventStart).toLocaleDateString('fr-FR');
-                          if (!segmentsByDay[dayKey]) segmentsByDay[dayKey] = [];
-                          segmentsByDay[dayKey].push(seg);
-                        });
-                        return (
-                          <div className="space-y-4">
-                            {Object.entries(segmentsByDay).map(([day, segs]) => (
-                              <div key={day}>
-                                <div className="font-semibold text-sm text-violet-300 mb-1">{day}</div>
-                                <ul className="space-y-2">
-                                  {segs.map((seg: any, idx: number) => (
-                                    <li key={idx} className="p-2 rounded bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 flex items-center gap-2">
-                                      {/* Date de début (jour) */}
-                                      <input
-                                        type="date"
-                                        value={(() => {
-                                          const d = new Date(seg.start || seg.__eventStart);
-                                          return d.toISOString().slice(0, 10);
-                                        })()}
-                                        onChange={e => {
-                                          const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
-                                          const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
-                                          if (globalIdx !== -1) {
-                                            const d = new Date(seg.start || seg.__eventStart);
-                                            const [year, month, day] = e.target.value.split('-');
-                                            d.setFullYear(Number(year), Number(month) - 1, Number(day));
-                                            segsCopy[globalIdx] = { ...segsCopy[globalIdx], start: d.toISOString() };
-                                            setFormData({ ...formData, _eventSegments: segsCopy });
-                                          }
-                                        }}
-                                        style={{ width: 130, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center', marginRight: 4 }}
-                                      />
-                                      {/* Heure et minutes de début */}
-                                      <input
-                                        type="number"
-                                        min={0}
-                                        max={23}
-                                        value={(() => {
-                                          const d = new Date(seg.start || seg.__eventStart);
-                                          return d.getHours();
-                                        })()}
-                                        onChange={e => {
-                                          const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
-                                          const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
-                                          if (globalIdx !== -1) {
-                                            const d = new Date(seg.start || seg.__eventStart);
-                                            d.setHours(Number(e.target.value));
-                                            segsCopy[globalIdx] = { ...segsCopy[globalIdx], start: d.toISOString() };
-                                            setFormData({ ...formData, _eventSegments: segsCopy });
-                                          }
-                                        }}
-                                        style={{ width: 20, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center' }}
-                                      />
-                                      <span className="font-mono text-neutral-700 dark:text-neutral-300">h</span>
-                                      <input
-                                        type="number"
-                                        min={0}
-                                        max={59}
-                                        value={(() => {
-                                          const d = new Date(seg.start || seg.__eventStart);
-                                          return d.getMinutes().toString().padStart(2, '0');
-                                        })()}
-                                        onChange={e => {
-                                          const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
-                                          const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
-                                          if (globalIdx !== -1) {
-                                            const d = new Date(seg.start || seg.__eventStart);
-                                            d.setMinutes(Number(e.target.value));
-                                            segsCopy[globalIdx] = { ...segsCopy[globalIdx], start: d.toISOString() };
-                                            setFormData({ ...formData, _eventSegments: segsCopy });
-                                          }
-                                        }}
-                                        style={{ width: 20, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center', MozAppearance: 'textfield' }}
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                        onWheel={e => e.currentTarget.blur()}
-                                        onKeyDown={e => (e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.preventDefault()}
-                                      />
-                                      <span className="font-mono text-neutral-700 dark:text-neutral-300">m</span>
-                                      {' '}→{' '}
-                                      {/* Heure et minutes de fin */}
-                                      <input
-                                        type="number"
-                                        min={0}
-                                        max={23}
-                                        value={(() => {
-                                          const d = new Date(seg.end || seg.__eventEnd);
-                                          return d.getHours();
-                                        })()}
-                                        onChange={e => {
-                                          const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
-                                          const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
-                                          if (globalIdx !== -1) {
-                                            const d = new Date(seg.end || seg.__eventEnd);
-                                            d.setHours(Number(e.target.value));
-                                            segsCopy[globalIdx] = { ...segsCopy[globalIdx], end: d.toISOString() };
-                                            setFormData({ ...formData, _eventSegments: segsCopy });
-                                          }
-                                        }}
-                                        style={{ width: 20, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center' }}
-                                      />
-                                      <span className="font-mono text-neutral-700 dark:text-neutral-300">h</span>
-                                      <input
-                                        type="number"
-                                        min={0}
-                                        max={59}
-                                        value={(() => {
-                                          const d = new Date(seg.end || seg.__eventEnd);
-                                          return d.getMinutes().toString().padStart(2, '0');
-                                        })()}
-                                        onChange={e => {
-                                          const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
-                                          const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
-                                          if (globalIdx !== -1) {
-                                            const d = new Date(seg.end || seg.__eventEnd);
-                                            d.setMinutes(Number(e.target.value));
-                                            segsCopy[globalIdx] = { ...segsCopy[globalIdx], end: d.toISOString() };
-                                            setFormData({ ...formData, _eventSegments: segsCopy });
-                                          }
-                                        }}
-                                        style={{ width: 20, fontSize: '1rem', border: 'none', background: 'transparent', textAlign: 'center', MozAppearance: 'textfield' }}
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                        onWheel={e => e.currentTarget.blur()}
-                                        onKeyDown={e => (e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.preventDefault()}
-                                      />
-                                      <span className="font-mono text-neutral-700 dark:text-neutral-300">m</span>
-                                      <button
-                                        className="ml-2"
-                                        onClick={() => {
-                                          const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
-                                          const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
-                                          if (globalIdx !== -1) {
-                                            segsCopy.splice(globalIdx, 1);
-                                            setFormData({ ...formData, _eventSegments: segsCopy });
-                                          }
-                                        }}
-                                        type="button"
-                                        title="Supprimer la plage"
-                                      >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24"><path fill="#ef4444" d="M7 21q-.825 0-1.412-.587Q5 19.825 5 19V7H4q-.425 0-.712-.288Q3 6.425 3 6t.288-.713Q3.575 5 4 5h4V4q0-.825.588-1.412Q9.175 2 10 2h4q.825 0 1.413.588Q16 3.175 16 4v1h4q.425 0 .713.287Q21 5.575 21 6t-.287.712Q20.425 7 20 7h-1v12q0 .825-.587 1.413Q17.825 21 17 21Zm10-14H7v12q0 .425.288.713Q7.575 20 8 20h8q.425 0 .713-.287Q17.425 19.425 17.425 19V7ZM9 17q.425 0 .713-.288Q10 16.425 10 16v-6q0-.425-.287-.713Q9.425 9 9 9t-.713.287Q8 9.575 8 10v6q0 .425.287.713Q8.575 17 9 17Zm3 0q.425 0 .713-.288Q13 16.425 13 16v-6q0-.425-.287-.713Q12.425 9 12 9t-.713.287Q11 9.575 11 10v6q0 .425.287.713Q11.575 17 12 17Zm3 0q.425 0 .713-.288Q16 16.425 16 16v-6q0-.425-.287-.713Q15.425 9 15 9t-.713.287Q14 9.575 14 10v6q0 .425.287.713Q14.575 17 15 17ZM10 5h4V4h-4Z"/></svg>
-                                      </button>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )
-                ))}
-              </>;
-            })()}
+              </div>
+            </div>
+          )}
           </div>
         </div>
-        <div className="flex gap-3 mt-8">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg">Annuler</button>
+        <div className="flex items-center justify-end gap-3 px-8 py-4 border-t border-black/10 dark:border-white/10 bg-background/80 dark:bg-neutral-950/80 backdrop-blur">
+          <button 
+            onClick={onClose} 
+            className="px-4 py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
+          >
+            Annuler
+          </button>
           <ShinyButton
             onClick={() => {
               let dataToSave = { ...formData, __collectionId: selectedCollectionId };
@@ -679,7 +691,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               }
               onSave(dataToSave);
             }}
-            className="flex-1"
           >
             {isReallyEditing ? 'Modifier' : 'Créer'}
           </ShinyButton>
