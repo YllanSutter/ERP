@@ -1,12 +1,6 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import { Extension } from '@tiptap/core';
-import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import TaskList from '@tiptap/extension-task-list';
-import TaskItem from '@tiptap/extension-task-item';
-import './tiptap-editor.css';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import * as Icons from 'lucide-react';
+import RichTextEditor from '@/components/fields/RichTextEditor';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
@@ -17,37 +11,6 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { workDayStart, workDayEnd } from '@/lib/calendarUtils';
-
-const TaskItemCollapse = Extension.create({
-  name: 'taskItemCollapse',
-  addGlobalAttributes() {
-    return [
-      {
-        types: ['taskItem'],
-        attributes: {
-          collapsed: {
-            default: false,
-            parseHTML: (element) => element.getAttribute('data-collapsed') === 'true',
-            renderHTML: (attributes) =>
-              attributes.collapsed ? { 'data-collapsed': 'true' } : {},
-          },
-        },
-      },
-    ];
-  },
-  addCommands() {
-    return {
-      toggleTaskItemCollapsed:
-        () =>
-        ({ editor, commands }: { editor: any; commands: any }) => {
-          const attrs = editor.getAttributes('taskItem');
-          return commands.updateAttributes('taskItem', {
-            collapsed: !attrs.collapsed,
-          });
-        },
-    } as any;
-  },
-});
 
 interface EditablePropertyProps {
   property: any;
@@ -188,6 +151,66 @@ const UrlInput = ({
       )}
     </div>
   );
+};
+
+const getRichTextPreview = (value: any) => {
+  if (!value) return '';
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        const text = extractFirstLineFromSlate(parsed);
+        return text;
+      }
+    } catch {
+      // ignore JSON parse errors
+    }
+
+    if (typeof window !== 'undefined' && typeof DOMParser !== 'undefined') {
+      const doc = new DOMParser().parseFromString(trimmed, 'text/html');
+      const plain = doc.body.textContent || '';
+      return (plain.split('\n').find((line) => line.trim() !== '') || '').trim();
+    }
+
+    return trimmed.split('\n')[0] || '';
+  }
+
+  if (Array.isArray(value)) {
+    return extractFirstLineFromSlate(value);
+  }
+
+  return '';
+};
+
+const extractFirstLineFromSlate = (nodes: any[]): string => {
+  let text = '';
+
+  const walk = (node: any) => {
+    if (!node || text.includes('\n')) return;
+    if (typeof node.text === 'string') {
+      text += node.text;
+    }
+    if (Array.isArray(node.children)) {
+      node.children.forEach((child: any) => walk(child));
+    }
+    if (node.type && text && !text.endsWith('\n')) {
+      if (
+        node.type === 'paragraph' ||
+        node.type === 'heading-one' ||
+        node.type === 'heading-two' ||
+        node.type === 'list-item' ||
+        node.type === 'task-item'
+      ) {
+        text += '\n';
+      }
+    }
+  };
+
+  nodes.forEach((node) => walk(node));
+  return (text.split('\n').find((line) => line.trim() !== '') || '').trim();
 };
 
 // Hook utilitaire pour la logique de date
@@ -714,206 +737,21 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
   // Rich text
   if (property.type === 'rich_text') {
-    // Si forceRichEditor, on affiche toujours l'éditeur complet (cas NewItemModal)
-    // Sinon, on affiche un input texte simple, qui se transforme en éditeur au focus/click, et revient à l'input au blur
-    const [showEditor, setShowEditor] = useState(forceRichEditor);
-    const inputRef = React.useRef<HTMLInputElement>(null);
-    const editorContainerRef = React.useRef<HTMLDivElement>(null);
-    const editor = useEditor({
-      extensions: [
-        StarterKit,
-        Underline,
-        TaskList,
-        TaskItem.configure({ nested: true }),
-        TaskItemCollapse,
-      ],
-      content: value || '',
-      editable: !readOnly,
-      onUpdate: ({ editor }) => {
-        onChange(editor.getHTML());
-      },
-      editorProps: {
-        handleKeyDown(view, event) {
-          // Tab/Shift+Tab pour indenter/désindenter les checklists
-          if (event.key === 'Tab') {
-            const { state } = view;
-            const { $from } = state.selection;
-            let inTaskItem = false;
-            for (let d = $from.depth; d > 0; d--) {
-              if ($from.node(d).type.name === 'taskItem') {
-                inTaskItem = true;
-                break;
-              }
-            }
-            if (inTaskItem) {
-              event.preventDefault();
-              if (event.shiftKey) {
-                if (editor?.can().liftListItem('taskItem')) {
-                  editor?.chain().focus().liftListItem('taskItem').run();
-                }
-              } else {
-                if (editor?.can().sinkListItem('taskItem')) {
-                  editor?.chain().focus().sinkListItem('taskItem').run();
-                }
-              }
-              return true;
-            }
-          }
-          return false;
-        },
-        handleClick(view, pos, event) {
-          const target = event.target as HTMLElement | null;
-          if (!target) return false;
-          if (target.closest('input[type="checkbox"]')) return false;
-          const label = target.closest('label');
-          if (!label) return false;
-          const li = label.closest('li') as HTMLElement | null;
-          if (!li) return false;
-          const rect = label.getBoundingClientRect();
-          const x = (event as MouseEvent).clientX - rect.left;
-          if (x > 16) return false;
-          const posAtDom = view.posAtDOM(li, 0);
-          const node = view.state.doc.nodeAt(posAtDom);
-          if (!node || node.type.name !== 'taskItem') return false;
-          const hasChildren = node.childCount > 1 && node.lastChild?.type?.name === 'taskList';
-          if (!hasChildren) return false;
-          const nextAttrs = { ...node.attrs, collapsed: !node.attrs.collapsed };
-          const tr = view.state.tr.setNodeMarkup(posAtDom, undefined, nextAttrs);
-          view.dispatch(tr);
-          return true;
-        },
-      },
-    });
-
-    // Patch: rendre les checkbox non focusables
-    useEffect(() => {
-      if (!editor) return;
-      const updateCheckboxTabIndex = () => {
-        const root = editor?.view?.dom;
-        if (!root) return;
-        const checkboxes = root.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach(cb => {
-          cb.setAttribute('tabIndex', '-1');
-        });
-      };
-      const updateTaskItemChildrenMarkers = () => {
-        const root = editor?.view?.dom;
-        if (!root) return;
-        const items = root.querySelectorAll('ul[data-type="taskList"] > li');
-        items.forEach(li => {
-          const hasChildren = !!li.querySelector('ul[data-type="taskList"], ol');
-          if (hasChildren) {
-            li.setAttribute('data-has-children', 'true');
-          } else {
-            li.removeAttribute('data-has-children');
-          }
-        });
-      };
-      updateCheckboxTabIndex();
-      updateTaskItemChildrenMarkers();
-
-      const handleCheckboxChange = (event: Event) => {
-        const target = event.target as HTMLInputElement | null;
-        if (!target || target.type !== 'checkbox') return;
-        target.setAttribute('data-just-checked', 'true');
-        window.setTimeout(() => {
-          target.removeAttribute('data-just-checked');
-        }, 220);
-      };
-
-      const root = editor?.view?.dom;
-      if (root) {
-        root.addEventListener('change', handleCheckboxChange);
-      }
-
-      editor.on('update', updateCheckboxTabIndex);
-      editor.on('update', updateTaskItemChildrenMarkers);
-      editor.on('selectionUpdate', updateTaskItemChildrenMarkers);
-      return () => {
-        if (root) {
-          root.removeEventListener('change', handleCheckboxChange);
-        }
-        editor.off('update', updateCheckboxTabIndex);
-        editor.off('update', updateTaskItemChildrenMarkers);
-        editor.off('selectionUpdate', updateTaskItemChildrenMarkers);
-      };
-    }, [editor]);
-
-    // Gestion du blur pour revenir à l'input texte
-    useEffect(() => {
-      if (!showEditor || forceRichEditor) return;
-      const handleClickOutside = (event: MouseEvent) => {
-        if (
-          editorContainerRef.current &&
-          !editorContainerRef.current.contains(event.target as Node)
-        ) {
-          setShowEditor(false);
-        }
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }, [showEditor, forceRichEditor]);
-
-    // Si readOnly, on affiche le HTML
-    if (readOnly) {
+    if (!forceRichEditor) {
       return (
-        <div className={cn('prose prose-invert tiptap-prose max-w-full', className)} dangerouslySetInnerHTML={{ __html: value || '' }} />
-      );
-    }
-
-    // Si forceRichEditor ou showEditor, on affiche l'éditeur complet
-    if (forceRichEditor || showEditor) {
-      return (
-        <div ref={editorContainerRef} className={className + ' tiptap-editor'} style={{ minHeight: '300px' }}>
-          {/* Barre d'outils Tiptap améliorée */}
-          <div className="tiptap-toolbar flex flex-wrap gap-1 mb-2 p-1 rounded bg-gray-100  dark:bg-neutral-900 border border-black/10 dark:border-white/10">
-            <button type="button" onClick={() => editor?.chain().focus().toggleBold().run()} className={editor?.isActive('bold') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Gras"><b>B</b></button>
-            <button type="button" onClick={() => editor?.chain().focus().toggleItalic().run()} className={editor?.isActive('italic') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Italique"><i>I</i></button>
-            <button type="button" onClick={() => editor?.chain().focus().toggleUnderline().run()} className={editor?.isActive('underline') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Souligné"><u>U</u></button>
-            <button type="button" onClick={() => editor?.chain().focus().toggleStrike().run()} className={editor?.isActive('strike') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Barré"><s>S</s></button>
-            <button type="button" onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} className={editor?.isActive('heading', { level: 1 }) ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Titre 1">H1</button>
-            <button type="button" onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} className={editor?.isActive('heading', { level: 2 }) ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Titre 2">H2</button>
-            <button type="button" onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} className={editor?.isActive('heading', { level: 3 }) ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Titre 3">H3</button>
-            <button type="button" onClick={() => editor?.chain().focus().toggleBulletList().run()} className={editor?.isActive('bulletList') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Liste à puces">• Liste</button>
-            <button type="button" onClick={() => editor?.chain().focus().toggleOrderedList().run()} className={editor?.isActive('orderedList') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Liste numérotée">1. Liste</button>
-            <button type="button" onClick={() => editor?.chain().focus().toggleTaskList().run()} className={editor?.isActive('taskList') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Cases à cocher">□</button>
-            <button type="button" onClick={() => editor?.chain().focus().sinkListItem('taskItem').run()} className="tiptap-btn" title="Indenter tâche">↳</button>
-            <button type="button" onClick={() => editor?.chain().focus().liftListItem('taskItem').run()} className="tiptap-btn" title="Désindenter tâche">↰</button>
-            <button type="button" onClick={() => editor?.chain().focus().toggleBlockquote().run()} className={editor?.isActive('blockquote') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Citation">❝</button>
-            <button type="button" onClick={() => editor?.chain().focus().toggleCode().run()} className={editor?.isActive('code') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Code">{'</>'}</button>
-            <button type="button" onClick={() => editor?.chain().focus().toggleCodeBlock().run()} className={editor?.isActive('codeBlock') ? 'tiptap-btn tiptap-btn-active' : 'tiptap-btn'} title="Bloc de code">{`{}`}</button>
-            <button type="button" onClick={() => editor?.chain().focus().undo().run()} className="tiptap-btn" title="Annuler">↶</button>
-            <button type="button" onClick={() => editor?.chain().focus().redo().run()} className="tiptap-btn" title="Rétablir">↷</button>
-          </div>
-          <EditorContent editor={editor} />
+        <div className={cn('truncate text-sm text-neutral-700 dark:text-white', className)}>
+          {getRichTextPreview(value) || '—'}
         </div>
       );
     }
 
-    // Sinon, input texte simple qui se transforme en éditeur au focus/click
-    // On affiche le texte sans balises HTML
-    function stripHtml(html: string) {
-      if (!html) return '';
-      // On prend la première ligne de texte sans balises
-      const tmp = document.createElement('div');
-      tmp.innerHTML = html;
-      const text = tmp.textContent || tmp.innerText || '';
-      return text.split('\n')[0];
-    }
     return (
-      <SimpleInput
-        type="text"
-        value={stripHtml(value)}
+      <RichTextEditor
+        value={value}
         onChange={onChange}
-        sizeClasses={sizeClasses}
-        className={className}
         readOnly={readOnly}
-        placeholder={value ? '' : '...'}
-        ref={inputRef}
-        onFocus={() => setShowEditor(true)}
-        onClick={() => setShowEditor(true)}
+        className={className}
+        showToolbar={!readOnly}
       />
     );
   }

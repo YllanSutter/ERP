@@ -126,7 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     onClick={() => onSelectView(collectionId, view.id)}
                     className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-neutral-500 font-medium hover:text-black dark:hover:text-white transition-colors text-sm group"
                   >
-                    <IconComponent size={14} class="dark:text-white" />
+                    <IconComponent size={14} className="dark:text-white" />
                     <span className="flex-1 text-left truncate">{view.name}</span>
                     <Star
                       size={12}

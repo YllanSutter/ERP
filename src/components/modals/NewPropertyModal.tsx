@@ -4,8 +4,7 @@ import ShinyButton from '@/components/ui/ShinyButton';
 import OptionListEditor from '@/components/inputs/OptionListEditor';
 import IconPicker from '@/components/inputs/IconPicker';
 import { OptionType } from '@/components/inputs/LightSelect';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
+import RichTextEditor from '@/components/fields/RichTextEditor';
 
 interface NewPropertyModalProps {
   onClose: () => void;
@@ -39,13 +38,6 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
   const [relationFilterValue, setRelationFilterValue] = useState('');
   const [defaultDuration, setDefaultDuration] = useState(1);
   const [richTextValue, setRichTextValue] = useState('');
-  const richTextEditor = useEditor({
-    extensions: [StarterKit],
-    content: richTextValue,
-    onUpdate: ({ editor }) => {
-      setRichTextValue(editor.getHTML());
-    },
-  });
 
   const targetCollection = (collections || []).find((c: any) => c.id === relationTarget);
   const filterProp = targetCollection?.properties?.find((p: any) => p.id === relationFilterField);
@@ -99,9 +91,11 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
                     {type === 'rich_text' && (
                       <div>
                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Valeur par défaut (texte enrichi)</label>
-                        <div className="bg-neutral-800 rounded-lg border border-white/10">
-                          <EditorContent editor={richTextEditor} />
-                        </div>
+                        <RichTextEditor
+                          value={richTextValue}
+                          onChange={setRichTextValue}
+                          className="bg-gray-200 dark:bg-neutral-800/50"
+                        />
                         <p className="text-xs text-neutral-500 mt-1">Ce texte sera utilisé par défaut lors de la création d'un nouvel élément</p>
                       </div>
                     )}
