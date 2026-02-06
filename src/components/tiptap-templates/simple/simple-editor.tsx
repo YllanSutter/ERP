@@ -7,7 +7,7 @@ import type { Editor as TiptapEditor } from "@tiptap/core"
 // --- Tiptap Core Extensions ---
 import { StarterKit } from "@tiptap/starter-kit"
 import { Image } from "@tiptap/extension-image"
-import { TaskList } from "@tiptap/extension-list"
+import { CollapsibleTaskList } from "@/components/tiptap-node/task-list-node/task-list-node-extension"
 import { TextAlign } from "@tiptap/extension-text-align"
 import { Typography } from "@tiptap/extension-typography"
 import { Highlight } from "@tiptap/extension-highlight"
@@ -26,6 +26,7 @@ import {
 
 // --- Tiptap Node ---
 import { ImageUploadNode } from "@/components/tiptap-node/image-upload-node/image-upload-node-extension"
+import { CollapsibleHeading } from "@/components/tiptap-node/heading-node/heading-node-extension"
 import { HorizontalRule } from "@/components/tiptap-node/horizontal-rule-node/horizontal-rule-node-extension"
 import { CollapsibleTaskItem } from "@/components/tiptap-node/task-item-node/task-item-node-extension"
 import "@/components/tiptap-node/blockquote-node/blockquote-node.scss"
@@ -278,14 +279,16 @@ export function SimpleEditor({
     extensions: [
       StarterKit.configure({
         horizontalRule: false,
+        heading: false,
         link: {
           openOnClick: false,
           enableClickSelection: true,
         },
       }),
       HorizontalRule,
+      CollapsibleHeading.configure({ levels: [1, 2, 3, 4] }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      TaskList,
+      CollapsibleTaskList,
       CollapsibleTaskItem.configure({ nested: true }),
       Highlight.configure({ multicolor: true }),
       Image,

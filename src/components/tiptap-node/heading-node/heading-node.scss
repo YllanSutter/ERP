@@ -36,4 +36,56 @@
     font-weight: 600;
     margin-top: 2em;
   }
+
+  .tt-heading-content {
+    display: inline-block;
+  }
+
+  [data-collapsed="true"] .tt-heading-content {
+    margin-bottom: 30px;
+  }
+
+  .tt-heading-toggle {
+    position: absolute;
+    left: -1.5rem;
+    top: 0.2rem;
+    width: 1.25em;
+    height: 1.25em;
+    padding: 0;
+    border: none;
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+    opacity: 0.6;
+    cursor: pointer;
+
+    &:hover {
+      opacity: 1;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    svg {
+      width: 1em;
+      height: 1em;
+      transition: transform 120ms ease;
+    }
+  }
+
+  h1[data-collapsed="true"],
+  h2[data-collapsed="true"],
+  h3[data-collapsed="true"],
+  h4[data-collapsed="true"] {
+    > .tt-heading-toggle {
+      svg {
+        transform: rotate(-90deg);
+      }
+    }
+  }
+
 }
