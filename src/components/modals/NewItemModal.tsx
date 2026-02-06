@@ -252,6 +252,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   // Fusionne l'item prérempli (editingItem) avec les valeurs par défaut
   function getInitialFormData(col = selectedCollection, prefill: any = editingItem) {
     const data: any = { ...(prefill || {}) };
+    const autoFilled: Record<string, boolean> = {};
     const props = orderedProperties && orderedProperties.length > 0 ? orderedProperties : col.properties;
     props.forEach((prop: any) => {
       if (data[prop.id] === undefined) {
@@ -265,6 +266,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       if (prop.id.endsWith('_duration') && data[prop.id] === undefined) {
         // Initialiser avec 1 heure par défaut pour que les segments se génèrent
         data[prop.id] = 1;
+        autoFilled[prop.id] = true;
       }
     });
     // Si on édite, on force l'id dans le formData
@@ -282,8 +284,17 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     }
 
     if (!prefill || !prefill.id) {
-      const { nextData, nextAutoFilled } = applyTemplates(data, undefined, {}, false);
-      return { data: nextData, autoFilled: nextAutoFilled };
+      let currentData = { ...data };
+      let currentAutoFilled = { ...autoFilled };
+      for (let i = 0; i < 3; i += 1) {
+        const { nextData, nextAutoFilled } = applyTemplates(currentData, undefined, currentAutoFilled, false) as any;
+        const prevSerialized = JSON.stringify(currentData);
+        const nextSerialized = JSON.stringify(nextData);
+        currentData = nextData;
+        currentAutoFilled = { ...currentAutoFilled, ...nextAutoFilled };
+        if (prevSerialized === nextSerialized) break;
+      }
+      return { data: currentData, autoFilled: currentAutoFilled };
     }
     return { data, autoFilled: {} };
   }
