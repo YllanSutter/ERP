@@ -17,7 +17,8 @@ import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ShinyButton from '@/components/ui/ShinyButton';
 import DraggableList from '@/components/inputs/DraggableList';
-import { useCanEdit, useCanViewField } from '@/lib/hooks/useCanEdit';
+import { useCanEdit } from '@/lib/hooks/useCanEdit';
+import { useAuth } from '@/auth/AuthProvider';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -87,7 +88,37 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   
   // Hook de permission
   const canEdit = useCanEdit(activeCollection);
-  const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, activeCollection);
+  const { isAdmin, isEditor, permissions } = useAuth();
+  const canViewFieldFn = (fieldId: string) => {
+    if (isAdmin || isEditor) return true;
+    const perms = permissions || [];
+    if (fieldId) {
+      const fieldPerm = perms.find(
+        (p: any) =>
+          (p.field_id || null) === fieldId &&
+          (p.collection_id || null) === activeCollection &&
+          (p.item_id || null) === null
+      );
+      if (fieldPerm) return Boolean(fieldPerm.can_read);
+    }
+    if (activeCollection) {
+      const collectionPerm = perms.find(
+        (p: any) =>
+          (p.collection_id || null) === activeCollection &&
+          (p.item_id || null) === null &&
+          (p.field_id || null) === null
+      );
+      if (collectionPerm) return Boolean(collectionPerm.can_read);
+    }
+    const globalPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === null &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (globalPerm) return Boolean(globalPerm.can_read);
+    return false;
+  };
   
   // Filtrer les propriétés que l'utilisateur peut voir
   const viewableProperties = orderedProperties.filter(prop => canViewFieldFn(prop.id));
