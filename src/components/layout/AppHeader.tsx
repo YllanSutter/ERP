@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { Moon, Plus, Sun } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import { useAuth } from '@/auth/AuthProvider';
 import { useCanEdit, useCanManagePermissions } from '@/lib/hooks/useCanEdit';
@@ -79,14 +79,17 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       <div className="flex items-center gap-4">
         <div className="">
           <button
-            className={`px-3 py-2 rounded shadow ${theme === 'dark' ? 'bg-white text-neutral-900' : 'bg-neutral-900 text-white'}`}
+            className={`h-9 w-9 rounded-full shadow flex items-center justify-center transition ${
+              theme === 'dark' ? 'bg-white text-neutral-900' : 'bg-neutral-900 text-white'
+            }`}
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            aria-label={theme === 'dark' ? 'Activer le mode clair' : 'Activer le mode sombre'}
+            title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
           >
-            {theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-4 w-4 rounded-full bg-gradient-to-tr from-violet-500 to-cyan-400 animate-pulse" />
           <h1 className="text-2xl font-serif font-bold">Gestionnaire de Projet</h1>
         </div>
         <ShinyButton
