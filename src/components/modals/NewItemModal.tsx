@@ -457,9 +457,16 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   // Pour l'édition, on garde orderedProperties (pour garder l'ordre de la vue courante)
   // Mode édition si un id existe, même si isNew traîne
   const isReallyEditing = editingItem && editingItem.id;
-  const propsList = isReallyEditing
+  const basePropsList = isReallyEditing
     ? (orderedProperties && orderedProperties.length > 0 ? orderedProperties : selectedCollection.properties)
     : selectedCollection.properties;
+  const richTextFallback = (selectedCollection.properties || []).filter(
+    (p: any) => p.type === 'rich_text'
+  );
+  const propsList = richTextFallback.reduce((acc: any[], prop: any) => {
+    if (acc.some((p) => p.id === prop.id)) return acc;
+    return [...acc, prop];
+  }, basePropsList as any[]);
   const classicProps = propsList.filter((p: any) => p.type !== 'relation');
   const richTextProps = classicProps.filter((p: any) => p.type === 'rich_text');
   const classicPropsSansRichText = classicProps.filter((p: any) => p.type !== 'rich_text');

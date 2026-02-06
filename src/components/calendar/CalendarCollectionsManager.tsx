@@ -302,6 +302,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           dateField={undefined}
           collection={undefined}
           onDateSelect={() => {}}
+          onViewDetail={onViewDetail}
+          onDelete={onDelete}
           getNameValue={(item) => {
             const col = collections.find(c => c.id === item.__collectionId);
             if (!col) return item.name || 'Sans titre';
