@@ -165,6 +165,10 @@ const getRichTextPreview = (value: any) => {
         const text = extractFirstLineFromSlate(parsed);
         return text;
       }
+      if (parsed && typeof parsed === 'object' && parsed.type === 'doc') {
+        const text = extractFirstLineFromTiptap(parsed);
+        return text;
+      }
     } catch {
       // ignore JSON parse errors
     }
@@ -180,6 +184,10 @@ const getRichTextPreview = (value: any) => {
 
   if (Array.isArray(value)) {
     return extractFirstLineFromSlate(value);
+  }
+
+  if (value && typeof value === 'object' && value.type === 'doc') {
+    return extractFirstLineFromTiptap(value);
   }
 
   return '';
@@ -210,6 +218,33 @@ const extractFirstLineFromSlate = (nodes: any[]): string => {
   };
 
   nodes.forEach((node) => walk(node));
+  return (text.split('\n').find((line) => line.trim() !== '') || '').trim();
+};
+
+const extractFirstLineFromTiptap = (doc: any): string => {
+  let text = '';
+
+  const walk = (node: any) => {
+    if (!node || text.includes('\n')) return;
+    if (typeof node.text === 'string') {
+      text += node.text;
+    }
+    if (Array.isArray(node.content)) {
+      node.content.forEach((child: any) => walk(child));
+    }
+    if (node.type && text && !text.endsWith('\n')) {
+      if (
+        node.type === 'paragraph' ||
+        node.type === 'heading' ||
+        node.type === 'listItem' ||
+        node.type === 'taskItem'
+      ) {
+        text += '\n';
+      }
+    }
+  };
+
+  walk(doc);
   return (text.split('\n').find((line) => line.trim() !== '') || '').trim();
 };
 

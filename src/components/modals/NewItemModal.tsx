@@ -564,7 +564,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               <div className="space-y-6">
                 {richTextProps.map((prop: any) => (
                   <div key={prop.id} className="pb-10 border-b border-black/5 dark:border-white/5 last:border-0 last:pb-0 relative">
-                    <div className="absolute -top-3 left-3 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-4 uppercase tracking-wide">{prop.name}</div>
+                    <div className="absolute -top-3 left-3 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-4 uppercase tracking-wide z-10">{prop.name}</div>
                     <EditableProperty
                       property={prop}
                       value={formData[prop.id]}
