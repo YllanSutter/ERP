@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { getNameValue as getNameValueLib } from '@/lib/calendarUtils';
 import { motion } from 'framer-motion';
+import { getFilteredItems } from '@/lib/filterUtils';
 import CalendarCollectionsManager from '../calendar/CalendarCollectionsManager';
 
 interface CalendarViewProps {
@@ -19,6 +20,9 @@ interface CalendarViewProps {
   onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
   viewConfig?: any;
   onUpdateViewConfig?: (updates: Record<string, any>) => void;
+  views?: Record<string, any[]>;
+  relationFilter?: { collectionId: string | null; ids: string[] };
+  activeCollectionId?: string | null;
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({
@@ -37,6 +41,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   onShowNewItemModalForCollection,
   viewConfig,
   onUpdateViewConfig,
+  views = {},
+  relationFilter = { collectionId: null, ids: [] },
+  activeCollectionId = null,
 }) => {
   // Sélection multiple de collections
   const getInitialSelectedCollections = () => {
@@ -149,11 +156,33 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   );
 
   const collectionsWithOverrides = useMemo(() => {
-    if (!collection) return collections;
-    return collections.map((col) =>
-      col.id === collection.id ? { ...col, items } : col
-    );
-  }, [collections, collection, items]);
+    const getViewConfigForCollection = (colId: string) => {
+      if (collection && colId === collection.id) return viewConfig;
+      const collectionViews = views[colId] || [];
+      const calendarView = collectionViews.find((v: any) => v.type === 'calendar');
+      return calendarView || collectionViews[0];
+    };
+
+    return collections.map((col) => {
+      if (collection && col.id === collection.id && Array.isArray(items)) {
+        return { ...col, items };
+      }
+      const cfg = getViewConfigForCollection(col.id);
+      if (!cfg) return col;
+      const rel = col.id === activeCollectionId ? relationFilter : { collectionId: null, ids: [] };
+      const activeId = col.id === activeCollectionId ? activeCollectionId : null;
+      const nextItems = getFilteredItems(col, cfg, rel, activeId, collections);
+      return { ...col, items: nextItems };
+    });
+  }, [
+    collections,
+    collection,
+    items,
+    viewConfig,
+    views,
+    relationFilter,
+    activeCollectionId,
+  ]);
 
 
   // Fusionne tous les items filtrés des collections sélectionnées, en ajoutant __collectionId si besoin

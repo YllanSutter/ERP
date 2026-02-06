@@ -11,6 +11,7 @@ export const getFilteredItems = (
   currentViewConfig.filters.forEach((filter: any) => {
     filtered = filtered.filter((item) => {
       const prop = (currentCollection.properties || []).find((p: any) => p.id === filter.property);
+      if (!prop) return true;
       const itemVal = item[filter.property];
       const fVal = filter.value;
       const isArrayVal = Array.isArray(itemVal);
