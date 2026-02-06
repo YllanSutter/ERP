@@ -651,6 +651,51 @@ app.get('/api/users', requireAuth, requirePermission('can_manage_permissions'), 
   res.json(users.rows);
 });
 
+app.patch('/api/users/:id/password', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { password } = req.body || {};
+
+    if (!password || typeof password !== 'string' || password.trim().length < 6) {
+      return res.status(400).json({ error: 'password must be at least 6 characters' });
+    }
+
+    const userRes = await pool.query('SELECT id, provider FROM users WHERE id = $1', [userId]);
+    if (!userRes.rowCount) return res.status(404).json({ error: 'user not found' });
+    if (userRes.rows[0].provider && userRes.rows[0].provider !== 'local') {
+      return res.status(400).json({ error: 'password update not allowed for non-local user' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
+    await logAudit(req.auth?.user?.id, 'user.password.update', 'user', userId, { userId });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Update password failed', err);
+    return res.status(500).json({ error: 'Update password failed' });
+  }
+});
+
+app.delete('/api/users/:id', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
+  try {
+    const userId = req.params.id;
+    if (req.auth?.user?.id === userId) {
+      return res.status(400).json({ error: 'cannot delete own account' });
+    }
+
+    const userRes = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
+    if (!userRes.rowCount) return res.status(404).json({ error: 'user not found' });
+
+    await pool.query('UPDATE audit_logs SET user_id = NULL WHERE user_id = $1', [userId]);
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+    await logAudit(req.auth?.user?.id, 'user.delete', 'user', userId, { userId });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Delete user failed', err);
+    return res.status(500).json({ error: 'Delete user failed' });
+  }
+});
+
 app.get('/api/roles', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
   const roles = await pool.query('SELECT * FROM roles');
   res.json(roles.rows);

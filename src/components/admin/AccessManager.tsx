@@ -27,6 +27,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleDesc, setNewRoleDesc] = useState('');
   const [busy, setBusy] = useState(false);
+  const [passwordInputs, setPasswordInputs] = useState<Record<string, string>>({});
 
   const loadAll = async () => {
     try {
@@ -240,6 +241,47 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
     }
   };
 
+  const updateUserPassword = async (userId: string) => {
+    const nextPassword = (passwordInputs[userId] || '').trim();
+    if (!nextPassword) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/users/${userId}/password`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password: nextPassword }),
+      });
+      if (!res.ok) throw new Error('Update password failed');
+      setPasswordInputs((prev) => ({ ...prev, [userId]: '' }));
+      await loadAll();
+    } catch (err) {
+      console.error(err);
+      alert('Impossible de modifier le mot de passe.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteUser = async (userId: string, email: string) => {
+    const ok = confirm(`Supprimer le compte ${email} ? Cette action est irréversible.`);
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/users/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Delete user failed');
+      await loadAll();
+    } catch (err) {
+      console.error(err);
+      alert('Impossible de supprimer le compte.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!isAdmin) return null;
 
   return (
@@ -444,10 +486,24 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                   {users.map((u) => {
                     const roleIds = Array.isArray(u.role_ids) ? u.role_ids : (typeof u.role_ids === 'string' ? JSON.parse(u.role_ids) : []);
                     const userRoles = roles.filter((r) => roleIds.includes(r.id));
+                    const isLocal = !u.provider || u.provider === 'local';
+                    const isSelf = user?.id === u.id;
                     return (
                       <div key={u.id} className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
-                        <div className="font-medium">{u.email}</div>
-                        <div className="text-xs text-neutral-500 mb-2">{u.provider || 'local'}</div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="font-medium">{u.email}</div>
+                            <div className="text-xs text-neutral-500">{u.provider || 'local'}</div>
+                          </div>
+                          <button
+                            className="text-xs px-2 py-1 rounded bg-red-500/10 text-red-600 border border-red-500/20 hover:bg-red-500/20"
+                            onClick={() => deleteUser(u.id, u.email)}
+                            disabled={busy || isSelf}
+                            title={isSelf ? 'Impossible de supprimer votre propre compte.' : 'Supprimer le compte'}
+                          >
+                            Supprimer
+                          </button>
+                        </div>
                         <div className="flex flex-wrap gap-2 mb-2">
                           {userRoles.length === 0 && <span className="text-xs text-neutral-500">Aucun rôle</span>}
                           {userRoles.map((r) => (
@@ -477,6 +533,25 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                                 </option>
                               ))}
                           </select>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <input
+                            type="password"
+                            className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
+                            placeholder={isLocal ? 'Nouveau mot de passe' : 'Mdp non disponible (SSO)'}
+                            value={passwordInputs[u.id] || ''}
+                            onChange={(e) =>
+                              setPasswordInputs((prev) => ({ ...prev, [u.id]: e.target.value }))
+                            }
+                            disabled={!isLocal || busy}
+                          />
+                          <button
+                            className="text-xs px-3 py-1 rounded bg-cyan-500/20 text-black dark:text-white border border-cyan-500/40"
+                            onClick={() => updateUserPassword(u.id)}
+                            disabled={!isLocal || busy || !(passwordInputs[u.id] || '').trim()}
+                          >
+                            Modifier mdp
+                          </button>
                         </div>
                       </div>
                     );

@@ -95,12 +95,12 @@
       }
 
       &[data-checked="true"] {
-        > div > p {
+        .tt-task-content p {
           opacity: 0.5;
           text-decoration: line-through;
         }
 
-        > div > p span {
+        .tt-task-content p span {
           text-decoration: line-through;
         }
       }
