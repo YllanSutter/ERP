@@ -797,8 +797,8 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   }
 
   // URL
-  if (property.type === 'url' && value) {
-    return <UrlInput value={value} onChange={onChange} sizeClasses={sizeClasses} className={className} readOnly={readOnly} />;
+  if (property.type === 'url') {
+    return <UrlInput value={value || ''} onChange={onChange} sizeClasses={sizeClasses} className={className} readOnly={readOnly} />;
   }
 
   // Text inputs
