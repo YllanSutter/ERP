@@ -51,7 +51,10 @@ export const PopoverButton: React.FC<PopoverButtonProps> = ({
         </button>
       </PopoverTrigger>
       <PopoverContent 
-        className={cn("p-2 bg-neutral-900 border-neutral-700 z-[300] pointer-events-auto", contentClassName)}
+        className={cn(
+          "p-2 bg-white text-neutral-700 border border-black/10 dark:bg-neutral-900 dark:text-neutral-200 dark:border-white/10 z-[300] pointer-events-auto",
+          contentClassName
+        )}
       >
         {children}
       </PopoverContent>
@@ -116,12 +119,12 @@ export const LinkedItemsViewer: React.FC<LinkedItemsViewerProps> = ({
       top={top}
       right={right}
     >
-      <div className="text-sm text-neutral-600 dark:text-neutral-300 max-h-80 overflow-y-auto">
-        <div className="flex items-center justify-between px-2 pb-2 border-b border-white/10">
-          <span className="text-xs text-neutral-400">{targetCollection?.name}</span>
+      <div className="text-sm text-neutral-700 dark:text-neutral-300 max-h-80 overflow-y-auto">
+        <div className="flex items-center justify-between px-2 pb-2 border-b border-black/10 dark:border-white/10">
+          <span className="text-xs text-neutral-500 dark:text-neutral-400">{targetCollection?.name}</span>
           {onNavigateToCollection && (
             <button
-              className="text-xs text-cyan-300 hover:text-cyan-200 hover:underline"
+              className="text-xs text-cyan-600 hover:text-cyan-500 dark:text-cyan-300 dark:hover:text-cyan-200 hover:underline"
               onClick={() => {
                 onNavigateToCollection(targetCollectionId, linkedIds);
               }}
@@ -131,7 +134,7 @@ export const LinkedItemsViewer: React.FC<LinkedItemsViewerProps> = ({
           )}
         </div>
         <table className="w-full text-left text-xs">
-          <thead className="text-neutral-500 sticky top-0 bg-neutral-900">
+          <thead className="text-neutral-500 sticky top-0 bg-white dark:bg-neutral-900">
             <tr>
               {(targetCollection?.properties || []).map((p: any) => (
                 <th key={p.id} className="py-1 px-2 font-semibold">{p.name}</th>

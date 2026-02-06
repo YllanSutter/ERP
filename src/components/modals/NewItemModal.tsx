@@ -528,10 +528,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-background/95 dark:bg-neutral-950/90 text-neutral-700 dark:text-neutral-300 border border-black/10 dark:border-white/10 rounded-none w-screen h-screen max-w-[1600px] max-h-[90%] overflow-hidden backdrop-blur flex flex-col"
+        className="bg-white text-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 border border-black/10 dark:border-white/10 rounded-none w-screen h-screen max-w-[1600px] max-h-[90%] overflow-hidden backdrop-blur flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-8 py-5 border-b border-black/10 dark:border-white/10 bg-background/80 dark:bg-neutral-950/80 backdrop-blur">
+        <div className="flex items-center justify-between px-8 py-5 border-b border-black/10 dark:border-white/10 bg-white/90 dark:bg-neutral-950/80 backdrop-blur">
           <div className="flex-1 max-w-3xl">
             {classicPropsSansRichText.length > 0 && (
               <EditableProperty
@@ -583,7 +583,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             </button>
           )}
         </div>
-        <div className="flex-1 px-8 py-6 pt-10 z-10 relative overflow-y-auto">
+        <div className="flex-1 px-8 py-6 pt-10 z-10 relative overflow-y-auto bg-white dark:bg-transparent">
           <div className="space-y-6">
           
           {/* Relations en haut sur toute la largeur */}
@@ -853,7 +853,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           )}
           </div>
         </div>
-        <div className="flex items-center justify-end gap-3 px-8 py-4 border-t border-black/10 dark:border-white/10 bg-background/80 dark:bg-neutral-950/80 backdrop-blur">
+        <div className="flex items-center justify-end gap-3 px-8 py-4 border-t border-black/10 dark:border-white/10 bg-white/90 dark:bg-neutral-950/80 backdrop-blur">
           <button 
             onClick={onClose} 
             className="px-4 py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"

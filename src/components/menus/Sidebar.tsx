@@ -103,7 +103,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       initial={{ x: -100, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ delay: 0.1 }}
-      className="w-64 border-r border-white/5 bg-gray-100 dark:bg-neutral-950/50 backdrop-blur overflow-y-auto p-4"
+      className="w-64 border-r border-white/5 bg-background dark:bg-neutral-950/50 backdrop-blur overflow-y-auto p-4"
     >
       {/* Section Favoris */}
       {(favoriteViewsList.length > 0 || favoriteItemsList.length > 0) && (

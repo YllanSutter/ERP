@@ -48,10 +48,8 @@ const App = () => {
     return 'light';
   });
   useEffect(() => {
-    document.body.classList.remove('dark');
-    if (theme === 'dark') {
-      document.body.classList.add('dark');
-    }
+    document.body.classList.toggle('dark', theme === 'dark');
+    document.documentElement.classList.toggle('dark', theme === 'dark');
     if (typeof window !== 'undefined') {
       localStorage.setItem('erp-theme', theme);
     }

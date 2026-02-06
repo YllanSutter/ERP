@@ -389,7 +389,7 @@ const RelationEditor = ({
       {filteredItems.map((ti: any) => {
         const checked = selectedIds.includes(ti.id);
         return (
-          <label key={ti.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5 text-sm text-white cursor-pointer">
+          <label key={ti.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5 text-sm text-neutral-700 dark:text-white cursor-pointer">
             <input
               type="checkbox"
               checked={checked}
