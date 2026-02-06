@@ -118,9 +118,10 @@ const DayView: React.FC<DayViewProps> = ({
                   getNameValue={getNameValue}
                   hiddenFields={hiddenFields ?? []}
                   onViewDetail={() => onViewDetail(item)}
-                  onReduceDuration={() => {
+                  onReduceDuration={(_item, action) => {
+                    if (action.type !== 'delete') return;
                     // Supprime le segment correspondant (multiDayIndex)
-                    const updatedSegments = (item._eventSegments || []).filter((_: any, idx: number) => idx !== multiDayIndex);
+                    const updatedSegments = (item._eventSegments || []).filter((_: any, idx: number) => idx !== action.index);
                     const updatedItem = { ...item, _eventSegments: updatedSegments };
                     if (onEdit) onEdit(updatedItem);
                   }}

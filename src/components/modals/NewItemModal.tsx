@@ -23,6 +23,15 @@ import { Star, Trash2, Clock, Edit2 } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { calculateSegmentsClient, formatSegmentDisplay } from '@/lib/calculateSegmentsClient';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { workDayStart, workDayEnd } from '@/lib/calendarUtils';
@@ -53,6 +62,182 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   // Ajout d'un sélecteur de collection (pour création uniquement)
   const [selectedCollectionId, setSelectedCollectionId] = useState(collection.id);
   const selectedCollection = collections.find((c: any) => c.id === selectedCollectionId) || collection;
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [templateDialogItems, setTemplateDialogItems] = useState<any[]>([]);
+  const [templateDialogSelection, setTemplateDialogSelection] = useState<Record<string, boolean>>({});
+  const [templateDialogPayload, setTemplateDialogPayload] = useState<{ nextData: any; nextAutoFilled: Record<string, boolean> } | null>(null);
+  const [templateDialogNeedsSegments, setTemplateDialogNeedsSegments] = useState(false);
+
+  const isEmptyTiptapDoc = (doc: any) => {
+    if (!doc || doc.type !== 'doc') return false;
+    const hasText = (node: any): boolean => {
+      if (!node) return false;
+      if (typeof node.text === 'string' && node.text.trim() !== '') return true;
+      if (Array.isArray(node.content)) return node.content.some(hasText);
+      return false;
+    };
+    return !hasText(doc);
+  };
+
+  const isEmptyValue = (val: any) => {
+    if (val === null || val === undefined) return true;
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (!trimmed) return true;
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (isEmptyTiptapDoc(parsed)) return true;
+      } catch {
+        // ignore JSON parse errors
+      }
+      return false;
+    }
+    if (Array.isArray(val)) return val.length === 0;
+    if (typeof val === 'object' && isEmptyTiptapDoc(val)) return true;
+    return false;
+  };
+
+  const areValuesEqual = (a: any, b: any) => {
+    if (a === b) return true;
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;
+    }
+  };
+
+  const extractTextFromTiptap = (doc: any): string => {
+    if (!doc || doc.type !== 'doc') return '';
+    let text = '';
+    const walk = (node: any) => {
+      if (!node || text.includes('\n')) return;
+      if (typeof node.text === 'string') text += node.text;
+      if (Array.isArray(node.content)) node.content.forEach((child: any) => walk(child));
+      if (node.type && text && !text.endsWith('\n')) {
+        if (node.type === 'paragraph' || node.type === 'heading' || node.type === 'listItem' || node.type === 'taskItem') {
+          text += '\n';
+        }
+      }
+    };
+    walk(doc);
+    return (text.split('\n').find((line) => line.trim() !== '') || '').trim();
+  };
+
+  const formatValueForDialog = (val: any) => {
+    if (val === null || val === undefined) return '—';
+    if (typeof val === 'number') return `${val}`;
+    if (typeof val === 'boolean') return val ? 'Oui' : 'Non';
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (!trimmed) return '—';
+      try {
+        const parsed = JSON.parse(trimmed);
+        const tiptapText = extractTextFromTiptap(parsed);
+        if (tiptapText) return tiptapText;
+      } catch {
+        // ignore JSON parse errors
+      }
+      return trimmed.length > 80 ? `${trimmed.slice(0, 80)}…` : trimmed;
+    }
+    if (typeof val === 'object' && val.type === 'doc') {
+      const tiptapText = extractTextFromTiptap(val);
+      return tiptapText || '—';
+    }
+    try {
+      const str = JSON.stringify(val);
+      return str.length > 80 ? `${str.slice(0, 80)}…` : str;
+    } catch {
+      return '—';
+    }
+  };
+
+  const getMatchingTemplate = (prop: any, data: any, sourceFieldId?: string) => {
+    const templates = Array.isArray(prop.defaultTemplates) ? prop.defaultTemplates : [];
+    const defaultTemplate = templates.find((template: any) => template?.isDefault);
+
+    for (const template of templates) {
+      const when = template?.when || {};
+      if (!when.fieldId) continue;
+      if (sourceFieldId && when.fieldId !== sourceFieldId) continue;
+      const sourceValue = data[when.fieldId];
+
+      if (Array.isArray(sourceValue)) {
+        if (sourceValue.includes(when.value)) return template;
+      } else if (sourceValue === when.value) {
+        return template;
+      }
+    }
+
+    if (!sourceFieldId) return defaultTemplate || null;
+    return null;
+  };
+
+  const applyTemplates = (
+    data: any,
+    sourceFieldId?: string,
+    autoFilledMap: Record<string, boolean> = {},
+    allowPrompt = false
+  ) => {
+    let nextData = { ...data };
+    let nextAutoFilled = { ...autoFilledMap };
+    let pendingUpdates: any[] = [];
+    let didApplyDurationChange = false;
+    let hasPendingDurationChange = false;
+
+    const props = (orderedProperties && orderedProperties.length > 0 ? orderedProperties : selectedCollection.properties) || [];
+    const templateSourceFieldIds = new Set(
+      props.flatMap((prop: any) =>
+        (Array.isArray(prop.defaultTemplates) ? prop.defaultTemplates : [])
+          .map((tpl: any) => tpl?.when?.fieldId)
+          .filter(Boolean)
+      )
+    );
+
+    if (sourceFieldId && !templateSourceFieldIds.has(sourceFieldId)) {
+      return { nextData, nextAutoFilled };
+    }
+
+    props.forEach((prop: any) => {
+      const match = getMatchingTemplate(prop, nextData, sourceFieldId);
+      if (!match) return;
+
+      const desiredValue = match.value;
+      const targetKey = prop.type === 'date' || prop.type === 'date_range'
+        ? `${prop.id}_duration`
+        : prop.id;
+      const currentValue = nextData[targetKey];
+      const isDurationTarget = targetKey.endsWith('_duration');
+
+      if (isEmptyValue(currentValue)) {
+        nextData[targetKey] = desiredValue;
+        nextAutoFilled[targetKey] = true;
+        if (isDurationTarget) didApplyDurationChange = true;
+        return;
+      }
+
+      if (nextAutoFilled[targetKey]) {
+        if (!areValuesEqual(currentValue, desiredValue)) {
+          nextData[targetKey] = desiredValue;
+          if (isDurationTarget) didApplyDurationChange = true;
+        }
+        nextAutoFilled[targetKey] = true;
+        return;
+      }
+
+      if (allowPrompt && !isEmptyValue(currentValue) && !areValuesEqual(currentValue, desiredValue)) {
+        pendingUpdates.push({
+          propId: prop.id,
+          propName: prop.name,
+          targetKey,
+          currentValue,
+          desiredValue,
+        });
+        if (isDurationTarget) hasPendingDurationChange = true;
+      }
+    });
+
+    return { nextData, nextAutoFilled, pendingUpdates, didApplyDurationChange, hasPendingDurationChange };
+  };
 
   function getRoundedNow() {
     const now = new Date();
@@ -70,9 +255,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     const props = orderedProperties && orderedProperties.length > 0 ? orderedProperties : col.properties;
     props.forEach((prop: any) => {
       if (data[prop.id] === undefined) {
-        if (prop.defaultValue !== undefined && prop.defaultValue !== null) {
-          data[prop.id] = prop.defaultValue;
-        } else if (prop.type === 'date') {
+        if (prop.type === 'date') {
           data[prop.id] = getRoundedNow().toISOString();
         }
       }
@@ -80,15 +263,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     // Pour chaque champ *_duration, si pas de valeur, injecte la valeur par défaut
     props.forEach((prop: any) => {
       if (prop.id.endsWith('_duration') && data[prop.id] === undefined) {
-        // Priorité : defaultValue du champ → defaultDuration → 1 heure par défaut
-        if (prop.defaultValue !== undefined && prop.defaultValue !== null) {
-          data[prop.id] = prop.defaultValue;
-        } else if (prop.defaultDuration !== undefined && prop.defaultDuration !== null) {
-          data[prop.id] = prop.defaultDuration;
-        } else {
-          // Initialiser avec 1 heure par défaut pour que les segments se génèrent
-          data[prop.id] = 1;
-        }
+        // Initialiser avec 1 heure par défaut pour que les segments se génèrent
+        data[prop.id] = 1;
       }
     });
     // Si on édite, on force l'id dans le formData
@@ -104,12 +280,22 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       // Initialiser avec un array vide - sera recalculé au serveur
       data._eventSegments = [];
     }
-    return data;
+
+    if (!prefill || !prefill.id) {
+      const { nextData, nextAutoFilled } = applyTemplates(data, undefined, {}, false);
+      return { data: nextData, autoFilled: nextAutoFilled };
+    }
+    return { data, autoFilled: {} };
   }
 
 
 
-  const [formData, setFormDataRaw] = useState(getInitialFormData(selectedCollection, editingItem));
+  const initialForm = useMemo(
+    () => getInitialFormData(selectedCollection, editingItem),
+    [selectedCollection, editingItem, orderedProperties]
+  );
+  const [templateAutoFilled, setTemplateAutoFilled] = useState<Record<string, boolean>>(initialForm.autoFilled);
+  const [formData, setFormDataRaw] = useState(initialForm.data);
 
   // NOUVEAU COMPORTEMENT: setFormData ne recalcule PLUS côté client
   // Tout recalcul se fait côté serveur via POST /api/state
@@ -130,7 +316,77 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const handleChange = (propId: string, value: any) => {
     // Plus besoin de vérifier si c'est un champ date
     // Tous les changements sont envoyés au serveur qui recalculera les segments
-    setFormData({ ...formData, [propId]: value });
+    let nextData = { ...formData, [propId]: value };
+    let nextAutoFilled = { ...templateAutoFilled, [propId]: false };
+
+    const result = applyTemplates(nextData, propId, nextAutoFilled, true);
+    const {
+      nextData: computedData,
+      nextAutoFilled: computedAutoFilled,
+      pendingUpdates = [],
+      didApplyDurationChange = false,
+      hasPendingDurationChange = false,
+    } = result as any;
+    nextData = computedData;
+    nextAutoFilled = computedAutoFilled;
+
+    if (didApplyDurationChange) {
+      nextData = { ...nextData, _eventSegments: calculateSegmentsClient(nextData, selectedCollection) };
+    }
+
+    if (pendingUpdates.length > 0) {
+      const selectionMap = pendingUpdates.reduce((acc: Record<string, boolean>, update: any) => {
+        acc[update.targetKey] = true;
+        return acc;
+      }, {});
+      setTemplateDialogItems(pendingUpdates);
+      setTemplateDialogSelection(selectionMap);
+      setTemplateDialogPayload({ nextData, nextAutoFilled });
+      setTemplateDialogNeedsSegments(hasPendingDurationChange);
+      setTemplateDialogOpen(true);
+      setTemplateAutoFilled(nextAutoFilled);
+      setFormData(nextData);
+      return;
+    }
+
+    setTemplateAutoFilled(nextAutoFilled);
+    setFormData(nextData);
+  };
+
+  const handleTemplateDialogConfirm = () => {
+    if (!templateDialogPayload) return;
+    let nextData = { ...templateDialogPayload.nextData };
+    let nextAutoFilled = { ...templateDialogPayload.nextAutoFilled };
+    let shouldRecalcSegments = false;
+
+    templateDialogItems.forEach((item: any) => {
+      if (!templateDialogSelection[item.targetKey]) return;
+      nextData[item.targetKey] = item.desiredValue;
+      nextAutoFilled[item.targetKey] = true;
+      if (item.targetKey.endsWith('_duration')) {
+        shouldRecalcSegments = true;
+      }
+    });
+
+    if (templateDialogNeedsSegments || shouldRecalcSegments) {
+      nextData = { ...nextData, _eventSegments: calculateSegmentsClient(nextData, selectedCollection) };
+    }
+
+    setTemplateAutoFilled(nextAutoFilled);
+    setFormData(nextData);
+    setTemplateDialogOpen(false);
+    setTemplateDialogItems([]);
+    setTemplateDialogSelection({});
+    setTemplateDialogPayload(null);
+    setTemplateDialogNeedsSegments(false);
+  };
+
+  const handleTemplateDialogCancel = () => {
+    setTemplateDialogOpen(false);
+    setTemplateDialogItems([]);
+    setTemplateDialogSelection({});
+    setTemplateDialogPayload(null);
+    setTemplateDialogNeedsSegments(false);
   };
 
 
@@ -179,7 +435,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   React.useEffect(() => {
     if (!editingItem) return;
     // On force la réinitialisation du formData à partir de l'editingItem reçu (qui doit contenir les _eventSegments à jour)
-    setFormDataRaw(getInitialFormData(selectedCollection, editingItem));
+    const next = getInitialFormData(selectedCollection, editingItem);
+    setFormDataRaw(next.data);
+    setTemplateAutoFilled(next.autoFilled);
   }, [editingItem, selectedCollection]);
 
   const isFavorite = favorites && editingItem ? favorites.items.includes(editingItem.id) : false;
@@ -240,10 +498,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   );
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]"
-      onClick={onClose}
-    >
+    <>
+      <div
+        className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]"
+        onClick={onClose}
+      >
       {/* Style global pour masquer les flèches des input[type=number] */}
       <style>{`
         input[type=number]::-webkit-outer-spin-button,
@@ -793,7 +1052,50 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           </motion.div>
         </motion.div>
       )}
-    </div>
+      </div>
+      <Dialog open={templateDialogOpen} onOpenChange={(open) => (open ? setTemplateDialogOpen(true) : handleTemplateDialogCancel())}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Appliquer les templates</DialogTitle>
+            <DialogDescription>
+              Sélectionne les champs à mettre à jour.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[50vh] overflow-y-auto">
+            {templateDialogItems.map((item: any) => (
+              <label key={item.targetKey} className="flex items-start gap-3 rounded-md border border-black/10 dark:border-white/10 p-3">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={templateDialogSelection[item.targetKey] ?? false}
+                  onChange={(e) =>
+                    setTemplateDialogSelection((prev) => ({
+                      ...prev,
+                      [item.targetKey]: e.target.checked,
+                    }))
+                  }
+                />
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+                    {item.propName}
+                  </div>
+                  <div className="text-xs text-neutral-500 mt-1">
+                    <span className="font-semibold">Actuel :</span> {formatValueForDialog(item.currentValue)}
+                  </div>
+                  <div className="text-xs text-neutral-500">
+                    <span className="font-semibold">Nouveau :</span> {formatValueForDialog(item.desiredValue)}
+                  </div>
+                </div>
+              </label>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={handleTemplateDialogCancel}>Annuler</Button>
+            <Button onClick={handleTemplateDialogConfirm}>Appliquer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

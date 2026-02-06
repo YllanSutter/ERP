@@ -322,15 +322,14 @@ const WeekView: React.FC<WeekViewProps> = ({
                         getNameValue={getNameValue}
                         hiddenFields={hiddenFields ?? []}
                         onViewDetail={() => onViewDetail(item)}
-                        onReduceDuration={(_item, arg) => {
-                          // Suppression segment : on ne supprime que si arg === multiDayIndex (entier)
-                          if (typeof arg === 'number' && Number.isInteger(arg) && arg === multiDayIndex) {
-                            const updatedItem = removeSegmentFromItem(item, arg);
+                        onReduceDuration={(_item, action) => {
+                          if (action.type === 'delete') {
+                            const updatedItem = removeSegmentFromItem(item, action.index);
                             if (onEdit) onEdit(updatedItem);
                             return;
                           }
                           // Sinon, on réduit la durée du segment courant (modifie le champ end)
-                          const newDuration = arg;
+                          const newDuration = action.hours;
                           const seg = item._eventSegments?.[multiDayIndex];
                           if (!seg) return;
                           

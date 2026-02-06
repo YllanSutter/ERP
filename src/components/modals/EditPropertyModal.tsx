@@ -26,14 +26,15 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
   const [relationType, setRelationType] = useState(property.relation?.type || 'many_to_many');
   const [relationFilterField, setRelationFilterField] = useState(property.relation?.filter?.fieldId || '');
   const [relationFilterValue, setRelationFilterValue] = useState(property.relation?.filter?.value || '');
-  const [defaultDuration, setDefaultDuration] = useState(property.defaultDuration || 1);
   const [showContextMenu, setShowContextMenu] = useState(property.showContextMenu || false);
-  const [defaultValue, setDefaultValue] = useState(property.defaultValue ?? null);
+  const [defaultTemplates, setDefaultTemplates] = useState<any[]>(property.defaultTemplates || []);
   const [showIconPopover, setShowIconPopover] = useState(false);
   const [showColorPopover, setShowColorPopover] = useState(false);
 
   const targetCollection = (collections || []).find((c: any) => c.id === relationTarget);
   const filterProp = targetCollection?.properties?.find((p: any) => p.id === relationFilterField);
+  const currentCollection = (collections || []).find((c: any) => c.id === currentCollectionId);
+  const templateSourceOptions = (currentCollection?.properties || []).filter((p: any) => p.id !== property.id);
 
   const handleSave = () => {
     const updatedProperty: any = {
@@ -43,18 +44,14 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
       icon,
       color,
       showContextMenu,
-      defaultValue
+      defaultTemplates
     };
     if (type === 'select' || type === 'multi_select') {
       updatedProperty.options = options;
     } else {
       delete updatedProperty.options;
     }
-    if (type === 'date' || type === 'date_range') {
-      updatedProperty.defaultDuration = defaultDuration;
-    } else {
-      delete updatedProperty.defaultDuration;
-    }
+    delete updatedProperty.defaultDuration;
     if (type === 'relation') {
       if (!relationTarget) {
         alert('Veuillez choisir une collection cible');
@@ -87,27 +84,173 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
               />
             </div>
             {/* Champ valeur par défaut dynamique selon le type */}
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Valeur par défaut</label>
-              <EditableProperty
-                property={{
-                  ...property,
-                  type,
-                  options,
-                  relation: type === 'relation' ? {
-                    targetCollectionId: relationTarget,
-                    type: relationType,
-                    filter: relationFilterField && relationFilterValue ? { fieldId: relationFilterField, value: relationFilterValue } : undefined
-                  } : undefined
-                }}
-                value={defaultValue}
-                onChange={setDefaultValue}
-                collections={collections}
-                currentItem={{}}
-                size="md"
-                readOnly={false}
-              />
-              <p className="text-xs text-neutral-500 mt-1">Cette valeur sera utilisée par défaut lors de la création d'un nouvel élément</p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Templates conditionnels</label>
+                <button
+                  type="button"
+                  onClick={() => setDefaultTemplates((prev) => ([
+                    ...prev,
+                    { id: `tpl_${Date.now()}`, when: { fieldId: '', value: '' }, value: '' }
+                  ]))}
+                  className="text-xs px-2 py-1 rounded bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10"
+                >
+                  + Ajouter un template
+                </button>
+              </div>
+              {defaultTemplates.length === 0 && (
+                <p className="text-xs text-neutral-500">Aucun template défini.</p>
+              )}
+              <div className="space-y-3">
+                {defaultTemplates.map((tpl, index) => {
+                  const sourceProp = templateSourceOptions.find((p: any) => p.id === tpl.when?.fieldId);
+                  const sourceType = sourceProp?.type;
+                  const updateTemplate = (patch: any) => {
+                    setDefaultTemplates((prev) => prev.map((t, i) => i === index ? { ...t, ...patch } : t));
+                  };
+
+                  const updateWhen = (patch: any) => {
+                    setDefaultTemplates((prev) => prev.map((t, i) => i === index ? { ...t, when: { ...(t.when || {}), ...patch } } : t));
+                  };
+
+                  return (
+                    <div key={tpl.id || index} className="rounded-lg border border-black/10 dark:border-white/10 p-3 space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                        <div>
+                          <label className="block text-xs text-neutral-500 mb-1">Si le champ</label>
+                          <select
+                            value={tpl.when?.fieldId || ''}
+                            onChange={(e) => updateWhen({ fieldId: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
+                          >
+                            <option value="">Sélectionner...</option>
+                            {templateSourceOptions.map((p: any) => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-neutral-500 mb-1">Vaut</label>
+                          {sourceType === 'select' || sourceType === 'multi_select' ? (
+                            <select
+                              value={tpl.when?.value ?? ''}
+                              onChange={(e) => updateWhen({ value: e.target.value })}
+                              className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
+                            >
+                              <option value="">Sélectionner...</option>
+                              {(sourceProp?.options || []).map((opt: any) => {
+                                const optValue = typeof opt === 'string' ? opt : opt.value;
+                                return (
+                                  <option key={optValue} value={optValue}>{optValue}</option>
+                                );
+                              })}
+                            </select>
+                          ) : sourceType === 'checkbox' ? (
+                            <select
+                              value={tpl.when?.value === true ? 'true' : tpl.when?.value === false ? 'false' : ''}
+                              onChange={(e) => updateWhen({ value: e.target.value === 'true' })}
+                              className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
+                            >
+                              <option value="">Sélectionner...</option>
+                              <option value="true">Oui</option>
+                              <option value="false">Non</option>
+                            </select>
+                          ) : sourceType === 'number' ? (
+                            <input
+                              type="number"
+                              value={tpl.when?.value ?? ''}
+                              onChange={(e) => updateWhen({ value: e.target.value === '' ? '' : Number(e.target.value) })}
+                              className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={tpl.when?.value ?? ''}
+                              onChange={(e) => updateWhen({ value: e.target.value })}
+                              className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
+                            />
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          title="Marquer comme template par défaut"
+                          onClick={() => setDefaultTemplates((prev) => prev.map((t, i) => ({
+                            ...t,
+                            isDefault: i === index
+                          })))}
+                          className={
+                            "px-3 py-2 text-xs rounded " +
+                            (tpl.isDefault ? "bg-violet-500/20 text-violet-600" : "bg-black/5 dark:bg-white/5")
+                          }
+                        >
+                          Défaut
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDefaultTemplates((prev) => prev.filter((_, i) => i !== index))}
+                          className="px-3 py-2 text-xs rounded bg-red-500/10 text-red-600 hover:bg-red-500/20"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-neutral-500 mb-1">Alors définir la valeur à</label>
+                        {type === 'rich_text' ? (
+                          <EditableProperty
+                            property={{
+                              ...property,
+                              type,
+                              options,
+                              relation: type === 'relation' ? {
+                                targetCollectionId: relationTarget,
+                                type: relationType,
+                                filter: relationFilterField && relationFilterValue ? { fieldId: relationFilterField, value: relationFilterValue } : undefined
+                              } : undefined
+                            }}
+                            value={tpl.value}
+                            onChange={(val) => updateTemplate({ value: val })}
+                            collections={collections}
+                            currentItem={{}}
+                            size="md"
+                            readOnly={false}
+                            forceRichEditor={true}
+                          />
+                        ) : type === 'date' || type === 'date_range' ? (
+                          <input
+                            type="number"
+                            min="0.25"
+                            step="0.25"
+                            value={tpl.value ?? ''}
+                            onChange={(e) => updateTemplate({ value: e.target.value === '' ? '' : Number(e.target.value) })}
+                            className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
+                            placeholder="Durée (heures)"
+                          />
+                        ) : (
+                          <EditableProperty
+                            property={{
+                              ...property,
+                              type,
+                              options,
+                              relation: type === 'relation' ? {
+                                targetCollectionId: relationTarget,
+                                type: relationType,
+                                filter: relationFilterField && relationFilterValue ? { fieldId: relationFilterField, value: relationFilterValue } : undefined
+                              } : undefined
+                            }}
+                            value={tpl.value}
+                            onChange={(val) => updateTemplate({ value: val })}
+                            collections={collections}
+                            currentItem={{}}
+                            size="md"
+                            readOnly={false}
+                            onRelationChange={(_prop, _item, val) => updateTemplate({ value: val })}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
@@ -169,21 +312,6 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
             </div>
           </div>
 
-          {(type === 'date' || type === 'date_range') && (
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Durée par défaut (heures)</label>
-              <input
-                type="number"
-                value={defaultDuration}
-                onChange={(e) => setDefaultDuration(parseFloat(e.target.value) || 1)}
-                min="0.25"
-                step="0.25"
-                className="w-full px-4 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
-                placeholder="1"
-              />
-              <p className="text-xs text-neutral-500 mt-1">Durée par défaut des événements dans le calendrier</p>
-            </div>
-          )}
 
           {type === 'relation' && (
             <div className="space-y-4">

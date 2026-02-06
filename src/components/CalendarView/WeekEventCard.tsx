@@ -50,7 +50,7 @@ interface WeekEventCardProps {
   collections: any[];
   getNameValue: (item: any) => string;
   onViewDetail: (item: any) => void;
-  onReduceDuration: (item: any, hours: number) => void;
+  onReduceDuration: (item: any, action: { type: 'resize'; hours: number } | { type: 'delete'; index: number }) => void;
   onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number, options?: { segmentIndex?: number, moveAllSegments?: boolean }) => void;
   onEditField?: (updatedItem: any) => void;
   collectionsList?: any[]; // pour compatibilité EditableProperty si besoin
@@ -188,7 +188,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
         // Correction : ne pas supprimer si la durée est trop courte, on limite à 15min
         if (newDuration >= 0.25 && typeof onReduceDuration === 'function') {
           // Passe la nouvelle durée (en heures) au parent
-          onReduceDuration(item, newDuration);
+          onReduceDuration(item, { type: 'resize', hours: newDuration });
         }
       };
       window.addEventListener('mousemove', handleMouseMove);
@@ -330,7 +330,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 // Passe l'index du segment à supprimer via multiDayIndex
-                onReduceDuration(item, multiDayIndex);
+                onReduceDuration(item, { type: 'delete', index: multiDayIndex });
               }}
               className="absolute top-0.5 right-0.5 p-0.5 rounded bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
             >
@@ -344,7 +344,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
           </ContextMenuItem>
          
           {onReduceDuration && (
-            <ContextMenuItem onClick={() => onReduceDuration(item, multiDayIndex)}>
+            <ContextMenuItem onClick={() => onReduceDuration(item, { type: 'delete', index: multiDayIndex })}>
               <span className="text-red-500">Réduire/Détruire</span>
             </ContextMenuItem>
           )}
