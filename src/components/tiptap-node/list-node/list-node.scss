@@ -83,6 +83,8 @@
       display: flex;
       flex-direction: row;
       align-items: flex-start;
+      gap: 0.25rem;
+      position: relative;
 
       &:not(:has(> p:first-child)) {
         list-style-type: none;
@@ -154,6 +156,51 @@
       div {
         flex: 1 1 0%;
         min-width: 0;
+      }
+
+      .tt-task-toggle {
+        position: absolute;
+        left: -1.25rem;
+        top: 0.35rem;
+        width: 1.25em;
+        height: 1.25em;
+        padding: 0;
+        border: none;
+        background: transparent;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: currentColor;
+        opacity: 0.6;
+        cursor: pointer;
+
+        &:hover {
+          opacity: 1;
+        }
+
+        &:disabled {
+          opacity: 0.4;
+          cursor: default;
+        }
+
+        svg {
+          width: 1em;
+          height: 1em;
+          transition: transform 120ms ease;
+        }
+      }
+
+      &[data-collapsed="true"] {
+        > .tt-task-toggle {
+          svg {
+            transform: rotate(-90deg);
+          }
+        }
+
+        .tt-task-content ul,
+        .tt-task-content ol {
+          display: none;
+        }
       }
     }
   }
