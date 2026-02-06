@@ -374,10 +374,30 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             className="flex items-center gap-2 px-3 py-1.5 bg-violet-500/20 text-neutral-700 dark:text-white rounded-lg text-sm border border-violet-500/30"
           >
             <span>
-              {currentCollection?.properties.find((p: any) => p.id === filter.property)?.name}{' '}
+              {(() => {
+                const sourceCollection =
+                  collections.find((c: any) =>
+                    c.properties?.some((p: any) => p.id === filter.property)
+                  ) || currentCollection;
+                const sourceProp = sourceCollection?.properties?.find(
+                  (p: any) => p.id === filter.property
+                );
+                return (
+                  <>
+                    {sourceCollection?.name && (
+                      <span className="text-neutral-500">{sourceCollection.name} · </span>
+                    )}
+                    {sourceProp?.name || 'Champ'}{' '}
+                  </>
+                );
+              })()}
               {filter.operator}{' '}
               {(() => {
-                const prop = currentCollection?.properties.find(
+                const sourceCollection =
+                  collections.find((c: any) =>
+                    c.properties?.some((p: any) => p.id === filter.property)
+                  ) || currentCollection;
+                const prop = sourceCollection?.properties?.find(
                   (p: any) => p.id === filter.property
                 );
                 if (prop?.type === 'relation') {
@@ -386,9 +406,9 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                   );
                   if (!targetCol) return filter.value;
                   const nameField =
-                    targetCol.properties.find((p: any) => p.name === 'Nom' || p.id === 'name') || {
-                      id: 'name'
-                    };
+                    targetCol.properties.find((p: any) => p.name === 'Nom' || p.id === 'name') ||
+                    targetCol.properties[0] ||
+                    ({ id: 'name' } as any);
                   if (Array.isArray(filter.value)) {
                     return filter.value
                       .map((id: string) => {
