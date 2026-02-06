@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { getNameValue as getNameValueLib } from '@/lib/calendarUtils';
 import { motion } from 'framer-motion';
 import CalendarCollectionsManager from '../calendar/CalendarCollectionsManager';
-import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 
 interface CalendarViewProps {
   collection: any;
@@ -18,7 +17,8 @@ interface CalendarViewProps {
   defaultDuration?: number; // in hours
   collections?: any[];
   onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
-  viewId?: string;
+  viewConfig?: any;
+  onUpdateViewConfig?: (updates: Record<string, any>) => void;
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({
@@ -35,36 +35,25 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   defaultDuration = 1,
   collections = [],
   onShowNewItemModalForCollection,
-  viewId,
+  viewConfig,
+  onUpdateViewConfig,
 }) => {
   // Sélection multiple de collections
-  // Persistance du multi-sélecteur de collections
   const getInitialSelectedCollections = () => {
-    try {
-      if (typeof window !== 'undefined') {
-        const saved = window.localStorage.getItem('calendarSelectedCollections');
-        if (saved) {
-          const arr = JSON.parse(saved);
-          if (Array.isArray(arr) && arr.length > 0) return arr;
-        }
-      }
-    } catch {}
+    const fromConfig = viewConfig?.calendarCollectionIds;
+    if (Array.isArray(fromConfig) && fromConfig.length > 0) return fromConfig;
     if (collection) return [collection.id];
     if (collections.length > 0) return [collections[0].id];
     return [];
   };
-  const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(getInitialSelectedCollections);
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(
+    getInitialSelectedCollections
+  );
 
-  // Persistance du sélecteur 'collection - Temps' (champ date par collection)
+  // Sélecteur 'collection - Temps' (champ date par collection)
   const getInitialSelectedDateFields = () => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = window.localStorage.getItem('calendarSelectedDateFields');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object') return parsed;
-        }
-      } catch {}
+    if (viewConfig?.calendarDateFields && typeof viewConfig.calendarDateFields === 'object') {
+      return viewConfig.calendarDateFields;
     }
     // fallback initial : premier champ date/date_range de chaque collection
     const initial: Record<string, string> = {};
@@ -76,20 +65,49 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   };
   const [selectedDateFields, setSelectedDateFields] = useState<Record<string, string>>(getInitialSelectedDateFields);
 
-  // Sauvegarde à chaque changement
+  const viewKey = viewConfig?.id || null;
+
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem('calendarSelectedDateFields', JSON.stringify(selectedDateFields));
-      } catch {}
+    setSelectedCollectionIds(getInitialSelectedCollections());
+    setSelectedDateFields(getInitialSelectedDateFields());
+  }, [viewKey]);
+
+  React.useEffect(() => {
+    if (viewConfig?.calendarCollectionIds) {
+      setSelectedCollectionIds(viewConfig.calendarCollectionIds);
+    } else {
+      setSelectedCollectionIds(getInitialSelectedCollections());
     }
-  }, [selectedDateFields]);
+  }, [viewConfig?.calendarCollectionIds, viewKey]);
 
-  // Hooks de permissions (par collection)
-  const canEdit = (colId: string) => useCanEdit(colId);
-  const canEditFieldFn = (fieldId: string, colId: string) => useCanEditField(fieldId, colId);
-  const canViewFieldFn = (fieldId: string, colId: string) => useCanViewField(fieldId, colId);
+  React.useEffect(() => {
+    if (viewConfig?.calendarDateFields) {
+      setSelectedDateFields(viewConfig.calendarDateFields);
+    } else {
+      setSelectedDateFields(getInitialSelectedDateFields());
+    }
+  }, [viewConfig?.calendarDateFields, viewKey]);
 
+  React.useEffect(() => {
+    if (!collections || collections.length === 0) return;
+    let changed = false;
+    const next = { ...selectedDateFields };
+    selectedCollectionIds.forEach((collectionId) => {
+      if (next[collectionId]) return;
+      const col = collections.find((c) => c.id === collectionId);
+      const dateProp = col?.properties?.find(
+        (p: any) => p.type === 'date' || p.type === 'date_range'
+      );
+      if (dateProp) {
+        next[collectionId] = dateProp.id;
+        changed = true;
+      }
+    });
+    if (changed) {
+      setSelectedDateFields(next);
+      onUpdateViewConfig?.({ calendarDateFields: next });
+    }
+  }, [collections, selectedCollectionIds, selectedDateFields, onUpdateViewConfig]);
 
   if (!collections || collections.length === 0) {
     return (
@@ -125,7 +143,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
 
   // Récupérer les collections sélectionnées
-  const selectedCollections = useMemo(() => collections.filter(col => selectedCollectionIds.includes(col.id)), [collections, selectedCollectionIds]);
+  const selectedCollections = useMemo(
+    () => collections.filter(col => selectedCollectionIds.includes(col.id)),
+    [collections, selectedCollectionIds]
+  );
+
+  const collectionsWithOverrides = useMemo(() => {
+    if (!collection) return collections;
+    return collections.map((col) =>
+      col.id === collection.id ? { ...col, items } : col
+    );
+  }, [collections, collection, items]);
 
 
   // Fusionne tous les items filtrés des collections sélectionnées, en ajoutant __collectionId si besoin
@@ -211,10 +239,41 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     return getNameValueLib(item, collection);
   };
 
+  const toggleCollection = (collectionId: string, enabled: boolean) => {
+    setSelectedCollectionIds((prev) => {
+      const next = enabled
+        ? Array.from(new Set([...prev, collectionId]))
+        : prev.filter((id) => id !== collectionId);
+      onUpdateViewConfig?.({ calendarCollectionIds: next });
+      return next;
+    });
+
+    if (enabled) {
+      setSelectedDateFields((prev) => {
+        if (prev[collectionId]) return prev;
+        const col = collections.find((c) => c.id === collectionId);
+        const dateProp = col?.properties?.find(
+          (p: any) => p.type === 'date' || p.type === 'date_range'
+        );
+        const next = dateProp ? { ...prev, [collectionId]: dateProp.id } : prev;
+        onUpdateViewConfig?.({ calendarDateFields: next });
+        return next;
+      });
+    }
+  };
+
+  const updateDateField = (collectionId: string, fieldId: string) => {
+    setSelectedDateFields((prev) => {
+      const next = { ...prev, [collectionId]: fieldId };
+      onUpdateViewConfig?.({ calendarDateFields: next });
+      return next;
+    });
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <CalendarCollectionsManager
-        collections={collections}
+        collections={collectionsWithOverrides}
         defaultDuration={defaultDuration}
         startHour={startHour}
         endHour={endHour}
@@ -224,7 +283,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         onDelete={onDelete}
         onEditField={onEdit}
         onShowNewItemModalForCollection={onShowNewItemModalForCollection}
-        viewId={viewId}
+        selectedCollectionIds={selectedCollectionIds}
+        onToggleCollection={toggleCollection}
+        dateFields={selectedDateFields}
+        onChangeDateField={updateDateField}
       />
     </motion.div>
   );

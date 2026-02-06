@@ -1,8 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import MonthView from '../CalendarView/MonthView';
 import DayView from '../CalendarView/DayView';
-import CollectionFilterPanel from './CollectionFilterPanel';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import WeekView from '../CalendarView/WeekView';
 import { 
   moveAllSegmentsOfItem, 
@@ -20,7 +18,10 @@ interface CalendarCollectionsManagerProps {
   hiddenFields?: string[];
   onEditField?: (updatedItem: any) => void;
   onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
-  viewId?: string;
+  selectedCollectionIds: string[];
+  onToggleCollection: (collectionId: string, enabled: boolean) => void;
+  dateFields: Record<string, string>;
+  onChangeDateField: (collectionId: string, fieldId: string) => void;
 }
 
 const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
@@ -33,7 +34,10 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   onEdit = () => {},
   onDelete = () => {},
   onShowNewItemModalForCollection,
-  viewId,
+  selectedCollectionIds,
+  onToggleCollection,
+  dateFields,
+  onChangeDateField,
 }) => {
   // Option pour déplacer tout ou seulement le segment
   const [moveAllSegments, setMoveAllSegments] = useState(true);
@@ -139,87 +143,23 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
     }
   };
 
-  // État des filtres et du champ date par collection
-  const [filters, setFilters] = useState<Record<string, any>>({});
-  const [dateFields, setDateFields] = useState<Record<string, string>>({});
-
-   // Helper pour obtenir l'id de la vue calendrier (par exemple, la première vue de type 'calendar' de la collection)
-   const getCalendarViewId = (col: any) => {
-     if (!col || !col.views) return null;
-     const calendarView = col.views.find((v: any) => v.type === 'calendar');
-     return calendarView ? calendarView.id : null;
-   };
-
-  // --- Initialisation des filtres et dateFields au montage ---
-  useEffect(() => {
-    if (!collections || collections.length === 0) return;
-    const newFilters: Record<string, any> = {};
-    const newDateFields: Record<string, string> = {};
-    collections.forEach(col => {
-      // Utilise le viewId passé en prop (celui de la vue calendrier active)
-      const filtersKey = viewId ? `erp_collection_filters_${col.id}_${viewId}` : `erp_collection_filters_${col.id}`;
-      const dateFieldKey = viewId ? `erp_collection_datefield_${col.id}_${viewId}` : `erp_collection_datefield_${col.id}`;
-      // Filtres
-      const savedFilters = localStorage.getItem(filtersKey);
-      if (savedFilters) {
-        try {
-          const parsed = JSON.parse(savedFilters);
-          if (parsed && typeof parsed === 'object') {
-            newFilters[col.id] = parsed;
-          }
-        } catch {}
-      }
-      // Champ date
-      const savedDateField = localStorage.getItem(dateFieldKey);
-      if (savedDateField && savedDateField !== '') {
-        newDateFields[col.id] = savedDateField;
-      }
-    });
-    setFilters(newFilters);
-    setDateFields(newDateFields);
-  }, [collections]);
+  const collectionsWithDate = collections.filter((collection) =>
+    collection.properties?.some(
+      (p: any) => p.type === 'date' || p.type === 'date_range'
+    )
+  );
+  const activeCollections = collectionsWithDate.filter((col) =>
+    selectedCollectionIds.includes(col.id)
+  );
 
   // Filtrage des items par collection
   const getFilteredItems = (collection: any) => {
-     // On cherche l'id de la vue calendrier pour cette collection
-     const viewId = getCalendarViewId(collection);
-     // On utilise la clé de filtre propre à la collection+vue
-     const filter = filters[collection.id] || {};
     const dateFieldId = dateFields[collection.id];
     const dateField = collection.properties.find((p: any) => p.id === dateFieldId);
     let items = collection.items || [];
-    // Filtrage par champ
+    // NE GARDER QUE les items qui ont une valeur dans le champ date sélectionné
     items = items.filter((item: any) => {
-      for (const fieldId in filter) {
-        const field = collection.properties.find((p: any) => p.id === fieldId);
-        if (!field) continue;
-        const value = item[fieldId];
-        const filterValue = filter[fieldId];
-        // Si filtre vide (string vide ou tableau vide), on ne filtre pas
-        if (
-          filterValue === '' ||
-          filterValue === null ||
-          (Array.isArray(filterValue) && filterValue.length === 0)
-        ) continue;
-        if (field.type === 'select') {
-          if (value !== filterValue) return false;
-        } else if (field.type === 'relation') {
-          const relationType = field.relation?.type || 'many_to_many';
-          if (relationType === 'many_to_many' || relationType === 'one_to_many') {
-            if (!Array.isArray(value)) return false;
-            if (!Array.isArray(filterValue)) return false;
-            if (filterValue.length === 0) continue;
-            if (value.length === 0) return false;
-            if (!filterValue.some((id: string) => value.includes(id))) return false;
-          } else {
-            if (filterValue === '') continue;
-            if (value !== filterValue) return false;
-          }
-        } else {
-          if (typeof value === 'string' && !value.toLowerCase().includes(filterValue.toLowerCase())) return false;
-        }
-      }
-      // NE GARDER QUE les items qui ont une valeur dans le champ date sélectionné
+      if (!dateField || !dateFieldId) return false;
       if (!item[dateFieldId]) return false;
       return true;
     });
@@ -309,35 +249,56 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           </button>
         </div>
       </div>
-      <Tabs defaultValue={collections[0]?.id} className="w-full mb-4">
-        <TabsList>
-          {collections.map((collection) => (
-            <TabsTrigger key={collection.id} value={collection.id}>
-              {collection.name}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        {collections.map((collection) => (
-          <TabsContent key={collection.id} value={collection.id}>
-            <CollectionFilterPanel
-              collection={collection}
-              properties={collection.properties}
-              filters={filters[collection.id] || {}}
-              setFilters={(f: any) => setFilters((prev) => ({ ...prev, [collection.id]: f }))}
-              dateField={dateFields[collection.id]}
-              setDateField={(fieldId: string) => setDateFields((prev) => ({ ...prev, [collection.id]: fieldId }))}
-              collections={collections}
-              onShowNewItemModalForCollection={onShowNewItemModalForCollection}
-              viewId={viewId}
-            />
-          </TabsContent>
-        ))}
-      </Tabs>
+      <div className="mb-4 rounded-xl border border-white/10 bg-white/5 p-4">
+        <div className="text-sm font-semibold mb-3">Collections affichées</div>
+        <div className="flex items-center">
+          {collectionsWithDate.map((collection) => {
+            const dateOptions = collection.properties.filter(
+              (p: any) => p.type === 'date' || p.type === 'date_range'
+            );
+            const isSelected = selectedCollectionIds.includes(collection.id);
+            return (
+              <div
+                key={collection.id}
+                className="flex flex-wrap items-center gap-3 px-3"
+              >
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={(e) => onToggleCollection(collection.id, e.target.checked)}
+                    className="accent-violet-500"
+                  />
+                  <span>{collection.name}</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-neutral-400">Temps</span>
+                  <select
+                    className="bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
+                    value={dateFields[collection.id] || ''}
+                    onChange={(e) => onChangeDateField(collection.id, e.target.value)}
+                    disabled={!isSelected || dateOptions.length === 0}
+                  >
+                    <option value="" disabled>
+                      {dateOptions.length === 0 ? 'Aucun champ date' : 'Choisir'}
+                    </option>
+                    {dateOptions.map((p: any) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       {/* Affichage de la vue calendrier selon viewMode */}
       {viewMode === 'month' ? (
         <MonthView
           currentDate={currentDate}
-          items={collections.flatMap(getFilteredItems)}
+          items={activeCollections.flatMap(getFilteredItems)}
           dateField={undefined}
           collection={undefined}
           onDateSelect={() => {}}
@@ -354,8 +315,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           return (
             <WeekView
               currentDate={currentDate}
-              items={collections.flatMap(getFilteredItems)}
-              collections={collections}
+              items={activeCollections.flatMap(getFilteredItems)}
+              collections={activeCollections}
               getNameValue={(item) => {
                 const col = collections.find(c => c.id === item.__collectionId);
                 if (!col) return item.name || 'Sans titre';
@@ -385,8 +346,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
       ) : (
         <DayView
           currentDate={currentDate}
-          items={collections.flatMap(getFilteredItems)}
-          collections={collections}
+          items={activeCollections.flatMap(getFilteredItems)}
+          collections={activeCollections}
           getNameValue={(item) => {
             const col = collections.find(c => c.id === item.__collectionId);
             if (!col) return item.name || 'Sans titre';

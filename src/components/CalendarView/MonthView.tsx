@@ -74,7 +74,7 @@ const MonthView: React.FC<MonthViewProps> = ({
               animate={{ opacity: 1 }}
               whileHover={{ scale: day ? 1.05 : 1 }}
               className={cn(
-                "aspect-square rounded-lg border transition-all p-2 text-xs",
+                "aspect-square rounded-lg border transition-all p-2 text-xs overflow-y-auto",
                 !day && 'bg-transparent border-transparent',
                 day && 'bg-gray-200 dark:bg-neutral-800/30 border-black/5 dark:border-white/5 hover:border-black/20 dark:hover:border-white/20',
                 isToday && 'border-cyan-400 dark:border-cyan-500/50 bg-cyan-100 dark:bg-cyan-500/10'

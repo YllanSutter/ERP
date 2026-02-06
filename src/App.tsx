@@ -574,13 +574,26 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                     dateProperty={activeViewConfig?.dateProperty}
                     hiddenFields={activeViewConfig?.hiddenFields || []}
                     collections={collections}
-                    viewId={activeViewConfig?.id}
+                    viewConfig={activeViewConfig}
                     onChangeDateProperty={(propId: string) => {
                       const updatedViews = { ...views } as Record<string, any[]>;
                       const viewIndex = updatedViews[activeCollection].findIndex(
                         (v) => v.id === activeView
                       );
                       updatedViews[activeCollection][viewIndex].dateProperty = propId;
+                      setViews(updatedViews);
+                    }}
+                    onUpdateViewConfig={(updates: Record<string, any>) => {
+                      if (!activeCollection) return;
+                      const updatedViews = { ...views } as Record<string, any[]>;
+                      const viewIndex = updatedViews[activeCollection].findIndex(
+                        (v) => v.id === activeView
+                      );
+                      if (viewIndex === -1) return;
+                      updatedViews[activeCollection][viewIndex] = {
+                        ...updatedViews[activeCollection][viewIndex],
+                        ...updates,
+                      };
                       setViews(updatedViews);
                     }}
                     onShowNewItemModalForCollection={(collection, item) => {
