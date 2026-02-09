@@ -38,51 +38,7 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
 
   return (
     <div className={cn('flex items-center gap-2', sizeClass, className)}>
-      {!disabled && (
-        <PopoverButton
-          icon="Plus"
-          title="Ajouter / gérer"
-          isAbsolute
-          size={14}
-          contentClassName="w-64"
-        >
-          <div className="space-y-1 max-h-64 overflow-y-auto">
-            {options.map((opt) => {
-              const optValue = getOptionValue(opt);
-              const optColor = getOptionColor(opt);
-              const iconName = getOptionIcon(opt);
-              const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
-              const checked = selectedValues.includes(optValue);
-              const label = getOptionLabel ? getOptionLabel(opt) : (typeof opt === 'string' ? opt : (opt.label || opt.value));
-              return (
-                <button
-                  key={optValue}
-                  type="button"
-                  className={cn(
-                    'flex items-center gap-2 w-full px-2 py-1 rounded text-sm transition',
-                    checked
-                      ? 'bg-violet-600/20 text-violet-200 font-semibold'
-                      : 'hover:bg-white/10 text-white'
-                  )}
-                  style={checked ? { backgroundColor: `${optColor}22`, color: optColor } : {}}
-                  onClick={() => toggleValue(optValue)}
-                >
-                  <span className={cn('inline-flex items-center justify-center w-4 h-4 rounded-full border', checked ? 'bg-violet-500 border-violet-400' : 'bg-white/5 border-white/20')}
-                    style={checked ? { backgroundColor: optColor, borderColor: optColor } : {}}>
-                    {checked && <Icons.Check size={12} className="text-white" />}
-                  </span>
-                  {OptIcon && <OptIcon size={13} className="opacity-80" />}
-                  <span className="truncate flex-1 text-left">{label}</span>
-                </button>
-              );
-            })}
-            {options.length === 0 && (
-              <div className="text-xs text-neutral-500 px-2 py-1">Aucune option</div>
-            )}
-          </div>
-        </PopoverButton>
-      )}
-      <div className="flex  gap-1 flex-1">
+      <div className="flex gap-1 flex-1 flex-wrap">
         {selectedValues.length === 0 && (
           <span className="text-xs text-neutral-500 items-center flex">{placeholder}</span>
         )}
@@ -113,6 +69,44 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
           );
         })}
       </div>
+      {!disabled && (
+        <PopoverButton
+          icon="Plus"
+          title="Ajouter / gérer"
+          isAbsolute
+          size={14}
+          contentClassName="w-64"
+        >
+          <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
+            {options.map((opt) => {
+              const optValue = getOptionValue(opt);
+              const optColor = getOptionColor(opt);
+              const iconName = getOptionIcon(opt);
+              const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
+              const checked = selectedValues.includes(optValue);
+              const label = getOptionLabel ? getOptionLabel(opt) : (typeof opt === 'string' ? opt : (opt.label || opt.value));
+              return (
+                <button
+                  key={optValue}
+                  type="button"
+                  className={cn(
+                    'px-2 py-1 rounded-full text-xs border transition flex items-center gap-1',
+                    checked ? 'font-semibold' : 'hover:bg-white/10'
+                  )}
+                  style={checked ? { backgroundColor: `${optColor}22`, borderColor: `${optColor}55`, color: optColor } : { borderColor: 'rgba(255,255,255,0.08)' }}
+                  onClick={() => toggleValue(optValue)}
+                >
+                  {OptIcon && <OptIcon size={12} className="opacity-80" />}
+                  <span className="truncate">{label}</span>
+                </button>
+              );
+            })}
+            {options.length === 0 && (
+              <div className="text-xs text-neutral-500 px-2 py-1">Aucune option</div>
+            )}
+          </div>
+        </PopoverButton>
+      )}
     </div>
   );
 };

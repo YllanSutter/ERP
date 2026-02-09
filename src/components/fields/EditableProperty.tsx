@@ -384,54 +384,76 @@ const RelationEditor = ({
     </div>
   );
 
-  const searchList = isSourceMany ? (
-    <div className="space-y-1 max-h-64 overflow-y-auto">
-      {filteredItems.map((ti: any) => {
-        const checked = selectedIds.includes(ti.id);
-        return (
-          <label key={ti.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5 text-sm text-neutral-700 dark:text-white cursor-pointer">
-            <input
-              type="checkbox"
-              checked={checked}
-              onChange={(e) => toggleItem(ti.id, e.target.checked)}
-              className="cursor-pointer"
-            />
-            <span className="truncate">{getItemName(ti)}</span>
-          </label>
-        );
-      })}
-      {filteredItems.length === 0 && searchQuery && (
-        <div className="text-xs text-neutral-500 px-2 py-1">Aucun résultat</div>
-      )}
-    </div>
-  ) : (
-    <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
-      <button
-        className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-300"
-        onClick={() => {
-          onRelationChange(property, currentItem, null);
-          setSearchQuery('');
-        }}
-      >
-        Aucun
-      </button>
-      {filteredItems.map((ti: any) => (
+  const renderSearchList = (close: () => void) =>
+    isSourceMany ? (
+      <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
+        {filteredItems.map((ti: any) => {
+          const checked = selectedIds.includes(ti.id);
+          const label = getItemName(ti);
+          return (
+            <button
+              key={ti.id}
+              type="button"
+              className={cn(
+                'px-2 py-1 rounded-full text-xs border transition',
+                checked ? 'font-semibold' : 'hover:bg-white/10'
+              )}
+              style={checked ? { backgroundColor: 'rgba(139,92,246,0.16)', borderColor: 'rgba(139,92,246,0.35)', color: '#a78bfa' } : { borderColor: 'rgba(255,255,255,0.08)' }}
+              onClick={() => {
+                toggleItem(ti.id, !checked);
+                close();
+              }}
+            >
+              <span className="truncate">{label}</span>
+            </button>
+          );
+        })}
+        {filteredItems.length === 0 && searchQuery && (
+          <div className="text-xs text-neutral-500 px-2 py-1">Aucun résultat</div>
+        )}
+      </div>
+    ) : (
+      <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto text-sm">
         <button
-          key={ti.id}
-          className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-100"
+          type="button"
+          className={cn(
+            'px-2 py-1 rounded-full text-xs border transition',
+            !value ? 'bg-white/15 border-white/20 text-white' : 'bg-white/5 border-white/10 text-neutral-300 hover:bg-white/10'
+          )}
           onClick={() => {
-            onRelationChange(property, currentItem, ti.id);
+            onRelationChange(property, currentItem, null);
             setSearchQuery('');
+            close();
           }}
         >
-          {getItemName(ti)}
+          Aucun
         </button>
-      ))}
-      {filteredItems.length === 0 && searchQuery && (
-        <div className="text-xs text-neutral-500 px-2 py-1">Aucun résultat</div>
-      )}
-    </div>
-  );
+        {filteredItems.map((ti: any) => {
+          const selected = value === ti.id;
+          return (
+            <button
+              key={ti.id}
+              type="button"
+              className={cn(
+                'px-2 py-1 rounded-full text-xs border transition',
+                selected ? 'font-semibold' : 'hover:bg-white/10'
+              )}
+              style={selected ? { backgroundColor: 'rgba(139,92,246,0.16)', borderColor: 'rgba(139,92,246,0.35)', color: '#a78bfa' } : { borderColor: 'rgba(255,255,255,0.08)' }}
+              onClick={() => {
+                onRelationChange(property, currentItem, ti.id);
+                setSearchQuery('');
+                close();
+              }}
+            >
+              {getItemName(ti)}
+            </button>
+          );
+        })}
+        {filteredItems.length === 0 && searchQuery && (
+          <div className="text-xs text-neutral-500 px-2 py-1">Aucun résultat</div>
+        )}
+      </div>
+    );
 
   return (
     <div className={cn("flex items-center gap-2 ", className)}>
@@ -494,33 +516,35 @@ const RelationEditor = ({
           size={13}
           contentClassName="w-80"
         >
-          <div className="space-y-2">
-            {!isCreating && (
-              <div className="relative">
-                <Icons.Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500" />
-                <input
-                  type="text"
-                  placeholder="Rechercher..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-2 py-1.5 bg-gray-100 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
-                />
-              </div>
-            )}
-            
-            {isCreating ? createForm : (
-              <>
-                <button
-                  onClick={() => setIsCreating(true)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 rounded text-sm text-neutral-700 dark:text-white"
-                >
-                  <Icons.Plus size={14} />
-                  Créer nouveau
-                </button>
-                {searchList}
-              </>
-            )}
-          </div>
+          {({ close }) => (
+            <div className="space-y-2">
+              {!isCreating && (
+                <div className="relative">
+                  <Icons.Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500" />
+                  <input
+                    type="text"
+                    placeholder="Rechercher..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-2 py-1.5 bg-gray-100 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+                  />
+                </div>
+              )}
+              
+              {isCreating ? createForm : (
+                <>
+                  <button
+                    onClick={() => setIsCreating(true)}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 rounded text-sm text-neutral-700 dark:text-white"
+                  >
+                    <Icons.Plus size={14} />
+                    Créer nouveau
+                  </button>
+                  {renderSearchList(close)}
+                </>
+              )}
+            </div>
+          )}
         </PopoverButton>
       )}
       {ViewerButton}

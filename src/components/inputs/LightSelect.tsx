@@ -55,33 +55,50 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
           title="Ajouter / gérer"
           isAbsolute
           size={14}
-          contentClassName="w-56"
+          contentClassName="w-64"
         >
-          <div className="space-y-1 max-h-64 overflow-y-auto text-sm">
-            <button
-              className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-300"
-              onClick={() => onChange('')}
-            >
-              Aucun
-            </button>
-            {options.map((opt) => {
-              const optValue = getOptionValue(opt);
-              const optColor = getOptionColor(opt);
-              const iconName = getOptionIcon(opt);
-              const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
-              return (
-                <button
-                  key={optValue}
-                  className="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-neutral-100 flex items-center gap-2"
-                  onClick={() => onChange(optValue)}
-                  style={{ color: optColor }}
-                >
-                  {OptIcon && <OptIcon size={12} />}
-                  <span className="truncate text-white">{optValue}</span>
-                </button>
-              );
-            })}
-          </div>
+          {({ close }) => (
+            <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
+              <button
+                type="button"
+                className={cn(
+                  'px-2 py-1 rounded-full text-xs border transition',
+                  !value ? 'bg-white/15 border-white/20 text-white' : 'bg-white/5 border-white/10 text-neutral-300 hover:bg-white/10'
+                )}
+                onClick={() => {
+                  onChange('');
+                  close();
+                }}
+              >
+                Aucun
+              </button>
+              {options.map((opt) => {
+                const optValue = getOptionValue(opt);
+                const optColor = getOptionColor(opt);
+                const iconName = getOptionIcon(opt);
+                const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
+                const selected = optValue === value;
+                return (
+                  <button
+                    key={optValue}
+                    type="button"
+                    className={cn(
+                      'px-2 py-1 rounded-full text-xs border transition flex items-center gap-1',
+                      selected ? 'font-semibold' : 'hover:bg-white/10'
+                    )}
+                    style={selected ? { backgroundColor: `${optColor}22`, borderColor: `${optColor}55`, color: optColor } : { borderColor: 'rgba(255,255,255,0.08)' }}
+                    onClick={() => {
+                      onChange(optValue);
+                      close();
+                    }}
+                  >
+                    {OptIcon && <OptIcon size={12} className="opacity-80" />}
+                    <span className="truncate">{optValue}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </PopoverButton>
       )}
     </div>

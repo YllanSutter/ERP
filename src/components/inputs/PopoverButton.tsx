@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 interface PopoverButtonProps {
   icon?: 'Plus' | 'List' | 'Search'; // Icône à afficher
   title?: string;
-  children: React.ReactNode;
+  children: React.ReactNode | ((helpers: { close: () => void }) => React.ReactNode);
   className?: string;
   contentClassName?: string;
   disabled?: boolean;
@@ -32,6 +32,8 @@ export const PopoverButton: React.FC<PopoverButtonProps> = ({
 }) => {
   const IconComponent = (Icons as any)[icon];
   const [open, setOpen] = React.useState(false);
+  const close = () => setOpen(false);
+  const content = typeof children === 'function' ? children({ close }) : children;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -56,7 +58,7 @@ export const PopoverButton: React.FC<PopoverButtonProps> = ({
           contentClassName
         )}
       >
-        {children}
+        {content}
       </PopoverContent>
     </Popover>
   );
