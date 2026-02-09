@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 // Mini composant Tabs local
 function Tabs({ tabs, active, onTab, className = "" }: { tabs: string[], active: string, onTab: (tab: string) => void, className?: string }) {
   return (
@@ -62,6 +62,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   // Ajout d'un sélecteur de collection (pour création uniquement)
   const [selectedCollectionId, setSelectedCollectionId] = useState(collection.id);
   const selectedCollection = collections.find((c: any) => c.id === selectedCollectionId) || collection;
+  const isReallyEditing = Boolean(editingItem && editingItem.id);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [templateDialogItems, setTemplateDialogItems] = useState<any[]>([]);
   const [templateDialogSelection, setTemplateDialogSelection] = useState<Record<string, boolean>>({});
@@ -249,6 +250,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     return now;
   }
 
+  const buildDraftKey = (collectionId: string, itemId?: string) => {
+    const itemPart = itemId || 'new';
+    return `erp-item-draft:${collectionId}:${itemPart}`;
+  };
+
   // Fusionne l'item prérempli (editingItem) avec les valeurs par défaut
   function getInitialFormData(col = selectedCollection, prefill: any = editingItem) {
     const data: any = { ...(prefill || {}) };
@@ -307,15 +313,161 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   );
   const [templateAutoFilled, setTemplateAutoFilled] = useState<Record<string, boolean>>(initialForm.autoFilled);
   const [formData, setFormDataRaw] = useState(initialForm.data);
+  const [hasLocalDraft, setHasLocalDraft] = useState(false);
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
+  const [draftPayload, setDraftPayload] = useState<{ formData: any; templateAutoFilled?: Record<string, boolean> } | null>(null);
+  const initialDataRef = useRef(initialForm.data);
+  const draftAppliedRef = useRef(false);
+  const draftReadyRef = useRef(true);
+  const didMountRef = useRef(false);
+  const disableDraftRef = useRef(false);
+  const draftKey = useMemo(
+    () => buildDraftKey(selectedCollectionId, isReallyEditing ? editingItem?.id : undefined),
+    [selectedCollectionId, isReallyEditing, editingItem?.id]
+  );
+
+  React.useEffect(() => {
+    draftAppliedRef.current = false;
+    disableDraftRef.current = false;
+    setHasLocalDraft(false);
+    setDraftPayload(null);
+    setDraftPromptOpen(false);
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) {
+        initialDataRef.current = initialForm.data;
+        setFormDataRaw(initialForm.data);
+        setTemplateAutoFilled(initialForm.autoFilled);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || !parsed.formData) {
+        initialDataRef.current = initialForm.data;
+        setFormDataRaw(initialForm.data);
+        setTemplateAutoFilled(initialForm.autoFilled);
+        return;
+      }
+      if (parsed.selectedCollectionId && parsed.selectedCollectionId !== selectedCollectionId) {
+        initialDataRef.current = initialForm.data;
+        setFormDataRaw(initialForm.data);
+        setTemplateAutoFilled(initialForm.autoFilled);
+        return;
+      }
+      if (areValuesEqual(parsed.formData, initialForm.data)) {
+        try {
+          localStorage.removeItem(draftKey);
+        } catch {
+          // ignore stockage local indisponible
+        }
+        initialDataRef.current = initialForm.data;
+        setFormDataRaw(initialForm.data);
+        setTemplateAutoFilled(initialForm.autoFilled);
+        setHasLocalDraft(false);
+        return;
+      }
+      setHasLocalDraft(true);
+      setDraftPayload({ formData: parsed.formData, templateAutoFilled: parsed.templateAutoFilled });
+      setDraftPromptOpen(true);
+    } catch {
+      // ignore stockage local indisponible
+      initialDataRef.current = initialForm.data;
+      setFormDataRaw(initialForm.data);
+      setTemplateAutoFilled(initialForm.autoFilled);
+    } finally {
+      draftReadyRef.current = true;
+    }
+  }, [draftKey, selectedCollectionId, initialForm]);
+
+  const isDraftDirty = useMemo(
+    () => !areValuesEqual(formData, initialDataRef.current),
+    [formData]
+  );
+
+  const applyDraftPayload = React.useCallback(() => {
+    if (!draftPayload) return;
+    draftAppliedRef.current = true;
+    setFormDataRaw(draftPayload.formData);
+    if (draftPayload.templateAutoFilled) {
+      setTemplateAutoFilled(draftPayload.templateAutoFilled);
+    }
+    initialDataRef.current = draftPayload.formData;
+    setDraftPromptOpen(false);
+  }, [draftPayload]);
+
+  const discardDraftPayload = React.useCallback(() => {
+    setDraftPromptOpen(false);
+    setDraftPayload(null);
+    setHasLocalDraft(false);
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      // ignore stockage local indisponible
+    }
+    initialDataRef.current = initialForm.data;
+    setFormDataRaw(initialForm.data);
+    setTemplateAutoFilled(initialForm.autoFilled);
+  }, [draftKey, initialForm]);
+
+  React.useEffect(() => {
+    if (disableDraftRef.current) return;
+    if (!isDraftDirty) {
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {
+        // ignore stockage local indisponible
+      }
+      setHasLocalDraft(false);
+      return;
+    }
+    try {
+      const payload = {
+        formData,
+        templateAutoFilled,
+        selectedCollectionId,
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(draftKey, JSON.stringify(payload));
+      setHasLocalDraft(true);
+    } catch {
+      // ignore stockage local indisponible
+    }
+  }, [formData, templateAutoFilled, selectedCollectionId, draftKey, isDraftDirty]);
+
+  React.useEffect(() => {
+    return () => {
+      if (disableDraftRef.current) return;
+      if (!isDraftDirty) return;
+      try {
+        const payload = {
+          formData,
+          templateAutoFilled,
+          selectedCollectionId,
+          updatedAt: new Date().toISOString(),
+        };
+        localStorage.setItem(draftKey, JSON.stringify(payload));
+      } catch {
+        // ignore stockage local indisponible
+      }
+    };
+  }, [formData, templateAutoFilled, selectedCollectionId, draftKey, isDraftDirty]);
 
   // NOUVEAU COMPORTEMENT: setFormData ne recalcule PLUS côté client
   // Tout recalcul se fait côté serveur via POST /api/state
   const setFormData = (data: any) => {
+    if (data && typeof data === 'object') {
+      setFormDataRaw({ ...data });
+      return;
+    }
     setFormDataRaw(data);
   };
 
   // Lors d'un changement de collection, garder les segments existants
   React.useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    if (draftAppliedRef.current) return;
     if (formData && formData._eventSegments) {
       setFormDataRaw({ ...formData });
     } else {
@@ -427,7 +579,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   // Quand selectedCollectionId change, si pendingDateValue est défini, on préremplit tous les champs date
   React.useEffect(() => {
-    if (!editingItem && pendingDateValue !== undefined) {
+    if (!editingItem && pendingDateValue !== undefined && !draftAppliedRef.current) {
       const newCol = collections.find((c: any) => c.id === selectedCollectionId) || collection;
       const dateFields = newCol.properties.filter((p: any) => p.type === 'date');
       let prefill: any = {};
@@ -436,7 +588,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           prefill[field.id] = pendingDateValue;
         });
       }
-      setFormData(getInitialFormData(newCol, prefill));
+      const next = getInitialFormData(newCol, prefill);
+      initialDataRef.current = next.data;
+      setFormData(next.data);
       setPendingDateValue(undefined);
     }
     // eslint-disable-next-line
@@ -444,9 +598,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   // Quand la modal reçoit un nouvel editingItem (préremplissage), on met à jour le formData
   React.useEffect(() => {
-    if (!editingItem) return;
+    if (!editingItem || draftAppliedRef.current) return;
     // On force la réinitialisation du formData à partir de l'editingItem reçu (qui doit contenir les _eventSegments à jour)
     const next = getInitialFormData(selectedCollection, editingItem);
+    initialDataRef.current = next.data;
     setFormDataRaw(next.data);
     setTemplateAutoFilled(next.autoFilled);
   }, [editingItem, selectedCollection]);
@@ -456,7 +611,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   // Pour la création, on recalcule dynamiquement les champs selon la collection sélectionnée
   // Pour l'édition, on garde orderedProperties (pour garder l'ordre de la vue courante)
   // Mode édition si un id existe, même si isNew traîne
-  const isReallyEditing = editingItem && editingItem.id;
   const basePropsList = isReallyEditing
     ? (orderedProperties && orderedProperties.length > 0 ? orderedProperties : selectedCollection.properties)
     : selectedCollection.properties;
@@ -573,6 +727,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   <option key={col.id} value={col.id}>{col.name}</option>
                 ))}
               </select>
+            </div>
+          )}
+          {hasLocalDraft && (
+            <div className="ml-3 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+              Brouillon local
             </div>
           )}
           {editingItem && onToggleFavoriteItem && (
@@ -694,28 +853,28 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       }
                       htmlFor={`field-${prop.id}`}
                     >
-                      {prop.name} {prop.required && <span className="text-red-500">*</span>}
+                      {prop.name}
                     </label>
                   </div>
                   <div className="flex-1 pl-4 flex items-center">
-                      <EditableProperty
-                        property={prop}
-                        value={formData[prop.id]}
-                        onChange={(val) => handleChange(prop.id, val)}
-                        size="md"
-                        collections={collections}
-                        collection={collection}
-                        currentItem={formData}
-                        onRelationChange={(property, item, value) => {
-                          if (property.type === 'relation' || property.type === 'multi_select') {
-                            setFormData({ ...formData, [property.id]: value });
-                          } else {
-                            setFormData(item);
-                          }
-                        }}
-                        readOnly={false}
-                        forceRichEditor={true}
-                      />
+                    <EditableProperty
+                      property={prop}
+                      value={formData[prop.id]}
+                      onChange={(val) => handleChange(prop.id, val)}
+                      size="md"
+                      collections={collections}
+                      collection={collection}
+                      currentItem={formData}
+                      onRelationChange={(property, item, value) => {
+                        if (property.type === 'relation' || property.type === 'multi_select') {
+                          setFormData({ ...formData, [property.id]: value });
+                        } else {
+                          setFormData(item);
+                        }
+                      }}
+                      readOnly={false}
+                      forceRichEditor={true}
+                    />
                   </div>
                 </div>
               ))}
@@ -869,6 +1028,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           </button>
           <ShinyButton
             onClick={() => {
+              disableDraftRef.current = true;
+              setHasLocalDraft(false);
+              try {
+                localStorage.removeItem(draftKey);
+              } catch {
+                // ignore stockage local indisponible
+              }
               let dataToSave = { ...formData, __collectionId: selectedCollectionId };
               
               // Si on crée un nouvel item et que les segments sont vides, appliquer les segments prégénérés
@@ -1110,6 +1276,20 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={handleTemplateDialogCancel}>Annuler</Button>
             <Button onClick={handleTemplateDialogConfirm}>Appliquer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={draftPromptOpen} onOpenChange={setDraftPromptOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Brouillon local détecté</DialogTitle>
+            <DialogDescription>
+              Un brouillon existe pour cet item. Voulez-vous l’appliquer ?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={discardDraftPayload}>Ignorer</Button>
+            <Button onClick={applyDraftPayload}>Appliquer le brouillon</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

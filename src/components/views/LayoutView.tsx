@@ -114,7 +114,7 @@ const LayoutView: React.FC<LayoutViewProps> = ({
         return (
           <div
             key={panel.id}
-            className="rounded-lg border border-white/10 bg-white/5 p-3 overflow-hidden"
+            className="rounded-lg border border-dark/5 dark:border-white/5 p-3 overflow-hidden"
             style={{ gridColumn: `span ${colSpan} / span ${colSpan}`, gridRow: `span ${rowSpan} / span ${rowSpan}` }}
           >
             <div className="text-xs font-semibold text-neutral-500 mb-2">{viewConfig.name}</div>
