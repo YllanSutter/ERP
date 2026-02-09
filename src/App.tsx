@@ -16,6 +16,7 @@ import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/menus/Sidebar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import ViewToolbar from '@/components/views/ViewToolbar';
+import LayoutView from '@/components/views/LayoutView';
 import { useAuth } from '@/auth/AuthProvider';
 import NewCollectionModal from '@/components/modals/NewCollectionModal';
 import EditCollectionModal from '@/components/modals/EditCollectionModal';
@@ -507,6 +508,9 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                   setEditingViewId(viewId);
                   setShowEditViewModal(true);
                 }}
+                onDuplicateView={(viewId: string) => {
+                  viewHooks.duplicateView(viewId);
+                }}
                 onUpdateCollectionVisibleFields={(collectionId, visibleFieldIds) => {
                   const col = collections.find((c) => c.id === collectionId);
                   if (!col) return;
@@ -630,6 +634,46 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                       const viewIndex = updatedViews[activeCollection].findIndex(
                         (v) => v.id === activeView
                       );
+                      if (viewIndex === -1) return;
+                      updatedViews[activeCollection][viewIndex] = {
+                        ...updatedViews[activeCollection][viewIndex],
+                        ...updates,
+                      };
+                      setViews(updatedViews);
+                    }}
+                    onShowNewItemModalForCollection={(collection, item) => {
+                      setModalCollection(collection);
+                      setEditingItem(item || null);
+                      setShowNewItemModal(true);
+                    }}
+                  />
+                )}
+                {activeViewConfig?.type === 'layout' && (
+                  <LayoutView
+                    viewConfig={activeViewConfig}
+                    collection={currentCollection}
+                    collections={collections}
+                    views={views}
+                    items={filteredItems}
+                    orderedProperties={orderedProperties}
+                    relationFilter={relationFilter}
+                    activeCollectionId={activeCollection}
+                    onEdit={(item: any) => itemHooks.updateItem(item)}
+                    onDelete={itemHooks.deleteItem}
+                    onViewDetail={(item: any) => {
+                      const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
+                      setEditingItem(item);
+                      setModalCollection(itemCollection || null);
+                      setShowNewItemModal(true);
+                    }}
+                    onRelationChange={(prop: any, item: any, val: any) => {
+                      const updatedItem = { ...item, [prop.id]: val };
+                      itemHooks.updateItem(updatedItem);
+                    }}
+                    onUpdateViewConfig={(viewId, updates) => {
+                      if (!activeCollection) return;
+                      const updatedViews = { ...views } as Record<string, any[]>;
+                      const viewIndex = updatedViews[activeCollection].findIndex((v) => v.id === viewId);
                       if (viewIndex === -1) return;
                       updatedViews[activeCollection][viewIndex] = {
                         ...updatedViews[activeCollection][viewIndex],
@@ -785,9 +829,13 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
       {showNewViewModal && (
         <NewViewModal
           collection={currentCollection}
+          availableViews={currentCollection ? (views[currentCollection.id] || []) : []}
+          collections={collections}
+          allViews={views}
           onClose={() => setShowNewViewModal(false)}
           mode="create"
           onSave={(name, type, config) => {
+            if (!type) return;
             viewHooks.addView(name, type, config);
             setShowNewViewModal(false);
           }}
@@ -796,6 +844,9 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
       {showEditViewModal && editingViewId && (
         <NewViewModal
           collection={currentCollection}
+          availableViews={currentCollection ? (views[currentCollection.id] || []) : []}
+          collections={collections}
+          allViews={views}
           view={(views[activeCollection || ''] || []).find((v: any) => v.id === editingViewId)}
           mode="edit"
           onClose={() => {

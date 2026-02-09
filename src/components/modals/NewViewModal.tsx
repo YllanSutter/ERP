@@ -5,25 +5,40 @@ import { cn } from '@/lib/utils';
 
 interface NewViewModalProps {
   onClose: () => void;
-  onSave: (name: string, type: string, config?: any) => void;
+  onSave: (name: any, type?: string, config?: any) => void;
   collection: any;
   view?: any;
   mode?: 'create' | 'edit';
+  availableViews?: any[];
+  collections?: any[];
+  allViews?: Record<string, any[]>;
 }
 
-const NewViewModal: React.FC<NewViewModalProps> = ({ onClose, onSave, collection, view, mode = 'create' }) => {
+const NewViewModal: React.FC<NewViewModalProps> = ({
+  onClose,
+  onSave,
+  collection,
+  view,
+  mode = 'create',
+  availableViews = [],
+  collections = [],
+  allViews = {}
+}) => {
   const [name, setName] = useState(view?.name || '');
   const [type, setType] = useState(view?.type || 'table');
   const [groupBy, setGroupBy] = useState(view?.groupBy || '');
   const [dateProperty, setDateProperty] = useState(view?.dateProperty || '');
+  const [layoutPanels, setLayoutPanels] = useState<any[]>(() => Array.isArray(view?.layoutPanels) ? view.layoutPanels : []);
   
   const viewTypes = [
     { value: 'table', label: 'Tableau' },
     { value: 'kanban', label: 'Kanban' },
-    { value: 'calendar', label: 'Calendrier' }
+    { value: 'calendar', label: 'Calendrier' },
+    { value: 'layout', label: 'Multi-vues' }
   ];
 
   const selectProps = collection?.properties.filter((p: any) => p.type === 'select') || [];
+  const collectionOptions = collections.length ? collections : (collection ? [collection] : []);
   const dateProps = collection?.properties.filter((p: any) => p.type === 'date' || p.type === 'date_range') || [];
 
   const handleSave = () => {
@@ -36,6 +51,11 @@ const NewViewModal: React.FC<NewViewModalProps> = ({ onClose, onSave, collection
     if (mode === 'create') config.hiddenFields = defaultHiddenFields;
     if (type === 'kanban' && groupBy) config.groupBy = groupBy;
     if (type === 'calendar' && dateProperty) config.dateProperty = dateProperty;
+    if (type === 'layout') config.layoutPanels = layoutPanels;
+    if (mode === 'edit') {
+      onSave({ ...config, name, type } as any);
+      return;
+    }
     onSave(name, type, config);
   };
 
@@ -66,6 +86,86 @@ const NewViewModal: React.FC<NewViewModalProps> = ({ onClose, onSave, collection
                   <option key={prop.id} value={prop.id}>{prop.name}</option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {type === 'layout' && (
+            <div className="space-y-3">
+              <div className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Vues à combiner</div>
+              {layoutPanels.map((panel, idx) => (
+                <div key={panel.id || idx} className="flex items-center gap-2">
+                  <select
+                    value={panel.collectionId || collection?.id || ''}
+                    onChange={(e) => {
+                      const next = [...layoutPanels];
+                      next[idx] = { ...next[idx], collectionId: e.target.value, viewId: '' };
+                      setLayoutPanels(next);
+                    }}
+                    className="w-40 px-2 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white"
+                  >
+                    <option value="">Collection…</option>
+                    {collectionOptions.map((col: any) => (
+                      <option key={col.id} value={col.id}>{col.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={panel.viewId || ''}
+                    onChange={(e) => {
+                      const next = [...layoutPanels];
+                      next[idx] = { ...next[idx], viewId: e.target.value };
+                      setLayoutPanels(next);
+                    }}
+                    className="flex-1 px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white"
+                  >
+                    <option value="">Choisir une vue…</option>
+                    {(allViews[panel.collectionId || collection?.id || ''] || availableViews)
+                      .filter((v: any) => v.type !== 'layout')
+                      .map((v: any) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                  </select>
+                  <select
+                    value={panel.colSpan || 6}
+                    onChange={(e) => {
+                      const next = [...layoutPanels];
+                      next[idx] = { ...next[idx], colSpan: Number(e.target.value) };
+                      setLayoutPanels(next);
+                    }}
+                    className="w-20 px-2 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white"
+                  >
+                    {[3,4,6,8,12].map((n) => (
+                      <option key={n} value={n}>{n}/12</option>
+                    ))}
+                  </select>
+                  <select
+                    value={panel.rowSpan || 2}
+                    onChange={(e) => {
+                      const next = [...layoutPanels];
+                      next[idx] = { ...next[idx], rowSpan: Number(e.target.value) };
+                      setLayoutPanels(next);
+                    }}
+                    className="w-20 px-2 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white"
+                  >
+                    {[1,2,3,4].map((n) => (
+                      <option key={n} value={n}>{n}L</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setLayoutPanels((prev) => prev.filter((_, i) => i !== idx))}
+                    className="px-2 py-2 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setLayoutPanels((prev) => ([...prev, { id: Date.now().toString(), collectionId: collection?.id || '', viewId: '', colSpan: 6, rowSpan: 2 }]))}
+                className="px-3 py-2 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-sm"
+              >
+                + Ajouter un panneau
+              </button>
             </div>
           )}
          

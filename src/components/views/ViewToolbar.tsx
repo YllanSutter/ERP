@@ -56,6 +56,7 @@ interface ViewToolbarProps {
   onManageViewVisibility: (viewId: string) => void;
   onEditView: (viewId: string) => void;
   onUpdateCollectionVisibleFields: (collectionId: string, visibleFieldIds: string[]) => void;
+  onDuplicateView: (viewId: string) => void;
 }
 
 const ViewToolbar: React.FC<ViewToolbarProps> = ({
@@ -86,7 +87,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onToggleFavoriteView,
   onManageViewVisibility,
   onEditView,
-  onUpdateCollectionVisibleFields
+  onUpdateCollectionVisibleFields,
+  onDuplicateView
 }) => {
   const settingsRef = useRef<HTMLDivElement>(null);
   
@@ -245,6 +247,13 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     fill={isFavorite ? 'currentColor' : 'none'}
                   />
                   <span>{isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}</span>
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() => onDuplicateView(view.id)}
+                  className="gap-2"
+                >
+                  <Icons.Copy size={14} className="text-neutral-300" />
+                  <span>Dupliquer</span>
                 </ContextMenuItem>
                 {currentViews.length > 1 && <ContextMenuSeparator />}
                 {currentViews.length > 1 && (

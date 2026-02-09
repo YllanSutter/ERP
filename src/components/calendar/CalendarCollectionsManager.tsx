@@ -45,7 +45,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   onChangeCollectionRole,
 }) => {
   // Option pour déplacer tout ou seulement le segment
-  const [moveAllSegments, setMoveAllSegments] = useState(true);
+  const [moveAllSegments, setMoveAllSegments] = useState(false);
   // Fonction pour gérer le déplacement d'un événement (drag & drop)
   /**
    * Déplace uniquement le segment concerné (par défaut), ou tous les segments si moveAllSegments=true
@@ -175,7 +175,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   // Rendu header + panneaux de filtre + vue calendrier
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 sticky top-0 z-10">
         <h2 className="text-2xl font-bold text-white">
           {viewMode === 'month'
             ? `${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getFullYear()}`

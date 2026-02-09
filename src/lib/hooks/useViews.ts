@@ -111,6 +111,33 @@ export const useViews = (
     setViews(updatedViews);
   };
 
+  const duplicateView = (viewId: string) => {
+    if (!activeCollection) return;
+    const viewToCopy = currentViews.find((v: any) => v.id === viewId);
+    if (!viewToCopy) return;
+    const baseName = viewToCopy.name || 'Vue';
+    const existing = currentViews
+      .map((v: any) => v.name)
+      .filter((name: string) => name && name.startsWith(baseName));
+    const copyRegex = new RegExp(`^${baseName.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')} \\(copie(?: (\\d+))?\\)$`);
+    const maxIndex = existing.reduce((max: number, name: string) => {
+      const match = name.match(copyRegex);
+      if (!match) return max;
+      const num = match[1] ? Number(match[1]) : 1;
+      return Number.isFinite(num) ? Math.max(max, num) : max;
+    }, 0);
+    const copySuffix = maxIndex >= 1 ? ` (copie ${maxIndex + 1})` : ' (copie)';
+    const duplicated = {
+      ...viewToCopy,
+      id: Date.now().toString(),
+      name: `${baseName}${copySuffix}`
+    };
+    setViews({
+      ...views,
+      [activeCollection]: [...currentViews, duplicated]
+    });
+  };
+
   const toggleFieldVisibility = (fieldId: string) => {
     if (!activeCollection) return;
     const updatedViews = { ...views } as Record<string, any[]>;
@@ -169,6 +196,7 @@ export const useViews = (
     removeGroup,
     deleteView,
     updateView,
+    duplicateView,
     toggleFieldVisibility,
     moveFieldInView,
     updateViewFieldOrder,
