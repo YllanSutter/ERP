@@ -507,6 +507,14 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                   setEditingViewId(viewId);
                   setShowEditViewModal(true);
                 }}
+                onUpdateCollectionVisibleFields={(collectionId, visibleFieldIds) => {
+                  const col = collections.find((c) => c.id === collectionId);
+                  if (!col) return;
+                  collectionHooks.updateCollection({
+                    ...col,
+                    defaultVisibleFieldIds: visibleFieldIds
+                  });
+                }}
               />
 
               <motion.div

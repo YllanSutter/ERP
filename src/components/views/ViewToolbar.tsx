@@ -55,6 +55,7 @@ interface ViewToolbarProps {
   onToggleFavoriteView: (viewId: string) => void;
   onManageViewVisibility: (viewId: string) => void;
   onEditView: (viewId: string) => void;
+  onUpdateCollectionVisibleFields: (collectionId: string, visibleFieldIds: string[]) => void;
 }
 
 const ViewToolbar: React.FC<ViewToolbarProps> = ({
@@ -84,29 +85,31 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onRemoveGroup,
   onToggleFavoriteView,
   onManageViewVisibility,
-  onEditView
+  onEditView,
+  onUpdateCollectionVisibleFields
 }) => {
   const settingsRef = useRef<HTMLDivElement>(null);
   
   // Hook de permission
   const canEdit = useCanEdit(activeCollection);
   const { isAdmin, isEditor, permissions } = useAuth();
-  const canViewFieldFn = (fieldId: string) => {
+  const canViewFieldFn = (fieldId: string, collectionId?: string | null) => {
+    const targetCollectionId = collectionId ?? activeCollection;
     if (isAdmin || isEditor) return true;
     const perms = permissions || [];
     if (fieldId) {
       const fieldPerm = perms.find(
         (p: any) =>
           (p.field_id || null) === fieldId &&
-          (p.collection_id || null) === activeCollection &&
+          (p.collection_id || null) === targetCollectionId &&
           (p.item_id || null) === null
       );
       if (fieldPerm) return Boolean(fieldPerm.can_read);
     }
-    if (activeCollection) {
+    if (targetCollectionId) {
       const collectionPerm = perms.find(
         (p: any) =>
-          (p.collection_id || null) === activeCollection &&
+          (p.collection_id || null) === targetCollectionId &&
           (p.item_id || null) === null &&
           (p.field_id || null) === null
       );
@@ -124,6 +127,12 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   
   // Filtrer les propriétés que l'utilisateur peut voir
   const viewableProperties = orderedProperties.filter(prop => canViewFieldFn(prop.id));
+  const calendarCollectionIds = Array.isArray(currentViewConfig?.calendarCollectionIds)
+    ? currentViewConfig.calendarCollectionIds
+    : currentCollection
+    ? [currentCollection.id]
+    : [];
+  const calendarCollections = collections.filter((c: any) => calendarCollectionIds.includes(c.id));
   // Sécurise l'accès à l'icône de la collection
   let IconComponent = Icons.Folder;
   if (currentCollection && typeof currentCollection.icon === 'string' && (Icons as any)[currentCollection.icon]) {
@@ -135,7 +144,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       initial={{ y: -10, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.15 }}
-      className="border-b border-black/5 dark:border-white/5bg-neutral-900/30 backdrop-blur px-8 py-4 z-10"
+      className="relative border-b border-black/5 dark:border-white/5bg-neutral-900/30 backdrop-blur px-8 py-4 z-[120]"
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -287,7 +296,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
           Propriété
         </button>
 
-        <div className="relative z-[1000]" ref={settingsRef}>
+        <div className="relative z-[140]" ref={settingsRef}>
           <button
             onClick={() => onSetShowViewSettings(!showViewSettings)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
@@ -302,7 +311,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="absolute top-full mt-2 right-0 w-72 bg-gray-200 dark:bg-neutral-900/95 border border-black/10 dark:border-white/10 rounded-lg shadow-xl backdrop-blur z-[1000] p-4"
+                className="absolute top-full mt-2 right-0 w-72 bg-gray-200 dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-lg shadow-xl backdrop-blur z-[140] p-4"
               >
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold text-black dark:text-white">Colonnes visibles</h4>
@@ -314,61 +323,117 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                   </button>
                 </div>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
-                  <DraggableList
-                    items={viewableProperties}
-                    getId={(p) => p.id}
-                    onReorder={(next) => {
-                      const nextOrder = next.map((p: any) => p.id);
-                      onUpdateViewFieldOrder(nextOrder);
-                    }}
-                    renderItem={(prop: any, { isDragging }) => {
-                      const isHidden = currentViewConfig?.hiddenFields?.includes(prop.id);
-                      const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
-                      return (
-                        <div
-                          className={cn(
-                            'flex items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300 p-2 transition-colors hover:bg-white/5  border-b border-[#ffffff20]',
-                            isDragging && 'border border-cyan-500/60'
-                          )}
-                        >
-                          <div className="text-neutral-500 cursor-grab">
-                            <Icons.GripVertical size={16} />
+                  {currentViewConfig?.type === 'calendar' && calendarCollections.length > 0 ? (
+                    <div className="space-y-4">
+                      {calendarCollections.map((col) => {
+                        const props = col.properties || [];
+                        const visibleIds = Array.isArray(col.defaultVisibleFieldIds)
+                          ? col.defaultVisibleFieldIds
+                          : props[0]
+                          ? [props[0].id]
+                          : [];
+                        const viewable = props.filter((p: any) => canViewFieldFn(p.id, col.id));
+                        return (
+                          <div key={col.id} className="rounded-lg border border-white/10 p-2">
+                            <div className="text-xs font-semibold text-neutral-500 mb-2">{col.name}</div>
+                            <div className="space-y-2">
+                              {viewable.map((prop: any) => {
+                                const isVisible = visibleIds.includes(prop.id);
+                                return (
+                                  <label
+                                    key={prop.id}
+                                    className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isVisible}
+                                      onChange={(e) => {
+                                        const next = e.target.checked
+                                          ? Array.from(new Set([...visibleIds, prop.id]))
+                                          : visibleIds.filter((id: string) => id !== prop.id);
+                                        const normalized = next.length ? next : (props[0] ? [props[0].id] : []);
+                                        onUpdateCollectionVisibleFields(col.id, normalized);
+                                      }}
+                                      className="accent-violet-500"
+                                    />
+                                    <span className="flex-1">{prop.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (!canEdit) return;
+                                        onEditProperty(prop);
+                                      }}
+                                      className="text-neutral-500 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
+                                      title="Modifier la propriété"
+                                    >
+                                      <Icons.Edit2 size={14} />
+                                    </button>
+                                  </label>
+                                );
+                              })}
+                              {viewable.length === 0 && (
+                                <div className="text-xs text-neutral-500">Aucun champ visible.</div>
+                              )}
+                            </div>
                           </div>
-                          <div className="relative flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={!isHidden}
-                              onChange={() => onToggleFieldVisibility(prop.id)}
-                              className="peer h-4 w-4 appearance-none rounded border-2 border-black/20 dark:border-white/20 bg-background dark:bg-neutral-800 checked:bg-neutral-400  checked:border-transparent transition-all cursor-pointer"
-                            />
-                            <svg
-                              className="absolute left-0.5 top-0.5 h-3 w-3 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={3}
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          </div>
-                          <div className="flex items-center gap-2">
-                           
-                            <span>{prop.name}</span>
-                          </div>
-                          <button
-                            onClick={() => {
-                              if (!canEdit) return;
-                              onEditProperty(prop);
-                            }}
-                            className="ml-auto text-neutral-500 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
-                            title="Modifier la propriété"
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <DraggableList
+                      items={viewableProperties}
+                      getId={(p) => p.id}
+                      onReorder={(next) => {
+                        const nextOrder = next.map((p: any) => p.id);
+                        onUpdateViewFieldOrder(nextOrder);
+                      }}
+                      renderItem={(prop: any, { isDragging }) => {
+                        const isHidden = currentViewConfig?.hiddenFields?.includes(prop.id);
+                        return (
+                          <div
+                            className={cn(
+                              'flex items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300 p-2 transition-colors hover:bg-white/5  border-b border-[#ffffff20]',
+                              isDragging && 'border border-cyan-500/60'
+                            )}
                           >
-                            <Icons.Edit2 size={14} />
-                          </button>
-                        </div>
-                      );
-                    }}
-                  />
+                            <div className="text-neutral-500 cursor-grab">
+                              <Icons.GripVertical size={16} />
+                            </div>
+                            <div className="relative flex items-center">
+                              <input
+                                type="checkbox"
+                                checked={!isHidden}
+                                onChange={() => onToggleFieldVisibility(prop.id)}
+                                className="peer h-4 w-4 appearance-none rounded border-2 border-black/20 dark:border-white/20 bg-background dark:bg-neutral-800 checked:bg-neutral-400  checked:border-transparent transition-all cursor-pointer"
+                              />
+                              <svg
+                                className="absolute left-0.5 top-0.5 h-3 w-3 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={3}
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span>{prop.name}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                if (!canEdit) return;
+                                onEditProperty(prop);
+                              }}
+                              className="ml-auto text-neutral-500 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
+                              title="Modifier la propriété"
+                            >
+                              <Icons.Edit2 size={14} />
+                            </button>
+                          </div>
+                        );
+                      }}
+                    />
+                  )}
                 </div>
               </motion.div>
             )}

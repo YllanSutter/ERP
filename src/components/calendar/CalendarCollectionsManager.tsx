@@ -294,7 +294,6 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                     ))}
                   </select>
                       <div>
-                        <label className="block text-xs text-neutral-500 mb-1">Rôle</label>
                         <select
                           className="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm"
                           value={collectionRoles[collection.id] || 'default'}

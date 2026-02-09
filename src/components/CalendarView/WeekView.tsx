@@ -593,7 +593,14 @@ const WeekView: React.FC<WeekViewProps> = ({
                     const endTime = segEnd.getHours() + segEnd.getMinutes() / 60;
                     const colors = getItemColor(item.id);
                     // console.log(collections);
-                    const visibleMetaFields = collections.find(c => c.id === item.__collectionId)?.properties.filter((p: any) => !(hiddenFields ?? []).includes(p.id));
+                    const itemCollection = collectionsForProps.find(c => c.id === item.__collectionId);
+                    const visibleIds = Array.isArray(itemCollection?.defaultVisibleFieldIds)
+                      ? itemCollection.defaultVisibleFieldIds
+                      : undefined;
+                    const visibleMetaFields = itemCollection?.properties.filter((p: any) => {
+                      if (visibleIds) return visibleIds.includes(p.id);
+                      return !(hiddenFields ?? []).includes(p.id);
+                    });
                     // On passe le segment courant dans eventSegments
                     const eventSegments = [{
                       start: startTime,
@@ -616,7 +623,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                         visibleMetaFields={visibleMetaFields}
                         collections={collectionsForProps}
                         getNameValue={getNameValue}
-                        hiddenFields={hiddenFields ?? []}
+                        hiddenFields={visibleIds ? [] : (hiddenFields ?? [])}
                         onViewDetail={() => onViewDetail(item)}
                         onEditField={onEditField}
                         onRelationChange={onRelationChange}
