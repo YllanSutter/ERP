@@ -164,9 +164,9 @@ const WeekView: React.FC<WeekViewProps> = ({
     return { before: beforeItem, after: afterItem };
   };
 
-  const finalizeSecondarySelection = (targetItemId?: string) => {
+  const finalizeSelectionForCollection = (collectionId: string, targetItemId?: string) => {
     if (!secondaryPicker) return;
-    const col = collectionsPool.find((c: any) => c.id === secondaryPicker.collectionId);
+    const col = collectionsPool.find((c: any) => c.id === collectionId);
     if (!col) {
       setSecondaryPicker(null);
       return;
@@ -188,6 +188,9 @@ const WeekView: React.FC<WeekViewProps> = ({
     if (onEdit) onEdit(updatedItem);
     setSecondaryPicker(null);
   };
+
+  const finalizeSecondarySelection = (targetItemId?: string) =>
+    finalizeSelectionForCollection(secondaryPicker?.collectionId || '', targetItemId);
 
   useEffect(() => {
     if (!secondaryPicker) return;
@@ -292,6 +295,9 @@ const WeekView: React.FC<WeekViewProps> = ({
   const pickerItems = secondaryPicker && pickerCollection ? (pickerCollection.items || []) : [];
   const pickerSuggestions = secondaryPicker && pickerCollection
     ? findNearestItems(pickerCollection, secondaryPicker.start)
+    : { before: null, after: null };
+  const primaryPickerSuggestions = secondaryPicker && primaryCollection
+    ? findNearestItems(primaryCollection, secondaryPicker.start)
     : { before: null, after: null };
   const filteredPickerItems = secondaryPicker && pickerCollection
     ? pickerItems.filter((it: any) => {
@@ -683,9 +689,37 @@ const WeekView: React.FC<WeekViewProps> = ({
               />
             </div>
             <div className="max-h-52 overflow-auto space-y-1">
+              {primaryCollection && onShowNewItemModalForCollection && (
+                <button
+                  className="w-full text-left px-2 py-1.5 rounded text-sm transition-colors bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30"
+                  onClick={() => {
+                    const dateField = primaryCollection.properties?.find(
+                      (p: any) => p.type === 'date' || p.type === 'date_range'
+                    );
+                    const newItem: any = { isNew: true, __collectionId: primaryCollection.id };
+                    if (dateField?.type === 'date_range') {
+                      newItem[dateField.id] = {
+                        start: secondaryPicker.start.toISOString(),
+                        end: secondaryPicker.end.toISOString(),
+                      };
+                    } else if (dateField) {
+                      newItem[dateField.id] = secondaryPicker.start.toISOString();
+                      const durationHours = Math.max(
+                        0.25,
+                        (secondaryPicker.end.getTime() - secondaryPicker.start.getTime()) / (1000 * 60 * 60)
+                      );
+                      newItem[`${dateField.id}_duration`] = Number(durationHours.toFixed(2));
+                    }
+                    onShowNewItemModalForCollection(primaryCollection, newItem);
+                    setSecondaryPicker(null);
+                  }}
+                >
+                  + Nouvel élément : {primaryCollection.name}
+                </button>
+              )}
               {pickerSuggestions.before && (
                 <button
-                  className="w-full text-left px-2 py-1.5 rounded text-sm transition-colors bg-white/5 hover:bg-white/10"
+                  className="w-full text-left px-2 py-1.5 rounded text-sm transition-colors bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30"
                   onClick={() => finalizeSecondarySelection(pickerSuggestions.before.id)}
                 >
                   <div className="flex items-center justify-between gap-2">
