@@ -10,6 +10,7 @@ interface CalendarViewProps {
   onEdit: (item: any) => void;
   onDelete: (id: string) => void;
   onViewDetail: (item: any) => void;
+  onRelationChange?: (property: any, item: any, value: any) => void;
   dateProperty?: string;
   hiddenFields?: string[];
   onChangeDateProperty?: (propId: string) => void;
@@ -31,6 +32,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   onEdit,
   onDelete,
   onViewDetail,
+  onRelationChange,
   dateProperty,
   hiddenFields,
   onChangeDateProperty,
@@ -311,6 +313,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         onEdit={onEdit}
         onDelete={onDelete}
         onEditField={onEdit}
+        onRelationChange={onRelationChange}
         onShowNewItemModalForCollection={onShowNewItemModalForCollection}
         selectedCollectionIds={selectedCollectionIds}
         onToggleCollection={toggleCollection}

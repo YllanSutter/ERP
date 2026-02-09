@@ -284,7 +284,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
                 return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
               })()}
             </div>
-            {label && <div className="text-[9px] truncate">{label}</div>}
+            {/* {label && <div className="text-[9px] truncate">{label}</div>} */}
             {/* Champs éditables comme dans KanbanView */}
             <div className="space-y-1 w-full">
               {collectionProps
@@ -298,8 +298,6 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
                         value={item[prop.id]}
                         onChange={(val) => {
                           if (typeof onEditField === 'function') {
-                            // Pas de recalcul côté client - juste mettre à jour le champ
-                            // Le serveur recalculera les segments via POST /api/state
                             const updated = { ...item, [prop.id]: val };
                             onEditField(updated);
                           }

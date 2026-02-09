@@ -33,6 +33,7 @@ interface WeekViewProps {
   canViewField?: (fieldId: string) => boolean;
   getDateFieldForItem?: (item: any) => any;
   onEditField?: (updatedItem: any) => void;
+  onRelationChange?: (property: any, item: any, value: any) => void;
   onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
   singleDay?: boolean;
 }
@@ -56,6 +57,8 @@ const WeekView: React.FC<WeekViewProps> = ({
   getDateFieldForItem,
   onShowNewItemModalForCollection,
   singleDay = false,
+  onEditField,
+  onRelationChange,
 }) => {
   const collectionsForProps = collectionsAll?.length ? collectionsAll : collections;
   const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
@@ -329,6 +332,8 @@ const WeekView: React.FC<WeekViewProps> = ({
                         getNameValue={getNameValue}
                         hiddenFields={hiddenFields ?? []}
                         onViewDetail={() => onViewDetail(item)}
+                        onEditField={onEditField}
+                        onRelationChange={onRelationChange}
                         onReduceDuration={(_item, action) => {
                           if (action.type === 'delete') {
                             const updatedItem = removeSegmentFromItem(item, action.index);

@@ -20,7 +20,8 @@ export const useCollections = (
         icon,
         color,
         properties: [{ id: 'name', name: 'Nom', type: 'text', required: true }],
-        items: []
+        items: [],
+        defaultVisibleFieldIds: ['name']
       }
     ];
     setCollections(newCollections);

@@ -25,7 +25,12 @@ const NewViewModal: React.FC<NewViewModalProps> = ({ onClose, onSave, collection
   const dateProps = collection?.properties.filter((p: any) => p.type === 'date' || p.type === 'date_range') || [];
 
   const handleSave = () => {
-    const config: any = { name, type };
+    const props = collection?.properties || [];
+    const defaultVisibleFieldIds = Array.isArray(collection?.defaultVisibleFieldIds)
+      ? collection.defaultVisibleFieldIds
+      : (props[0] ? [props[0].id] : []);
+    const defaultHiddenFields = props.filter((p: any) => !defaultVisibleFieldIds.includes(p.id)).map((p: any) => p.id);
+    const config: any = { name, type, hiddenFields: defaultHiddenFields };
     if (type === 'kanban' && groupBy) config.groupBy = groupBy;
     if (type === 'calendar' && dateProperty) config.dateProperty = dateProperty;
     onSave(name, type, config);

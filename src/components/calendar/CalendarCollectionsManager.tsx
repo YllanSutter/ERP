@@ -16,6 +16,7 @@ interface CalendarCollectionsManagerProps {
   onDelete?: (id: string) => void;
   hiddenFields?: string[];
   onEditField?: (updatedItem: any) => void;
+  onRelationChange?: (property: any, item: any, value: any) => void;
   onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
   selectedCollectionIds: string[];
   onToggleCollection: (collectionId: string, enabled: boolean) => void;
@@ -32,6 +33,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   onViewDetail = () => {},
   onEdit = () => {},
   onDelete = () => {},
+  onRelationChange,
   onShowNewItemModalForCollection,
   selectedCollectionIds,
   onToggleCollection,
@@ -334,6 +336,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               }}
               hiddenFields={hiddenFields}
               onEditField={onEdit}
+              onRelationChange={onRelationChange}
               onDelete={onDelete}
               onEdit={onEdit}
               onViewDetail={onViewDetail}
@@ -366,6 +369,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           }}
           hiddenFields={hiddenFields}
           onEditField={onEdit}
+          onRelationChange={onRelationChange}
           onDelete={onDelete}
           onEdit={onEdit}
           onViewDetail={onViewDetail}

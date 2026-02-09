@@ -15,7 +15,7 @@ export const useViews = (
       type,
       filters: [],
       groups: [],
-      hiddenFields: [],
+      hiddenFields: Array.isArray(config?.hiddenFields) ? config.hiddenFields : [],
       // Si vide ou non défini -> tout le monde peut voir la vue
       visibleToRoles: [],
       visibleToUsers: []

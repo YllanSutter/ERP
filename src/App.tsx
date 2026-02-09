@@ -571,6 +571,10 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                       setModalCollection(itemCollection || null);
                       setShowNewItemModal(true);
                     }}
+                    onRelationChange={(prop: any, item: any, val: any) => {
+                      const updatedItem = { ...item, [prop.id]: val };
+                      itemHooks.updateItem(updatedItem);
+                    }}
                     dateProperty={activeViewConfig?.dateProperty}
                     hiddenFields={activeViewConfig?.hiddenFields || []}
                     collections={collections}
