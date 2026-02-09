@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
+import { LightSelect } from '@/components/inputs/LightSelect';
 
 
 const DashboardColumnConfig = ({
@@ -214,6 +215,36 @@ const DashboardColumnConfig = ({
     setExpandedGroups((prev) => ({ ...prev, [nodeId]: !prev[nodeId] }));
   };
 
+  const applyAutoChildren = (nodeId: string, field: string, values: string[], options: any[]) => {
+    const labels = new Map(options.map((opt: any) => [opt.value, opt.label ?? opt.value]));
+    const updateRecursive = (nodes: any[]): any[] => {
+      return nodes.map((node) => {
+        if (node.id === nodeId) {
+          const nextChildren = values.map((val, idx) => ({
+            id: `${nodeId}-${val}-${idx}-${Date.now()}`,
+            label: labels.get(val) || val,
+            filterField: field,
+            typeValues: [val],
+            dateFieldOverride: {},
+            children: [],
+          }));
+          return {
+            ...node,
+            filterField: field || null,
+            childFilterValues: values,
+            typeValues: [],
+            children: nextChildren,
+          };
+        }
+        if (node.children && node.children.length) {
+          return { ...node, children: updateRecursive(node.children) };
+        }
+        return node;
+      });
+    };
+    onUpdate({ columnTree: updateRecursive(dashboard.columnTree || []) });
+  };
+
 
   // Rendu récursif des noeuds (groupes, feuilles...)
   const renderNode = (node: any, depth = 0, parentPath: any[] = []) => {
@@ -231,9 +262,18 @@ const DashboardColumnConfig = ({
     }
     // Propriétés pour ce noeud (dépend de la collection racine parent)
     const nodeProperties = getNodeProperties(nodeWithParent);
+    const primaryFilterField = node.filterField || '';
+    const childValuesFromChildren = Array.isArray(node.children)
+      ? node.children
+          .filter((child: any) => child.filterField === primaryFilterField && Array.isArray(child.typeValues) && child.typeValues.length === 1)
+          .map((child: any) => child.typeValues[0])
+      : [];
+    const childValues = Array.isArray(node.childFilterValues) && node.childFilterValues.length > 0
+      ? node.childFilterValues
+      : childValuesFromChildren;
     return (
       <div key={node.id} className={`border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 mb-2 ml-${depth * 4} bg-white/70 dark:bg-neutral-900/40 shadow-sm`}> 
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2">
           <button onClick={() => toggleNode(node.id)} className="text-xs px-2 py-1 rounded-full bg-neutral-200/80 dark:bg-white/10 hover:bg-neutral-200">
             {expandedGroups[node.id] ? '−' : '+'}
           </button>
@@ -242,174 +282,183 @@ const DashboardColumnConfig = ({
             onChange={(e) => handleUpdateNode(node.id, { label: e.target.value })}
             className="flex-1 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-sm bg-white/80 dark:bg-neutral-950/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
           />
-          {/* Sélecteur collection/dateField pour groupe racine */}
-          {depth === 0 && (
-            <>
-              <span className="text-neutral-400 text-xs">Collection :</span>
-              <select
-                value={node.collectionId || ''}
-                onChange={e => handleUpdateNode(node.id, { collectionId: e.target.value })}
-                className="bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs"
-              >
-                <option value="">Collection</option>
-                {collections.map((col: any) => (
-                  <option key={col.id} value={col.id}>{col.name}</option>
-                ))}
-              </select>
-              {groupDateFields.length > 0 && (
-                <>
-                  <span className="text-neutral-400 text-xs">Champ date :</span>
-                  <select
-                    value={node.dateFieldId || ''}
-                    onChange={e => handleUpdateNode(node.id, { dateFieldId: e.target.value })}
-                    className="bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs"
-                  >
-                    <option value="">Champ date</option>
-                    {groupDateFields.map((f: any) => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
-                    ))}
-                  </select>
-                </>
-              )}
-            </>
-          )}
-          {isGroup && (
-            <>
-              <span className="text-neutral-400 text-xs">Champ à grouper :</span>
-              <select
-                value={node.groupField || ''}
-                onChange={(e) => handleUpdateNode(node.id, { groupField: e.target.value || null })}
-                className="border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs bg-white/80 dark:bg-neutral-950/40"
-              >
-                <option value="">À définir</option>
-                {nodeProperties.map((prop: any) => (
-                  <option key={prop.id} value={prop.id}>{prop.name}</option>
-                ))}
-              </select>
-              <span className="text-neutral-400 text-xs">Valeur :</span>
-              {node.groupField && (
-                <select
-                  value={node.groupValue || ''}
-                  onChange={(e) => handleUpdateNode(node.id, { groupValue: e.target.value })}
-                  className="border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs bg-white/80 dark:bg-neutral-950/40"
-                >
-                  <option value="">À définir</option>
-                  {getOptions(node.groupField, node).map((opt: any) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              )}
-            </>
-          )}
-          {isLeaf && (
-            <>
-              <span className="text-neutral-400 text-xs">Champ à filtrer :</span>
-              <select
-                value={node.filterField || ''}
-                onChange={(e) => handleUpdateNode(node.id, { filterField: e.target.value || null, typeValues: [] })}
-                className="bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs"
-              >
-                <option value="">À définir</option>
-                {nodeProperties.map((prop: any) => (
-                  <option key={prop.id} value={prop.id}>{prop.name}</option>
-                ))}
-              </select>
-              {node.filterField && (() => {
-                const options = getOptions(node.filterField, nodeWithParent);
-                const props = getNodeProperties(nodeWithParent);
-                const prop = props.find((p: any) => p.id === node.filterField);
-                if (!prop) return null;
-                if (prop.type === 'relation') {
-                  // Select natif stylé, labels lisibles, multi sélection
-                  return (
-                    <div className="flex flex-col gap-1 min-w-[120px]">
-                      <select
-                        multiple
-                        value={node.typeValues || []}
-                        onChange={e => {
-                          const vals = Array.from(e.target.selectedOptions).map(opt => opt.value);
-                          // Sécurité : ne garder que les ids valides (présents dans options)
-                          const validIds = options.map((o: any) => o.value);
-                          const filteredVals = vals.filter(v => validIds.includes(v));
-                          handleUpdateNode(node.id, { typeValues: filteredVals });
-                        }}
-                        className="border dark:bg-neutral-800 border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
-                        size={Math.min(options.length, 6) || 2}
-                      >
-                        {options.map((opt: any) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {(node.typeValues || []).map((val: string) => {
-                          const opt = options.find((o: any) => o.value === val);
-                          return (
-                            <span key={val} className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-neutral-700 dark:text-white text-xs border border-indigo-500/20">
-                              {opt ? opt.label : val}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                }
-                if (prop.type === 'text' || prop.type === 'url' || prop.type === 'email') {
-                  return (
-                    <input
-                      type="text"
-                      value={node.typeValues?.[0] || ''}
-                      onChange={e => handleUpdateNode(node.id, { typeValues: [e.target.value] })}
-                      className="border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
-                      placeholder="Valeur..."
-                    />
-                  );
-                }
-                if (prop.type === 'number') {
-                  return (
-                    <input
-                      type="number"
-                      value={node.typeValues?.[0] || ''}
-                      onChange={e => handleUpdateNode(node.id, { typeValues: [e.target.value] })}
-                      className="border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
-                      placeholder="Valeur..."
-                    />
-                  );
-                }
-                if (prop.type === 'multi_select' || prop.type === 'select' || (Array.isArray(options) && options.length > 0)) {
-                  return (
-                    <LightMultiSelect
-                      options={options}
-                      values={node.typeValues || []}
-                      onChange={(vals) => handleUpdateNode(node.id, { typeValues: vals })}
-                      placeholder="Valeurs..."
-                      sizeClass="text-xs h-7"
-                    />
-                  );
-                }
-                // Fallback : input texte simple
-                return (
-                  <input
-                    type="text"
-                    value={node.typeValues?.[0] || ''}
-                    onChange={e => handleUpdateNode(node.id, { typeValues: [e.target.value] })}
-                    className="border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
-                    placeholder="Valeur..."
-                  />
-                );
-              })()}
-            </>
-          )}
-          <button onClick={() => handleRemoveNode(node.id)} className="text-red-600 dark:text-red-300 hover:text-black dark:hover:text-white hover:bg-red-500/20 rounded-full px-2 py-1 text-xs ml-2">
+          <button onClick={() => handleRemoveNode(node.id)} className="text-red-600 dark:text-red-300 hover:text-black dark:hover:text-white hover:bg-red-500/20 rounded-full px-2 py-1 text-xs">
             Supprimer
           </button>
-          <ShinyButton onClick={() => handleAddChild(node.id, 'leaf')} className="px-2 py-1 ml-2 text-xs">+ Colonne</ShinyButton>
+          <ShinyButton onClick={() => handleAddChild(node.id, 'leaf')} className="px-2 py-1 text-xs">+ Colonne</ShinyButton>
         </div>
+
         {expandedGroups[node.id] && (
-          <div className="space-y-3 pl-6">
-            {(node.children || []).length === 0 && (
-              <div className="text-xs text-neutral-500">Ajoute une colonne ou un groupe.</div>
+          <div className="mt-3 space-y-3">
+            {/* Racine: collection + champ date */}
+            {depth === 0 && (
+              <div className="flex gap-3">
+                <div>
+                  <div className="text-[11px] text-neutral-500 mb-1">Collection</div>
+                  <select
+                    value={node.collectionId || ''}
+                    onChange={e => handleUpdateNode(node.id, { collectionId: e.target.value })}
+                    className="w-full bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs"
+                  >
+                    <option value="">Collection</option>
+                    {collections.map((col: any) => (
+                      <option key={col.id} value={col.id}>{col.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {groupDateFields.length > 0 && (
+                  <div>
+                    <div className="text-[11px] text-neutral-500 mb-1">Champ date</div>
+                    <select
+                      value={node.dateFieldId || ''}
+                      onChange={e => handleUpdateNode(node.id, { dateFieldId: e.target.value })}
+                      className="w-full bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs"
+                    >
+                      <option value="">Champ date</option>
+                      {groupDateFields.map((f: any) => (
+                        <option key={f.id} value={f.id}>{f.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
             )}
-            {(node.children || []).map((child: any) => renderNode(child, depth + 1, [...parentPath, nodeWithParent]))}
+
+            {/* Groupe: champ + valeur */}
+            {isGroup && (
+              <div className="flex gap-3">
+                <div>
+                  <div className="text-[11px] text-neutral-500 mb-1">Champ à grouper</div>
+                  <LightSelect
+                    options={nodeProperties.map((prop: any) => ({ value: prop.id, label: prop.name }))}
+                    value={node.groupField || ''}
+                    onChange={(val) => handleUpdateNode(node.id, { groupField: val || null })}
+                    placeholder="À définir"
+                    sizeClass="text-xs h-7"
+                  />
+                </div>
+                {node.groupField && (
+                  <div>
+                    <div className="text-[11px] text-neutral-500 mb-1">Valeur</div>
+                    <LightSelect
+                      options={getOptions(node.groupField, node).map((opt: any) => ({ value: opt.value, label: opt.label }))}
+                      value={node.groupValue || ''}
+                      onChange={(val) => handleUpdateNode(node.id, { groupValue: val })}
+                      placeholder="À définir"
+                      sizeClass="text-xs h-7"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Colonne: filtre principal + sous-colonnes */}
+            {isLeaf && (
+              <div className="flex items-center gap-3">
+                <div>
+                  <div className="text-[11px] text-neutral-500 mb-1">Filtre principal</div>
+                  <LightSelect
+                    options={nodeProperties.map((prop: any) => ({ value: prop.id, label: prop.name }))}
+                    value={node.filterField || ''}
+                    onChange={(val) => handleUpdateNode(node.id, { filterField: val || null, typeValues: [], childFilterValues: [] })}
+                    placeholder="À définir"
+                    sizeClass="text-xs h-7"
+                  />
+                </div>
+                <div>
+                  <div className="text-[11px] text-neutral-500 mb-1">Filtres enfants (sous-colonnes)</div>
+                  {node.filterField && (() => {
+                    const options = getOptions(node.filterField, nodeWithParent);
+                    const props = getNodeProperties(nodeWithParent);
+                    const prop = props.find((p: any) => p.id === node.filterField);
+                    if (!prop) return null;
+                    if (prop.type === 'relation' || prop.type === 'multi_select' || prop.type === 'select') {
+                      return (
+                        <LightMultiSelect
+                          options={options}
+                          values={childValues}
+                          onChange={(vals) => handleUpdateNode(node.id, { childFilterValues: vals })}
+                          placeholder="Valeurs..."
+                          sizeClass="text-xs h-7"
+                        />
+                      );
+                    }
+                    if (prop.type === 'text' || prop.type === 'url' || prop.type === 'email') {
+                      return (
+                        <input
+                          type="text"
+                          value={childValues?.[0] || ''}
+                          onChange={e => handleUpdateNode(node.id, { childFilterValues: [e.target.value] })}
+                          className="w-full border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
+                          placeholder="Valeur..."
+                        />
+                      );
+                    }
+                    if (prop.type === 'number') {
+                      return (
+                        <input
+                          type="number"
+                          value={childValues?.[0] || ''}
+                          onChange={e => handleUpdateNode(node.id, { childFilterValues: [e.target.value] })}
+                          className="w-full border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
+                          placeholder="Valeur..."
+                        />
+                      );
+                    }
+                    if (Array.isArray(options) && options.length > 0) {
+                      return (
+                        <LightMultiSelect
+                          options={options}
+                          values={childValues}
+                          onChange={(vals) => handleUpdateNode(node.id, { childFilterValues: vals })}
+                          placeholder="Valeurs..."
+                          sizeClass="text-xs h-7"
+                        />
+                      );
+                    }
+                    return (
+                      <input
+                        type="text"
+                        value={childValues?.[0] || ''}
+                        onChange={e => handleUpdateNode(node.id, { childFilterValues: [e.target.value] })}
+                        className="w-full border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
+                        placeholder="Valeur..."
+                      />
+                    );
+                  })()}
+                </div>
+                <div className="md:col-span-2 grid items-center gap-2">
+                  
+                  <div className="text-[11px] text-neutral-500 mb-1">Filtres enfants (sous-colonnes)</div>
+                <div className="flex items-center gap-2">
+                  <ShinyButton
+                    onClick={() => {
+                      if (!node.filterField) return;
+                      const options = getOptions(node.filterField, nodeWithParent);
+                      applyAutoChildren(node.id, node.filterField, childValues || [], options);
+                    }}
+                    className="px-3 py-1 text-xs"
+                  >
+                    Générer les sous-colonnes
+                  </ShinyButton>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateNode(node.id, { childFilterValues: [], children: [] })}
+                    className="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                  >
+                    Réinitialiser
+                  </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3 pl-6">
+              {(node.children || []).length === 0 && (
+                <div className="text-xs text-neutral-500">Ajoute une colonne ou un groupe.</div>
+              )}
+              {(node.children || []).map((child: any) => renderNode(child, depth + 1, [...parentPath, nodeWithParent]))}
+            </div>
           </div>
         )}
       </div>
