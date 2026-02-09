@@ -14,6 +14,7 @@ import LoginPage from '@/components/pages/LoginPage';
 import AccessManager from '@/components/admin/AccessManager';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/menus/Sidebar';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import ViewToolbar from '@/components/views/ViewToolbar';
 import { useAuth } from '@/auth/AuthProvider';
 import NewCollectionModal from '@/components/modals/NewCollectionModal';
@@ -119,6 +120,11 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
     collectionId: null,
     ids: []
   });
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem('erp_sidebar_open');
+    return stored ? stored === '1' : true;
+  });
   const [showAccessManager, setShowAccessManager] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<any[]>([]);
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
@@ -221,10 +227,22 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
     // Si la vue active existe dans la collection courante, on la garde
     const found = visibleViews.find((v: any) => v.id === activeView);
     if (!found) {
-      setActiveView(visibleViews[0].id);
+      const lastViewId = localStorage.getItem(`erp_lastView_${activeCollection}`);
+      const lastViewExists = lastViewId && visibleViews.some((v: any) => v.id === lastViewId);
+      setActiveView(lastViewExists ? lastViewId : visibleViews[0].id);
     }
     // Sinon, on ne touche pas à activeView
   }, [activeCollection, activeView, visibleViews]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('erp_sidebar_open', sidebarOpen ? '1' : '0');
+  }, [sidebarOpen]);
+
+  useEffect(() => {
+    if (!activeCollection || !activeView) return;
+    localStorage.setItem(`erp_lastView_${activeCollection}`, activeView);
+  }, [activeCollection, activeView]);
 
   const handleNavigateToCollection = (collectionId: string, linkedIds?: string[]) => {
     setActiveDashboard(null);
@@ -345,7 +363,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
         setTheme={setTheme}
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen} className="flex flex-1 overflow-hidden">
         <Sidebar
           collections={collections}
           views={views}
@@ -357,7 +375,8 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
           onSelectCollection={(collectionId) => {
             setActiveDashboard(null);
             setActiveCollection(collectionId);
-            setActiveView('default');
+            const lastViewId = localStorage.getItem(`erp_lastView_${collectionId}`);
+            setActiveView(lastViewId || 'default');
             setRelationFilter({ collectionId: null, ids: [] });
           }}
           onEditCollection={(col) => {
@@ -384,6 +403,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
             setActiveDashboard(null);
             setActiveCollection(collectionId);
             setActiveView(viewId);
+            localStorage.setItem(`erp_lastView_${collectionId}`, viewId);
             setRelationFilter({ collectionId: null, ids: [] });
           }}
           onSelectItem={(collectionId: string, itemId: string) => {
@@ -407,7 +427,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
           onDuplicateDashboard={handleDuplicateDashboard}
         />
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <SidebarInset className="flex-1 flex flex-col overflow-hidden">
           {activeDashboard ? (
             <DashboardShell
               dashboard={activeDashboardConfig}
@@ -619,8 +639,8 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
               </motion.div>
             </>
           )}
-        </div>
-      </div>
+        </SidebarInset>
+      </SidebarProvider>
 
       {showNewCollectionModal && (
         <NewCollectionModal
