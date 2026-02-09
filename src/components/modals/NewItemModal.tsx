@@ -19,7 +19,7 @@ function Tabs({ tabs, active, onTab, className = "" }: { tabs: string[], active:
   );
 }
 import { motion } from 'framer-motion';
-import { Star, Trash2, Clock, Edit2 } from 'lucide-react';
+import { Star, Trash2, Clock, Edit2, History } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { calculateSegmentsClient, formatSegmentDisplay } from '@/lib/calculateSegmentsClient';
@@ -35,6 +35,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { workDayStart, workDayEnd } from '@/lib/calendarUtils';
+import { useAuth } from '@/auth/AuthProvider';
 
 
 interface NewItemModalProps {
@@ -68,6 +69,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const [templateDialogSelection, setTemplateDialogSelection] = useState<Record<string, boolean>>({});
   const [templateDialogPayload, setTemplateDialogPayload] = useState<{ nextData: any; nextAutoFilled: Record<string, boolean> } | null>(null);
   const [templateDialogNeedsSegments, setTemplateDialogNeedsSegments] = useState(false);
+  const { user } = useAuth();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyData, setHistoryData] = useState<{ base: any; versions: any[] } | null>(null);
+  const [historySelectedIndex, setHistorySelectedIndex] = useState<number | null>(null);
+  const [historyPreview, setHistoryPreview] = useState<any | null>(null);
 
   const isEmptyTiptapDoc = (doc: any) => {
     if (!doc || doc.type !== 'doc') return false;
@@ -255,6 +261,148 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     return `erp-item-draft:${collectionId}:${itemPart}`;
   };
 
+  const buildHistoryKey = (collectionId: string, itemId: string) => {
+    return `erp-item-versions:${collectionId}:${itemId}`;
+  };
+
+  const sanitizeVersionData = (data: any) => {
+    if (!data || typeof data !== 'object') return data;
+    const { __collectionId, ...rest } = data as any;
+    return rest;
+  };
+
+  const computePatch = (prev: any, next: any) => {
+    const set: Record<string, any> = {};
+    const unset: string[] = [];
+    const prevObj = prev || {};
+    const nextObj = next || {};
+    const prevKeys = Object.keys(prevObj);
+    const nextKeys = Object.keys(nextObj);
+
+    nextKeys.forEach((key) => {
+      if (!areValuesEqual(prevObj[key], nextObj[key])) {
+        set[key] = nextObj[key];
+      }
+    });
+
+    prevKeys.forEach((key) => {
+      if (!(key in nextObj)) unset.push(key);
+    });
+
+    return { set, unset };
+  };
+
+  const applyPatch = (base: any, patch: { set: Record<string, any>; unset: string[] }) => {
+    const next = { ...(base || {}) } as any;
+    Object.entries(patch.set || {}).forEach(([key, value]) => {
+      next[key] = value;
+    });
+    (patch.unset || []).forEach((key) => {
+      delete next[key];
+    });
+    return next;
+  };
+
+  const buildSnapshotAt = (base: any, versions: any[], index: number) => {
+    let snapshot = { ...(base || {}) } as any;
+    for (let i = 0; i <= index; i += 1) {
+      snapshot = applyPatch(snapshot, versions[i].patch || { set: {}, unset: [] });
+    }
+    return snapshot;
+  };
+
+  const isRichTextValue = (val: any) => {
+    if (!val) return false;
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (!trimmed) return false;
+      try {
+        const parsed = JSON.parse(trimmed);
+        return parsed && typeof parsed === 'object' && parsed.type === 'doc';
+      } catch {
+        return false;
+      }
+    }
+    return typeof val === 'object' && val.type === 'doc';
+  };
+
+  const diffLines = (before: string, after: string) => {
+    const a = (before || '').split('\n');
+    const b = (after || '').split('\n');
+    const m = a.length;
+    const n = b.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+    for (let i = 1; i <= m; i += 1) {
+      for (let j = 1; j <= n; j += 1) {
+        dp[i][j] = a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1] + 1
+          : Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+    const result: { type: 'add' | 'remove'; text: string }[] = [];
+    let i = m;
+    let j = n;
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+        i -= 1;
+        j -= 1;
+      } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+        result.push({ type: 'add', text: b[j - 1] });
+        j -= 1;
+      } else if (i > 0) {
+        result.push({ type: 'remove', text: a[i - 1] });
+        i -= 1;
+      }
+    }
+    return result.reverse().filter((entry) => entry.text.trim() !== '');
+  };
+
+  const serializeTiptapLines = (doc: any): string => {
+    if (!doc || doc.type !== 'doc') return '';
+    const lines: string[] = [];
+
+    const extractNodeText = (node: any): string => {
+      if (!node) return '';
+      if (typeof node.text === 'string') return node.text;
+      if (Array.isArray(node.content)) {
+        return node.content.map((child: any) => extractNodeText(child)).join('');
+      }
+      return '';
+    };
+
+    const walk = (node: any) => {
+      if (!node) return;
+      if (node.type === 'taskItem') {
+        const checked = node.attrs?.checked ? '[x] ' : '[ ] ';
+        const text = extractNodeText(node);
+        lines.push(`${checked}${text}`.trimEnd());
+        return;
+      }
+      if (node.type === 'listItem') {
+        const text = extractNodeText(node);
+        lines.push(`- ${text}`.trimEnd());
+        return;
+      }
+      if (node.type === 'heading') {
+        const level = node.attrs?.level || 1;
+        const text = extractNodeText(node);
+        lines.push(`${'#'.repeat(level)} ${text}`.trimEnd());
+        return;
+      }
+      if (node.type === 'paragraph') {
+        const text = extractNodeText(node);
+        lines.push(text.trimEnd());
+        return;
+      }
+      if (Array.isArray(node.content)) {
+        node.content.forEach((child: any) => walk(child));
+      }
+    };
+
+    walk(doc);
+    return lines.filter((line) => line.trim() !== '').join('\n');
+  };
+
   // Fusionne l'item prérempli (editingItem) avec les valeurs par défaut
   function getInitialFormData(col = selectedCollection, prefill: any = editingItem) {
     const data: any = { ...(prefill || {}) };
@@ -325,6 +473,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     () => buildDraftKey(selectedCollectionId, isReallyEditing ? editingItem?.id : undefined),
     [selectedCollectionId, isReallyEditing, editingItem?.id]
   );
+  const historyKey = useMemo(() => {
+    const itemId = editingItem?.id || formData?.id;
+    if (!itemId) return null;
+    return buildHistoryKey(selectedCollectionId, itemId);
+  }, [selectedCollectionId, editingItem?.id, formData?.id]);
 
   React.useEffect(() => {
     draftAppliedRef.current = false;
@@ -606,6 +759,37 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     setTemplateAutoFilled(next.autoFilled);
   }, [editingItem, selectedCollection]);
 
+  React.useEffect(() => {
+    if (!historyKey) {
+      setHistoryData(null);
+      setHistorySelectedIndex(null);
+      setHistoryPreview(null);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(historyKey);
+      if (!raw) {
+        setHistoryData(null);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || !parsed.base || !Array.isArray(parsed.versions)) {
+        setHistoryData(null);
+        return;
+      }
+      setHistoryData(parsed);
+    } catch {
+      setHistoryData(null);
+    }
+  }, [historyKey]);
+
+  React.useEffect(() => {
+    if (!historyOpen || !historyData || historyData.versions.length === 0) return;
+    const lastIndex = historyData.versions.length - 1;
+    setHistorySelectedIndex(lastIndex);
+    setHistoryPreview(buildSnapshotAt(historyData.base, historyData.versions, lastIndex));
+  }, [historyOpen, historyData]);
+
   const isFavorite = favorites && editingItem ? favorites.items.includes(editingItem.id) : false;
 
   // Pour la création, on recalcule dynamiquement les champs selon la collection sélectionnée
@@ -729,9 +913,23 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               </select>
             </div>
           )}
-          {hasLocalDraft && (
-            <div className="ml-3 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-              Brouillon local
+          {(hasLocalDraft || historyData?.versions?.length) && (
+            <div className="ml-3 flex items-center gap-2">
+              {hasLocalDraft && (
+                <div className="px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                  Brouillon local
+                </div>
+              )}
+              {historyData?.versions?.length ? (
+                <button
+                  onClick={() => setHistoryOpen(true)}
+                  className="flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide bg-slate-500/10 text-slate-600 dark:text-slate-300 border border-slate-500/20"
+                  title="Historique des versions"
+                >
+                  <History size={12} />
+                  {historyData.versions.length} version{historyData.versions.length > 1 ? 's' : ''}
+                </button>
+              ) : null}
             </div>
           )}
           {editingItem && onToggleFavoriteItem && (
@@ -1042,7 +1240,68 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 dataToSave._eventSegments = previewSegments;
               }
               
-              if (!isReallyEditing) {
+              if (!isReallyEditing && !dataToSave.id) {
+                dataToSave.id = Date.now().toString();
+              }
+
+              try {
+                const historyItemId = dataToSave.id || editingItem?.id;
+                if (historyItemId) {
+                  const key = buildHistoryKey(selectedCollectionId, historyItemId);
+                  const raw = localStorage.getItem(key);
+                  const snapshot = sanitizeVersionData(dataToSave);
+                  const userName = user?.name || user?.email || 'Utilisateur';
+                  const userId = user?.id || null;
+                  const entryBase = {
+                    id: `v_${Date.now()}`,
+                    ts: new Date().toISOString(),
+                    userId,
+                    userName,
+                  };
+
+                  if (!raw) {
+                    const history = {
+                      base: snapshot,
+                      versions: [
+                        {
+                          ...entryBase,
+                          action: 'create',
+                          patch: { set: {}, unset: [] },
+                        },
+                      ],
+                    };
+                    localStorage.setItem(key, JSON.stringify(history));
+                    setHistoryData(history);
+                  } else {
+                    const parsed = JSON.parse(raw);
+                    const base = parsed?.base || {};
+                    const versions = Array.isArray(parsed?.versions) ? parsed.versions : [];
+                    const latest = versions.length
+                      ? buildSnapshotAt(base, versions, versions.length - 1)
+                      : base;
+                    const patch = computePatch(latest, snapshot);
+                    if (Object.keys(patch.set).length > 0 || patch.unset.length > 0) {
+                      const nextHistory = {
+                        base,
+                        versions: [
+                          ...versions,
+                          {
+                            ...entryBase,
+                            action: versions.length === 0 ? 'create' : 'update',
+                            patch,
+                          },
+                        ],
+                      };
+                      localStorage.setItem(key, JSON.stringify(nextHistory));
+                      setHistoryData(nextHistory);
+                    }
+                  }
+                }
+              } catch {
+                // ignore stockage local indisponible
+              }
+
+              if (!isReallyEditing && !dataToSave.id) {
                 const { id, ...rest } = dataToSave;
                 dataToSave = rest;
               }
@@ -1291,6 +1550,171 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             <Button variant="outline" onClick={discardDraftPayload}>Ignorer</Button>
             <Button onClick={applyDraftPayload}>Appliquer le brouillon</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Historique des versions</DialogTitle>
+            <DialogDescription>
+              Versions locales avec auteur et changements.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[60vh]">
+            {(!historyData || historyData.versions.length === 0) && (
+              <div className="text-xs text-neutral-500">Aucune version disponible.</div>
+            )}
+            {historyData && historyData.versions.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-neutral-500">
+                  <span>
+                    {new Date(historyData.versions[0].ts).toLocaleString('fr-FR')}
+                  </span>
+                  <span>
+                    {new Date(historyData.versions[historyData.versions.length - 1].ts).toLocaleString('fr-FR')}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={historyData.versions.length - 1}
+                  value={historySelectedIndex ?? historyData.versions.length - 1}
+                  onChange={(e) => {
+                    const idx = Number(e.target.value);
+                    setHistorySelectedIndex(idx);
+                    const snapshot = buildSnapshotAt(historyData.base, historyData.versions, idx);
+                    setHistoryPreview(snapshot);
+                  }}
+                  className="w-full"
+                />
+                {historySelectedIndex !== null && (
+                  <div className="text-xs text-neutral-500">
+                    Version {historySelectedIndex + 1} / {historyData.versions.length}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="border border-black/10 dark:border-white/10 rounded-lg p-3 overflow-y-auto max-h-[45vh]">
+              {historySelectedIndex === null || !historyData || !historyPreview ? (
+                <div className="text-sm text-neutral-500">Sélectionne une version pour voir le détail.</div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Changements</div>
+                      <div className="text-xs text-neutral-500">
+                        {new Date(historyData.versions[historySelectedIndex].ts).toLocaleString('fr-FR')} · {historyData.versions[historySelectedIndex].userName || 'Utilisateur'}
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setFormData(historyPreview);
+                        setHistoryOpen(false);
+                      }}
+                    >
+                      Restaurer cette version
+                    </Button>
+                  </div>
+                  {(() => {
+                    const ver = historyData.versions[historySelectedIndex];
+                    const prevSnapshot = historySelectedIndex > 0
+                      ? buildSnapshotAt(historyData.base, historyData.versions, historySelectedIndex - 1)
+                      : historyData.base;
+                    const currSnapshot = historyPreview;
+                    const keys = Array.from(
+                      new Set([
+                        ...Object.keys(prevSnapshot || {}),
+                        ...Object.keys(currSnapshot || {}),
+                      ])
+                    );
+                    const changes = keys
+                      .map((key) => ({
+                        key,
+                        before: prevSnapshot ? prevSnapshot[key] : undefined,
+                        after: currSnapshot ? currSnapshot[key] : undefined,
+                      }))
+                      .filter(({ before, after }) => !areValuesEqual(before, after));
+
+                    if (changes.length === 0) {
+                      return <div className="text-xs text-neutral-500">Aucun changement enregistré.</div>;
+                    }
+
+                    return (
+                      <div className="space-y-3 text-xs">
+                        <div className="text-[11px] text-neutral-500">
+                          {ver.action === 'create' ? 'Diff initial' : 'Diff vs version précédente'}
+                        </div>
+                        {changes.map(({ key, before, after }) => {
+                          const isRich = isRichTextValue(before) || isRichTextValue(after);
+                          if (isRich) {
+                            let beforeDoc = before;
+                            let afterDoc = after;
+                            try {
+                              if (typeof before === 'string') beforeDoc = JSON.parse(before);
+                            } catch {
+                              beforeDoc = before;
+                            }
+                            try {
+                              if (typeof after === 'string') afterDoc = JSON.parse(after);
+                            } catch {
+                              afterDoc = after;
+                            }
+                            const beforeText = serializeTiptapLines(beforeDoc) || extractTextFromTiptap(beforeDoc);
+                            const afterText = serializeTiptapLines(afterDoc) || extractTextFromTiptap(afterDoc);
+                            const lineDiff = diffLines(beforeText, afterText);
+                            return (
+                              <div key={key} className="rounded-md border border-black/5 dark:border-white/10 p-2">
+                                <div className="font-semibold text-neutral-700 dark:text-neutral-200 mb-1">{key}</div>
+                                {lineDiff.length === 0 ? (
+                                  <div className="text-xs text-neutral-500">Aucun changement de lignes.</div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    {lineDiff.map((entry, idx) => (
+                                      <div
+                                        key={`${key}-${idx}`}
+                                        className={cn(
+                                          'rounded px-2 py-1 border text-xs',
+                                          entry.type === 'add'
+                                            ? 'bg-green-500/10 border-green-500/20 text-green-600'
+                                            : 'bg-red-500/10 border-red-500/20 text-red-600'
+                                        )}
+                                      >
+                                        {entry.type === 'add' ? '+' : '-'} {entry.text}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div key={key} className="rounded-md border border-black/5 dark:border-white/10 p-2">
+                              <div className="font-semibold text-neutral-700 dark:text-neutral-200 mb-1">{key}</div>
+                              <div className="grid grid-cols-1 gap-2">
+                                <div className="bg-red-500/10 border border-red-500/20 rounded px-2 py-1">
+                                  <div className="text-[10px] uppercase text-red-500 mb-1">Avant</div>
+                                  <div className="text-neutral-600 dark:text-neutral-300">
+                                    {formatValueForDialog(before)}
+                                  </div>
+                                </div>
+                                <div className="bg-green-500/10 border border-green-500/20 rounded px-2 py-1">
+                                  <div className="text-[10px] uppercase text-green-500 mb-1">Après</div>
+                                  <div className="text-neutral-600 dark:text-neutral-300">
+                                    {formatValueForDialog(after)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>
