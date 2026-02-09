@@ -17,6 +17,7 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
   const [name, setName] = useState(collection.name);
   const [icon, setIcon] = useState(collection.icon || 'Database');
   const [color, setColor] = useState(collection.color || '#8b5cf6');
+  const [isPrimary, setIsPrimary] = useState(!!collection.isPrimary);
   const [defaultVisibleFieldIds, setDefaultVisibleFieldIds] = useState<string[]>(() => {
     const props = collection.properties || [];
     if (Array.isArray(collection.defaultVisibleFieldIds) && collection.defaultVisibleFieldIds.length) {
@@ -38,6 +39,7 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
       name,
       icon,
       color,
+      isPrimary,
       defaultVisibleFieldIds: normalizedDefaultVisible,
     };
     onSave(updatedCollection);
@@ -66,6 +68,16 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
                 onChange={(e) => setName(e.target.value)} 
                 className="w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 borderborder-black/10 dark:border-white/10  rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none" 
               />
+              <label className="mt-4 flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                <input
+                  type="checkbox"
+                  className="accent-violet-500"
+                  checked={isPrimary}
+                  onChange={(e) => setIsPrimary(e.target.checked)}
+                />
+                <span>Collection principale</span>
+              </label>
+              <p className="text-xs text-neutral-500 mt-1">Utilisée en priorité pour les créations rapides (ex: clic droit calendrier).</p>
           <div>
             <label className="block text-sm font-medium text-neutral-600 dark:text-neutral-300 mt-4 mb-2">Champs visibles par défaut</label>
             <p className="text-xs text-neutral-500 mb-3">Ces champs seront visibles lors de la création d'une nouvelle vue.</p>

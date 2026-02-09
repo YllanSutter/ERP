@@ -74,6 +74,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   };
   const [selectedDateFields, setSelectedDateFields] = useState<Record<string, string>>(getInitialSelectedDateFields);
 
+  const getInitialCollectionRoles = () => {
+    if (viewConfig?.calendarCollectionRoles && typeof viewConfig.calendarCollectionRoles === 'object') {
+      return viewConfig.calendarCollectionRoles as Record<string, 'primary' | 'secondary' | 'default'>;
+    }
+    const initial: Record<string, 'primary' | 'secondary' | 'default'> = {};
+    collections.forEach((col) => {
+      initial[col.id] = col.isPrimary ? 'primary' : 'default';
+    });
+    return initial;
+  };
+  const [collectionRoles, setCollectionRoles] = useState<Record<string, 'primary' | 'secondary' | 'default'>>(
+    getInitialCollectionRoles
+  );
+
   const viewKey = viewConfig?.id || null;
 
   React.useEffect(() => {
@@ -98,6 +112,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, [viewConfig?.calendarDateFields, viewKey]);
 
   React.useEffect(() => {
+    if (viewConfig?.calendarCollectionRoles) {
+      setCollectionRoles(viewConfig.calendarCollectionRoles);
+    } else {
+      setCollectionRoles(getInitialCollectionRoles());
+    }
+  }, [viewConfig?.calendarCollectionRoles, viewKey]);
+
+  React.useEffect(() => {
     if (!collections || collections.length === 0) return;
     let changed = false;
     const next = { ...selectedDateFields };
@@ -117,6 +139,22 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       onUpdateViewConfig?.({ calendarDateFields: next });
     }
   }, [collections, selectedCollectionIds, selectedDateFields, onUpdateViewConfig]);
+
+  React.useEffect(() => {
+    if (!collections || collections.length === 0) return;
+    let changed = false;
+    const next = { ...collectionRoles };
+    selectedCollectionIds.forEach((collectionId) => {
+      if (next[collectionId]) return;
+      const col = collections.find((c) => c.id === collectionId);
+      next[collectionId] = col?.isPrimary ? 'primary' : 'default';
+      changed = true;
+    });
+    if (changed) {
+      setCollectionRoles(next);
+      onUpdateViewConfig?.({ calendarCollectionRoles: next });
+    }
+  }, [collections, selectedCollectionIds, collectionRoles, onUpdateViewConfig]);
 
   if (!collections || collections.length === 0) {
     return (
@@ -301,6 +339,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     });
   };
 
+  const updateCollectionRole = (collectionId: string, role: 'primary' | 'secondary' | 'default') => {
+    setCollectionRoles((prev) => {
+      const next = { ...prev, [collectionId]: role };
+      onUpdateViewConfig?.({ calendarCollectionRoles: next });
+      return next;
+    });
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       <CalendarCollectionsManager
@@ -319,6 +365,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         onToggleCollection={toggleCollection}
         dateFields={selectedDateFields}
         onChangeDateField={updateDateField}
+        collectionRoles={collectionRoles}
+        onChangeCollectionRole={updateCollectionRole}
       />
     </motion.div>
   );

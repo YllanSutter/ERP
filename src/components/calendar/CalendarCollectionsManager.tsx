@@ -22,6 +22,8 @@ interface CalendarCollectionsManagerProps {
   onToggleCollection: (collectionId: string, enabled: boolean) => void;
   dateFields: Record<string, string>;
   onChangeDateField: (collectionId: string, fieldId: string) => void;
+  collectionRoles?: Record<string, 'primary' | 'secondary' | 'default'>;
+  onChangeCollectionRole?: (collectionId: string, role: 'primary' | 'secondary' | 'default') => void;
 }
 
 const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
@@ -39,6 +41,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   onToggleCollection,
   dateFields,
   onChangeDateField,
+  collectionRoles = {},
+  onChangeCollectionRole,
 }) => {
   // Option pour déplacer tout ou seulement le segment
   const [moveAllSegments, setMoveAllSegments] = useState(true);
@@ -289,6 +293,19 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                       </option>
                     ))}
                   </select>
+                      <div>
+                        <label className="block text-xs text-neutral-500 mb-1">Rôle</label>
+                        <select
+                          className="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm"
+                          value={collectionRoles[collection.id] || 'default'}
+                          onChange={(e) => onChangeCollectionRole?.(collection.id, e.target.value as 'primary' | 'secondary' | 'default')}
+                          disabled={!isSelected}
+                        >
+                          <option value="default">Autre</option>
+                          <option value="primary">Principale</option>
+                          <option value="secondary">Secondaire</option>
+                        </select>
+                      </div>
                 </div>
               </div>
             );
@@ -321,6 +338,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               items={activeCollections.flatMap(getFilteredItems)}
               collections={activeCollections}
               collectionsAll={collections}
+              collectionRoles={collectionRoles}
               getNameValue={(item) => {
                 const col = collections.find(c => c.id === item.__collectionId);
                 if (!col) return item.name || 'Sans titre';
@@ -354,6 +372,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           items={activeCollections.flatMap(getFilteredItems)}
           collections={activeCollections}
           collectionsAll={collections}
+          collectionRoles={collectionRoles}
           getNameValue={(item) => {
             const col = collections.find(c => c.id === item.__collectionId);
             if (!col) return item.name || 'Sans titre';

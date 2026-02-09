@@ -19,6 +19,7 @@ export const useCollections = (
         name,
         icon,
         color,
+        isPrimary: false,
         properties: [{ id: 'name', name: 'Nom', type: 'text', required: true }],
         items: [],
         defaultVisibleFieldIds: ['name']
@@ -155,9 +156,11 @@ export const useCollections = (
   };
 
   const updateCollection = (updatedCollection: any) => {
-    const updatedCollections = collections.map((col) =>
-      col.id === updatedCollection.id ? updatedCollection : col
-    );
+    const updatedCollections = collections.map((col) => {
+      if (col.id === updatedCollection.id) return updatedCollection;
+      if (updatedCollection.isPrimary) return { ...col, isPrimary: false };
+      return col;
+    });
     setCollections(updatedCollections);
   };
 
