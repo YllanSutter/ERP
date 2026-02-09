@@ -24,6 +24,7 @@ interface CalendarCollectionsManagerProps {
   onChangeDateField: (collectionId: string, fieldId: string) => void;
   collectionRoles?: Record<string, 'primary' | 'secondary' | 'default'>;
   onChangeCollectionRole?: (collectionId: string, role: 'primary' | 'secondary' | 'default') => void;
+  viewModeStorageKey?: string;
 }
 
 const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
@@ -43,6 +44,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   onChangeDateField,
   collectionRoles = {},
   onChangeCollectionRole,
+  viewModeStorageKey,
 }) => {
   // Option pour déplacer tout ou seulement le segment
   const [moveAllSegments, setMoveAllSegments] = useState(false);
@@ -130,7 +132,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   const getInitialViewMode = () => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = window.localStorage.getItem('calendarViewMode');
+        const key = viewModeStorageKey ? `calendarViewMode:${viewModeStorageKey}` : 'calendarViewMode';
+        const saved = window.localStorage.getItem(key);
         if (saved === 'month' || saved === 'week' || saved === 'day') return saved;
       } catch {}
     }
@@ -143,7 +146,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
     if (typeof window !== 'undefined') {
       try {
         const modeValue = typeof mode === 'function' ? mode(viewMode) : mode;
-        window.localStorage.setItem('calendarViewMode', modeValue);
+        const key = viewModeStorageKey ? `calendarViewMode:${viewModeStorageKey}` : 'calendarViewMode';
+        window.localStorage.setItem(key, modeValue);
       } catch {}
     }
   };
@@ -175,17 +179,75 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   // Rendu header + panneaux de filtre + vue calendrier
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 sticky top-0 z-10">
-        <h2 className="text-2xl font-bold text-white">
+      <div className="sticky md:relative top-0 z-10 mb-6">
+        <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between md:flex-wrap">
+          <h2 className="text-2xl font-bold text-white">
           {viewMode === 'month'
             ? `${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getFullYear()}`
             : viewMode === 'week'
             ? `Semaine du ${getMonday(currentDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
             : currentDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
           }
-        </h2>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1 bg-gray-200 dark:bg-neutral-800/50 rounded-lg p-1">
+          </h2>
+          <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:items-center md:flex-wrap">
+            <details className="relative w-full sm:w-auto">
+              <summary className="list-none cursor-pointer select-none px-3 py-2 rounded-lg text-sm font-medium bg-black/10 dark:bg-white/5 text-neutral-300 hover:bg-white/10 transition-all">
+                Collections affichées
+              </summary>
+              <div className="absolute left-0 mt-2 w-[min(90vw,520px)] max-h-[60vh] overflow-auto rounded-xl border border-white/10 bg-neutral-950/95 p-4 shadow-xl backdrop-blur z-20">
+                <div className="space-y-4">
+                  {collectionsWithDate.map((collection) => {
+                    const dateOptions = collection.properties.filter(
+                      (p: any) => p.type === 'date' || p.type === 'date_range'
+                    );
+                    const isSelected = selectedCollectionIds.includes(collection.id);
+                    return (
+                      <div key={collection.id} className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => onToggleCollection(collection.id, e.target.checked)}
+                            className="accent-violet-500"
+                          />
+                          <span>{collection.name}</span>
+                        </label>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-neutral-400">Temps</span>
+                          <select
+                            className="bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
+                            value={dateFields[collection.id] || ''}
+                            onChange={(e) => onChangeDateField(collection.id, e.target.value)}
+                            disabled={!isSelected || dateOptions.length === 0}
+                          >
+                            <option value="" disabled>
+                              {dateOptions.length === 0 ? 'Aucun champ date' : 'Choisir'}
+                            </option>
+                            {dateOptions.map((p: any) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            className="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm"
+                            value={collectionRoles[collection.id] || 'default'}
+                            onChange={(e) => onChangeCollectionRole?.(collection.id, e.target.value as 'primary' | 'secondary' | 'default')}
+                            disabled={!isSelected}
+                          >
+                            <option value="default">Autre</option>
+                            <option value="primary">Principale</option>
+                            <option value="secondary">Secondaire</option>
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </details>
+            <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto">
+              <div className="flex w-full flex-wrap gap-1 rounded-lg bg-gray-200 p-1 dark:bg-neutral-800/50 sm:w-auto">
             <button
               onClick={() => setViewModePersist('month')}
               className={
@@ -213,10 +275,10 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
             >
               Jour
             </button>
-          </div>
+              </div>
           {/* Option de déplacement visible seulement en vue calendrier (week ou day) */}
           {(viewMode === 'week' || viewMode === 'day') && (
-            <div className="flex items-center gap-2  rounded-lg px-4 py-3 ml-2">
+            <div className="flex w-full flex-wrap items-center gap-2 rounded-lg px-4 py-3 sm:w-auto sm:ml-2">
               <span className="text-xs text-neutral-400">Déplacement :</span>
               <label className="flex items-center gap-1 text-xs cursor-pointer">
                 <input
@@ -240,7 +302,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               </label>
             </div>
           )}
-          <button onClick={() => setCurrentDate(getPreviousPeriod(currentDate, viewMode))} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+          <button onClick={() => setCurrentDate(getPreviousPeriod(currentDate, viewMode))} className="rounded-lg p-2 transition-colors hover:bg-white/10">
             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg>
           </button>
           <button
@@ -249,66 +311,11 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           >
             Aujourd'hui
           </button>
-          <button onClick={() => setCurrentDate(getNextPeriod(currentDate, viewMode))} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+          <button onClick={() => setCurrentDate(getNextPeriod(currentDate, viewMode))} className="rounded-lg p-2 transition-colors hover:bg-white/10">
             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
           </button>
-        </div>
-      </div>
-      <div className="mb-4 rounded-xl border border-white/10 bg-white/5 p-4">
-        <div className="text-sm font-semibold mb-3">Collections affichées</div>
-        <div className="flex items-center">
-          {collectionsWithDate.map((collection) => {
-            const dateOptions = collection.properties.filter(
-              (p: any) => p.type === 'date' || p.type === 'date_range'
-            );
-            const isSelected = selectedCollectionIds.includes(collection.id);
-            return (
-              <div
-                key={collection.id}
-                className="flex flex-wrap items-center gap-3 px-3"
-              >
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={(e) => onToggleCollection(collection.id, e.target.checked)}
-                    className="accent-violet-500"
-                  />
-                  <span>{collection.name}</span>
-                </label>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-400">Temps</span>
-                  <select
-                    className="bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
-                    value={dateFields[collection.id] || ''}
-                    onChange={(e) => onChangeDateField(collection.id, e.target.value)}
-                    disabled={!isSelected || dateOptions.length === 0}
-                  >
-                    <option value="" disabled>
-                      {dateOptions.length === 0 ? 'Aucun champ date' : 'Choisir'}
-                    </option>
-                    {dateOptions.map((p: any) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                      <div>
-                        <select
-                          className="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm"
-                          value={collectionRoles[collection.id] || 'default'}
-                          onChange={(e) => onChangeCollectionRole?.(collection.id, e.target.value as 'primary' | 'secondary' | 'default')}
-                          disabled={!isSelected}
-                        >
-                          <option value="default">Autre</option>
-                          <option value="primary">Principale</option>
-                          <option value="secondary">Secondaire</option>
-                        </select>
-                      </div>
-                </div>
-              </div>
-            );
-          })}
+            </div>
+          </div>
         </div>
       </div>
       {/* Affichage de la vue calendrier selon viewMode */}

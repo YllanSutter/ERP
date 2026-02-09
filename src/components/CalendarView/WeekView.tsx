@@ -329,7 +329,7 @@ const WeekView: React.FC<WeekViewProps> = ({
   };
   return (
     <div className="space-y-4 overflow-x-auto">
-      <div className={`grid ${weekDays.length === 1 ? 'grid-cols-2' : 'grid-cols-6'} min-w-min`}>
+      <div className={`grid ${weekDays.length === 1 ? 'grid-cols-[4rem_minmax(0,1fr)]' : 'grid-cols-6'} min-w-min`}>
         <div className="w-16"></div>
         {weekDays.map((date, idx) => {
           const isToday = date.toDateString() === new Date().toDateString();
@@ -339,7 +339,8 @@ const WeekView: React.FC<WeekViewProps> = ({
               key={idx}
               className={cn(
                 'text-center py-3 border px-2',
-                isToday ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-black/10 dark:border-white/10 bg-background dark:bg-neutral-800/30'
+                isToday ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-black/10 dark:border-white/10 bg-background dark:bg-neutral-800/30',
+                singleDay && 'mx-auto w-full max-w-[600px]'
               )}
             >
               <div className="text-xs font-semibold text-neutral-500">{dayNamesShort[dayOfWeek]}</div>
@@ -348,7 +349,7 @@ const WeekView: React.FC<WeekViewProps> = ({
           );
         })}
       </div>
-      <div className={`grid ${weekDays.length === 1 ? 'grid-cols-2' : 'grid-cols-6'} min-w-min`}>
+      <div className={`grid ${weekDays.length === 1 ? 'grid-cols-[4rem_minmax(0,1fr)]' : 'grid-cols-6'} min-w-min`}>
         <div className="w-16">
           {hours.map(hour => (
             <div key={hour} className="h-24 text-xs text-neutral-600 font-medium pt-1">{hour}:00</div>
@@ -424,7 +425,13 @@ const WeekView: React.FC<WeekViewProps> = ({
           const lineTop = Math.min(Math.max(hoursSinceStart, 0), totalHours) * 96;
           const rangeStyle = getRangeStyleForDay(date);
           return (
-            <div key={dayIndex} className="relative" onDragOver={handleDayDragOver} onDragLeave={handleDayDragLeave} onDrop={handleDayDrop}>
+            <div
+              key={dayIndex}
+              className={cn('relative', singleDay && 'mx-auto w-full max-w-[600px]')}
+              onDragOver={handleDayDragOver}
+              onDragLeave={handleDayDragLeave}
+              onDrop={handleDayDrop}
+            >
               {dragPreview && dragPreview.dayIndex === dayIndex && (
                 <div className="absolute left-0 right-0 border-t-2 border-blue-500 pointer-events-none z-50" style={{ top: `${dragPreview.positionY}px` }} />
               )}

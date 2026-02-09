@@ -24,6 +24,7 @@ interface CalendarViewProps {
   views?: Record<string, any[]>;
   relationFilter?: { collectionId: string | null; ids: string[] };
   activeCollectionId?: string | null;
+  viewModeStorageKey?: string;
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({
@@ -46,6 +47,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   views = {},
   relationFilter = { collectionId: null, ids: [] },
   activeCollectionId = null,
+  viewModeStorageKey,
 }) => {
   // Sélection multiple de collections
   const getInitialSelectedCollections = () => {
@@ -367,6 +369,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         onChangeDateField={updateDateField}
         collectionRoles={collectionRoles}
         onChangeCollectionRole={updateCollectionRole}
+        viewModeStorageKey={viewModeStorageKey || viewConfig?.id || collection?.id}
       />
     </motion.div>
   );
