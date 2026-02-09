@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import MonthView from '../CalendarView/MonthView';
-import DayView from '../CalendarView/DayView';
 import WeekView from '../CalendarView/WeekView';
 import { 
   moveAllSegmentsOfItem, 
@@ -319,6 +318,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               currentDate={currentDate}
               items={activeCollections.flatMap(getFilteredItems)}
               collections={activeCollections}
+              collectionsAll={collections}
               getNameValue={(item) => {
                 const col = collections.find(c => c.id === item.__collectionId);
                 if (!col) return item.name || 'Sans titre';
@@ -346,28 +346,35 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           );
         })()
       ) : (
-        <DayView
+        <WeekView
           currentDate={currentDate}
           items={activeCollections.flatMap(getFilteredItems)}
           collections={activeCollections}
+          collectionsAll={collections}
           getNameValue={(item) => {
             const col = collections.find(c => c.id === item.__collectionId);
             if (!col) return item.name || 'Sans titre';
             const nameField = col.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
             return nameField ? item[nameField.id] : item.name || 'Sans titre';
           }}
+          getItemsForDate={() => []}
           getDateFieldForItem={(item: { __collectionId: any; }) => {
             const col = collections.find(c => c.id === item.__collectionId);
             if (!col) return undefined;
             const dateFieldId = dateFields[col.id];
             return col.properties.find((p: any) => p.id === dateFieldId);
           }}
+          hiddenFields={hiddenFields}
+          onEditField={onEdit}
           onDelete={onDelete}
           onEdit={onEdit}
           onViewDetail={onViewDetail}
           defaultDuration={defaultDuration}
           startHour={startHour}
           endHour={endHour}
+          onShowNewItemModalForCollection={onShowNewItemModalForCollection}
+          onEventDrop={onEventDrop}
+          singleDay
         />
       )}
     </div>

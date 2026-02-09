@@ -17,6 +17,7 @@ interface WeekViewProps {
   currentDate: Date;
   items: any[];
   collections: any[];
+  collectionsAll?: any[];
   onDelete: (id: string) => void;
   onEdit: (item: any) => void;
   onViewDetail: (item: any) => void;
@@ -33,12 +34,14 @@ interface WeekViewProps {
   getDateFieldForItem?: (item: any) => any;
   onEditField?: (updatedItem: any) => void;
   onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
+  singleDay?: boolean;
 }
 
 const WeekView: React.FC<WeekViewProps> = ({
   currentDate,
   items,
   collections = [],
+  collectionsAll,
   onDelete,
   onEdit,
   onViewDetail,
@@ -52,10 +55,14 @@ const WeekView: React.FC<WeekViewProps> = ({
   canViewField = () => true,
   getDateFieldForItem,
   onShowNewItemModalForCollection,
+  singleDay = false,
 }) => {
+  const collectionsForProps = collectionsAll?.length ? collectionsAll : collections;
   const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
   const [dragPreview, setDragPreview] = React.useState<{ dayIndex: number; positionY: number } | null>(null);
-  const weekDays = getWeekDays(currentDate);
+  const normalizedDate = new Date(currentDate);
+  normalizedDate.setHours(0, 0, 0, 0);
+  const weekDays = singleDay ? [normalizedDate] : getWeekDays(currentDate);
   // Regroupe les événements par jour à partir des plages horaires (_eventSegments)
   const eventsByDay = useMemo(() => {
     const events: Record<string, Array<{ item: any; segment: any; dayIndex: number; multiDayIndex: number }>> = {};
@@ -83,7 +90,7 @@ const WeekView: React.FC<WeekViewProps> = ({
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
   return (
     <div className="space-y-4 overflow-x-auto">
-      <div className="grid grid-cols-6 min-w-min">
+      <div className={`grid ${weekDays.length === 1 ? 'grid-cols-2' : 'grid-cols-6'} min-w-min`}>
         <div className="w-16"></div>
         {weekDays.map((date, idx) => {
           const isToday = date.toDateString() === new Date().toDateString();
@@ -102,7 +109,7 @@ const WeekView: React.FC<WeekViewProps> = ({
           );
         })}
       </div>
-      <div className="grid grid-cols-6 min-w-min">
+      <div className={`grid ${weekDays.length === 1 ? 'grid-cols-2' : 'grid-cols-6'} min-w-min`}>
         <div className="w-16">
           {hours.map(hour => (
             <div key={hour} className="h-24 text-xs text-neutral-600 font-medium pt-1">{hour}:00</div>
@@ -318,7 +325,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                         endHour={endHour}
                         hoursLength={hours.length}
                         visibleMetaFields={visibleMetaFields}
-                        collections={collections}
+                        collections={collectionsForProps}
                         getNameValue={getNameValue}
                         hiddenFields={hiddenFields ?? []}
                         onViewDetail={() => onViewDetail(item)}
