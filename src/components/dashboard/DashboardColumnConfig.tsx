@@ -230,9 +230,8 @@ const DashboardColumnConfig = ({
           }));
           return {
             ...node,
-            filterField: field || null,
+            childFilterField: field || null,
             childFilterValues: values,
-            typeValues: [],
             children: nextChildren,
           };
         }
@@ -263,9 +262,11 @@ const DashboardColumnConfig = ({
     // Propriétés pour ce noeud (dépend de la collection racine parent)
     const nodeProperties = getNodeProperties(nodeWithParent);
     const primaryFilterField = node.filterField || '';
+    const childFilterField = node.childFilterField || '';
+    const effectiveChildField = childFilterField || primaryFilterField;
     const childValuesFromChildren = Array.isArray(node.children)
       ? node.children
-          .filter((child: any) => child.filterField === primaryFilterField && Array.isArray(child.typeValues) && child.typeValues.length === 1)
+        .filter((child: any) => child.filterField === effectiveChildField && Array.isArray(child.typeValues) && child.typeValues.length === 1)
           .map((child: any) => child.typeValues[0])
       : [];
     const childValues = Array.isArray(node.childFilterValues) && node.childFilterValues.length > 0
@@ -352,25 +353,97 @@ const DashboardColumnConfig = ({
               </div>
             )}
 
-            {/* Colonne: filtre principal + sous-colonnes */}
+            {/* Colonne: filtre principal + valeurs + filtre enfant */}
             {isLeaf && (
-              <div className="flex items-center gap-3">
+              <div className="flex gap-5">
                 <div>
                   <div className="text-[11px] text-neutral-500 mb-1">Filtre principal</div>
                   <LightSelect
                     options={nodeProperties.map((prop: any) => ({ value: prop.id, label: prop.name }))}
                     value={node.filterField || ''}
-                    onChange={(val) => handleUpdateNode(node.id, { filterField: val || null, typeValues: [], childFilterValues: [] })}
+                    onChange={(val) => handleUpdateNode(node.id, { filterField: val || null, typeValues: [], childFilterValues: [], childFilterField: '' })}
                     placeholder="À définir"
                     sizeClass="text-xs h-7"
                   />
                 </div>
                 <div>
-                  <div className="text-[11px] text-neutral-500 mb-1">Filtres enfants (sous-colonnes)</div>
+                  <div className="text-[11px] text-neutral-500 mb-1">Valeur(s) du filtre principal</div>
                   {node.filterField && (() => {
                     const options = getOptions(node.filterField, nodeWithParent);
                     const props = getNodeProperties(nodeWithParent);
                     const prop = props.find((p: any) => p.id === node.filterField);
+                    if (!prop) return null;
+                    if (prop.type === 'relation' || prop.type === 'multi_select' || prop.type === 'select') {
+                      return (
+                        <LightMultiSelect
+                          options={options}
+                          values={node.typeValues || []}
+                          onChange={(vals) => handleUpdateNode(node.id, { typeValues: vals })}
+                          placeholder="Valeurs..."
+                          sizeClass="text-xs h-7"
+                        />
+                      );
+                    }
+                    if (prop.type === 'text' || prop.type === 'url' || prop.type === 'email') {
+                      return (
+                        <input
+                          type="text"
+                          value={node.typeValues?.[0] || ''}
+                          onChange={e => handleUpdateNode(node.id, { typeValues: [e.target.value] })}
+                          className="w-full border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
+                          placeholder="Valeur..."
+                        />
+                      );
+                    }
+                    if (prop.type === 'number') {
+                      return (
+                        <input
+                          type="number"
+                          value={node.typeValues?.[0] || ''}
+                          onChange={e => handleUpdateNode(node.id, { typeValues: [e.target.value] })}
+                          className="w-full border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
+                          placeholder="Valeur..."
+                        />
+                      );
+                    }
+                    if (Array.isArray(options) && options.length > 0) {
+                      return (
+                        <LightMultiSelect
+                          options={options}
+                          values={node.typeValues || []}
+                          onChange={(vals) => handleUpdateNode(node.id, { typeValues: vals })}
+                          placeholder="Valeurs..."
+                          sizeClass="text-xs h-7"
+                        />
+                      );
+                    }
+                    return (
+                      <input
+                        type="text"
+                        value={node.typeValues?.[0] || ''}
+                        onChange={e => handleUpdateNode(node.id, { typeValues: [e.target.value] })}
+                        className="w-full border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
+                        placeholder="Valeur..."
+                      />
+                    );
+                  })()}
+                </div>
+                <div>
+                  <div className="text-[11px] text-neutral-500 mb-1">Filtre enfant (sous-colonnes)</div>
+                  <LightSelect
+                    options={nodeProperties.map((prop: any) => ({ value: prop.id, label: prop.name }))}
+                    value={node.childFilterField || ''}
+                    onChange={(val) => handleUpdateNode(node.id, { childFilterField: val || null, childFilterValues: [] })}
+                    placeholder="À définir"
+                    sizeClass="text-xs h-7"
+                  />
+                </div>
+                <div>
+                  <div className="text-[11px] text-neutral-500 mb-1">Valeur(s) du filtre enfant</div>
+                  {effectiveChildField && (() => {
+                    const options = getOptions(effectiveChildField, nodeWithParent);
+                    const props = getNodeProperties(nodeWithParent);
+                    const prop = props.find((p: any) => p.id === effectiveChildField);
                     if (!prop) return null;
                     if (prop.type === 'relation' || prop.type === 'multi_select' || prop.type === 'select') {
                       return (
@@ -427,15 +500,12 @@ const DashboardColumnConfig = ({
                     );
                   })()}
                 </div>
-                <div className="md:col-span-2 grid items-center gap-2">
-                  
-                  <div className="text-[11px] text-neutral-500 mb-1">Filtres enfants (sous-colonnes)</div>
-                <div className="flex items-center gap-2">
+                <div className="md:col-span-2 flex items-center gap-2">
                   <ShinyButton
                     onClick={() => {
-                      if (!node.filterField) return;
-                      const options = getOptions(node.filterField, nodeWithParent);
-                      applyAutoChildren(node.id, node.filterField, childValues || [], options);
+                      if (!effectiveChildField) return;
+                      const options = getOptions(effectiveChildField, nodeWithParent);
+                      applyAutoChildren(node.id, effectiveChildField, childValues || [], options);
                     }}
                     className="px-3 py-1 text-xs"
                   >
@@ -448,7 +518,6 @@ const DashboardColumnConfig = ({
                   >
                     Réinitialiser
                   </button>
-                  </div>
                 </div>
               </div>
             )}
