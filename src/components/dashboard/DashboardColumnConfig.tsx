@@ -232,15 +232,15 @@ const DashboardColumnConfig = ({
     // Propriétés pour ce noeud (dépend de la collection racine parent)
     const nodeProperties = getNodeProperties(nodeWithParent);
     return (
-      <div key={node.id} className={`border border-black/10 dark:border-white/10 rounded px-3 py-2 mb-2 ml-${depth * 4}`}> 
+      <div key={node.id} className={`border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 mb-2 ml-${depth * 4} bg-white/70 dark:bg-neutral-900/40 shadow-sm`}> 
         <div className="flex items-center gap-2 mb-2">
-          <button onClick={() => toggleNode(node.id)} className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20">
+          <button onClick={() => toggleNode(node.id)} className="text-xs px-2 py-1 rounded-full bg-neutral-200/80 dark:bg-white/10 hover:bg-neutral-200">
             {expandedGroups[node.id] ? '−' : '+'}
           </button>
           <input
             value={node.label}
             onChange={(e) => handleUpdateNode(node.id, { label: e.target.value })}
-            className="flex-1 border border-black/10 dark:border-white/10 rounded px-3 py-2 text-sm bg-background dark:bg-neutral-900/60"
+            className="flex-1 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-sm bg-white/80 dark:bg-neutral-950/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
           />
           {/* Sélecteur collection/dateField pour groupe racine */}
           {depth === 0 && (
@@ -249,7 +249,7 @@ const DashboardColumnConfig = ({
               <select
                 value={node.collectionId || ''}
                 onChange={e => handleUpdateNode(node.id, { collectionId: e.target.value })}
-                className="bg-background dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs"
+                className="bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs"
               >
                 <option value="">Collection</option>
                 {collections.map((col: any) => (
@@ -262,7 +262,7 @@ const DashboardColumnConfig = ({
                   <select
                     value={node.dateFieldId || ''}
                     onChange={e => handleUpdateNode(node.id, { dateFieldId: e.target.value })}
-                    className="bg-background dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs"
+                    className="bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs"
                   >
                     <option value="">Champ date</option>
                     {groupDateFields.map((f: any) => (
@@ -279,7 +279,7 @@ const DashboardColumnConfig = ({
               <select
                 value={node.groupField || ''}
                 onChange={(e) => handleUpdateNode(node.id, { groupField: e.target.value || null })}
-                className="border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs"
+                className="border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs bg-white/80 dark:bg-neutral-950/40"
               >
                 <option value="">À définir</option>
                 {nodeProperties.map((prop: any) => (
@@ -291,7 +291,7 @@ const DashboardColumnConfig = ({
                 <select
                   value={node.groupValue || ''}
                   onChange={(e) => handleUpdateNode(node.id, { groupValue: e.target.value })}
-                  className="border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs"
+                  className="border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs bg-white/80 dark:bg-neutral-950/40"
                 >
                   <option value="">À définir</option>
                   {getOptions(node.groupField, node).map((opt: any) => (
@@ -307,7 +307,7 @@ const DashboardColumnConfig = ({
               <select
                 value={node.filterField || ''}
                 onChange={(e) => handleUpdateNode(node.id, { filterField: e.target.value || null, typeValues: [] })}
-                className="bg-background dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs"
+                className="bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs"
               >
                 <option value="">À définir</option>
                 {nodeProperties.map((prop: any) => (
@@ -333,7 +333,7 @@ const DashboardColumnConfig = ({
                           const filteredVals = vals.filter(v => validIds.includes(v));
                           handleUpdateNode(node.id, { typeValues: filteredVals });
                         }}
-                        className="border dark:bg-neutral-800 border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs focus:border-violet-500 focus:outline-none"
+                        className="border dark:bg-neutral-800 border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
                         size={Math.min(options.length, 6) || 2}
                       >
                         {options.map((opt: any) => (
@@ -344,7 +344,7 @@ const DashboardColumnConfig = ({
                         {(node.typeValues || []).map((val: string) => {
                           const opt = options.find((o: any) => o.value === val);
                           return (
-                            <span key={val} className="px-2 py-0.5 rounded bg-violet-700/30 text-neutral-700 dark:text-white text-xs border border-violet-700/40">
+                            <span key={val} className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-neutral-700 dark:text-white text-xs border border-indigo-500/20">
                               {opt ? opt.label : val}
                             </span>
                           );
@@ -359,7 +359,7 @@ const DashboardColumnConfig = ({
                       type="text"
                       value={node.typeValues?.[0] || ''}
                       onChange={e => handleUpdateNode(node.id, { typeValues: [e.target.value] })}
-                      className="border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                      className="border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
                       placeholder="Valeur..."
                     />
                   );
@@ -370,7 +370,7 @@ const DashboardColumnConfig = ({
                       type="number"
                       value={node.typeValues?.[0] || ''}
                       onChange={e => handleUpdateNode(node.id, { typeValues: [e.target.value] })}
-                      className="border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                      className="border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
                       placeholder="Valeur..."
                     />
                   );
@@ -392,14 +392,14 @@ const DashboardColumnConfig = ({
                     type="text"
                     value={node.typeValues?.[0] || ''}
                     onChange={e => handleUpdateNode(node.id, { typeValues: [e.target.value] })}
-                    className="border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                    className="border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none"
                     placeholder="Valeur..."
                   />
                 );
               })()}
             </>
           )}
-          <button onClick={() => handleRemoveNode(node.id)} className="text-red-600 dark:text-red-300 hover:text-black dark:hover:text-white hover:bg-red-500/20 rounded px-2 py-1 text-xs ml-2">
+          <button onClick={() => handleRemoveNode(node.id)} className="text-red-600 dark:text-red-300 hover:text-black dark:hover:text-white hover:bg-red-500/20 rounded-full px-2 py-1 text-xs ml-2">
             Supprimer
           </button>
           <ShinyButton onClick={() => handleAddChild(node.id, 'leaf')} className="px-2 py-1 ml-2 text-xs">+ Colonne</ShinyButton>
@@ -417,7 +417,7 @@ const DashboardColumnConfig = ({
   };
 
   return (
-    <div className="border dark:border-white/10 border-black/10 rounded-lg p-4  mt-20">
+    <div className="border dark:border-white/10 border-black/10 rounded-xl p-5 mt-10 bg-white/70 dark:bg-neutral-900/50 shadow-sm backdrop-blur">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-semibold">Configuration avancée multi-niveaux</h3>
