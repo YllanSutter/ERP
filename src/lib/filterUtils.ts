@@ -25,6 +25,9 @@ export const getFilteredItems = (
             }
             return itemVal.includes(fVal);
           }
+          if (Array.isArray(fVal)) {
+            return fVal.includes(itemVal);
+          }
           return itemVal === fVal;
         case 'not_equals':
           if (isArrayVal) {
@@ -33,6 +36,9 @@ export const getFilteredItems = (
               return !fVal.some((v: any) => itemVal.includes(v));
             }
             return !itemVal.includes(fVal);
+          }
+          if (Array.isArray(fVal)) {
+            return !fVal.includes(itemVal);
           }
           return itemVal !== fVal;
         case 'contains':
@@ -46,6 +52,13 @@ export const getFilteredItems = (
             }
             return itemVal.some((v: any) =>
               String(v).toLowerCase().includes(String(fVal).toLowerCase())
+            );
+          }
+          if (Array.isArray(fVal)) {
+            return fVal.some((fv: any) =>
+              String(itemVal || '')
+                .toLowerCase()
+                .includes(String(fv || '').toLowerCase())
             );
           }
           return String(itemVal || '')

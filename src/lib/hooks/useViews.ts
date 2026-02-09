@@ -40,6 +40,18 @@ export const useViews = (
     setViews(updatedViews);
   };
 
+  const updateFilter = (index: number, property: string, operator: string, value: any) => {
+    if (!activeCollection) return;
+    const updatedViews = { ...views } as Record<string, any[]>;
+    const viewIndex = updatedViews[activeCollection].findIndex((v: any) => v.id === activeView);
+    if (viewIndex === -1) return;
+    const filters = updatedViews[activeCollection][viewIndex].filters || [];
+    if (!filters[index]) return;
+    filters[index] = { property, operator, value };
+    updatedViews[activeCollection][viewIndex].filters = filters;
+    setViews(updatedViews);
+  };
+
   const updateViewVisibility = (viewId: string, roleIds: string[], userIds: string[]) => {
     if (!activeCollection) return;
     const updatedViews = { ...views } as Record<string, any[]>;
@@ -191,6 +203,7 @@ export const useViews = (
     currentViewConfig,
     addView,
     addFilter,
+    updateFilter,
     removeFilter,
     addGroup,
     removeGroup,

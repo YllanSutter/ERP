@@ -89,13 +89,17 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
     
     // Pour les filtres "equals", la colonne doit correspondre à AU MOINS UN
     if (equalsFilters.length > 0) {
-      const matchesEquals = equalsFilters.some(f => columnValue === f.value);
+      const matchesEquals = equalsFilters.some(f =>
+        Array.isArray(f.value) ? f.value.includes(columnValue) : columnValue === f.value
+      );
       if (!matchesEquals) return false;
     }
     
     // Pour les filtres "not_equals", la colonne NE doit correspondre à AUCUN
     if (notEqualsFilters.length > 0) {
-      const matchesNotEquals = notEqualsFilters.some(f => columnValue === f.value);
+      const matchesNotEquals = notEqualsFilters.some(f =>
+        Array.isArray(f.value) ? f.value.includes(columnValue) : columnValue === f.value
+      );
       if (matchesNotEquals) return false;
     }
     
@@ -104,9 +108,23 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
       const filterValue = filter.value;
       
       if (filter.operator === 'contains') {
-        if (!columnValue?.toLowerCase().includes(filterValue?.toLowerCase())) return false;
+        if (Array.isArray(filterValue)) {
+          const matches = filterValue.some((fv: any) =>
+            columnValue?.toLowerCase().includes(String(fv).toLowerCase())
+          );
+          if (!matches) return false;
+        } else if (!columnValue?.toLowerCase().includes(filterValue?.toLowerCase())) {
+          return false;
+        }
       } else if (filter.operator === 'not_contains') {
-        if (columnValue?.toLowerCase().includes(filterValue?.toLowerCase())) return false;
+        if (Array.isArray(filterValue)) {
+          const matches = filterValue.some((fv: any) =>
+            columnValue?.toLowerCase().includes(String(fv).toLowerCase())
+          );
+          if (matches) return false;
+        } else if (columnValue?.toLowerCase().includes(filterValue?.toLowerCase())) {
+          return false;
+        }
       } else if (filter.operator === 'is_empty') {
         if (columnValue !== 'Sans valeur' && columnValue !== null && columnValue !== '') return false;
       } else if (filter.operator === 'is_not_empty') {

@@ -107,6 +107,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
   const [showNewItemModal, setShowNewItemModal] = useState(false);
   const [modalCollection, setModalCollection] = useState<any>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [editingFilterIndex, setEditingFilterIndex] = useState<number | null>(null);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showNewViewModal, setShowNewViewModal] = useState(false);
   const [showEditViewModal, setShowEditViewModal] = useState(false);
@@ -478,7 +479,10 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                 onSetActiveView={setActiveView}
                 onDeleteView={viewHooks.deleteView}
                 onShowNewViewModal={() => setShowNewViewModal(true)}
-                onShowFilterModal={() => setShowFilterModal(true)}
+                onShowFilterModal={() => {
+                  setEditingFilterIndex(null);
+                  setShowFilterModal(true);
+                }}
                 onShowGroupModal={() => setShowGroupModal(true)}
                 onShowNewPropertyModal={() => setShowNewPropertyModal(true)}
                 onShowNewItemModal={() => setShowNewItemModal(true)}
@@ -488,6 +492,10 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                 onEditProperty={(prop) => {
                   setEditingProperty(prop);
                   setShowEditPropertyModal(true);
+                }}
+                onEditFilter={(index) => {
+                  setEditingFilterIndex(index);
+                  setShowFilterModal(true);
                 }}
                 onRemoveFilter={viewHooks.removeFilter}
                 onClearRelationFilter={clearRelationFilter}
@@ -809,10 +817,23 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
         <FilterModal
           properties={currentCollection?.properties || []}
           collections={collections}
-          onClose={() => setShowFilterModal(false)}
-          onAdd={(property, operator, value) => {
-            viewHooks.addFilter(property, operator, value);
+          initialFilter={
+            editingFilterIndex !== null
+              ? activeViewConfig?.filters?.[editingFilterIndex] || null
+              : null
+          }
+          onClose={() => {
             setShowFilterModal(false);
+            setEditingFilterIndex(null);
+          }}
+          onAdd={(property, operator, value) => {
+            if (editingFilterIndex !== null) {
+              viewHooks.updateFilter(editingFilterIndex, property, operator, value);
+            } else {
+              viewHooks.addFilter(property, operator, value);
+            }
+            setShowFilterModal(false);
+            setEditingFilterIndex(null);
           }}
         />
       )}

@@ -9,15 +9,17 @@ interface FilterModalProps {
   collections: any[];
   onClose: () => void;
   onAdd: (property: string, operator: string, value: any) => void;
+  initialFilter?: { property: string; operator: string; value: any } | null;
 }
 
-const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onClose, onAdd }) => {
+const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onClose, onAdd, initialFilter }) => {
   // Onglet sélectionné : index de la collection
   const defaultTab = collections.findIndex(c => c.properties === properties) || 0;
   const [selectedTab, setSelectedTab] = useState(defaultTab);
   const [property, setProperty] = useState('');
   const [operator, setOperator] = useState('equals');
   const [value, setValue] = useState<any>('');
+  const isMultiValueOperator = ['equals', 'not_equals'].includes(operator);
   const operators = [
     { value: 'equals', label: 'Est égal à' },
     { value: 'not_equals', label: 'Est différent de' },
@@ -29,15 +31,47 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
   ];
   // Propriétés de la collection sélectionnée
   const currentProperties = collections[selectedTab]?.properties || [];
+  const isEditing = Boolean(initialFilter);
   // Reset property si on change d'onglet
   React.useEffect(() => {
+    if (initialFilter) {
+      const isInitialTab = (collections[selectedTab]?.properties || []).some(
+        (p: any) => p.id === initialFilter.property
+      );
+      if (isInitialTab) return;
+    }
     setProperty('');
     setValue('');
     setOperator('equals');
-  }, [selectedTab]);
+  }, [selectedTab, collections, initialFilter]);
+
+  React.useEffect(() => {
+    if (!initialFilter) return;
+    const targetTab = collections.findIndex((c: any) =>
+      (c.properties || []).some((p: any) => p.id === initialFilter.property)
+    );
+    if (targetTab >= 0 && targetTab !== selectedTab) {
+      setSelectedTab(targetTab);
+    }
+    setProperty(initialFilter.property || '');
+    setOperator(initialFilter.operator || 'equals');
+    setValue(initialFilter.value ?? '');
+  }, [initialFilter, collections]);
+
+  const prepareFilterValue = () => {
+    if (!isMultiValueOperator) return value;
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      return value
+        .split(',')
+        .map(part => part.trim())
+        .filter(Boolean);
+    }
+    return value;
+  };
   return (
      <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]" onClick={onClose}>
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 min-w-96 max-h-[80vh] overflow-y-auto backdrop-blur" onClick={e => e.stopPropagation()} >        <h3 className="text-xl font-bold mb-6">Ajouter un filtre</h3>
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 min-w-96 max-h-[80vh] overflow-y-auto backdrop-blur" onClick={e => e.stopPropagation()} >        <h3 className="text-xl font-bold mb-6">{isEditing ? 'Modifier un filtre' : 'Ajouter un filtre'}</h3>
         {/* Onglets collections */}
         <div className="flex gap-2 mb-4">
           {collections.map((col, idx) => (
@@ -74,8 +108,8 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
               const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
               const nameField = targetCollection?.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
 
-              if (isSourceMany) {
-                const currentValues = Array.isArray(value) ? value : [];
+              if (isSourceMany || isMultiValueOperator) {
+                const currentValues = Array.isArray(value) ? value : value ? [value] : [];
                 return (
                   <LightMultiSelect
                     options={targetItems.map((ti: any) => ({
@@ -108,6 +142,16 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
               const opts = (selectedProp.options || []).map((opt: any) =>
                 typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.value, color: opt.color, icon: opt.icon }
               );
+              if (isMultiValueOperator) {
+                const currentValues = Array.isArray(value) ? value : value ? [value] : [];
+                return (
+                  <LightMultiSelect
+                    options={opts}
+                    values={currentValues}
+                    onChange={(vals) => setValue(vals)}
+                  />
+                );
+              }
               return (
                 <LightSelect
                   options={opts}
@@ -129,12 +173,13 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
                 />
               );
             }
+            const inputDisplayValue = Array.isArray(value) ? value.join(', ') : value;
             return (
               <input
                 type="text"
-                value={typeof value === 'string' ? value : ''}
+                value={typeof inputDisplayValue === 'string' ? inputDisplayValue : ''}
                 onChange={(e) => setValue(e.target.value)}
-                placeholder="Valeur"
+                placeholder={isMultiValueOperator ? 'Valeurs séparées par des virgules' : 'Valeur'}
                 className="w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 borderborder-black/10 dark:border-white/10  rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
               />
             );
@@ -142,7 +187,12 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
         </div>
         <div className="flex gap-3 mt-8">
           <button onClick={onClose} className="flex-1 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton onClick={() => property && onAdd(property, operator, value)} className="flex-1">Ajouter</ShinyButton>
+          <ShinyButton
+            onClick={() => property && onAdd(property, operator, prepareFilterValue())}
+            className="flex-1"
+          >
+            {isEditing ? 'Enregistrer' : 'Ajouter'}
+          </ShinyButton>
         </div>
       </motion.div>
     </div>

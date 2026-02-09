@@ -191,7 +191,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           </h2>
           <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:items-center md:flex-wrap">
             <details className="relative w-full sm:w-auto">
-              <summary className="list-none cursor-pointer select-none px-3 py-2 rounded-lg text-sm font-medium bg-black/10 dark:bg-white/5 text-neutral-300 hover:bg-white/10 transition-all">
+              <summary className="list-none cursor-pointer select-none px-3 py-2 rounded-lg text-sm font-medium bg-black/10 dark:bg-white/5 text-neutral-700  dark:text-neutral-300 hover:bg-white/10 transition-all">
                 Collections affichées
               </summary>
               <div className="absolute left-0 mt-2 w-[min(90vw,520px)] max-h-[60vh] overflow-auto rounded-xl border border-white/10 bg-neutral-950/95 p-4 shadow-xl backdrop-blur z-20">
