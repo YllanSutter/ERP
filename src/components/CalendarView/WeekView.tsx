@@ -63,9 +63,15 @@ const WeekView: React.FC<WeekViewProps> = ({
   const collectionsForProps = collectionsAll?.length ? collectionsAll : collections;
   const dayNamesShort = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
   const [dragPreview, setDragPreview] = React.useState<{ dayIndex: number; positionY: number } | null>(null);
+  const [now, setNow] = React.useState(new Date());
   const normalizedDate = new Date(currentDate);
   normalizedDate.setHours(0, 0, 0, 0);
   const weekDays = singleDay ? [normalizedDate] : getWeekDays(currentDate);
+  React.useEffect(() => {
+    const tick = () => setNow(new Date());
+    const intervalId = window.setInterval(tick, 60 * 1000);
+    return () => window.clearInterval(intervalId);
+  }, []);
   // Regroupe les événements par jour à partir des plages horaires (_eventSegments)
   const eventsByDay = useMemo(() => {
     const events: Record<string, Array<{ item: any; segment: any; dayIndex: number; multiDayIndex: number }>> = {};
@@ -182,10 +188,25 @@ const WeekView: React.FC<WeekViewProps> = ({
               }
             } catch (e) { console.error('Error parsing drag data:', e); } finally { setDragPreview(null); }
           };
+          const isToday = toDateKey(date) === toDateKey(now);
+          const hoursSinceStart = now.getHours() + now.getMinutes() / 60 - startHour;
+          const totalHours = endHour - startHour;
+          const lineTop = Math.min(Math.max(hoursSinceStart, 0), totalHours) * 96;
           return (
             <div key={dayIndex} className="relative" onDragOver={handleDayDragOver} onDragLeave={handleDayDragLeave} onDrop={handleDayDrop}>
               {dragPreview && dragPreview.dayIndex === dayIndex && (
                 <div className="absolute left-0 right-0 border-t-2 border-blue-500 pointer-events-none z-50" style={{ top: `${dragPreview.positionY}px` }} />
+              )}
+              {isToday && hoursSinceStart >= 0 && hoursSinceStart <= totalHours && (
+                <div className="absolute left-0 right-0 z-40 pointer-events-none" style={{ top: `${lineTop}px` }}>
+                  <div className="relative">
+                    <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-red-500" />
+                    <div className="border-t-2 border-red-500" />
+                    <div className="absolute left-2 -top-3 text-[10px] text-red-500 bg-white/80 dark:bg-neutral-900/80 px-1 rounded">
+                      {now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                </div>
               )}
               {hours.map((hour) => {
                 // Cherche s'il y a un event effectivement affiché à cet horaire précis (dans la vue courante)
