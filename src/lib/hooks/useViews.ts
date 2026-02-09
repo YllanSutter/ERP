@@ -99,6 +99,18 @@ export const useViews = (
     }
   };
 
+  const updateView = (viewId: string, updates: Record<string, any>) => {
+    if (!activeCollection) return;
+    const updatedViews = { ...views } as Record<string, any[]>;
+    const viewIndex = updatedViews[activeCollection].findIndex((v: any) => v.id === viewId);
+    if (viewIndex === -1) return;
+    updatedViews[activeCollection][viewIndex] = {
+      ...updatedViews[activeCollection][viewIndex],
+      ...updates,
+    };
+    setViews(updatedViews);
+  };
+
   const toggleFieldVisibility = (fieldId: string) => {
     if (!activeCollection) return;
     const updatedViews = { ...views } as Record<string, any[]>;
@@ -156,6 +168,7 @@ export const useViews = (
     addGroup,
     removeGroup,
     deleteView,
+    updateView,
     toggleFieldVisibility,
     moveFieldInView,
     updateViewFieldOrder,

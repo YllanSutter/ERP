@@ -7,13 +7,15 @@ interface NewViewModalProps {
   onClose: () => void;
   onSave: (name: string, type: string, config?: any) => void;
   collection: any;
+  view?: any;
+  mode?: 'create' | 'edit';
 }
 
-const NewViewModal: React.FC<NewViewModalProps> = ({ onClose, onSave, collection }) => {
-  const [name, setName] = useState('');
-  const [type, setType] = useState('table');
-  const [groupBy, setGroupBy] = useState('');
-  const [dateProperty, setDateProperty] = useState('');
+const NewViewModal: React.FC<NewViewModalProps> = ({ onClose, onSave, collection, view, mode = 'create' }) => {
+  const [name, setName] = useState(view?.name || '');
+  const [type, setType] = useState(view?.type || 'table');
+  const [groupBy, setGroupBy] = useState(view?.groupBy || '');
+  const [dateProperty, setDateProperty] = useState(view?.dateProperty || '');
   
   const viewTypes = [
     { value: 'table', label: 'Tableau' },
@@ -30,7 +32,8 @@ const NewViewModal: React.FC<NewViewModalProps> = ({ onClose, onSave, collection
       ? collection.defaultVisibleFieldIds
       : (props[0] ? [props[0].id] : []);
     const defaultHiddenFields = props.filter((p: any) => !defaultVisibleFieldIds.includes(p.id)).map((p: any) => p.id);
-    const config: any = { name, type, hiddenFields: defaultHiddenFields };
+    const config: any = { name, type };
+    if (mode === 'create') config.hiddenFields = defaultHiddenFields;
     if (type === 'kanban' && groupBy) config.groupBy = groupBy;
     if (type === 'calendar' && dateProperty) config.dateProperty = dateProperty;
     onSave(name, type, config);
@@ -38,7 +41,8 @@ const NewViewModal: React.FC<NewViewModalProps> = ({ onClose, onSave, collection
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]" onClick={onClose}>
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 min-w-96 max-h-[80vh] overflow-y-auto backdrop-blur" onClick={e => e.stopPropagation()} >        <h3 className="text-xl font-bold mb-6">Nouvelle vue</h3>
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 min-w-96 max-h-[80vh] overflow-y-auto backdrop-blur" onClick={e => e.stopPropagation()} >
+        <h3 className="text-xl font-bold mb-6">{mode === 'edit' ? 'Modifier la vue' : 'Nouvelle vue'}</h3>
         <div className="space-y-4">
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom de la vue" className="w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 borderborder-black/10 dark:border-white/10  rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none" />
           <div className="space-y-2">
@@ -64,22 +68,11 @@ const NewViewModal: React.FC<NewViewModalProps> = ({ onClose, onSave, collection
               </select>
             </div>
           )}
-
-          {type === 'calendar' && dateProps.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Propriété date</label>
-              <select value={dateProperty} onChange={(e) => setDateProperty(e.target.value)} className="w-full px-4 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none">
-                <option value="">Sélectionner une propriété...</option>
-                {dateProps.map((prop: any) => (
-                  <option key={prop.id} value={prop.id}>{prop.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
+         
         </div>
         <div className="flex gap-3 mt-8">
           <button onClick={onClose} className="flex-1 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton onClick={handleSave} className="flex-1">Créer</ShinyButton>
+          <ShinyButton onClick={handleSave} className="flex-1">{mode === 'edit' ? 'Enregistrer' : 'Créer'}</ShinyButton>
         </div>
       </motion.div>
     </div>

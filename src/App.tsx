@@ -107,6 +107,8 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showNewViewModal, setShowNewViewModal] = useState(false);
+  const [showEditViewModal, setShowEditViewModal] = useState(false);
+  const [editingViewId, setEditingViewId] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editingProperty, setEditingProperty] = useState<any>(null);
   const [showEditPropertyModal, setShowEditPropertyModal] = useState(false);
@@ -481,6 +483,10 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                   if (!activeCollection) return;
                   setViewVisibilityTarget({ viewId, collectionId: activeCollection });
                 }}
+                onEditView={(viewId: string) => {
+                  setEditingViewId(viewId);
+                  setShowEditViewModal(true);
+                }}
               />
 
               <motion.div
@@ -752,9 +758,27 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
         <NewViewModal
           collection={currentCollection}
           onClose={() => setShowNewViewModal(false)}
+          mode="create"
           onSave={(name, type, config) => {
             viewHooks.addView(name, type, config);
             setShowNewViewModal(false);
+          }}
+        />
+      )}
+      {showEditViewModal && editingViewId && (
+        <NewViewModal
+          collection={currentCollection}
+          view={(views[activeCollection || ''] || []).find((v: any) => v.id === editingViewId)}
+          mode="edit"
+          onClose={() => {
+            setShowEditViewModal(false);
+            setEditingViewId(null);
+          }}
+          onSave={(updates) => {
+            if (!editingViewId) return;
+            viewHooks.updateView(editingViewId, updates);
+            setShowEditViewModal(false);
+            setEditingViewId(null);
           }}
         />
       )}

@@ -54,6 +54,7 @@ interface ViewToolbarProps {
   onRemoveGroup: (property: string) => void;
   onToggleFavoriteView: (viewId: string) => void;
   onManageViewVisibility: (viewId: string) => void;
+  onEditView: (viewId: string) => void;
 }
 
 const ViewToolbar: React.FC<ViewToolbarProps> = ({
@@ -82,7 +83,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onClearRelationFilter,
   onRemoveGroup,
   onToggleFavoriteView,
-  onManageViewVisibility
+  onManageViewVisibility,
+  onEditView
 }) => {
   const settingsRef = useRef<HTMLDivElement>(null);
   
@@ -210,6 +212,13 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                 </motion.div>
               </ContextMenuTrigger>
               <ContextMenuContent className="min-w-[200px]">
+                <ContextMenuItem
+                  onSelect={() => onEditView(view.id)}
+                  className="gap-2"
+                >
+                  <Settings size={14} className="text-violet-400" />
+                  <span>Modifier…</span>
+                </ContextMenuItem>
                 <ContextMenuItem
                   onSelect={() => onManageViewVisibility(view.id)}
                   className="gap-2"
