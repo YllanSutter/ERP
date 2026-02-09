@@ -614,6 +614,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     setFormDataRaw(data);
   };
 
+  const setManualSegments = (segments: any[]) => {
+    setFormData({ ...formData, _eventSegments: segments, _preserveEventSegments: true });
+  };
+
   // Lors d'un changement de collection, garder les segments existants
   React.useEffect(() => {
     if (!didMountRef.current) {
@@ -635,6 +639,12 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     let nextData = { ...formData, [propId]: value };
     let nextAutoFilled = { ...templateAutoFilled, [propId]: false };
 
+    const isDateField = dateProps.some((p: any) => p.id === propId);
+    const isDurationField = propId.endsWith('_duration');
+    if (isDateField || isDurationField) {
+      nextData = { ...nextData, _preserveEventSegments: false };
+    }
+
     const result = applyTemplates(nextData, propId, nextAutoFilled, true);
     const {
       nextData: computedData,
@@ -647,7 +657,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     nextAutoFilled = computedAutoFilled;
 
     if (didApplyDurationChange) {
-      nextData = { ...nextData, _eventSegments: calculateSegmentsClient(nextData, selectedCollection) };
+      nextData = { ...nextData, _eventSegments: calculateSegmentsClient(nextData, selectedCollection), _preserveEventSegments: false };
     }
 
     if (pendingUpdates.length > 0) {
@@ -685,7 +695,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     });
 
     if (templateDialogNeedsSegments || shouldRecalcSegments) {
-      nextData = { ...nextData, _eventSegments: calculateSegmentsClient(nextData, selectedCollection) };
+      nextData = { ...nextData, _eventSegments: calculateSegmentsClient(nextData, selectedCollection), _preserveEventSegments: false };
     }
 
     setTemplateAutoFilled(nextAutoFilled);
@@ -1175,7 +1185,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                 className="mt-3 w-full px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
                                 onClick={() => {
                                   const oldManualSegs = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label !== dateProp.name);
-                                  setFormData({ ...formData, _eventSegments: [...oldManualSegs, ...autoSegments] });
+                                  setFormData({ ...formData, _eventSegments: [...oldManualSegs, ...autoSegments], _preserveEventSegments: false });
                                 }}
                               >
                                 Appliquer ces plages
@@ -1238,6 +1248,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               // Si on crée un nouvel item et que les segments sont vides, appliquer les segments prégénérés
               if (!isReallyEditing && (!dataToSave._eventSegments || dataToSave._eventSegments.length === 0) && previewSegments.length > 0) {
                 dataToSave._eventSegments = previewSegments;
+                dataToSave._preserveEventSegments = false;
               }
               
               if (!isReallyEditing && !dataToSave.id) {
@@ -1345,7 +1356,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     const start = now.toISOString();
                     const end = new Date(now.getTime() + 60*60*1000).toISOString();
                     segs.push({ start, end, label: editingDateProp.name });
-                    setFormData({ ...formData, _eventSegments: segs });
+                    setManualSegments(segs);
                   }}
                 >
                   + Ajouter une plage
@@ -1394,7 +1405,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             start.setFullYear(Number(year), Number(month) - 1, Number(day));
                                             const newEnd = new Date(start.getTime() + durationMinutes * 60000);
                                             segsCopy[globalIdx] = { ...segsCopy[globalIdx], start: start.toISOString(), end: newEnd.toISOString() };
-                                            setFormData({ ...formData, _eventSegments: segsCopy });
+                                            setManualSegments(segsCopy);
                                           }
                                         }}
                                         className="w-full px-2 py-1.5 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-100 text-sm rounded focus:border-violet-500 focus:outline-none"
@@ -1414,7 +1425,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             start.setHours(parseInt(hours), parseInt(minutes), 0, 0);
                                             const newEnd = new Date(start.getTime() + durationMinutes * 60000);
                                             segsCopy[globalIdx] = { ...segsCopy[globalIdx], start: start.toISOString(), end: newEnd.toISOString() };
-                                            setFormData({ ...formData, _eventSegments: segsCopy });
+                                            setManualSegments(segsCopy);
                                           }
                                         }}
                                         className="w-full px-2 py-1.5 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-100 text-sm rounded focus:border-violet-500 focus:outline-none"
@@ -1439,7 +1450,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             const newDurationHours = parseFloat(e.target.value) || 0;
                                             const newEnd = new Date(start.getTime() + newDurationHours * 60 * 60000);
                                             segsCopy[globalIdx] = { ...segsCopy[globalIdx], end: newEnd.toISOString() };
-                                            setFormData({ ...formData, _eventSegments: segsCopy });
+                                            setManualSegments(segsCopy);
                                           }
                                         }}
                                         className="w-full px-2 py-1.5 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-100 text-sm rounded focus:border-violet-500 focus:outline-none"
@@ -1465,7 +1476,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                       const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
                                       if (globalIdx !== -1) {
                                         segsCopy.splice(globalIdx, 1);
-                                        setFormData({ ...formData, _eventSegments: segsCopy });
+                                        setManualSegments(segsCopy);
                                       }
                                     }}
                                     type="button"

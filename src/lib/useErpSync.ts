@@ -83,6 +83,7 @@ export function useErpSync({
   const lastReloadRef = useRef(0);
   // On mémorise la dernière sauvegarde locale pour ignorer les reloads qui suivent
   const lastLocalSaveRef = useRef(0);
+  const lastSavedPayloadRef = useRef<string | null>(null);
 
   // Fetch initial state when user is defined and component is mounted
   useEffect(() => {
@@ -172,19 +173,30 @@ export function useErpSync({
     debounceTimeout.current = setTimeout(() => {
       const saveState = async () => {
         try {
-          await fetch(`${API_URL}/state`, {
+          const payload = {
+            collections: cleanForSave(collections),
+            views: cleanForSave(views),
+            dashboards: cleanForSave(dashboards),
+            dashboardSort,
+            dashboardFilters: cleanForSave(dashboardFilters),
+            favorites: cleanForSave(favorites)
+          };
+          const payloadString = JSON.stringify(payload);
+
+          if (payloadString === lastSavedPayloadRef.current) {
+            return;
+          }
+
+          const res = await fetch(`${API_URL}/state`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({
-              collections: cleanForSave(collections),
-              views: cleanForSave(views),
-              dashboards: cleanForSave(dashboards),
-              dashboardSort,
-              dashboardFilters: cleanForSave(dashboardFilters),
-              favorites: cleanForSave(favorites)
-            }),
+            body: payloadString,
           });
+
+          if (res.ok) {
+            lastSavedPayloadRef.current = payloadString;
+          }
         } catch (err) {
           console.error('Impossible de sauvegarder les données', err);
         }

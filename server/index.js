@@ -551,6 +551,79 @@ const breakEnd = 13;
 const workDayStart = 9;
 const workDayEnd = 17;
 
+const normalizeComparableValue = (value) => {
+  if (value === undefined || value === null) return null;
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
+};
+
+const getDateProperties = (collection) => {
+  if (!collection || !Array.isArray(collection.properties)) return [];
+  return collection.properties.filter((prop) => prop.type === 'date');
+};
+
+const areAllSegmentsModified = (prevItem, nextItem) => {
+  const prevSegments = Array.isArray(prevItem?._eventSegments) ? prevItem._eventSegments : [];
+  const nextSegments = Array.isArray(nextItem?._eventSegments) ? nextItem._eventSegments : [];
+
+  if (prevSegments.length === 0 || nextSegments.length === 0) return false;
+  if (prevSegments.length !== nextSegments.length) return false;
+
+  return nextSegments.every((segment, index) => {
+    const prevSegment = prevSegments[index];
+    const prevStart = normalizeComparableValue(prevSegment?.start);
+    const prevEnd = normalizeComparableValue(prevSegment?.end);
+    const nextStart = normalizeComparableValue(segment?.start);
+    const nextEnd = normalizeComparableValue(segment?.end);
+    return prevStart !== nextStart || prevEnd !== nextEnd;
+  });
+};
+
+const hasDateOrDurationChange = (prevItem, nextItem, collection, prevCollection) => {
+  const dateProps = getDateProperties(collection);
+  const prevProps = Array.isArray(prevCollection?.properties) ? prevCollection.properties : [];
+
+  for (const prop of dateProps) {
+    const dateKey = prop.id;
+    const durationKey = `${prop.id}_duration`;
+
+    const prevDate = normalizeComparableValue(prevItem?.[dateKey]);
+    const nextDate = normalizeComparableValue(nextItem?.[dateKey]);
+    if (prevDate !== nextDate) return true;
+
+    const prevHasDuration = prevItem && Object.prototype.hasOwnProperty.call(prevItem, durationKey);
+    const nextHasDuration = nextItem && Object.prototype.hasOwnProperty.call(nextItem, durationKey);
+
+    const prevDuration = prevHasDuration ? normalizeComparableValue(prevItem[durationKey]) : null;
+    const nextDuration = nextHasDuration ? normalizeComparableValue(nextItem[durationKey]) : null;
+    if (prevDuration !== nextDuration) return true;
+
+    if (!prevHasDuration && !nextHasDuration) {
+      const prevProp = prevProps.find((p) => p.id === prop.id);
+      const prevDefault = normalizeComparableValue(prevProp?.defaultDuration ?? null);
+      const nextDefault = normalizeComparableValue(prop?.defaultDuration ?? null);
+      if (prevDefault !== nextDefault) return true;
+    }
+  }
+
+  return false;
+};
+
+const shouldRecalculateSegments = (prevItem, nextItem, collection, prevCollection) => {
+  if (!nextItem) return true;
+  if (!Array.isArray(nextItem._eventSegments) || nextItem._eventSegments.length === 0) return true;
+  if (!prevItem) return true;
+
+  if (hasDateOrDurationChange(prevItem, nextItem, collection, prevCollection)) return true;
+
+  if (nextItem?._preserveEventSegments) {
+    if (areAllSegmentsModified(prevItem, nextItem)) return true;
+    return false;
+  }
+
+  return false;
+};
+
 /**
  * Calcule les segments de temps pour un item sur une période de jours de travail
  */
@@ -1052,13 +1125,33 @@ app.post('/api/state', requireAuth, async (req, res) => {
     // Séparer les favoris du reste de l'état
     const { favorites, ...stateData } = payload;
     const collections = stateData.collections || [];
+
+    const prevStateResult = await pool.query('SELECT data FROM app_state LIMIT 1');
+    const prevState = prevStateResult.rows.length > 0 ? JSON.parse(prevStateResult.rows[0].data) : {};
+    const prevCollections = Array.isArray(prevState.collections) ? prevState.collections : [];
+    const prevCollectionsById = new Map(prevCollections.map((col) => [col.id, col]));
     
     // IMPORTANT: Recalculer les segments côté serveur pour chaque item
     // Cela garantit que les segments sont TOUJOURS en accord avec les champs date/durée
     const processedCollections = collections.map((col) => {
       if (!col.items) return col;
-      
+
+      const prevCol = prevCollectionsById.get(col.id);
+      const prevItems = Array.isArray(prevCol?.items) ? prevCol.items : [];
+      const prevItemsById = new Map(prevItems.map((item) => [item.id, item]));
+
       const processedItems = col.items.map((item) => {
+        const prevItem = prevItemsById.get(item.id);
+
+        if (!shouldRecalculateSegments(prevItem, item, col, prevCol)) {
+          const preservedSegments = Array.isArray(item._eventSegments)
+            ? item._eventSegments
+            : Array.isArray(prevItem?._eventSegments)
+              ? prevItem._eventSegments
+              : [];
+          return { ...item, _eventSegments: preservedSegments };
+        }
+
         // Recalcule _eventSegments basé sur les champs date/durée de la collection
         return calculateEventSegments(item, col);
       });

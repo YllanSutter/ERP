@@ -26,7 +26,7 @@ export function addManualSegmentToItem(
 ): any {
   const segments = Array.isArray(item._eventSegments) ? [...item._eventSegments] : [];
   segments.push(segment);
-  return { ...item, _eventSegments: segments };
+  return { ...item, _eventSegments: segments, _preserveEventSegments: true };
 }
 
 /**
@@ -44,7 +44,7 @@ export function updateSegmentInItem(
   
   const segments = [...item._eventSegments];
   segments[segmentIndex] = { ...segments[segmentIndex], ...updates };
-  return { ...item, _eventSegments: segments };
+  return { ...item, _eventSegments: segments, _preserveEventSegments: true };
 }
 
 /**
@@ -60,7 +60,7 @@ export function removeSegmentFromItem(
   }
   
   const segments = item._eventSegments.filter((_: any, idx: number) => idx !== segmentIndex);
-  return { ...item, _eventSegments: segments };
+  return { ...item, _eventSegments: segments, _preserveEventSegments: true };
 }
 
 /**
@@ -80,12 +80,12 @@ export function moveAllSegmentsOfItem(
   const newDateObj = new Date(newDate);
   newDateObj.setHours(newHours, newMinutes, 0, 0);
 
-  const updatedItem = { ...item, [dateFieldId]: newDateObj.toISOString() };
+  const updatedItem = { ...item, [dateFieldId]: newDateObj.toISOString(), _preserveEventSegments: false };
 
   // Recalcule localement les segments pour refléter pauses/weekend/heures
   if (collection) {
     const recalculatedSegments = calculateSegmentsClient(updatedItem, collection);
-    return { ...updatedItem, _eventSegments: recalculatedSegments };
+    return { ...updatedItem, _eventSegments: recalculatedSegments, _preserveEventSegments: false };
   }
 
   return updatedItem;

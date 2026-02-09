@@ -533,7 +533,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
-                className="flex-1 overflow-auto p-6"
+                className="flex-1 overflow-auto p-6 z-[1]"
               >
                 {activeViewConfig?.type === 'table' && (
                   <TableView
