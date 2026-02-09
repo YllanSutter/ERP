@@ -128,6 +128,23 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     return map;
   }, [collections]);
 
+  const getCollectionTone = (collectionId?: string) => {
+    const palette = [
+      { soft: 'bg-neutral-50/90 dark:bg-neutral-950/20', strong: 'bg-neutral-100/90 dark:bg-neutral-950/35' },
+      { soft: 'bg-neutral-100/85 dark:bg-neutral-900/20', strong: 'bg-neutral-200/80 dark:bg-neutral-900/35' },
+      { soft: 'bg-neutral-200/70 dark:bg-neutral-900/30', strong: 'bg-neutral-300/60 dark:bg-neutral-900/45' },
+      { soft: 'bg-white/80 dark:bg-neutral-950/15', strong: 'bg-neutral-100/80 dark:bg-neutral-950/30' },
+      { soft: 'bg-neutral-50/70 dark:bg-neutral-900/35', strong: 'bg-neutral-200/70 dark:bg-neutral-900/50' },
+    ];
+    const idx = Math.max(0, collections.findIndex((c: any) => c.id === collectionId));
+    return palette[idx % palette.length];
+  };
+
+  const getLeafCollectionId = (leaf: any) => {
+    const rootGroup = leaf?._parentPath && leaf._parentPath.length > 0 ? leaf._parentPath[0] : null;
+    return rootGroup?.collectionId || dashboard?.sourceCollectionId || null;
+  };
+
   const dayKey = (d: Date) => {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -537,31 +554,37 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                         </span>
                       )}
                     </th>
-                    {headerRows[0].map((cell: any, i: number) => (
+                    {headerRows[0].map((cell: any, i: number) => {
+                      const tone = getCollectionTone(cell?.node?.collectionId || dashboard?.sourceCollectionId);
+                      return (
                       <th
                         key={i}
                         colSpan={cell.colSpan}
                         rowSpan={cell.rowSpan}
-                        className={`px-2 py-1.5 text-center border-b border-l border-black/10 dark:border-white/10 ${cell.isLeaf ? 'bg-white/80 dark:bg-neutral-900/50' : 'bg-neutral-100/90 dark:bg-neutral-900/70'}`}
+                        className={`px-2 py-1.5 text-center border-b border-l border-black/10 dark:border-white/10 ${cell.isLeaf ? tone.soft : tone.strong}`}
                       >
                         {cell.label}
                       </th>
-                    ))}
+                    );
+                    })}
                   </tr>
                   {/* Les autres lignes d'entête dynamiques (hors première) */}
                   {headerRows.slice(1).map((row, rowIdx) => (
                     <tr key={rowIdx + 1}>
                       {/* On saute les deux premières colonnes (Total durée + Semaine) */}
-                      {row.map((cell: any, i: number) => (
+                      {row.map((cell: any, i: number) => {
+                        const tone = getCollectionTone(cell?.node?.collectionId || dashboard?.sourceCollectionId);
+                        return (
                         <th
                           key={i}
                           colSpan={cell.colSpan}
                           rowSpan={cell.rowSpan}
-                          className={`px-2 py-1.5 text-center border-b border-l border-black/10 dark:border-white/10 ${cell.isLeaf ? 'bg-white/80 dark:bg-neutral-900/50' : 'bg-neutral-100/90 dark:bg-neutral-900/70'}`}
+                          className={`px-2 py-1.5 text-center border-b border-l border-black/10 dark:border-white/10 ${cell.isLeaf ? tone.soft : tone.strong}`}
                         >
                           {cell.label}
                         </th>
-                      ))}
+                        );
+                      })}
                     </tr>
                   ))}
                   {/* Ligne des métriques (Nb/Durée) pour chaque feuille profonde */}
@@ -570,8 +593,15 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     <th className="px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10">Jour</th>
                     {leafColumns.map((leaf: any) => (
                       <React.Fragment key={leaf.id + '-metrics'}>
-                        <th className="px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10">Nombre</th>
-                        <th className="px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10">Durée</th>
+                        {(() => {
+                          const tone = getCollectionTone(getLeafCollectionId(leaf));
+                          return (
+                            <>
+                              <th className={`px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.soft}`}>Nombre</th>
+                              <th className={`px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.soft}`}>Durée</th>
+                            </>
+                          );
+                        })()}
                       </React.Fragment>
                     ))}
                   </tr>
@@ -770,22 +800,32 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           <thead className="bg-neutral-100/90 dark:bg-neutral-900/70 text-neutral-700 dark:text-neutral-300">
             <tr>
               <th className="px-2 py-1.5 text-left border-b border-black/15 dark:border-white/15">Total Mois</th>
-              {leafColumns.map((leaf) => (
-                <th
-                  key={leaf.id}
-                  colSpan={2}
-                  className="px-2 py-1.5 text-left border-b border-l border-black/10 dark:border-white/10 bg-neutral-100/90 dark:bg-neutral-900/70"
-                >
-                  {leaf.label}
-                </th>
-              ))}
+              {leafColumns.map((leaf) => {
+                const tone = getCollectionTone(getLeafCollectionId(leaf));
+                return (
+                  <th
+                    key={leaf.id}
+                    colSpan={2}
+                    className={`px-2 py-1.5 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.strong}`}
+                  >
+                    {leaf.label}
+                  </th>
+                );
+              })}
             </tr>
             <tr className="bg-neutral-100/90 dark:bg-neutral-900/70 text-neutral-700 dark:text-neutral-300">
               <th className="px-2 py-1 text-left border-b border-black/15 dark:border-white/15">Mois</th>
               {leafColumns.map((leaf) => (
                 <React.Fragment key={`${leaf.id}-month-metrics`}>
-                  <th className="px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10">Nombre</th>
-                  <th className="px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10">Durée</th>
+                  {(() => {
+                    const tone = getCollectionTone(getLeafCollectionId(leaf));
+                    return (
+                      <>
+                        <th className={`px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.soft}`}>Nombre</th>
+                        <th className={`px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.soft}`}>Durée</th>
+                      </>
+                    );
+                  })()}
                 </React.Fragment>
               ))}
             </tr>
