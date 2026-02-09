@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, RefreshCw, Shield, UserPlus, Plus } from 'lucide-react';
+import { X, RefreshCw, Shield, UserPlus, Plus, Download, Trash2, Database, RotateCcw } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import { useAuth } from '@/auth/AuthProvider';
 
@@ -22,12 +22,16 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
   const [users, setUsers] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any[]>([]);
   const [audit, setAudit] = useState<any[]>([]);
+  const [backups, setBackups] = useState<any[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [creatingRole, setCreatingRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleDesc, setNewRoleDesc] = useState('');
   const [busy, setBusy] = useState(false);
   const [passwordInputs, setPasswordInputs] = useState<Record<string, string>>({});
+  const [backupLabel, setBackupLabel] = useState('');
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [selectedBackupDay, setSelectedBackupDay] = useState('');
 
   const loadAll = async () => {
     try {
@@ -47,6 +51,15 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
       setUsers(usersData);
       setPermissions(permsData);
       setAudit(auditData);
+      try {
+        const bRes = await fetch(`${API_URL}/db/backups`, { credentials: 'include' });
+        if (bRes.ok) {
+          const backupsData = await bRes.json();
+          setBackups(Array.isArray(backupsData) ? backupsData : []);
+        }
+      } catch (err) {
+        console.error(err);
+      }
       if (!selectedRoleId && rolesData.length) setSelectedRoleId(rolesData[0].id);
     } catch (err) {
       console.error(err);
@@ -54,6 +67,132 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
       setLoading(false);
     }
   };
+
+  const formatBytes = (value: number) => {
+    if (!Number.isFinite(value)) return '-';
+    if (value < 1024) return `${value} o`;
+    const units = ['Ko', 'Mo', 'Go'];
+    let size = value / 1024;
+    let unit = units.shift() as string;
+    while (size >= 1024 && units.length) {
+      size /= 1024;
+      unit = units.shift() as string;
+    }
+    return `${size.toFixed(1)} ${unit}`;
+  };
+
+  const toDayKey = (value: string | Date) => {
+    const d = new Date(value);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const dayLabel = (dayKey: string) => {
+    const [y, m, d] = dayKey.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  };
+
+  const reloadBackups = async () => {
+    try {
+      const res = await fetch(`${API_URL}/db/backups`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Load backups failed');
+      const data = await res.json();
+      setBackups(Array.isArray(data) ? data : []);
+      if (!selectedBackupDay) {
+        const todayKey = toDayKey(new Date());
+        setSelectedBackupDay(todayKey);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const createBackup = async () => {
+    setBackupBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/db/backups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ label: backupLabel.trim() || undefined }),
+      });
+      if (!res.ok) throw new Error('Create backup failed');
+      setBackupLabel('');
+      await reloadBackups();
+    } catch (err) {
+      console.error(err);
+      alert('Impossible de créer la sauvegarde.');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const downloadBackup = async (name: string) => {
+    try {
+      const res = await fetch(`${API_URL}/db/backups/${encodeURIComponent(name)}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Download backup failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert('Impossible de télécharger la sauvegarde.');
+    }
+  };
+
+  const deleteBackup = async (name: string) => {
+    const ok = confirm(`Supprimer la sauvegarde ${name} ?`);
+    if (!ok) return;
+    try {
+      const res = await fetch(`${API_URL}/db/backups/${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Delete backup failed');
+      await reloadBackups();
+    } catch (err) {
+      console.error(err);
+      alert('Impossible de supprimer la sauvegarde.');
+    }
+  };
+
+  const restoreBackup = async (name: string) => {
+    const ok = confirm(`Restaurer la base depuis ${name} ? Cette action écrase la base actuelle.`);
+    if (!ok) return;
+    setBackupBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/db/backups/${encodeURIComponent(name)}/restore`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Restore backup failed');
+      alert('Restauration terminée.');
+    } catch (err) {
+      console.error(err);
+      alert('Impossible de restaurer la sauvegarde.');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const sortedBackups = [...backups].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  const todayKey = toDayKey(new Date());
+  const dayOptions = Array.from(new Set([todayKey, ...sortedBackups.map((b) => toDayKey(b.createdAt))]));
+  const dayFiltered = sortedBackups.filter((b) => toDayKey(b.createdAt) === (selectedBackupDay || todayKey));
+  const visibleBackups = dayFiltered.slice(0, 10);
 
   useEffect(() => {
     loadAll();
@@ -425,6 +564,84 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-6 max-h-[80svh] overflow-y-scroll">
             <div className="space-y-4">
+              <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Database size={16} className="text-cyan-400" />
+                    <h4 className="font-semibold">Sauvegardes BDD</h4>
+                  </div>
+                  <button onClick={reloadBackups} className="p-2 rounded-lg hover:bg-white/10 text-neutral-600 dark:text-white" title="Rafraîchir">
+                    <RefreshCw size={16} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
+                    placeholder="Label (optionnel)"
+                    value={backupLabel}
+                    onChange={(e) => setBackupLabel(e.target.value)}
+                  />
+                  <button
+                    onClick={createBackup}
+                    className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs shadow disabled:opacity-60"
+                    disabled={backupBusy}
+                  >
+                    Créer
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 mb-3">
+                  <label className="text-xs text-neutral-500">Jour</label>
+                  <input
+                    type="date"
+                    className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
+                    value={selectedBackupDay || todayKey}
+                    onChange={(e) => setSelectedBackupDay(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2 max-h-60 overflow-auto">
+                  {visibleBackups.length === 0 && <p className="text-sm text-neutral-500">Aucune sauvegarde pour ce jour.</p>}
+                  {visibleBackups.map((b) => (
+                    <div key={b.name} className="flex items-center justify-between gap-2 rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{b.name}</div>
+                        <div className="text-xs text-neutral-500">
+                          {formatBytes(b.size)} · {new Date(b.createdAt).toLocaleString('fr-FR')}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="p-2 rounded-lg hover:bg-amber-500/10 text-amber-600"
+                          onClick={() => restoreBackup(b.name)}
+                          title="Restaurer"
+                          disabled={backupBusy}
+                        >
+                          <RotateCcw size={16} />
+                        </button>
+                        <button
+                          className="p-2 rounded-lg hover:bg-white/10 text-neutral-600 dark:text-white"
+                          onClick={() => downloadBackup(b.name)}
+                          title="Télécharger"
+                        >
+                          <Download size={16} />
+                        </button>
+                        <button
+                          className="p-2 rounded-lg hover:bg-red-500/10 text-red-600"
+                          onClick={() => deleteBackup(b.name)}
+                          title="Supprimer"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {dayFiltered.length > 10 && (
+                    <div className="text-xs text-neutral-500">
+                      Affichage limité aux 10 dernières de la journée.
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-semibold">Rôles</h4>

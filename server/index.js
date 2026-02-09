@@ -6,6 +6,9 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import pkg from 'pg';
 import path from 'path';
+import fs from 'fs';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 import { Server as SocketIOServer } from 'socket.io';
 
@@ -18,6 +21,7 @@ const PORT = process.env.PORT || 4000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const TOKEN_EXPIRES = process.env.JWT_EXPIRES || '7d';
+const execFileAsync = promisify(execFile);
 
 // PostgreSQL connection pool
 let pool;
@@ -36,6 +40,146 @@ if (process.env.DATABASE_PUBLIC_URL) {
     database: process.env.PGDATABASE || process.env.DB_NAME || 'erp_db',
   });
 }
+
+// --- Backup configuration ----------------------------------------------
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, '../backups');
+const BACKUP_RETENTION_DAYS = Number(process.env.BACKUP_RETENTION_DAYS || 14);
+const BACKUP_INTERVAL_MINUTES = Number(process.env.BACKUP_INTERVAL_MINUTES || 0);
+
+const ensureBackupDir = async () => {
+  await fs.promises.mkdir(BACKUP_DIR, { recursive: true });
+};
+
+const toSafeLabel = (label) => {
+  if (!label) return '';
+  return String(label).trim().toLowerCase().replace(/[^a-z0-9-_]+/g, '-').replace(/^-+|-+$/g, '');
+};
+
+const resolveBackupPath = (name) => {
+  const safeName = path.basename(String(name || ''));
+  if (!safeName || safeName !== name) return null;
+  const fullPath = path.resolve(BACKUP_DIR, safeName);
+  if (!fullPath.startsWith(path.resolve(BACKUP_DIR))) return null;
+  return fullPath;
+};
+
+const getDbConnection = () => {
+  if (process.env.DATABASE_PUBLIC_URL) {
+    return { type: 'url', value: process.env.DATABASE_PUBLIC_URL };
+  }
+  return {
+    type: 'params',
+    value: {
+      user: process.env.PGUSER || process.env.DB_USER || 'postgres',
+      password: process.env.PGPASSWORD || process.env.DB_PASSWORD || 'postgres',
+      host: process.env.PGHOST || process.env.DB_HOST || 'localhost',
+      port: process.env.PGPORT || process.env.DB_PORT || 5432,
+      database: process.env.PGDATABASE || process.env.DB_NAME || 'erp_db',
+    },
+  };
+};
+
+const listBackups = async () => {
+  await ensureBackupDir();
+  const entries = await fs.promises.readdir(BACKUP_DIR);
+  const backups = [];
+  for (const entry of entries) {
+    const fullPath = path.join(BACKUP_DIR, entry);
+    const stat = await fs.promises.stat(fullPath);
+    if (!stat.isFile()) continue;
+    backups.push({
+      name: entry,
+      size: stat.size,
+      createdAt: stat.mtime,
+    });
+  }
+  backups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return backups;
+};
+
+const pruneBackups = async () => {
+  if (!Number.isFinite(BACKUP_RETENTION_DAYS) || BACKUP_RETENTION_DAYS <= 0) return;
+  const cutoff = Date.now() - BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const backups = await listBackups();
+  for (const backup of backups) {
+    const createdAt = new Date(backup.createdAt).getTime();
+    if (createdAt < cutoff) {
+      const fullPath = resolveBackupPath(backup.name);
+      if (fullPath) {
+        await fs.promises.unlink(fullPath);
+      }
+    }
+  }
+};
+
+const createDbBackup = async (label = '') => {
+  await ensureBackupDir();
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const safeLabel = toSafeLabel(label);
+  const filename = `db-backup-${timestamp}${safeLabel ? `-${safeLabel}` : ''}.sql`;
+  const filePath = path.join(BACKUP_DIR, filename);
+
+  const db = getDbConnection();
+  const args = ['-F', 'p', '--no-owner', '--no-privileges', '--file', filePath];
+  let env = { ...process.env };
+  if (db.type === 'url') {
+    args.push('--dbname', db.value);
+  } else {
+    args.push('-h', String(db.value.host));
+    args.push('-p', String(db.value.port));
+    args.push('-U', String(db.value.user));
+    args.push('-d', String(db.value.database));
+    env = { ...env, PGPASSWORD: String(db.value.password || '') };
+  }
+
+  await execFileAsync('pg_dump', args, { env });
+  await pruneBackups();
+
+  const stat = await fs.promises.stat(filePath);
+  return {
+    name: filename,
+    size: stat.size,
+    createdAt: stat.mtime,
+  };
+};
+
+const restoreDbBackup = async (name) => {
+  const filePath = resolveBackupPath(name);
+  if (!filePath) throw new Error('Invalid backup name');
+  const db = getDbConnection();
+  const ext = path.extname(filePath).toLowerCase();
+  let env = { ...process.env };
+
+  if (db.type === 'url') {
+    if (ext === '.sql') {
+      await execFileAsync('psql', ['--dbname', db.value, '-v', 'ON_ERROR_STOP=1', '-c', 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'], { env });
+      await execFileAsync('psql', ['--dbname', db.value, '-v', 'ON_ERROR_STOP=1', '-f', filePath], { env });
+    } else {
+      await execFileAsync('pg_restore', ['--clean', '--if-exists', '--no-owner', '--no-privileges', '--dbname', db.value, filePath], { env });
+    }
+    return;
+  }
+
+  env = { ...env, PGPASSWORD: String(db.value.password || '') };
+  if (ext === '.sql') {
+    await execFileAsync(
+      'psql',
+      ['-h', String(db.value.host), '-p', String(db.value.port), '-U', String(db.value.user), '-d', String(db.value.database), '-v', 'ON_ERROR_STOP=1', '-c', 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'],
+      { env }
+    );
+    await execFileAsync(
+      'psql',
+      ['-h', String(db.value.host), '-p', String(db.value.port), '-U', String(db.value.user), '-d', String(db.value.database), '-v', 'ON_ERROR_STOP=1', '-f', filePath],
+      { env }
+    );
+  } else {
+    await execFileAsync(
+      'pg_restore',
+      ['--clean', '--if-exists', '--no-owner', '--no-privileges', '-h', String(db.value.host), '-p', String(db.value.port), '-U', String(db.value.user), '-d', String(db.value.database), filePath],
+      { env }
+    );
+  }
+};
 
 // CORS configuration - allow same-origin or CLIENT_ORIGIN
 app.use(cors({ 
@@ -326,19 +470,14 @@ const loadUserContext = async (userId, impersonateRoleId = null) => {
 
 const requireAuth = async (req, res, next) => {
   try {
-    // Log cookies et headers pour debug
-     console.log('[AUTH] Cookies:', req.cookies);
-     console.log('[AUTH] Authorization header:', req.headers.authorization);
     const token = req.cookies.auth_token || req.cookies.access_token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
     if (!token) {
-       console.log('[AUTH] Aucun token trouvé');
       return res.status(401).json({ error: 'Unauthenticated' });
     }
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
     } catch (e) {
-       console.log('[AUTH] JWT non valide');
       return res.status(401).json({ error: 'Invalid token' });
     }
     const baseCtx = await loadUserContext(decoded.sub);
@@ -736,6 +875,81 @@ app.post('/api/permissions', requireAuth, requirePermission('can_manage_permissi
   res.json(result);
 });
 
+// --- DB Backups (admin only) ------------------------------------------
+app.get('/api/db/backups', requireAuth, async (req, res) => {
+  const isAdmin = req.auth.roles.some((r) => r.name === 'admin');
+  if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const backups = await listBackups();
+    return res.json(backups);
+  } catch (err) {
+    console.error('Failed to list backups', err);
+    return res.status(500).json({ error: 'Failed to list backups' });
+  }
+});
+
+app.post('/api/db/backups', requireAuth, async (req, res) => {
+  const isAdmin = req.auth.roles.some((r) => r.name === 'admin');
+  if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const label = req.body?.label || '';
+    const backup = await createDbBackup(label);
+    await logAudit(req.auth?.user?.id, 'db.backup.create', 'backup', backup.name, backup);
+    return res.json({ ok: true, backup });
+  } catch (err) {
+    console.error('Failed to create backup', err);
+    return res.status(500).json({ error: 'Failed to create backup' });
+  }
+});
+
+app.get('/api/db/backups/:name', requireAuth, async (req, res) => {
+  const isAdmin = req.auth.roles.some((r) => r.name === 'admin');
+  if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
+  const filePath = resolveBackupPath(req.params.name);
+  if (!filePath) return res.status(400).json({ error: 'Invalid backup name' });
+  try {
+    await fs.promises.access(filePath, fs.constants.R_OK);
+    await logAudit(req.auth?.user?.id, 'db.backup.download', 'backup', req.params.name, {});
+    return res.download(filePath);
+  } catch (err) {
+    console.error('Failed to download backup', err);
+    return res.status(404).json({ error: 'Backup not found' });
+  }
+});
+
+app.delete('/api/db/backups/:name', requireAuth, async (req, res) => {
+  const isAdmin = req.auth.roles.some((r) => r.name === 'admin');
+  if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
+  const filePath = resolveBackupPath(req.params.name);
+  if (!filePath) return res.status(400).json({ error: 'Invalid backup name' });
+  try {
+    await fs.promises.unlink(filePath);
+    await logAudit(req.auth?.user?.id, 'db.backup.delete', 'backup', req.params.name, {});
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Failed to delete backup', err);
+    return res.status(404).json({ error: 'Backup not found' });
+  }
+});
+
+app.post('/api/db/backups/:name/restore', requireAuth, async (req, res) => {
+  const isAdmin = req.auth.roles.some((r) => r.name === 'admin');
+  if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
+  const filePath = resolveBackupPath(req.params.name);
+  if (!filePath) return res.status(400).json({ error: 'Invalid backup name' });
+  try {
+    await restoreDbBackup(req.params.name);
+    await logAudit(req.auth?.user?.id, 'db.backup.restore', 'backup', req.params.name, {});
+    if (global.io) {
+      global.io.emit('stateUpdated', { userId: req.auth?.user?.id || null, source: 'db.restore' });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Failed to restore backup', err);
+    return res.status(500).json({ error: 'Failed to restore backup' });
+  }
+});
+
 // --- State routes (protected + filtered) -------------------------------
 
 // --- Export/Import app_state (admin only) ---
@@ -833,7 +1047,6 @@ app.get('/api/state', requireAuth, async (req, res) => {
 
 app.post('/api/state', requireAuth, async (req, res) => {
   try {
-    console.log('[API] POST /api/state reçu');
     const payload = req.body ?? {};
     const userId = req.auth.user.id;
     // Séparer les favoris du reste de l'état
@@ -852,17 +1065,6 @@ app.post('/api/state', requireAuth, async (req, res) => {
       
       return { ...col, items: processedItems };
     });
-    
-    // DEBUG: Log les _eventSegments après recalcul
-    for (const col of processedCollections) {
-      if (col.items) {
-        for (const item of col.items) {
-          if (item._eventSegments && item._eventSegments.length > 0) {
-            console.log(`[SAVE] item ${item.id} _eventSegments recalculés:`, item._eventSegments);
-          }
-        }
-      }
-    }
     
     // Vérifier les permissions pour les collections
     for (const col of processedCollections) {
@@ -892,7 +1094,7 @@ app.post('/api/state', requireAuth, async (req, res) => {
     
     // Émettre l'événement socket.io pour le hot reload, avec l'id de l'utilisateur auteur
     if (global.io) {
-      console.log('[SOCKET] Emission de stateUpdated à tous les clients (userId: ' + userId + ')');
+      // console.log('[SOCKET] Emission de stateUpdated à tous les clients (userId: ' + userId + ')');
       global.io.emit('stateUpdated', { userId });
     }
     
@@ -922,14 +1124,31 @@ let serverInstance;
 (async () => {
   try {
     await bootstrap();
-    serverInstance = app.listen(PORT, () => {
-       console.log(`API server listening on http://localhost:${PORT}`);
-    });
+    serverInstance = app.listen(PORT, () => {});
     // Initialisation socket.io
     const io = new SocketIOServer(serverInstance, {
       cors: { origin: CLIENT_ORIGIN, credentials: true }
     });
     global.io = io;
+
+    // Sauvegardes automatiques (optionnelles)
+    if (BACKUP_INTERVAL_MINUTES > 0) {
+      const intervalMs = BACKUP_INTERVAL_MINUTES * 60 * 1000;
+      setInterval(async () => {
+        try {
+          await createDbBackup('auto');
+        } catch (err) {
+          console.error('[BACKUP] Échec sauvegarde automatique', err);
+        }
+      }, intervalMs);
+    }
+
+    // Nettoyage initial des anciennes sauvegardes
+    try {
+      await pruneBackups();
+    } catch (err) {
+      console.error('[BACKUP] Échec du nettoyage initial', err);
+    }
 
     // --- Gestion utilisateurs connectés ---
     // Map socket.id -> user info
@@ -938,19 +1157,16 @@ let serverInstance;
     // Helper pour envoyer la liste à tous
     function broadcastUsers() {
       const users = Array.from(connectedUsers.values());
-       console.log('[SOCKET] broadcast usersConnected:', users.map(u => u?.email || u?.name || u?.id));
       io.emit('usersConnected', users);
     }
 
     io.on('connection', async (socket) => {
-       console.log('[SOCKET] Nouvelle connexion', socket.id);
         // Identification par événement 'identify' (plus fiable que le cookie)
         let user = null;
         socket.on('identify', async (payload) => {
           if (payload && payload.id && payload.name) {
             user = { id: payload.id, name: payload.name };
             connectedUsers.set(socket.id, user);
-             console.log('[SOCKET] identify reçu:', user);
             broadcastUsers();
           }
         });
@@ -970,36 +1186,20 @@ let serverInstance;
             if (result.rowCount) {
               user = result.rows[0];
               connectedUsers.set(socket.id, user);
-               console.log('[SOCKET] Utilisateur connecté (cookie):', user.email || user.name || user.id);
               broadcastUsers();
             }
           }
         } catch (e) {
-          console.log('[SOCKET] Connexion sans utilisateur identifié', socket.id);
         }
 
         socket.on('whoIsConnected', () => {
-           console.log('[SOCKET] whoIsConnected reçu de', socket.id);
           broadcastUsers();
         });
 
         socket.on('disconnect', () => {
-           console.log('[SOCKET] Déconnexion', socket.id);
           connectedUsers.delete(socket.id);
           broadcastUsers();
         });
-
-      // Répondre à la demande explicite
-      socket.on('whoIsConnected', () => {
-         console.log('[SOCKET] whoIsConnected reçu de', socket.id);
-        broadcastUsers();
-      });
-
-      socket.on('disconnect', () => {
-         console.log('[SOCKET] Déconnexion', socket.id);
-        connectedUsers.delete(socket.id);
-        broadcastUsers();
-      });
     });
   } catch (err) {
     console.error('Failed to bootstrap server', err);
