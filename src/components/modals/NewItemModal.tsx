@@ -42,6 +42,7 @@ interface NewItemModalProps {
   collection: any;
   onClose: () => void;
   onSave: (item: any) => void;
+  onSaveAndStay?: (item: any) => void;
   editingItem: any;
   collections: any[];
   favorites?: { views: string[]; items: string[] };
@@ -54,6 +55,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   collection,
   onClose,
   onSave,
+  onSaveAndStay,
   editingItem,
   collections,
   favorites,
@@ -863,6 +865,89 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     []
   );
 
+  const handleSave = (saveFn: (item: any) => void) => {
+    disableDraftRef.current = true;
+    setHasLocalDraft(false);
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      // ignore stockage local indisponible
+    }
+    let dataToSave = { ...formData, __collectionId: selectedCollectionId };
+
+    if (!isReallyEditing && (!dataToSave._eventSegments || dataToSave._eventSegments.length === 0) && previewSegments.length > 0) {
+      dataToSave._eventSegments = previewSegments;
+      dataToSave._preserveEventSegments = false;
+    }
+
+    if (!isReallyEditing && !dataToSave.id) {
+      dataToSave.id = Date.now().toString();
+    }
+
+    try {
+      const historyItemId = dataToSave.id || editingItem?.id;
+      if (historyItemId) {
+        const key = buildHistoryKey(selectedCollectionId, historyItemId);
+        const raw = localStorage.getItem(key);
+        const snapshot = sanitizeVersionData(dataToSave);
+        const userName = user?.name || user?.email || 'Utilisateur';
+        const userId = user?.id || null;
+        const entryBase = {
+          id: `v_${Date.now()}`,
+          ts: new Date().toISOString(),
+          userId,
+          userName,
+        };
+
+        if (!raw) {
+          const history = {
+            base: snapshot,
+            versions: [
+              {
+                ...entryBase,
+                action: 'create',
+                patch: { set: {}, unset: [] },
+              },
+            ],
+          };
+          localStorage.setItem(key, JSON.stringify(history));
+          setHistoryData(history);
+        } else {
+          const parsed = JSON.parse(raw);
+          const base = parsed?.base || {};
+          const versions = Array.isArray(parsed?.versions) ? parsed.versions : [];
+          const latest = versions.length
+            ? buildSnapshotAt(base, versions, versions.length - 1)
+            : base;
+          const patch = computePatch(latest, snapshot);
+          if (Object.keys(patch.set).length > 0 || patch.unset.length > 0) {
+            const nextHistory = {
+              base,
+              versions: [
+                ...versions,
+                {
+                  ...entryBase,
+                  action: versions.length === 0 ? 'create' : 'update',
+                  patch,
+                },
+              ],
+            };
+            localStorage.setItem(key, JSON.stringify(nextHistory));
+            setHistoryData(nextHistory);
+          }
+        }
+      }
+    } catch {
+      // ignore stockage local indisponible
+    }
+
+    if (!isReallyEditing && !dataToSave.id) {
+      const { id, ...rest } = dataToSave;
+      dataToSave = rest;
+    }
+    saveFn(dataToSave);
+  };
+
   return (
     <>
       <div
@@ -1234,92 +1319,19 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           >
             Annuler
           </button>
+          {isReallyEditing && (
+            <button
+              type="button"
+              onClick={() => handleSave(onSaveAndStay || onSave)}
+              className="px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 border border-black/10 dark:border-white/10 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            >
+              Enregistrer
+            </button>
+          )}
           <ShinyButton
-            onClick={() => {
-              disableDraftRef.current = true;
-              setHasLocalDraft(false);
-              try {
-                localStorage.removeItem(draftKey);
-              } catch {
-                // ignore stockage local indisponible
-              }
-              let dataToSave = { ...formData, __collectionId: selectedCollectionId };
-              
-              // Si on crée un nouvel item et que les segments sont vides, appliquer les segments prégénérés
-              if (!isReallyEditing && (!dataToSave._eventSegments || dataToSave._eventSegments.length === 0) && previewSegments.length > 0) {
-                dataToSave._eventSegments = previewSegments;
-                dataToSave._preserveEventSegments = false;
-              }
-              
-              if (!isReallyEditing && !dataToSave.id) {
-                dataToSave.id = Date.now().toString();
-              }
-
-              try {
-                const historyItemId = dataToSave.id || editingItem?.id;
-                if (historyItemId) {
-                  const key = buildHistoryKey(selectedCollectionId, historyItemId);
-                  const raw = localStorage.getItem(key);
-                  const snapshot = sanitizeVersionData(dataToSave);
-                  const userName = user?.name || user?.email || 'Utilisateur';
-                  const userId = user?.id || null;
-                  const entryBase = {
-                    id: `v_${Date.now()}`,
-                    ts: new Date().toISOString(),
-                    userId,
-                    userName,
-                  };
-
-                  if (!raw) {
-                    const history = {
-                      base: snapshot,
-                      versions: [
-                        {
-                          ...entryBase,
-                          action: 'create',
-                          patch: { set: {}, unset: [] },
-                        },
-                      ],
-                    };
-                    localStorage.setItem(key, JSON.stringify(history));
-                    setHistoryData(history);
-                  } else {
-                    const parsed = JSON.parse(raw);
-                    const base = parsed?.base || {};
-                    const versions = Array.isArray(parsed?.versions) ? parsed.versions : [];
-                    const latest = versions.length
-                      ? buildSnapshotAt(base, versions, versions.length - 1)
-                      : base;
-                    const patch = computePatch(latest, snapshot);
-                    if (Object.keys(patch.set).length > 0 || patch.unset.length > 0) {
-                      const nextHistory = {
-                        base,
-                        versions: [
-                          ...versions,
-                          {
-                            ...entryBase,
-                            action: versions.length === 0 ? 'create' : 'update',
-                            patch,
-                          },
-                        ],
-                      };
-                      localStorage.setItem(key, JSON.stringify(nextHistory));
-                      setHistoryData(nextHistory);
-                    }
-                  }
-                }
-              } catch {
-                // ignore stockage local indisponible
-              }
-
-              if (!isReallyEditing && !dataToSave.id) {
-                const { id, ...rest } = dataToSave;
-                dataToSave = rest;
-              }
-              onSave(dataToSave);
-            }}
+            onClick={() => handleSave(onSave)}
           >
-            {isReallyEditing ? 'Modifier' : 'Créer'}
+            {isReallyEditing ? 'Enregistrer et quitter' : 'Créer'}
           </ShinyButton>
         </div>
       </motion.div>
