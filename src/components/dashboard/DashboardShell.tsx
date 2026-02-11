@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState, Suspense } from 'react';
-import { useErpSync } from '@/lib/useErpSync';
 const FilterModal = React.lazy(() => import('@/components/modals/FilterModal'));
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { DashboardColumnNode, MonthlyDashboardConfig } from '@/lib/dashboardTypes';
@@ -7,7 +6,6 @@ import DashboardColumnConfig from './DashboardColumnConfig';
 import {
   getMonday,
   MONTH_NAMES,
-  getItemsForDate as getItemsForDateUtil,
   getNameValue as getNameValueUtil,
   getEventStyle,
 } from '@/lib/calendarUtils';
@@ -26,18 +24,26 @@ interface DashboardShellProps {
 
 const months = MONTH_NAMES;
 
-  function itemMatchesTypeValues(itemValue: any, typeValues: string[], fieldType?: string): boolean {
+const classNames = {
+  headerWrap:
+    'flex items-center justify-between mb-2 flex-wrap gap-3 bg-white/70 dark:bg-neutral-900/60 border border-black/5 dark:border-white/10 rounded-xl p-3 shadow-sm backdrop-blur',
+  titleInput:
+    'bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-3 py-1.5 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500/40',
+  select:
+    'bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30',
+  filterChip:
+    'flex items-center gap-1 px-3 py-1.5 bg-indigo-500/10 text-indigo-900 dark:text-indigo-200 rounded-full text-sm border border-indigo-500/20',
+  filterRemove: 'hover:bg-indigo-500/20 rounded-full p-0.5',
+};
+
+function itemMatchesTypeValues(itemValue: any, typeValues: string[], fieldType?: string): boolean {
     if (!typeValues || typeValues.length === 0) return true;
-    // Logique OU pour les champs multi_select et select
     if (fieldType === 'multi_select' || fieldType === 'select') {
       if (Array.isArray(itemValue)) {
-        // Au moins une des valeurs doit être présente
         return typeValues.some(v => itemValue.includes(v));
       }
-      // Pour select simple
       return typeValues.includes(itemValue);
     }
-    // Pour les autres types, on garde le comportement actuel (ET)
     if (Array.isArray(itemValue)) {
       return typeValues.every(v => itemValue.includes(v));
     }
@@ -48,25 +54,18 @@ const months = MONTH_NAMES;
     }
     return typeValues.every(v => v === itemValue);
   }
-  // Affiche une durée en heures et minutes (ex: 7h00, 3h30)
   function formatDurationHeureMinute(duree: number): string {
     if (typeof duree !== 'number' || isNaN(duree)) return '';
     const heures = Math.floor(duree);
     const minutes = Math.round((duree - heures) * 60);
     return `${heures}h${minutes.toString().padStart(2, '0')}`;
   }
-  // Récupérer toutes les feuilles (sous-colonnes finales) sans le chemin (pour usages simples)
-    const getLeaves = (nodes: any[]): any[] => {
-      return nodes.flatMap((n) =>
-        n.children && n.children.length ? getLeaves(n.children) : [n]
-      );
-    };
+  const getLeaves = (nodes: any[]): any[] => {
+    return nodes.flatMap((n) => (n.children && n.children.length ? getLeaves(n.children) : [n]));
+  };
 
 
 const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete, dashboardFilters, setDashboardFilters }) => {
-  // Exemple d'utilisation si besoin de synchronisation ERP dans le dashboard :
-  // useErpSync({ collections, ...autresProps, useStringifyDeps: false });
-      // Early return pour garantir l'ordre des hooks
       if (!dashboard) {
         return (
           <div className="flex items-center justify-center h-full text-neutral-500">
@@ -76,7 +75,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       }
       const [showFilterModal, setShowFilterModal] = useState(false);
 
-      // Ajout d'un filtre (via props)
       const handleAddFilter = (property: string, operator: string, value: any) => {
         if (!dashboard || !dashboardFilters || !setDashboardFilters) return;
         setDashboardFilters((prev: any) => ({
@@ -85,7 +83,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         }));
         setShowFilterModal(false);
       };
-      // Suppression d'un filtre (via props)
       const handleRemoveFilter = (idx: number) => {
         if (!dashboard || !dashboardFilters || !setDashboardFilters) return;
         setDashboardFilters((prev: any) => ({
@@ -105,16 +102,12 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
   );
 
   const properties = collection?.properties || [];
-  // Utilise la logique avancée de filterUtils pour filtrer les items
   const filteredItems = useMemo(() => {
     if (!dashboard || !collection?.items) return [];
     const filters = dashboardFilters?.[dashboard.id] || [];
-    // On simule une config de vue pour getFilteredItems
     const fakeViewConfig = { filters };
     return getFilteredItems(collection, fakeViewConfig, { collectionId: null, ids: [] }, collection.id, collections);
   }, [dashboard, collection, dashboardFilters, collections]);
-
-  const [typeValuesInput, setTypeValuesInput] = useState<Record<string, string>>({});
 
   const itemCollectionMap = useMemo(() => {
     const map = new Map<string, { collectionId: string; collectionName: string }>();
@@ -152,9 +145,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     return `${y}-${m}-${dd}`;
   };
 
-
-
-  // Récupérer la profondeur max de l'arbre
   const getMaxDepth = (nodes: any[], depth = 1): number => {
     if (!nodes || nodes.length === 0) return depth;
     return Math.max(
@@ -163,7 +153,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
   };
   const maxDepth = getMaxDepth(dashboard?.columnTree || []);
 
-  // Récupérer toutes les feuilles (sous-colonnes finales) et leur chemin de parents
   const getLeavesWithPath = (nodes: any[], path: any[] = []): any[] => {
     return nodes.flatMap((n) =>
       n.children && n.children.length
@@ -173,7 +162,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
   };
   const leafColumns = useMemo(() => getLeavesWithPath(dashboard?.columnTree || []), [dashboard?.columnTree]);
 
-  // Générer les lignes d'en-tête récursivement
   const buildHeaderRows = (nodes: any[], depth: number, maxDepth: number, rows: any[][]) => {
     rows[depth] = rows[depth] || [];
     nodes.forEach((node) => {
@@ -200,27 +188,17 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     });
   };
 
-  // UI pour choisir la collection et le champ date pour chaque groupe racine
-  const handleRootGroupChange = (groupIdx: number, patch: any) => {
-    if (!dashboard || !dashboard.columnTree) return;
-    const newTree = dashboard.columnTree.map((g: any, idx: number) => idx === groupIdx ? { ...g, ...patch } : g);
-    onUpdate({ columnTree: newTree });
-  };
-
   const getTableHeaderRows = () => {
     const rows: any[][] = [];
     buildHeaderRows(dashboard?.columnTree || [], 0, maxDepth, rows);
     return rows;
   };
 
-  // Détermination dynamique du typeField à utiliser (multi_select)
   const resolvedTypeField = useMemo(() => {
-    // Si dashboard.typeField pointe sur une propriété existante, on l'utilise
     if (dashboard?.typeField) {
       const prop = properties.find((p: any) => p.id === dashboard.typeField);
       if (prop) return dashboard.typeField;
     }
-    // Sinon, on prend la première propriété disponible (hors "id")
     const first = properties.find((p: any) => p.id !== 'id');
     return first ? first.id : null;
   }, [dashboard?.typeField, properties]);
@@ -239,7 +217,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
   useEffect(() => {
     if (!dashboard) return;
-    // Correction : forcer typeField à 'type' si la propriété existe (même si une autre valeur est déjà présente)
     if (properties.some((p: any) => p.id === 'type') && dashboard.typeField !== 'type') {
       onUpdate({ typeField: 'type' });
     }
@@ -255,28 +232,14 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     onUpdate({ columnTree: autoColumns });
   }, [dashboard, typeOptions, onUpdate, properties]);
 
-  const handleAddLeaf = () => {
-    if (!dashboard) return;
-    const newLeaf: DashboardColumnNode = {
-      id: Date.now().toString(),
-      label: `Colonne ${leafColumns.length + 1}`,
-      typeValues: [],
-      dateFieldOverride: {}
-    };
-    onUpdate({ columnTree: [...(dashboard.columnTree || []), newLeaf] });
-  };
-
-  // Agrégation des données (daily, spans, etc.)
   const aggregates = useMemo(() => {
     const daily: Record<string, Record<string, { count: number; duration: number }>> = {};
-    // Pour afficher la durée par jour et par objet (id)
     const dailyObjectDurations: Record<string, Record<string, Record<string, number>>> = {}; // dailyObjectDurations[dateKey][leafId][itemId] = durée ce jour-là
     const spansByLeaf: Record<string, any[]> = {};
     const spansByLeafDay: Record<string, Record<string, any>> = {};
 
     if (!dashboard || !leafColumns.length) return { daily, spansByLeaf, spansByLeafDay, dailyObjectDurations };
 
-    // Générer tous les jours ouvrés (lundi-vendredi) du mois affiché
     const year = dashboard.year;
     const month = dashboard.month - 1; // JS: 0 = janvier
     const firstDay = new Date(year, month, 1);
@@ -291,28 +254,20 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       d.setDate(d.getDate() + 1);
     }
 
-    // Pour chaque feuille (colonne finale)
-
     leafColumns.forEach((leaf: any) => {
-      // Trouver le groupe racine parent (niveau 1)
       const rootGroup = leaf._parentPath && leaf._parentPath.length > 0 ? leaf._parentPath[0] : null;
-      // Déterminer la collection à utiliser pour ce groupe racine
       const groupCollectionId = rootGroup?.collectionId || dashboard.sourceCollectionId;
       const groupCollection = collections.find((c: any) => c.id === groupCollectionId) || collection;
       const groupProperties = groupCollection?.properties || [];
-      // Utiliser les items filtrés si c'est la collection principale, sinon filtrer aussi la collection liée
       let groupItems = [];
       if (groupCollection.id === collection?.id) {
         groupItems = filteredItems;
       } else {
-        // Appliquer les mêmes filtres globaux du dashboard à la collection liée
         const filters = dashboardFilters?.[dashboard.id] || [];
         const fakeViewConfig = { filters };
         groupItems = getFilteredItems(groupCollection, fakeViewConfig, { collectionId: null, ids: [] }, groupCollection.id, collections);
       }
-      // Nouveau : filtrage hiérarchique par champ, chaque niveau filtre sur son propre champ si défini
       let filteredGroupItems = groupItems;
-      // On construit la liste des filtres hiérarchiques [{field, values}]
       let filterHierarchy: { field: string, values: string[] }[] = [];
       if (leaf._parentPath && Array.isArray(leaf._parentPath)) {
         leaf._parentPath.forEach((parent: any) => {
@@ -324,7 +279,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       if (leaf.filterField && Array.isArray(leaf.typeValues) && leaf.typeValues.length > 0) {
         filterHierarchy.push({ field: leaf.filterField, values: leaf.typeValues.filter((v: any) => !!v) });
       }
-      // On applique chaque filtre dans l'ordre, en préfiltrant à chaque étape
       filterHierarchy.forEach(({ field, values }) => {
         const prop = groupProperties.find((p: any) => p.id === field);
         if (values.length > 0 && prop) {
@@ -334,39 +288,28 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         }
       });
       groupItems = filteredGroupItems;
-      // Déterminer le champ date à utiliser pour ce groupe racine
       let dateFieldId = rootGroup?.dateFieldId || dashboard.globalDateField;
       if (leaf.dateFieldOverride && leaf.dateFieldOverride.single) {
         dateFieldId = leaf.dateFieldOverride.single;
       }
-      // Si rien n'est défini, prendre le premier champ date de la collection
       if (!dateFieldId && groupProperties.length > 0) {
         const firstDate = groupProperties.find((p: any) => p.type === 'date' || p.type === 'date_range');
         if (firstDate) dateFieldId = firstDate.id;
       }
-      // Trouver le champ date dans les propriétés
       const dateField = groupProperties.find((p: any) => p.id === dateFieldId);
-      // console.log(dateField);
       if (!dateField) return;
-
-      // (plus besoin de gérer filterField hérité ici, la logique de filtrage hiérarchique le gère déjà)
-
-      // Pour chaque jour du mois
       daysOfMonth.forEach((day) => {
         const key = day.toLocaleDateString('fr-CA'); // format YYYY-MM-DD
         if (!daily[key]) daily[key] = {};
         if (!dailyObjectDurations[key]) dailyObjectDurations[key] = {};
         if (!dailyObjectDurations[key][leaf.id]) dailyObjectDurations[key][leaf.id] = {};
 
-        // Pour chaque item filtré strictement, on utilise les _eventSegments pour savoir s'il y a une plage ce jour-là
         groupItems.forEach((item: any) => {
           const segments = Array.isArray(item._eventSegments) ? item._eventSegments : [];
-          // On filtre par label : uniquement les segments dont le label correspond exactement à la colonne (leaf.label)
           const segmentsForDay = segments.filter((seg: any) => {
             if (typeof seg.label !== 'string' || seg.label.trim() === '' || !dateField || seg.label !== dateField.name) return false;
             const segStart = new Date(seg.start);
             const segEnd = new Date(seg.end);
-            // On ne prend en compte que les segments dont le start ET le end sont le même jour (donc pas de multi-jour)
             return segStart.toLocaleDateString('fr-CA') === key && segEnd.toLocaleDateString('fr-CA') === key;
           });
           let totalHours = 0;
@@ -381,19 +324,15 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           }
         });
 
-        // Compter et sommer la durée (total pour la cellule)
         const itemsForDay = Object.keys(dailyObjectDurations[key][leaf.id]);
-        // Pour le count, ne compter qu'une seule fois un événement multi-jours (seulement le premier jour)
         let count = 0;
         itemsForDay.forEach((itemId) => {
-          // Retrouver l'eventStyle pour cet item
           const item = groupItems.find((it: any) => it.id === itemId);
           let eventStyle = null;
           try {
             eventStyle = getEventStyle(item, dateField, 1, 17);
           } catch (e) {}
           if (eventStyle && eventStyle.workdayDates) {
-            // Si ce jour est le premier jour de l'événement, on compte
             const firstDayKey = eventStyle.workdayDates[0].toLocaleDateString('fr-CA');
             if (key === firstDayKey) {
               count++;
@@ -410,10 +349,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       });
     });
 
-    // (Optionnel) Spans pour les événements couvrant plusieurs jours (date_range)
-    // Ici, on ne gère que les spans si le champ date est de type 'date_range'
     leafColumns.forEach((leaf: any) => {
-      // Trouver le groupe racine parent (niveau 1)
       const rootGroup = leaf._parentPath && leaf._parentPath.length > 0 ? leaf._parentPath[0] : null;
       const groupCollectionId = rootGroup?.collectionId || dashboard.sourceCollectionId;
       const groupCollection = collections.find((c: any) => c.id === groupCollectionId) || collection;
@@ -429,7 +365,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       const groupItems = groupCollection?.items || [];
       groupItems.forEach((item: any) => {
         if (typeValues && resolvedTypeField) {
-          // On cherche le type du champ pour filtrer correctement
           const propType = groupProperties.find((p: any) => p.id === resolvedTypeField)?.type;
           if (!itemMatchesTypeValues(item[resolvedTypeField], typeValues, propType)) return;
         }
@@ -446,7 +381,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         }
       });
       spansByLeaf[leaf.id] = spans;
-      // Indexer par jour
       spansByLeafDay[leaf.id] = {};
       daysOfMonth.forEach((day) => {
         const key = dayKey(day);
@@ -472,21 +406,9 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     );
   }
 
-
-  // Génération des colonnes pour le tableau (groupes et sous-colonnes)
-  const getTableColumns = () => {
-    // [{ group, leaves: [...] }]
-    return (dashboard?.columnTree || []).map((g: any) => ({
-      group: g,
-      leaves: (g.children || []),
-    }));
-  };
-
-
   const renderWeekTable = (week: { week: number; days: Date[] }) => {
     if (!aggregates) return null;
     const spanForDay = (leafId: string, key: string) => aggregates.spansByLeafDay?.[leafId]?.[key];
-    const tableColumns = getTableColumns();
     const remainingCols = leafColumns.length * 2;
     const totalColSpan = Math.max(1, Math.ceil(remainingCols / 2));
     const perCollectionColSpan = Math.max(1, remainingCols - totalColSpan);
@@ -534,7 +456,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
               const headerRows = getTableHeaderRows();
               return (
                 <>
-                  {/* Ligne d'entête principale : Total durée + Semaine + colonnes dynamiques */}
                   <tr>
                     <th
                       className="px-2 py-1.5 text-left border-b border-black/15 dark:border-white/15 whitespace-nowrap"
@@ -568,10 +489,8 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     );
                     })}
                   </tr>
-                  {/* Les autres lignes d'entête dynamiques (hors première) */}
                   {headerRows.slice(1).map((row, rowIdx) => (
                     <tr key={rowIdx + 1}>
-                      {/* On saute les deux premières colonnes (Total durée + Semaine) */}
                       {row.map((cell: any, i: number) => {
                         const tone = getCollectionTone(cell?.node?.collectionId || dashboard?.sourceCollectionId);
                         return (
@@ -587,7 +506,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                       })}
                     </tr>
                   ))}
-                  {/* Ligne des métriques (Nb/Durée) pour chaque feuille profonde */}
                   <tr className="bg-neutral-100/90 text-neutral-700 dark:bg-neutral-900/70 dark:text-neutral-300">
                     <th className="px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10 max-w-[50px]">Durée totale</th>
                     <th className="px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10">Jour</th>
@@ -612,7 +530,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           <tbody>
             {week.days.map((day) => {
               const key = dayKey(day);
-              // Calculer la durée totale pour ce jour (somme de toutes les feuilles)
               const totalDuration = leafColumns.reduce((acc, leaf) => {
                 const cell = aggregates.daily[key]?.[leaf.id];
                 return acc + (cell && cell.duration ? cell.duration : 0);
@@ -628,20 +545,15 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   {leafColumns.map((leaf: any) => {
                       const cell = aggregates.daily[key]?.[leaf.id] || { count: 0, duration: 0 };
                       const span = spanForDay(leaf.id, key);
-                      // Correction : afficher le nombre pour les dates simples (pas de span)
                       let countValue = '';
                       if (span && span.isStart) {
                         countValue = '1';
                       } else if (!span && cell.count > 0) {
                         countValue = cell.count.toString();
                       }
-                      // ...existing code...
-                      // Ajout du menu contextuel sur la cellule d'item si un item unique est présent ce jour-là
                       const itemIds = Object.keys(aggregates.dailyObjectDurations[key]?.[leaf.id] || {});
-                      // Pour chaque item, retrouver la bonne collection (par item.collectionId)
                       const itemsInCell = itemIds
                         .map((itemId) => {
-                          // Cherche dans toutes les collections
                           for (const coll of collections) {
                             const found = coll.items?.find((it: any) => it.id === itemId);
                             if (found) return { ...found, _collection: coll };
@@ -705,7 +617,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                 </tr>
               );
             })}
-            {/* Total général de la semaine (tous les projets et durée cumulée) */}
             <tr className="bg-neutral-100/90 dark:bg-neutral-900/60">
               <td className="px-2 py-1.5 font-bold text-neutral-700 dark:text-white border-r border-black/10 dark:border-white/10" colSpan={2}>Total général</td>
               {(() => {
@@ -834,7 +745,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
             <tr className="bg-white/70 dark:bg-white/5">
               <td className="px-2 py-1.5 font-semibold text-neutral-700 dark:text-white border-r border-black/10 dark:border-white/10">Total Mois</td>
               {leafColumns.map((leaf) => {
-                // Nouveau calcul : additionner tous les items du mois (tous les jours)
                 let count = 0;
                 let duration = 0;
                 Object.keys(aggregates.daily).forEach((key) => {
@@ -854,7 +764,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                 );
               })}
             </tr>
-            {/* Total général du mois (tous les projets et durée cumulée) */}
             <tr className="bg-neutral-100/90 dark:bg-neutral-900/60">
               <td className="px-2 py-1.5 font-bold text-neutral-700 dark:text-white border-r border-black/10 dark:border-white/10" colSpan={2}>Total général</td>
               {(() => {
@@ -899,7 +808,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     );
   };
 
-  // Génération des semaines du mois sélectionné (lundi-vendredi, week-ends exclus)
   const groupedWeeks = useMemo(() => {
     if (!dashboard?.month || !dashboard?.year) return [];
     const year = dashboard.year;
@@ -929,31 +837,23 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     }
     return weeks;
   }, [dashboard?.month, dashboard?.year]);
-  const handleUpdateLeaf = () => {};
-  const handleRemoveLeaf = () => {};
-
-  // Liste des champs date disponibles pour la collection sélectionnée
-  const dateFields = useMemo(() => {
-    return properties.filter((p: any) => p.type === 'date' || p.type === 'date_range');
-  }, [properties]);
 
   return (
     <div className="flex-1 flex flex-col gap-4 p-4 overflow-auto bg-gradient-to-b from-white/70 via-white/50 to-transparent dark:from-neutral-950/40 dark:via-neutral-950/20">
-      {/* Filtres globaux dashboard déplacés dans l'entête */}
-      <div className="flex items-center justify-between mb-2 flex-wrap gap-3 bg-white/70 dark:bg-neutral-900/60 border border-black/5 dark:border-white/10 rounded-xl p-3 shadow-sm backdrop-blur">
+      <div className={classNames.headerWrap}>
         <div className="flex items-center gap-3 flex-wrap">
           <input
             value={dashboard.name}
             onChange={(e) => onUpdate({ name: e.target.value })}
-            className="bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-3 py-1.5 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500/40"
+            className={classNames.titleInput}
           />
           <div className="flex flex-wrap gap-2">
             {(dashboard && dashboardFilters?.[dashboard.id] ? dashboardFilters[dashboard.id] : []).map((filter: any, idx: number) => {
               const prop = properties.find((p: any) => p.id === filter.property);
               return (
-                <span key={idx} className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500/10 text-indigo-900 dark:text-indigo-200 rounded-full text-sm border border-indigo-500/20">
+                <span key={idx} className={classNames.filterChip}>
                   <span>{prop?.name || filter.property} {filter.operator} {Array.isArray(filter.value) ? filter.value.join(', ') : String(filter.value)}</span>
-                  <button onClick={() => handleRemoveFilter(idx)} className="hover:bg-indigo-500/20 rounded-full p-0.5"><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                  <button onClick={() => handleRemoveFilter(idx)} className={classNames.filterRemove}><svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
                 </span>
               );
             })}
@@ -973,7 +873,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           <select
             value={dashboard.month}
             onChange={(e) => onUpdate({ month: Number(e.target.value) })}
-            className="bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+            className={classNames.select}
           >
             {months.map((label, idx) => (
               <option key={idx} value={idx + 1}>
@@ -984,7 +884,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           <select
             value={dashboard.year}
             onChange={(e) => onUpdate({ year: Number(e.target.value) })}
-            className="bg-white/80 dark:bg-neutral-950/40 border border-black/10 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+            className={classNames.select}
           >
             {years.map((y) => (
               <option key={y} value={y}>
@@ -1009,11 +909,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         collections={collections}
         properties={properties}
         leafColumns={leafColumns}
-        typeValuesInput={typeValuesInput}
-        setTypeValuesInput={setTypeValuesInput}
-        handleAddLeaf={handleAddLeaf}
-        handleUpdateLeaf={handleUpdateLeaf}
-        handleRemoveLeaf={handleRemoveLeaf}
         onUpdate={onUpdate}
       />
     </div>

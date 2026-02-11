@@ -246,7 +246,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                 </div>
               </div>
             </details>
-            <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto">
+            <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto md:flex-col lg:flex-row">
               <div className="flex w-full flex-wrap gap-1 rounded-lg bg-gray-200 p-1 dark:bg-neutral-800/50 sm:w-auto">
             <button
               onClick={() => setViewModePersist('month')}
@@ -302,18 +302,20 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               </label>
             </div>
           )}
-          <button onClick={() => setCurrentDate(getPreviousPeriod(currentDate, viewMode))} className="rounded-lg p-2 transition-colors hover:bg-white/10">
-            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg>
-          </button>
-          <button
-            onClick={() => setCurrentDate(new Date())}
-            className="px-4 py-2 text-sm font-medium bg-violet-500 dark:bg-violet-500/20 hover:bg-violet-700 dark:hover:bg-violet-500/30 text-violet-200 rounded-lg transition-colors border border-violet-500/30"
-          >
-            Aujourd'hui
-          </button>
-          <button onClick={() => setCurrentDate(getNextPeriod(currentDate, viewMode))} className="rounded-lg p-2 transition-colors hover:bg-white/10">
-            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
-          </button>
+          <div className="flex">
+            <button onClick={() => setCurrentDate(getPreviousPeriod(currentDate, viewMode))} className="rounded-lg p-2 transition-colors hover:bg-white/10">
+              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <button
+              onClick={() => setCurrentDate(new Date())}
+              className="px-4 py-2 text-sm font-medium bg-violet-500 dark:bg-violet-500/20 hover:bg-violet-700 dark:hover:bg-violet-500/30 text-violet-200 rounded-lg transition-colors border border-violet-500/30"
+            >
+              Aujourd'hui
+            </button>
+            <button onClick={() => setCurrentDate(getNextPeriod(currentDate, viewMode))} className="rounded-lg p-2 transition-colors hover:bg-white/10">
+              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
+            </button>
+            </div>
             </div>
           </div>
         </div>
