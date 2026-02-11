@@ -349,9 +349,9 @@ const WeekView: React.FC<WeekViewProps> = ({
     return { top, height };
   };
   return (
-    <div className="space-y-4 overflow-x-auto">
-      <div className={`grid ${weekDays.length === 1 ? 'grid-cols-[4rem_minmax(0,1fr)]' : 'grid-cols-6'} min-w-min`}>
-        <div className="w-16 text-right"></div>
+    <div className="space-y-3 overflow-x-auto">
+      <div className={`grid ${weekDays.length === 1 ? 'grid-cols-[50px_minmax(0,1fr)]' : 'grid-cols-[50px_repeat(5,1fr)]'} min-w-min`}>
+        <div className="w-10 text-right"></div>
         {weekDays.map((date, idx) => {
           const isToday = date.toDateString() === new Date().toDateString();
           const dayOfWeek = date.getDay();
@@ -359,21 +359,20 @@ const WeekView: React.FC<WeekViewProps> = ({
             <div
               key={idx}
               className={cn(
-                'text-center py-3 border px-2',
-                isToday ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-black/10 dark:border-white/10 bg-background dark:bg-neutral-800/30',
-                singleDay && 'mx-auto w-full max-w-[600px]'
+                'text-center py-2 border px-2 mx-auto w-full max-w-[600px]',
+                isToday ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-black/10 dark:border-white/10 bg-background dark:bg-neutral-800/30'
               )}
             >
-              <div className="text-xs font-semibold text-neutral-500">{dayNamesShort[dayOfWeek]}</div>
-              <div className={cn('text-lg font-bold', isToday ? 'text-cyan-600 dark:text-cyan-300' : 'text-neutral-700 dark:text-white')}>{date.getDate()}</div>
+              <div className="text-[10px] font-semibold text-neutral-500">{dayNamesShort[dayOfWeek]}</div>
+              <div className={cn('text-base font-bold', isToday ? 'text-cyan-600 dark:text-cyan-300' : 'text-neutral-700 dark:text-white')}>{date.getDate()}</div>
             </div>
           );
         })}
       </div>
-      <div className={`grid ${weekDays.length === 1 ? 'grid-cols-[4rem_minmax(0,1fr)]' : 'grid-cols-6'} min-w-min`}>
-        <div className="w-16 text-right">
+      <div className={`grid ${weekDays.length === 1 ? 'justify-center grid-cols-[50px_minmax(0,1fr)]' : 'grid-cols-[50px_repeat(5,1fr)]'} min-w-min`}>
+        <div className=" text-right justify-self-end pr-4">
           {hours.map(hour => (
-            <div key={hour} className="h-24 text-xs text-neutral-600 font-medium pt-1">{hour}:00</div>
+            <div key={hour} className="h-24 text-xs text-neutral-700 dark:text-white font-medium pt-1">{hour}:00</div>
           ))}
         </div>
         {weekDays.map((date, dayIndex) => {
@@ -456,7 +455,7 @@ const WeekView: React.FC<WeekViewProps> = ({
           return (
             <div
               key={dayIndex}
-              className={cn('relative', singleDay && 'mx-auto w-full max-w-[600px]')}
+              className="relative mx-auto w-full max-w-[600px]"
               onDragOver={handleDayDragOver}
               onDragLeave={handleDayDragLeave}
               onDrop={handleDayDrop}

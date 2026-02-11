@@ -287,34 +287,26 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               </details>
             )}
             <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto md:flex-col lg:flex-row">
-              <div className="flex w-full flex-wrap gap-1 rounded-lg bg-gray-200 p-1 dark:bg-neutral-800/50 sm:w-auto">
-            <button
-              onClick={() => setViewModePersist('month')}
-              className={
-                'px-3 py-1.5 text-sm font-medium transition-colors ' +
-                (viewMode === 'month' ? 'bg-violet-500 dark:bg-violet-500/30 text-white' : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300')
-              }
-            >
-              Mois
-            </button>
-            <button
-              onClick={() => setViewModePersist('week')}
-              className={
-                'px-3 py-1.5 text-sm font-medium transition-colors ' +
-                (viewMode === 'week' ? 'bg-violet-500 dark:bg-violet-500/30 text-white' : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300')
-              }
-            >
-              Semaine
-            </button>
-            <button
-              onClick={() => setViewModePersist('day')}
-              className={
-                'px-3 py-1.5 text-sm font-medium transition-colors ' +
-                (viewMode === 'day' ? 'bg-violet-500 dark:bg-violet-500/30 text-white' : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all duration-300')
-              }
-            >
-              Jour
-            </button>
+              <div className="inline-flex rounded-full bg-white/5 p-1 border border-white/10 sm:w-auto">
+                {([
+                  { key: 'month', label: 'Mois' },
+                  { key: 'week', label: 'Semaine' },
+                  { key: 'day', label: 'Jour' },
+                ] as const).map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setViewModePersist(option.key)}
+                    className={
+                      'px-3 py-1 text-xs rounded-full transition-all ' +
+                      (viewMode === option.key
+                        ? 'bg-violet-500/30 text-violet-100 border border-violet-400/40 shadow-sm'
+                        : 'text-neutral-400 hover:text-white hover:bg-white/5')
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
           {/* Option de déplacement visible seulement en vue calendrier (week ou day) */}
           {(viewMode === 'week' || viewMode === 'day') && (

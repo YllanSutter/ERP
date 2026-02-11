@@ -88,6 +88,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   const space = 6;
   const widthPercent = ((1 / totalColumns) * 100) - space;
   const leftPercent = (column * widthPercent) + (space/2);
+  const isSingleColumn = totalColumns === 1;
 
   // Utilise la couleur générée par l'id de l'objet
   const objectColors = colorFromId(item.id);
@@ -227,13 +228,15 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
             draggable={!!onEventDrop && !isResizing}
             onMouseDown={() => console.log('[DND] mouseDown sur event', { item, onEventDrop })}
             initial={false}
-            className={`absolute rounded-sm p-0.5 px-2 grid gap-2 items-start content-start transition-colors group text-xs overflow-hidden z-10 hover:opacity-80 ${onEventDrop && !isResizing ? 'cursor-move' : 'cursor-default'}`}
+            className={`absolute rounded-sm p-0.5 px-1.5 grid gap-1 items-start content-start transition-colors group text-[10px] overflow-hidden z-10 hover:opacity-80 ${onEventDrop && !isResizing ? 'cursor-move' : 'cursor-default'}`}
             style={{
               top: `${topOffset}px`,
               height: `${previewHeightPx}px`,
-              left: `${leftPercent}%`,
-              width: `${widthPercent}%`,
-              minHeight: '24px',
+              left: isSingleColumn ? '50%' : `${leftPercent}%`,
+              width: isSingleColumn ? 'min(94%, 600px)' : `${widthPercent}%`,
+              minHeight: '20px',
+              maxWidth: isSingleColumn ? '600px' : undefined,
+              transform: isSingleColumn ? 'translateX(-50%)' : undefined,
               borderLeft: `4px solid ${objectColors.border}`,
               backgroundColor: objectColors.bg,
               pointerEvents: isResizing ? 'none' : undefined,
@@ -250,7 +253,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
               {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}
               {titleProp ? (
                 <div className="flex-1 flex items-center gap-2">
-                  <span className="text-neutral-500 text-xs">{titleProp.name}:</span>
+                  <span className="text-neutral-500 text-[10px]">{titleProp.name}:</span>
                   <div className="flex-1 text-right">
                     <EditableProperty
                       property={titleProp}
@@ -270,12 +273,12 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
                   </div>
                 </div>
               ) : (
-                <span className="font-medium text-cyan-400 text-sm flex-1 line-clamp-2 text-left">
+                <span className="font-medium text-cyan-400 text-[11px] flex-1 line-clamp-2 text-left">
                   {getNameValue(item)}
                 </span>
               )}
             </div>
-            <div className="text-[10px] opacity-70 absolute right-1 top-1">
+            <div className="text-[9px] opacity-70 absolute right-1 top-1">
               {(() => {
                 const startH = Math.floor(startTime);
                 const startM = Math.round((startTime - startH) * 60);

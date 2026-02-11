@@ -72,7 +72,7 @@ const LayoutView: React.FC<LayoutViewProps> = ({
   }
 
   return (
-    <div className="grid grid-cols-12 gap-4 auto-rows-[140px]">
+    <div className="grid grid-cols-12 gap-4 auto-rows-[160px]">
       {resolvedPanels.map(({ panel, viewConfig, targetCollection }) => {
         const colSpan = Math.min(12, Math.max(1, panel.colSpan || 6));
         const rowSpan = Math.min(6, Math.max(1, panel.rowSpan || 2));
