@@ -1,0 +1,12 @@
+node_modules
+.dist
+.dist*
+dist
+backups
+.git
+.gitignore
+.vscode
+.DS_Store
+*.log
+*.sql
+*.dump
