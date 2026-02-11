@@ -169,6 +169,7 @@ const LayoutView: React.FC<LayoutViewProps> = ({
                   relationFilter={relationFilter}
                   activeCollectionId={activeCollectionId}
                   viewModeStorageKey={`${viewConfig.id}:panel:${panel.id || panel.viewId}`}
+                  showCollectionsSelector={false}
                   onUpdateViewConfig={(updates) => onUpdateViewConfig?.(viewConfig.id, updates)}
                   onShowNewItemModalForCollection={onShowNewItemModalForCollection}
                 />

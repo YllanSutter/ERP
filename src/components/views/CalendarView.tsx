@@ -25,6 +25,7 @@ interface CalendarViewProps {
   relationFilter?: { collectionId: string | null; ids: string[] };
   activeCollectionId?: string | null;
   viewModeStorageKey?: string;
+  showCollectionsSelector?: boolean;
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({
@@ -48,6 +49,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   relationFilter = { collectionId: null, ids: [] },
   activeCollectionId = null,
   viewModeStorageKey,
+  showCollectionsSelector = true,
 }) => {
   // Sélection multiple de collections
   const getInitialSelectedCollections = () => {
@@ -356,6 +358,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         defaultDuration={defaultDuration}
         startHour={startHour}
         endHour={endHour}
+        showCollectionsSelector={showCollectionsSelector}
         hiddenFields={hiddenFields}
         onViewDetail={onViewDetail}
         onEdit={onEdit}

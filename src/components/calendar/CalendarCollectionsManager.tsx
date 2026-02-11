@@ -12,6 +12,7 @@ interface CalendarCollectionsManagerProps {
   defaultDuration?: number;
   startHour?: number;
   endHour?: number;
+  showCollectionsSelector?: boolean;
   onViewDetail?: (item: any) => void;
   onEdit?: (item: any) => void;
   onDelete?: (id: string) => void;
@@ -33,6 +34,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   defaultDuration = 1,
   startHour = 8,
   endHour = 20,
+  showCollectionsSelector = true,
   hiddenFields,
   onViewDetail = () => {},
   onEdit = () => {},
@@ -226,62 +228,64 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           }
           </h2>
           <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:items-center md:flex-wrap">
-            <details className="relative w-full sm:w-auto">
-              <summary className="list-none cursor-pointer select-none px-3 py-2 rounded-lg text-sm font-medium bg-black/10 dark:bg-white/5 text-neutral-700  dark:text-neutral-300 hover:bg-white/10 transition-all">
-                Collections affichées
-              </summary>
-              <div className="absolute left-0 mt-2 w-[min(90vw,520px)] max-h-[60vh] overflow-auto rounded-xl border border-white/10 bg-neutral-950/95 p-4 shadow-xl backdrop-blur z-20">
-                <div className="space-y-4">
-                  {collectionsWithDate.map((collection) => {
-                    const dateOptions = collection.properties.filter(
-                      (p: any) => p.type === 'date' || p.type === 'date_range'
-                    );
-                    const isSelected = selectedCollectionIds.includes(collection.id);
-                    return (
-                      <div key={collection.id} className="space-y-2">
-                        <label className="flex items-center gap-2 text-sm cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => onToggleCollection(collection.id, e.target.checked)}
-                            className="accent-violet-500"
-                          />
-                          <span>{collection.name}</span>
-                        </label>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs text-neutral-400">Temps</span>
-                          <select
-                            className="bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
-                            value={dateFields[collection.id] || ''}
-                            onChange={(e) => onChangeDateField(collection.id, e.target.value)}
-                            disabled={!isSelected || dateOptions.length === 0}
-                          >
-                            <option value="" disabled>
-                              {dateOptions.length === 0 ? 'Aucun champ date' : 'Choisir'}
-                            </option>
-                            {dateOptions.map((p: any) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name}
+            {showCollectionsSelector && (
+              <details className="relative w-full sm:w-auto">
+                <summary className="list-none cursor-pointer select-none px-3 py-2 rounded-lg text-sm font-medium bg-black/10 dark:bg-white/5 text-neutral-700  dark:text-neutral-300 hover:bg-white/10 transition-all">
+                  Collections affichées
+                </summary>
+                <div className="absolute left-0 mt-2 w-[min(90vw,520px)] max-h-[60vh] overflow-auto rounded-xl border border-white/10 bg-neutral-950/95 p-4 shadow-xl backdrop-blur z-20">
+                  <div className="space-y-4">
+                    {collectionsWithDate.map((collection) => {
+                      const dateOptions = collection.properties.filter(
+                        (p: any) => p.type === 'date' || p.type === 'date_range'
+                      );
+                      const isSelected = selectedCollectionIds.includes(collection.id);
+                      return (
+                        <div key={collection.id} className="space-y-2">
+                          <label className="flex items-center gap-2 text-sm cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => onToggleCollection(collection.id, e.target.checked)}
+                              className="accent-violet-500"
+                            />
+                            <span>{collection.name}</span>
+                          </label>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-neutral-400">Temps</span>
+                            <select
+                              className="bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
+                              value={dateFields[collection.id] || ''}
+                              onChange={(e) => onChangeDateField(collection.id, e.target.value)}
+                              disabled={!isSelected || dateOptions.length === 0}
+                            >
+                              <option value="" disabled>
+                                {dateOptions.length === 0 ? 'Aucun champ date' : 'Choisir'}
                               </option>
-                            ))}
-                          </select>
-                          <select
-                            className="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm"
-                            value={collectionRoles[collection.id] || 'default'}
-                            onChange={(e) => onChangeCollectionRole?.(collection.id, e.target.value as 'primary' | 'secondary' | 'default')}
-                            disabled={!isSelected}
-                          >
-                            <option value="default">Autre</option>
-                            <option value="primary">Principale</option>
-                            <option value="secondary">Secondaire</option>
-                          </select>
+                              {dateOptions.map((p: any) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              className="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm"
+                              value={collectionRoles[collection.id] || 'default'}
+                              onChange={(e) => onChangeCollectionRole?.(collection.id, e.target.value as 'primary' | 'secondary' | 'default')}
+                              disabled={!isSelected}
+                            >
+                              <option value="default">Autre</option>
+                              <option value="primary">Principale</option>
+                              <option value="secondary">Secondaire</option>
+                            </select>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            </details>
+              </details>
+            )}
             <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto md:flex-col lg:flex-row">
               <div className="flex w-full flex-wrap gap-1 rounded-lg bg-gray-200 p-1 dark:bg-neutral-800/50 sm:w-auto">
             <button
