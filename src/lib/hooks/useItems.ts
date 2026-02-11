@@ -150,35 +150,40 @@ export const useItems = (
 
   const updateItem = (item: any, collectionId?: string) => {
     const targetCollectionId = collectionId || item.__collectionId || activeCollection;
-    const sourceCollection = collections.find((c) => c.id === targetCollectionId)!;
-    const prevItem = sourceCollection.items.find((i: any) => i.id === item.id) || {};
+    if (!targetCollectionId) return;
 
-    let updatedCollections = collections.map((col) => {
-      if (col.id === targetCollectionId) {
-        return { ...col, items: col.items.map((i: any) => (i.id === item.id ? item : i)) };
-      }
-      return col;
+    setCollections((prevCollections) => {
+      const sourceCollection = prevCollections.find((c) => c.id === targetCollectionId);
+      if (!sourceCollection) return prevCollections;
+      const prevItem = sourceCollection.items.find((i: any) => i.id === item.id) || {};
+
+      let updatedCollections = prevCollections.map((col) => {
+        if (col.id === targetCollectionId) {
+          return { ...col, items: col.items.map((i: any) => (i.id === item.id ? item : i)) };
+        }
+        return col;
+      });
+
+      const relationProps = (sourceCollection.properties || []).filter(
+        (p: any) => p.type === 'relation'
+      );
+      relationProps.forEach((prop: any) => {
+        const beforeVal = prevItem[prop.id];
+        const afterVal = item[prop.id];
+        if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
+          updatedCollections = applyRelationChangeInternal(
+            updatedCollections,
+            sourceCollection,
+            item,
+            prop,
+            afterVal,
+            beforeVal
+          );
+        }
+      });
+
+      return updatedCollections;
     });
-
-    const relationProps = (sourceCollection.properties || []).filter(
-      (p: any) => p.type === 'relation'
-    );
-    relationProps.forEach((prop: any) => {
-      const beforeVal = prevItem[prop.id];
-      const afterVal = item[prop.id];
-      if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
-        updatedCollections = applyRelationChangeInternal(
-          updatedCollections,
-          sourceCollection,
-          item,
-          prop,
-          afterVal,
-          beforeVal
-        );
-      }
-    });
-
-    setCollections(updatedCollections);
   };
 
   const deleteItem = (itemId: string) => {

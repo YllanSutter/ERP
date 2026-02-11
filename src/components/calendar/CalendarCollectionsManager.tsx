@@ -3,8 +3,9 @@ import MonthView from '../CalendarView/MonthView';
 import WeekView from '../CalendarView/WeekView';
 import { 
   moveAllSegmentsOfItem, 
-  updateSegmentInItem 
+  updateSegmentInItem,
 } from '@/lib/segmentManager';
+import { calculateSegmentsClient } from '@/lib/calculateSegmentsClient';
 
 interface CalendarCollectionsManagerProps {
   collections: any[];
@@ -46,8 +47,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   onChangeCollectionRole,
   viewModeStorageKey,
 }) => {
-  // Option pour déplacer tout ou seulement le segment
-  const [moveAllSegments, setMoveAllSegments] = useState(false);
+  const [moveMode, setMoveMode] = useState<'all' | 'segment' | 'segment-following'>('segment');
   // Fonction pour gérer le déplacement d'un événement (drag & drop)
   /**
    * Déplace uniquement le segment concerné (par défaut), ou tous les segments si moveAllSegments=true
@@ -59,10 +59,12 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
 
   
    */
-  const onEventDrop = (item: any, newDate: Date, newHours: number, newMinutes: number, options?: { moveAllSegments?: boolean, segmentIndex?: number }) => {
-    // On utilise la valeur de moveAllSegments de l'état si non précisé
-    const moveAll = options?.moveAllSegments !== undefined ? options.moveAllSegments : moveAllSegments;
-    console.log('[onEventDrop] Appel avec options:', options, 'moveAllSegments:', moveAll);
+  const onEventDrop = (item: any, newDate: Date, newHours: number, newMinutes: number, options?: { moveAllSegments?: boolean, moveMode?: 'all' | 'segment' | 'segment-following', segmentIndex?: number, visibleSegments?: Array<{ itemId: string; segmentIndex: number; start: string }> }) => {
+    const fallbackMode = options?.moveAllSegments !== undefined
+      ? (options.moveAllSegments ? 'all' : 'segment')
+      : moveMode;
+    const resolvedMoveMode = options?.moveMode || fallbackMode;
+    console.log('[onEventDrop] Appel avec options:', options, 'moveMode:', resolvedMoveMode);
     const col = collections.find((c) => c.id === item.__collectionId);
     if (!col) {
       console.warn('[onEventDrop] Collection non trouvée pour', item);
@@ -79,11 +81,45 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
     // qui met en place l'item pour la sauvegarde en BDD
     // Le serveur recalculera les segments si on modifie un champ date
     
-    if (moveAll) {
+    if (resolvedMoveMode === 'all') {
       // Déplace tout : modifie le champ date principal
       // Le serveur recalculera les segments automatiquement
       const updatedItem = moveAllSegmentsOfItem(item, dateField.id, newDate, newHours, newMinutes, col);
       onEdit(updatedItem);
+    } else if (resolvedMoveMode === 'segment-following' && typeof options?.segmentIndex === 'number') {
+      const segments = Array.isArray(item._eventSegments) ? item._eventSegments : [];
+      const movedSeg = segments[options.segmentIndex];
+      if (!movedSeg) return;
+      const oldStart = new Date(movedSeg.start || movedSeg.__eventStart);
+      const newStart = new Date(newDate);
+      newStart.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
+      const deltaMs = newStart.getTime() - oldStart.getTime();
+      if (!Number.isFinite(deltaMs)) return;
+
+      const visibleSegments = Array.isArray(options?.visibleSegments) ? options.visibleSegments : [];
+      const activeKey = `${item.id}:${options.segmentIndex}`;
+      const activePos = visibleSegments.findIndex(
+        (seg) => `${seg.itemId}:${seg.segmentIndex}` === activeKey
+      );
+      if (activePos === -1) return;
+
+      const updatedIds = new Set<string>();
+      visibleSegments.slice(activePos).forEach((segRef) => {
+        if (updatedIds.has(segRef.itemId)) return;
+        const targetItem = (col.items || []).find((it: any) => it.id === segRef.itemId);
+        if (!targetItem) return;
+        const segStart = new Date(segRef.start);
+        const nextStart = new Date(segStart.getTime() + deltaMs);
+        const updatedItem = {
+          ...targetItem,
+          __collectionId: targetItem.__collectionId || col.id,
+          [dateField.id]: nextStart.toISOString(),
+          _preserveEventSegments: false,
+        };
+        const recalculatedSegments = calculateSegmentsClient(updatedItem, col);
+        onEdit({ ...updatedItem, _eventSegments: recalculatedSegments });
+        updatedIds.add(segRef.itemId);
+      });
     } else if (typeof options?.segmentIndex === 'number' && Array.isArray(item._eventSegments)) {
       // Déplacement d'un seul segment : on ne modifie que ce segment dans _eventSegments
       const duration = new Date(item._eventSegments[options.segmentIndex].end).getTime() - 
@@ -280,26 +316,27 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           {(viewMode === 'week' || viewMode === 'day') && (
             <div className="flex w-full flex-wrap items-center gap-2 rounded-lg px-4 py-3 sm:w-auto sm:ml-2">
               <span className="text-xs text-neutral-400">Déplacement :</span>
-              <label className="flex items-center gap-1 text-xs cursor-pointer">
-                <input
-                  type="radio"
-                  name="moveAllSegments"
-                  checked={moveAllSegments}
-                  onChange={() => setMoveAllSegments(true)}
-                  className="accent-violet-500"
-                />
-                <span>Tous</span>
-              </label>
-              <label className="flex items-center gap-1 text-xs cursor-pointer">
-                <input
-                  type="radio"
-                  name="moveAllSegments"
-                  checked={!moveAllSegments}
-                  onChange={() => setMoveAllSegments(false)}
-                  className="accent-violet-500"
-                />
-                <span>Segment seul</span>
-              </label>
+              <div className="inline-flex rounded-full bg-white/5 p-1 border border-white/10">
+                {([
+                  { key: 'segment', label: 'Seul' },
+                  { key: 'all', label: 'Complet' },
+                  { key: 'segment-following', label: ' + suivants' },
+                ] as const).map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setMoveMode(option.key)}
+                    className={
+                      'px-3 py-1 text-xs rounded-full transition-all ' +
+                      (moveMode === option.key
+                        ? 'bg-violet-500/30 text-violet-100 border border-violet-400/40 shadow-sm'
+                        : 'text-neutral-400 hover:text-white hover:bg-white/5')
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <div className="flex">

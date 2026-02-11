@@ -31,7 +31,7 @@ interface WeekViewProps {
   startCal?: number;
   endCal?: number;
   defaultDuration?: number; // in hours
-  onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number, options?: { segmentIndex?: number, moveAllSegments?: boolean }) => void;
+  onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number, options?: { segmentIndex?: number, moveAllSegments?: boolean, moveMode?: 'all' | 'segment' | 'segment-following', visibleSegments?: Array<{ itemId: string; segmentIndex: number; start: string }> }) => void;
   canViewField?: (fieldId: string) => boolean;
   getDateFieldForItem?: (item: any) => any;
   onEditField?: (updatedItem: any) => void;
@@ -259,6 +259,27 @@ const WeekView: React.FC<WeekViewProps> = ({
   const normalizedDate = new Date(currentDate);
   normalizedDate.setHours(0, 0, 0, 0);
   const weekDays = singleDay ? [normalizedDate] : getWeekDays(currentDate);
+  const visibleSegmentsByCollection = useMemo(() => {
+    const map = new Map<string, Array<{ itemId: string; segmentIndex: number; start: string }>>();
+    const dayKeys = new Set(weekDays.map((d) => toDateKey(d)));
+    items.forEach((it: any) => {
+      const collectionId = it.__collectionId;
+      if (!collectionId || !it?.id) return;
+      const dateField = getDateFieldForItem ? getDateFieldForItem(it) : null;
+      if (!dateField) return;
+      const labelToMatch = dateField.name;
+      const segments = Array.isArray(it._eventSegments) ? it._eventSegments : [];
+      segments.forEach((seg: any, segmentIndex: number) => {
+        if (seg?.label !== labelToMatch) return;
+        const segStart = new Date(seg.start || seg.__eventStart);
+        if (!dayKeys.has(toDateKey(segStart))) return;
+        if (!map.has(collectionId)) map.set(collectionId, []);
+        map.get(collectionId)!.push({ itemId: it.id, segmentIndex, start: segStart.toISOString() });
+      });
+    });
+    map.forEach((arr) => arr.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()));
+    return map;
+  }, [items, weekDays, getDateFieldForItem]);
   React.useEffect(() => {
     const tick = () => setNow(new Date());
     const intervalId = window.setInterval(tick, 60 * 1000);
@@ -330,7 +351,7 @@ const WeekView: React.FC<WeekViewProps> = ({
   return (
     <div className="space-y-4 overflow-x-auto">
       <div className={`grid ${weekDays.length === 1 ? 'grid-cols-[4rem_minmax(0,1fr)]' : 'grid-cols-6'} min-w-min`}>
-        <div className="w-16"></div>
+        <div className="w-16 text-right"></div>
         {weekDays.map((date, idx) => {
           const isToday = date.toDateString() === new Date().toDateString();
           const dayOfWeek = date.getDay();
@@ -350,7 +371,7 @@ const WeekView: React.FC<WeekViewProps> = ({
         })}
       </div>
       <div className={`grid ${weekDays.length === 1 ? 'grid-cols-[4rem_minmax(0,1fr)]' : 'grid-cols-6'} min-w-min`}>
-        <div className="w-16">
+        <div className="w-16 text-right">
           {hours.map(hour => (
             <div key={hour} className="h-24 text-xs text-neutral-600 font-medium pt-1">{hour}:00</div>
           ))}
@@ -413,7 +434,15 @@ const WeekView: React.FC<WeekViewProps> = ({
               const { hour, minutes } = calculateDropTime({ dropY: adjustedDropY, containerHeight: rect.height, startHour, endHour });
               if (onEventDrop) {
                 console.log('[DND] handleDayDrop: onEventDrop est défini, appel avec', { item, date, hour, minutes, multiDayIndex });
-                onEventDrop(item, date, hour, minutes, typeof multiDayIndex === 'number' ? { segmentIndex: multiDayIndex } : undefined);
+                onEventDrop(
+                  item,
+                  date,
+                  hour,
+                  minutes,
+                  typeof multiDayIndex === 'number'
+                    ? { segmentIndex: multiDayIndex, visibleSegments: visibleSegmentsByCollection.get(item.__collectionId) || [] }
+                    : { visibleSegments: visibleSegmentsByCollection.get(item.__collectionId) || [] }
+                );
               } else {
                 console.warn('[DND] handleDayDrop: onEventDrop est undefined');
               }
@@ -659,7 +688,10 @@ const WeekView: React.FC<WeekViewProps> = ({
                         canViewField={canViewField}
                         onEventDrop={(item, newDate, newHours, newMinutes) => {
                           if (onEventDrop) {
-                            onEventDrop(item, newDate, newHours, newMinutes, { segmentIndex: multiDayIndex });
+                            onEventDrop(item, newDate, newHours, newMinutes, {
+                              segmentIndex: multiDayIndex,
+                              visibleSegments: visibleSegmentsByCollection.get(item.__collectionId) || [],
+                            });
                           }
                         }}
                         onShowNewItemModalForCollection={onShowNewItemModalForCollection}

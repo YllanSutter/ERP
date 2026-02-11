@@ -51,7 +51,7 @@ interface WeekEventCardProps {
   getNameValue: (item: any) => string;
   onViewDetail: (item: any) => void;
   onReduceDuration: (item: any, action: { type: 'resize'; hours: number } | { type: 'delete'; index: number }) => void;
-  onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number, options?: { segmentIndex?: number, moveAllSegments?: boolean }) => void;
+  onEventDrop?: (item: any, newDate: Date, newHours: number, newMinutes: number, options?: { segmentIndex?: number, moveAllSegments?: boolean, moveMode?: 'all' | 'segment' | 'segment-following', visibleSegments?: Array<{ itemId: string; segmentIndex: number; start: string }> }) => void;
   onEditField?: (updatedItem: any) => void;
   collectionsList?: any[]; // pour compatibilité EditableProperty si besoin
   onRelationChange?: (property: any, item: any, value: any) => void;
