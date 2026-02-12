@@ -527,6 +527,11 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                     defaultVisibleFieldIds: visibleFieldIds
                   });
                 }}
+                onOpenItemFromSearch={(collection, item) => {
+                  setEditingItem(item);
+                  setModalCollection(collection || null);
+                  setShowNewItemModal(true);
+                }}
               />
 
               <motion.div
