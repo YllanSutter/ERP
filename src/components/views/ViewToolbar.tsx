@@ -419,21 +419,21 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
           <>
             <button
               onClick={onShowFilterModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-xs transition-all duration-300"
             >
               <Filter size={14} />
               Filtrer
             </button>
             <button
               onClick={onShowGroupModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-xs transition-all duration-300"
             >
               <Layers size={14} />
               Grouper
             </button>
             <button
               onClick={() => canEdit && onShowNewPropertyModal()}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-xs transition-all duration-300"
               disabled={!canEdit}
             >
               <Plus size={14} />
@@ -443,7 +443,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             <div className="relative z-[140]" ref={settingsRef}>
               <button
                 onClick={() => onSetShowViewSettings(!showViewSettings)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-xs transition-all duration-300"
               >
                 <Settings size={14} />
                 Paramètres
