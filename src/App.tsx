@@ -812,6 +812,15 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
             setEditingItem(null);
             // setModalCollection(null); // On ne reset plus pour garder la préselection
           }}
+          onDelete={(itemId) => {
+            const colId = (editingItem && editingItem.__collectionId)
+              || (modalCollection && modalCollection.id)
+              || (currentCollection && currentCollection.id);
+            if (!colId) return;
+            itemHooks.deleteItem(itemId, colId);
+            setShowNewItemModal(false);
+            setEditingItem(null);
+          }}
           onSaveAndStay={(item) => {
             const colId = item.__collectionId || (modalCollection && modalCollection.id) || (currentCollection && currentCollection.id);
             setModalCollection(collections.find(c => c.id === colId) || null);

@@ -32,6 +32,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { workDayStart, workDayEnd } from '@/lib/calendarUtils';
@@ -43,6 +54,7 @@ interface NewItemModalProps {
   onClose: () => void;
   onSave: (item: any) => void;
   onSaveAndStay?: (item: any) => void;
+  onDelete?: (itemId: string) => void;
   editingItem: any;
   collections: any[];
   favorites?: { views: string[]; items: string[] };
@@ -56,6 +68,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   onClose,
   onSave,
   onSaveAndStay,
+  onDelete,
   editingItem,
   collections,
   favorites,
@@ -76,6 +89,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const [historyData, setHistoryData] = useState<{ base: any; versions: any[] } | null>(null);
   const [historySelectedIndex, setHistorySelectedIndex] = useState<number | null>(null);
   const [historyPreview, setHistoryPreview] = useState<any | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const isEmptyTiptapDoc = (doc: any) => {
     if (!doc || doc.type !== 'doc') return false;
@@ -1312,27 +1326,60 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           )}
           </div>
         </div>
-        <div className="flex items-center justify-end gap-3 px-8 py-4 border-t border-black/10 dark:border-white/10 bg-white/90 dark:bg-neutral-950/80 backdrop-blur">
-          <button 
-            onClick={onClose} 
-            className="px-4 py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
-          >
-            Annuler
-          </button>
-          {isReallyEditing && (
+        <div className="flex items-center justify-between gap-3 px-8 py-4 border-t border-black/10 dark:border-white/10 bg-white/90 dark:bg-neutral-950/80 backdrop-blur">
+          <div className="flex items-center gap-3">
+            {isReallyEditing && onDelete && editingItem?.id && (
+              <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-sm text-red-600 dark:text-red-300 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors"
+                  >
+                    Supprimer
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Supprimer cet objet ?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Cette action est irréversible. L’objet sera supprimé définitivement.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter className="mt-6">
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        onDelete(editingItem.id);
+                        onClose();
+                      }}
+                    >
+                      Supprimer
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
             <button
-              type="button"
-              onClick={() => handleSave(onSaveAndStay || onSave)}
-              className="px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 border border-black/10 dark:border-white/10 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
             >
-              Enregistrer
+              Annuler
             </button>
-          )}
-          <ShinyButton
-            onClick={() => handleSave(onSave)}
-          >
-            {isReallyEditing ? 'Enregistrer et quitter' : 'Créer'}
-          </ShinyButton>
+            {isReallyEditing && (
+              <button
+                type="button"
+                onClick={() => handleSave(onSaveAndStay || onSave)}
+                className="px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 border border-black/10 dark:border-white/10 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              >
+                Enregistrer
+              </button>
+            )}
+            <ShinyButton onClick={() => handleSave(onSave)}>
+              {isReallyEditing ? 'Enregistrer et quitter' : 'Créer'}
+            </ShinyButton>
+          </div>
         </div>
       </motion.div>
 

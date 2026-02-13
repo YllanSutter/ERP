@@ -813,7 +813,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                         <span className="text-neutral-500">Aucune collection</span>
                       )}
                       {perCollection.map((col) => (
-                        <span key={col.name} className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-neutral-700 dark:text-white text-xs border border-indigo-500/20">
+                        <span key={col.name} className="px-2 py-0.5 rounded-full bg-red-500/10 text-neutral-700 dark:text-white text-xs border border-indigo-500/20">
                           {col.name} · {col.count} · {formatDurationHeureMinute(col.duration)}
                         </span>
                       ))}

@@ -186,10 +186,12 @@ export const useItems = (
     });
   };
 
-  const deleteItem = (itemId: string) => {
+  const deleteItem = (itemId: string, collectionId?: string) => {
+    const deletedCollectionId = collectionId || activeCollection;
+    if (!deletedCollectionId) return;
     // 1) Remove the item from its source collection
     let updatedCollections = collections.map((col) => {
-      if (col.id === activeCollection) {
+      if (col.id === deletedCollectionId) {
         return { ...col, items: col.items.filter((i: any) => i.id !== itemId) };
       }
       return col;
@@ -207,7 +209,7 @@ export const useItems = (
           const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
 
           // Only relations that target the active (deleted item) collection
-          if (targetCollectionId === activeCollection) {
+          if (targetCollectionId === deletedCollectionId) {
             const val = next[prop.id];
             if (isSourceMany) {
               const arr = Array.isArray(val) ? val : [];
