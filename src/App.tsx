@@ -444,6 +444,11 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
               onDelete={(id: string) => {
                 // Optionnel : suppression d'un item depuis le dashboard
               }}
+              onShowNewItemModalForCollection={(collection, item) => {
+                setModalCollection(collection || null);
+                setEditingItem(item || null);
+                setShowNewItemModal(true);
+              }}
               dashboardFilters={dashboardFilters}
               setDashboardFilters={setDashboardFilters}
             />

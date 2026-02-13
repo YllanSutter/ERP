@@ -8,8 +8,16 @@ import {
   MONTH_NAMES,
   getNameValue as getNameValueUtil,
   getEventStyle,
+  workDayEnd,
+  workDayStart,
 } from '@/lib/calendarUtils';
 import { getFilteredItems } from '@/lib/filterUtils';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 
 interface DashboardShellProps {
   dashboard: MonthlyDashboardConfig | null;
@@ -19,6 +27,7 @@ interface DashboardShellProps {
   onDelete: (id: string) => void;
   dashboardFilters: Record<string, any[]>;
   setDashboardFilters: React.Dispatch<React.SetStateAction<Record<string, any[]>>>;
+  onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
 }
 
 
@@ -65,7 +74,7 @@ function itemMatchesTypeValues(itemValue: any, typeValues: string[], fieldType?:
   };
 
 
-const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete, dashboardFilters, setDashboardFilters }) => {
+const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete, dashboardFilters, setDashboardFilters, onShowNewItemModalForCollection }) => {
       if (!dashboard) {
         return (
           <div className="flex items-center justify-center h-full text-neutral-500">
@@ -143,6 +152,122 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${dd}`;
+  };
+
+  const buildPrefillValueForProp = (prop: any, values: string[], target: any) => {
+    if (!prop || !Array.isArray(values) || values.length === 0) return;
+    const cleaned = values.filter((val) => val !== null && val !== undefined && String(val).trim() !== '');
+    if (cleaned.length === 0) return;
+
+    const relationType = prop?.relation?.type || prop?.relation?.relationType || prop?.relationType || 'many_to_many';
+    const isRelationMany = relationType === 'one_to_many' || relationType === 'many_to_many';
+
+    if (prop.type === 'multi_select') {
+      const existing = Array.isArray(target[prop.id]) ? target[prop.id] : [];
+      target[prop.id] = Array.from(new Set([...existing, ...cleaned]));
+      return;
+    }
+
+    if (prop.type === 'relation') {
+      if (isRelationMany) {
+        const existing = Array.isArray(target[prop.id]) ? target[prop.id] : [];
+        target[prop.id] = Array.from(new Set([...existing, ...cleaned]));
+        return;
+      }
+      if (target[prop.id] === undefined) {
+        target[prop.id] = cleaned[0];
+      }
+      return;
+    }
+
+    if (prop.type === 'select') {
+      if (target[prop.id] === undefined) {
+        target[prop.id] = cleaned[0];
+      }
+      return;
+    }
+
+    if (prop.type === 'number') {
+      if (target[prop.id] === undefined) {
+        const parsed = Number(cleaned[0]);
+        target[prop.id] = Number.isNaN(parsed) ? cleaned[0] : parsed;
+      }
+      return;
+    }
+
+    if (prop.type === 'date' || prop.type === 'date_range') {
+      if (target[prop.id] === undefined) {
+        target[prop.id] = cleaned[0];
+      }
+      return;
+    }
+
+    if (target[prop.id] === undefined) {
+      target[prop.id] = cleaned[0];
+    }
+  };
+
+  const buildPrefillForCell = (leaf: any, day: Date) => {
+    const rootGroup = leaf?._parentPath && leaf._parentPath.length > 0 ? leaf._parentPath[0] : null;
+    const targetCollectionId = rootGroup?.collectionId || dashboard?.sourceCollectionId || null;
+    const targetCollection = collections.find((c: any) => c.id === targetCollectionId) || collection;
+    if (!targetCollection) return null;
+
+    const targetProperties = targetCollection?.properties || [];
+    const prefill: any = {};
+    const filterHierarchy: { field: string; values: string[] }[] = [];
+
+    if (leaf?._parentPath && Array.isArray(leaf._parentPath)) {
+      leaf._parentPath.forEach((parent: any) => {
+        if (parent.filterField && Array.isArray(parent.typeValues) && parent.typeValues.length > 0) {
+          filterHierarchy.push({ field: parent.filterField, values: parent.typeValues });
+        }
+      });
+    }
+    if (leaf?.filterField && Array.isArray(leaf.typeValues) && leaf.typeValues.length > 0) {
+      filterHierarchy.push({ field: leaf.filterField, values: leaf.typeValues });
+    }
+
+    filterHierarchy.forEach(({ field, values }) => {
+      const prop = targetProperties.find((p: any) => p.id === field);
+      if (!prop) return;
+      buildPrefillValueForProp(prop, values, prefill);
+    });
+
+    let dateFieldId = rootGroup?.dateFieldId || dashboard?.globalDateField;
+    if (leaf?.dateFieldOverride?.single) {
+      dateFieldId = leaf.dateFieldOverride.single;
+    }
+
+    const dateField = targetProperties.find((p: any) => p.id === dateFieldId)
+      || targetProperties.find((p: any) => p.type === 'date' || p.type === 'date_range');
+
+    if (dateField) {
+      const startDate = new Date(day);
+      startDate.setHours(workDayStart, 0, 0, 0);
+      if (dateField.type === 'date_range') {
+        const endDate = new Date(day);
+        endDate.setHours(workDayEnd, 0, 0, 0);
+        prefill[dateField.id] = {
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+        };
+      } else if (prefill[dateField.id] === undefined) {
+        prefill[dateField.id] = startDate.toISOString();
+      }
+    }
+
+    return {
+      collection: targetCollection,
+      item: { ...prefill, isNew: true, __collectionId: targetCollection.id },
+    };
+  };
+
+  const handleCreateItemFromCell = (leaf: any, day: Date) => {
+    if (!onShowNewItemModalForCollection) return;
+    const payload = buildPrefillForCell(leaf, day);
+    if (!payload) return;
+    onShowNewItemModalForCollection(payload.collection, payload.item);
   };
 
   const getMaxDepth = (nodes: any[], depth = 1): number => {
@@ -607,10 +732,27 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                           } border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5${hasObject ? ' bg-white/80 dark:bg-white/10' : ''}`
                         : `group relative overflow-visible px-2 py-1.5 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10 max-w-[130px] bg-white/70 dark:bg-neutral-900/30${hasObject ? ' bg-white/80 dark:bg-white/10' : ''}`;
                       // Afficher tous les items avec leur menu contextuel
+                      const renderCellWithMenu = (content: React.ReactNode, className: string) => {
+                        if (!onShowNewItemModalForCollection) {
+                          return <td className={className}>{content}</td>;
+                        }
+                        return (
+                          <ContextMenu>
+                            <ContextMenuTrigger asChild>
+                              <td className={className}>{content}</td>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent>
+                              <ContextMenuItem onSelect={() => handleCreateItemFromCell(leaf, day)}>
+                                Créer un objet
+                              </ContextMenuItem>
+                            </ContextMenuContent>
+                          </ContextMenu>
+                        );
+                      };
                       return (
                         <React.Fragment key={`${week.week}-${key}-${leaf.id}`}>
-                          <td className={countClasses}>{countValue}</td>
-                          <td className={durationClasses}>{cellContent}</td>
+                          {renderCellWithMenu(countValue, countClasses)}
+                          {renderCellWithMenu(cellContent, durationClasses)}
                         </React.Fragment>
                       );
                     })}
