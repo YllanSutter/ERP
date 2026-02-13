@@ -17,6 +17,13 @@ import ShinyButton from '@/components/ui/ShinyButton';
 import DraggableList from '@/components/inputs/DraggableList';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '@/components/ui/context-menu';
 
 interface ViewToolbarProps {
   currentCollection: any;
@@ -263,19 +270,54 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                         const isActive = view.id === activeView;
                         const isFavorite = favorites.views.includes(view.id);
                         return (
-                          <button
-                            key={view.id}
-                            type="button"
-                            onClick={() => onSetActiveView(view.id)}
-                            className={cn(
-                              'w-full text-left px-2 py-1 rounded-md text-xs transition-all',
-                              isActive
-                                ? 'bg-violet-500/20 text-violet-100 border border-violet-400/30'
-                                : 'text-neutral-300 hover:bg-white/10'
-                            )}
-                          >
-                            <span>{isFavorite ? '★ ' : ''}{view.name}</span>
-                          </button>
+                          <ContextMenu key={view.id}>
+                            <ContextMenuTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => onSetActiveView(view.id)}
+                                className={cn(
+                                  'w-full text-left px-2 py-1 rounded-md text-xs transition-all',
+                                  isActive
+                                    ? 'bg-violet-500/20 text-violet-100 border border-violet-400/30'
+                                    : 'text-neutral-300 hover:bg-white/10'
+                                )}
+                              >
+                                <span>{isFavorite ? '★ ' : ''}{view.name}</span>
+                              </button>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent className="min-w-[200px]">
+                              <ContextMenuItem onSelect={() => onEditView(view.id)} className="gap-2">
+                                <Settings size={14} className="text-violet-400" />
+                                <span>Modifier…</span>
+                              </ContextMenuItem>
+                              <ContextMenuItem onSelect={() => onManageViewVisibility(view.id)} className="gap-2">
+                                <Icons.Eye size={14} className="text-cyan-400" />
+                                <span>Visibilité…</span>
+                              </ContextMenuItem>
+                              <ContextMenuItem onSelect={() => onToggleFavoriteView(view.id)} className="gap-2">
+                                <Icons.Star
+                                  size={14}
+                                  className={isFavorite ? 'text-yellow-400' : 'text-neutral-300'}
+                                  fill={isFavorite ? 'currentColor' : 'none'}
+                                />
+                                <span>{isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}</span>
+                              </ContextMenuItem>
+                              <ContextMenuItem onSelect={() => onDuplicateView(view.id)} className="gap-2">
+                                <Icons.Copy size={14} className="text-neutral-300" />
+                                <span>Dupliquer</span>
+                              </ContextMenuItem>
+                              {currentViews.length > 1 && <ContextMenuSeparator />}
+                              {currentViews.length > 1 && (
+                                <ContextMenuItem
+                                  onSelect={() => onDeleteView(view.id)}
+                                  className="gap-2 text-red-300 focus:bg-red-500/20"
+                                >
+                                  <Icons.Trash size={14} />
+                                  <span>Supprimer la vue</span>
+                                </ContextMenuItem>
+                              )}
+                            </ContextMenuContent>
+                          </ContextMenu>
                         );
                       })}
                     </div>
