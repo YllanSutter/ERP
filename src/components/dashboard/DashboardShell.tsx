@@ -1242,17 +1242,49 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         const orderedProperties = getOrderedProperties(targetCollection, null);
         const titleParts = [targetCollection.name || 'Sans nom'];
         if (rootNode?.label) titleParts.push(rootNode.label);
+        const baseTitle = titleParts.join(' · ');
+
+        if (periodScope === 'year') {
+          const byMonth = new Map<number, any[]>();
+          periodItems.forEach((item: any) => {
+            const endDate = getItemEndDate(item, dateField);
+            if (!endDate) return;
+            if (endDate.getFullYear() !== dashboard.year) return;
+            const monthIndex = endDate.getMonth();
+            const list = byMonth.get(monthIndex) || [];
+            list.push(item);
+            byMonth.set(monthIndex, list);
+          });
+          const monthBuckets = Array.from(byMonth.entries())
+            .sort(([a], [b]) => a - b)
+            .map(([monthIndex, items]) => ({
+              monthIndex,
+              label: MONTH_NAMES[monthIndex],
+              items,
+            }));
+          if (!monthBuckets.length) return null;
+          return {
+            key: rootNode.id || targetCollection.id,
+            title: baseTitle,
+            collection: targetCollection,
+            items: periodItems,
+            orderedProperties,
+            dateFieldLabel: dateField?.name,
+            monthBuckets,
+          };
+        }
+
         return {
           key: rootNode.id || targetCollection.id,
-          title: titleParts.join(' · '),
+          title: baseTitle,
           collection: targetCollection,
           items: periodItems,
           orderedProperties,
           dateFieldLabel: dateField?.name,
         };
       })
-      .filter(Boolean);
-  }, [dashboard, collections, dashboardFilters, periodStart, periodEnd]);
+        .filter(Boolean);
+  }, [dashboard, collections, dashboardFilters, periodStart, periodEnd, periodScope]);
 
   const groupedWeeks = useMemo(() => {
     if (!dashboard?.month || !dashboard?.year || periodScope !== 'month') return [];
