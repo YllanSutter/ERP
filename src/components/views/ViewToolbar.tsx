@@ -11,7 +11,8 @@ import {
   Calendar as CalendarIcon,
   Star,
   Trash,
-  Eye
+  Eye,
+  Zap
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,7 @@ interface ViewToolbarProps {
   onShowGroupModal: () => void;
   onShowNewPropertyModal: () => void;
   onShowNewItemModal: () => void;
+  onQuickCreateItem: () => void;
   onSetShowViewSettings: (show: boolean) => void;
   onToggleFieldVisibility: (fieldId: string) => void;
   onUpdateViewFieldOrder: (nextOrder: string[]) => void;
@@ -79,6 +81,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onShowGroupModal,
   onShowNewPropertyModal,
   onShowNewItemModal,
+  onQuickCreateItem,
   onSetShowViewSettings,
   onToggleFieldVisibility,
   onUpdateViewFieldOrder,
@@ -155,6 +158,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   if (currentCollection && typeof currentCollection.icon === 'string' && (Icons as any)[currentCollection.icon]) {
     IconComponent = (Icons as any)[currentCollection.icon];
   }
+
+  const newItemLabel = currentCollection?.name ? `Nouveau ${currentCollection.name}` : 'Nouvel élément';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -315,6 +320,26 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
           >
             <Plus size={14} className="inline mr-1" />
             Nouvelle vue
+          </motion.button>
+          <ShinyButton
+            onClick={() => {
+              if (!canEdit) return;
+              onShowNewItemModal();
+            }}
+            className={`!px-3 !py-2 text-xs ${!canEdit ? 'opacity-60 pointer-events-none' : ''}`}
+          >
+            <Plus size={14} className="inline mr-1" />
+            {newItemLabel}
+          </ShinyButton>
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={() => canEdit && onQuickCreateItem()}
+            className="px-3 py-2 rounded-lg text-xs font-medium bg-black/10 dark:bg-white/10 text-neutral-600 dark:text-neutral-200 hover:bg-white/10 duration-300 transition-all"
+            disabled={!canEdit}
+          >
+            <Zap size={14} className="inline mr-1" />
+            Création rapide
           </motion.button>
           <div className="relative">
             <input

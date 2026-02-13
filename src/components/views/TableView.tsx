@@ -1,10 +1,18 @@
 import React, { useState, useCallback } from 'react';
+import { Plus, Zap } from 'lucide-react';
 import { useGrouping } from '@/lib/hooks/useGrouping';
 import { TableViewProps } from '@/lib/types';
 import GroupRenderer from '@/components/TableView/GroupRenderer';
 import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '@/components/ui/context-menu';
 
 const TableView: React.FC<TableViewProps> = ({
   collection,
@@ -22,6 +30,8 @@ const TableView: React.FC<TableViewProps> = ({
   onRelationChange,
   onNavigateToCollection,
   groups = [],
+  onShowNewItemModal,
+  onQuickCreateItem,
 }) => {
   const { itemsMap, groupedStructure, expandedGroups, toggleGroup } = useGrouping(
     items,
@@ -63,6 +73,8 @@ const TableView: React.FC<TableViewProps> = ({
   const canEdit = useCanEdit(collection?.id);
   const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, collection?.id);
   const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, collection?.id);
+  const hasContextActions = Boolean(onShowNewItemModal || onQuickCreateItem);
+  const newItemLabel = collection?.name ? `Nouveau ${collection.name}` : 'Nouvel élément';
 
   if (!collection) {
     return (
@@ -77,7 +89,7 @@ const TableView: React.FC<TableViewProps> = ({
     !hiddenFields.includes(p.id) && canViewFieldFn(p.id)
   );
 
-  return (
+  const content = (
     <div className=" border border-black/10 dark:border-white/5 rounded-lg overflow-hidden backdrop-blur">
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -141,6 +153,41 @@ const TableView: React.FC<TableViewProps> = ({
         </table>
       </div>
     </div>
+  );
+
+  if (!hasContextActions) {
+    return content;
+  }
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div>{content}</div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="min-w-[200px]">
+        <ContextMenuItem
+          onSelect={() => {
+            if (!canEdit || !onShowNewItemModal) return;
+            onShowNewItemModal();
+          }}
+          className={!canEdit || !onShowNewItemModal ? 'opacity-60 pointer-events-none' : ''}
+        >
+          <Plus size={14} className="mr-2 text-emerald-400" />
+          <span>{newItemLabel}</span>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onSelect={() => {
+            if (!canEdit || !onQuickCreateItem) return;
+            onQuickCreateItem();
+          }}
+          className={!canEdit || !onQuickCreateItem ? 'opacity-60 pointer-events-none' : ''}
+        >
+          <Zap size={14} className="mr-2 text-amber-400" />
+          <span>Création rapide</span>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 };
 

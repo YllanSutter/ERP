@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useErpSync } from '@/lib/useErpSync';
 import { motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { Plus, Zap } from 'lucide-react';
 import KanbanView from '@/components/views/KanbanView';
 import CalendarView from '@/components/views/CalendarView';
 import TableView from '@/components/views/TableView';
@@ -36,6 +36,13 @@ import { useItems } from '@/lib/hooks/useItems';
 import { useViews } from '@/lib/hooks/useViews';
 import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
 import { MonthlyDashboardConfig } from '@/lib/dashboardTypes';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '@/components/ui/context-menu';
 
 const App = () => {
   // Connexion socket.io (même logique que AppHeader)
@@ -156,6 +163,111 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
   const currentCollection = collections.find((c) => c.id === activeCollection);
   const { currentViews } = viewHooks;
   const activeDashboardConfig = dashboards.find((d) => d.id === activeDashboard) || null;
+
+  const getRoundedNow = () => {
+    const now = new Date();
+    const minutes = now.getMinutes();
+    const rounded = Math.round(minutes / 15) * 15;
+    now.setMinutes(rounded);
+    now.setSeconds(0);
+    now.setMilliseconds(0);
+    return now;
+  };
+
+  const isEmptyTiptapDoc = (doc: any) => {
+    if (!doc || doc.type !== 'doc') return false;
+    const hasText = (node: any): boolean => {
+      if (!node) return false;
+      if (typeof node.text === 'string' && node.text.trim() !== '') return true;
+      if (Array.isArray(node.content)) return node.content.some(hasText);
+      return false;
+    };
+    return !hasText(doc);
+  };
+
+  const isEmptyValue = (val: any) => {
+    if (val === null || val === undefined) return true;
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (!trimmed) return true;
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (isEmptyTiptapDoc(parsed)) return true;
+      } catch {
+        // ignore JSON parse errors
+      }
+      return false;
+    }
+    if (Array.isArray(val)) return val.length === 0;
+    if (typeof val === 'object' && isEmptyTiptapDoc(val)) return true;
+    return false;
+  };
+
+  const getMatchingTemplate = (prop: any, data: any) => {
+    const templates = Array.isArray(prop.defaultTemplates) ? prop.defaultTemplates : [];
+    const defaultTemplate = templates.find((template: any) => template?.isDefault);
+
+    for (const template of templates) {
+      const when = template?.when || {};
+      if (!when.fieldId) continue;
+      const sourceValue = data[when.fieldId];
+
+      if (Array.isArray(sourceValue)) {
+        if (sourceValue.includes(when.value)) return template;
+      } else if (sourceValue === when.value) {
+        return template;
+      }
+    }
+
+    return defaultTemplate || null;
+  };
+
+  const applyDefaultTemplates = (data: any, props: any[]) => {
+    let nextData = { ...data };
+    props.forEach((prop: any) => {
+      const match = getMatchingTemplate(prop, nextData);
+      if (!match) return;
+      const targetKey = prop.type === 'date' || prop.type === 'date_range'
+        ? `${prop.id}_duration`
+        : prop.id;
+      const currentValue = nextData[targetKey];
+      if (isEmptyValue(currentValue)) {
+        nextData[targetKey] = match.value;
+      }
+    });
+    return nextData;
+  };
+
+  const handleQuickCreateItem = () => {
+    if (!currentCollection) return;
+    const props = currentCollection.properties || [];
+    const nameField = props.find((p: any) => p.name === 'Nom' || p.id === 'name') || props[0];
+    const baseName = currentCollection.name ? `Nouveau ${currentCollection.name}` : 'Nouvel élément';
+    let item: any = {};
+    if (nameField) item[nameField.id] = baseName;
+
+    props.forEach((prop: any) => {
+      if (item[prop.id] === undefined && prop.type === 'date') {
+        item[prop.id] = getRoundedNow().toISOString();
+      }
+    });
+
+    props.forEach((prop: any) => {
+      if (prop.id.endsWith('_duration') && item[prop.id] === undefined) {
+        item[prop.id] = 1;
+      }
+    });
+
+    item._eventSegments = [];
+
+    for (let i = 0; i < 3; i += 1) {
+      const next = applyDefaultTemplates(item, props);
+      if (JSON.stringify(next) === JSON.stringify(item)) break;
+      item = next;
+    }
+
+    itemHooks.saveItem(item, null, currentCollection.id);
+  };
 
   const userRoleIds = (userRoles || []).map((r: any) => r.id);
   const canSeeView = (view: any) => {
@@ -493,6 +605,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                 onShowGroupModal={() => setShowGroupModal(true)}
                 onShowNewPropertyModal={() => setShowNewPropertyModal(true)}
                 onShowNewItemModal={() => setShowNewItemModal(true)}
+                onQuickCreateItem={handleQuickCreateItem}
                 onSetShowViewSettings={setShowViewSettings}
                 onToggleFieldVisibility={viewHooks.toggleFieldVisibility}
                 onUpdateViewFieldOrder={viewHooks.updateViewFieldOrder}
@@ -541,12 +654,14 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                 }}
               />
 
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="flex-1 overflow-auto p-6 z-[1]"
-              >
+              <ContextMenu>
+                <ContextMenuTrigger asChild>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="flex-1 overflow-auto p-6 z-[1]"
+                  >
                 {activeViewConfig?.type === 'table' && (
                   <TableView
                     collection={currentCollection}
@@ -583,6 +698,8 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                     }}
                     onNavigateToCollection={handleNavigateToCollection}
                     groups={activeViewConfig?.groups || []}
+                    onShowNewItemModal={() => setShowNewItemModal(true)}
+                    onQuickCreateItem={handleQuickCreateItem}
                   />
                 )}
                 {activeViewConfig?.type === 'kanban' && (
@@ -708,7 +825,32 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
                     }}
                   />
                 )}
-              </motion.div>
+                  </motion.div>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="min-w-[200px]">
+                  <ContextMenuItem
+                    onSelect={() => {
+                      if (!canEdit) return;
+                      setShowNewItemModal(true);
+                    }}
+                    className={!canEdit ? 'opacity-60 pointer-events-none' : ''}
+                  >
+                    <Plus size={14} className="mr-2 text-emerald-400" />
+                    <span>{currentCollection?.name ? `Nouveau ${currentCollection.name}` : 'Nouvel élément'}</span>
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    onSelect={() => {
+                      if (!canEdit) return;
+                      handleQuickCreateItem();
+                    }}
+                    className={!canEdit ? 'opacity-60 pointer-events-none' : ''}
+                  >
+                    <Zap size={14} className="mr-2 text-amber-400" />
+                    <span>Création rapide</span>
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             </>
           )}
         </SidebarInset>
