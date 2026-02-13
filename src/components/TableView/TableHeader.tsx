@@ -12,6 +12,7 @@ import {
 
 export interface TableHeaderProps {
   visibleProperties: Property[];
+  items: any[];
   onEditProperty: (prop: Property) => void;
   onToggleField: (fieldId: string) => void;
   onDeleteProperty: (propId: string) => void;
@@ -22,6 +23,7 @@ export interface TableHeaderProps {
 
 const TableHeader: React.FC<TableHeaderProps> = ({
   visibleProperties,
+  items,
   onEditProperty,
   onToggleField,
   onDeleteProperty,
@@ -32,6 +34,56 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   const canEdit = useCanEdit(collectionId);
   // Exclure les propriétés en menu contextuel de l'affichage du header
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
+
+  const collectValues = (propId: string) => {
+    const values: string[] = [];
+    (items || []).forEach((item: any) => {
+      const raw = item?.[propId];
+      if (raw === null || raw === undefined || raw === '') return;
+      if (Array.isArray(raw)) {
+        raw.forEach((val) => {
+          if (val === null || val === undefined || val === '') return;
+          values.push(String(val));
+        });
+        return;
+      }
+      if (typeof raw === 'object') {
+        if (raw.url) values.push(String(raw.url));
+        else if (raw.value) values.push(String(raw.value));
+        else values.push(JSON.stringify(raw));
+        return;
+      }
+      values.push(String(raw));
+    });
+    return values;
+  };
+
+  const copyValues = async (propId: string) => {
+    const values = collectValues(propId);
+    const payload = values.join('\n');
+    if (!payload) return;
+    try {
+      await navigator.clipboard.writeText(payload);
+    } catch (e) {
+      // fallback
+      const el = document.createElement('textarea');
+      el.value = payload;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+  };
+
+  const openUrls = (propId: string) => {
+    const values = collectValues(propId)
+      .map((val) => val.trim())
+      .filter((val) => val.startsWith('http://') || val.startsWith('https://'));
+    for (let i = values.length - 1; i >= 0; i -= 1) {
+      const url = values[i];
+      window.open(url, '_blank', 'noopener');
+    }
+  };
   return (
     <thead className="bg-gray-300 dark:bg-black/30 border-b border-black/5 dark:border-white/5">
       <tr>
@@ -59,36 +111,55 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                   </div>
                 </th>
               </ContextMenuTrigger>
-              {canEdit && (
-                <ContextMenuContent>
+              <ContextMenuContent>
+                <ContextMenuItem
+                  onClick={() => copyValues(prop.id)}
+                  className="flex items-center gap-2"
+                >
+                  <Icons.Copy size={14} />
+                  <span>Copier</span>
+                </ContextMenuItem>
+                {prop.type === 'url' && (
                   <ContextMenuItem
-                    onClick={() => onEditProperty(prop)}
+                    onClick={() => openUrls(prop.id)}
                     className="flex items-center gap-2"
                   >
-                    <Icons.Edit2 size={14} />
-                    <span>Modifier</span>
+                    <Icons.ExternalLink size={14} />
+                    <span>Ouvrir URLs</span>
                   </ContextMenuItem>
-                  <ContextMenuItem
-                    onClick={() => onToggleField(prop.id)}
-                    className="flex items-center gap-2"
-                  >
-                    <Icons.EyeOff size={14} />
-                    <span>Masquer la colonne</span>
-                  </ContextMenuItem>
-                  {prop.id !== 'name' && (
-                    <>
-                      <ContextMenuSeparator />
-                      <ContextMenuItem
-                        onClick={() => onDeleteProperty(prop.id)}
-                        className="flex items-center gap-2 text-red-500 focus:bg-red-500/10"
-                      >
-                        <Icons.Trash2 size={14} />
-                        <span>Supprimer</span>
-                      </ContextMenuItem>
-                    </>
-                  )}
-                </ContextMenuContent>
-              )}
+                )}
+                {canEdit && (
+                  <>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                      onClick={() => onEditProperty(prop)}
+                      className="flex items-center gap-2"
+                    >
+                      <Icons.Edit2 size={14} />
+                      <span>Modifier</span>
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onClick={() => onToggleField(prop.id)}
+                      className="flex items-center gap-2"
+                    >
+                      <Icons.EyeOff size={14} />
+                      <span>Masquer la colonne</span>
+                    </ContextMenuItem>
+                    {prop.id !== 'name' && (
+                      <>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          onClick={() => onDeleteProperty(prop.id)}
+                          className="flex items-center gap-2 text-red-500 focus:bg-red-500/10"
+                        >
+                          <Icons.Trash2 size={14} />
+                          <span>Supprimer</span>
+                        </ContextMenuItem>
+                      </>
+                    )}
+                  </>
+                )}
+              </ContextMenuContent>
             </ContextMenu>
           );
         })}

@@ -83,6 +83,7 @@ const TableView: React.FC<TableViewProps> = ({
         <table className="w-full">
           <TableHeader
             visibleProperties={visibleProperties}
+            items={items}
             onEditProperty={onEditProperty}
             onToggleField={onToggleField}
             onDeleteProperty={onDeleteProperty}
