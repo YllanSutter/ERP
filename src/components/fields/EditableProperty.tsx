@@ -457,7 +457,7 @@ const RelationEditor = ({
 
   return (
     <div className={cn("flex items-center gap-2 justify-end ", className)}>
-      <div className="flex gap-1 flex-1 min-w-0 justify-end flex-wrap max-w-[200px] overflow-hidden">
+      <div className="flex gap-1 flex-1 min-w-0 justify-end flex-wrap max-w-[200px] overflow-hidden max-h-[100px] overflow-y-auto">
         {selectedIds.map((id: string) => {
           const it = targetItems.find((ti: any) => ti.id === id);
           const label = it ? getItemName(it) : id;
