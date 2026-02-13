@@ -87,6 +87,11 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       }
       const [showFilterModal, setShowFilterModal] = useState(false);
       const viewType = dashboard.viewType || 'recap';
+      const periodScope = dashboard.periodScope || 'month';
+      const activeRecapMetrics = (dashboard.recapMetrics && dashboard.recapMetrics.length > 0)
+        ? dashboard.recapMetrics.filter((m) => m === 'count' || m === 'duration')
+        : ['count', 'duration'];
+      const metricsPerLeaf = Math.max(1, activeRecapMetrics.length);
 
       const handleAddFilter = (property: string, operator: string, value: any) => {
         if (!dashboard || !dashboardFilters || !setDashboardFilters) return;
@@ -134,15 +139,21 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     return map;
   }, [collections]);
 
-  const monthStart = useMemo(() => {
+  const periodStart = useMemo(() => {
     if (!dashboard?.year || !dashboard?.month) return null;
+    if (periodScope === 'year') {
+      return new Date(dashboard.year, 0, 1, 0, 0, 0, 0);
+    }
     return new Date(dashboard.year, dashboard.month - 1, 1, 0, 0, 0, 0);
-  }, [dashboard?.year, dashboard?.month]);
+  }, [dashboard?.year, dashboard?.month, periodScope]);
 
-  const monthEnd = useMemo(() => {
+  const periodEnd = useMemo(() => {
     if (!dashboard?.year || !dashboard?.month) return null;
+    if (periodScope === 'year') {
+      return new Date(dashboard.year, 11, 31, 23, 59, 59, 999);
+    }
     return new Date(dashboard.year, dashboard.month, 0, 23, 59, 59, 999);
-  }, [dashboard?.year, dashboard?.month]);
+  }, [dashboard?.year, dashboard?.month, periodScope]);
 
   const getCollectionTone = (collectionId?: string) => {
     const palette = [
@@ -166,6 +177,14 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${dd}`;
+  };
+
+  const getFirstWorkdayKey = (date: Date) => {
+    const d = new Date(date.getFullYear(), date.getMonth(), 1);
+    while (d.getDay() === 0 || d.getDay() === 6) {
+      d.setDate(d.getDate() + 1);
+    }
+    return dayKey(d);
   };
 
   const buildPrefillValueForProp = (prop: any, values: string[], target: any) => {
@@ -301,20 +320,116 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
   };
   const leafColumns = useMemo(() => getLeavesWithPath(dashboard?.columnTree || []), [dashboard?.columnTree]);
 
-  const buildHeaderRows = (nodes: any[], depth: number, maxDepth: number, rows: any[][]) => {
+  const leafMetaById = useMemo(() => {
+    const map = new Map<string, { items: any[]; dateField: any | null }>();
+    if (!dashboard || !leafColumns.length) return map;
+    leafColumns.forEach((leaf: any) => {
+      const rootGroup = leaf._parentPath && leaf._parentPath.length > 0 ? leaf._parentPath[0] : null;
+      const groupCollectionId = rootGroup?.collectionId || dashboard.sourceCollectionId;
+      const groupCollection = collections.find((c: any) => c.id === groupCollectionId) || collection;
+      const groupProperties = groupCollection?.properties || [];
+      let groupItems: any[] = [];
+      if (groupCollection?.id === collection?.id) {
+        groupItems = filteredItems;
+      } else if (groupCollection) {
+        const filters = dashboardFilters?.[dashboard.id] || [];
+        const fakeViewConfig = { filters } as any;
+        groupItems = getFilteredItems(groupCollection, fakeViewConfig, { collectionId: null, ids: [] }, groupCollection.id, collections);
+      }
+
+      let filteredGroupItems = groupItems;
+      const filterHierarchy: { field: string; values: string[] }[] = [];
+      if (leaf._parentPath && Array.isArray(leaf._parentPath)) {
+        leaf._parentPath.forEach((parent: any) => {
+          if (parent.filterField && Array.isArray(parent.typeValues) && parent.typeValues.length > 0) {
+            filterHierarchy.push({ field: parent.filterField, values: parent.typeValues.filter((v: any) => !!v) });
+          }
+        });
+      }
+      if (leaf.filterField && Array.isArray(leaf.typeValues) && leaf.typeValues.length > 0) {
+        filterHierarchy.push({ field: leaf.filterField, values: leaf.typeValues.filter((v: any) => !!v) });
+      }
+      filterHierarchy.forEach(({ field, values }) => {
+        const prop = groupProperties.find((p: any) => p.id === field);
+        if (values.length > 0 && prop) {
+          filteredGroupItems = filteredGroupItems.filter((item: any) =>
+            itemMatchesTypeValues(item[field], values, prop.type)
+          );
+        }
+      });
+
+      let dateFieldId = rootGroup?.dateFieldId || dashboard.globalDateField;
+      if (leaf.dateFieldOverride && leaf.dateFieldOverride.single) {
+        dateFieldId = leaf.dateFieldOverride.single;
+      }
+      if (!dateFieldId && groupProperties.length > 0) {
+        const firstDate = groupProperties.find((p: any) => p.type === 'date' || p.type === 'date_range');
+        if (firstDate) dateFieldId = firstDate.id;
+      }
+      const dateField = groupProperties.find((p: any) => p.id === dateFieldId) || null;
+
+      map.set(leaf.id, { items: filteredGroupItems, dateField });
+    });
+    return map;
+  }, [dashboard, leafColumns, collections, collection, filteredItems, dashboardFilters]);
+
+  const getItemEndDate = (item: any, dateField: any) => {
+    if (!item || !dateField) return null;
+    const segments = Array.isArray(item._eventSegments) ? item._eventSegments : [];
+    const matchingSegments = segments.filter((seg: any) =>
+      typeof seg?.label === 'string' && seg.label === dateField.name && seg.end
+    );
+    if (matchingSegments.length > 0) {
+      let maxEnd: Date | null = null;
+      matchingSegments.forEach((seg: any) => {
+        const end = new Date(seg.end);
+        if (Number.isNaN(end.getTime())) return;
+        if (!maxEnd || end > maxEnd) maxEnd = end;
+      });
+      if (maxEnd) return maxEnd;
+    }
+    const value = item[dateField.id];
+    if (!value) return null;
+    if (dateField.type === 'date') {
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (dateField.type === 'date_range') {
+      const endVal = value?.end ?? value;
+      const d = new Date(endVal);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+  };
+
+  const countUniqueInRange = (leafId: string, start: Date, end: Date) => {
+    const meta = leafMetaById.get(leafId);
+    if (!meta || !meta.dateField) return 0;
+    const ids = new Set<string>();
+    meta.items.forEach((item: any) => {
+      const endDate = getItemEndDate(item, meta.dateField);
+      if (!endDate) return;
+      if (endDate >= start && endDate <= end) {
+        ids.add(item.id);
+      }
+    });
+    return ids.size;
+  };
+
+  const buildHeaderRows = (nodes: any[], depth: number, maxDepth: number, rows: any[][], leafSpan: number) => {
     rows[depth] = rows[depth] || [];
     nodes.forEach((node) => {
       const isLeaf = !node.children || node.children.length === 0;
       if (isLeaf) {
         rows[depth].push({
           label: node.label,
-          colSpan: 2,
+          colSpan: leafSpan,
           rowSpan: maxDepth - depth,
           isLeaf: true,
           node,
         });
       } else {
-        const colSpan = getLeaves([node]).length * 2;
+        const colSpan = getLeaves([node]).length * leafSpan;
         rows[depth].push({
           label: node.label,
           colSpan,
@@ -322,14 +437,14 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           isLeaf: false,
           node,
         });
-        buildHeaderRows(node.children, depth + 1, maxDepth, rows);
+        buildHeaderRows(node.children, depth + 1, maxDepth, rows, leafSpan);
       }
     });
   };
 
   const getTableHeaderRows = () => {
     const rows: any[][] = [];
-    buildHeaderRows(dashboard?.columnTree || [], 0, maxDepth, rows);
+    buildHeaderRows(dashboard?.columnTree || [], 0, maxDepth, rows, metricsPerLeaf);
     return rows;
   };
 
@@ -379,10 +494,9 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
     if (!dashboard || !leafColumns.length) return { daily, spansByLeaf, spansByLeafDay, dailyObjectDurations };
 
-    const year = dashboard.year;
-    const month = dashboard.month - 1; // JS: 0 = janvier
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
+    const firstDay = periodStart ? new Date(periodStart) : null;
+    const lastDay = periodEnd ? new Date(periodEnd) : null;
+    if (!firstDay || !lastDay) return { daily, spansByLeaf, spansByLeafDay, dailyObjectDurations };
     const daysOfMonth: Date[] = [];
     let d = new Date(firstDay);
     while (d <= lastDay) {
@@ -471,9 +585,13 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           try {
             eventStyle = getEventStyle(item, dateField, 1, 17);
           } catch (e) {}
-          if (eventStyle && eventStyle.workdayDates) {
-            const firstDayKey = eventStyle.workdayDates[0].toLocaleDateString('fr-CA');
-            if (key === firstDayKey) {
+          if (eventStyle && eventStyle.workdayDates && eventStyle.workdayDates.length > 0) {
+            const startDate = eventStyle.workdayDates[0];
+            const endDate = getItemEndDate(item, dateField) || eventStyle.endDate || startDate;
+            const crossesMonth =
+              startDate.getFullYear() !== endDate.getFullYear() || startDate.getMonth() !== endDate.getMonth();
+            const targetKey = crossesMonth ? getFirstWorkdayKey(endDate) : dayKey(startDate);
+            if (key === targetKey) {
               count++;
             }
           }
@@ -535,7 +653,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     });
 
     return { daily, spansByLeaf, spansByLeafDay, dailyObjectDurations };
-  }, [dashboard, collection, collections, properties, filteredItems, leafColumns, resolvedTypeField]);
+  }, [dashboard, collection, collections, properties, filteredItems, leafColumns, resolvedTypeField, periodStart, periodEnd]);
 
 
   if (!dashboard) {
@@ -546,33 +664,57 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     );
   }
 
+  const getDisplayCountForDay = (leafId: string, key: string) => {
+    if (!aggregates) return 0;
+    const cell = aggregates.daily[key]?.[leafId];
+    const span = aggregates.spansByLeafDay?.[leafId]?.[key];
+    if (span) {
+      const startDate = span.start ? new Date(span.start) : null;
+      const endDate = span.end ? new Date(span.end) : null;
+      const crossesMonth =
+        startDate && endDate
+          ? startDate.getFullYear() !== endDate.getFullYear() || startDate.getMonth() !== endDate.getMonth()
+          : false;
+      if (crossesMonth && endDate) {
+        return key === getFirstWorkdayKey(endDate) ? 1 : 0;
+      }
+      return span.isStart ? 1 : 0;
+    }
+    return cell && cell.count ? cell.count : 0;
+  };
+
   const renderWeekTable = (week: { week: number; days: Date[] }) => {
     if (!aggregates) return null;
     const spanForDay = (leafId: string, key: string) => aggregates.spansByLeafDay?.[leafId]?.[key];
-    const remainingCols = leafColumns.length * 2;
+    const remainingCols = leafColumns.length * metricsPerLeaf;
     const totalColSpan = Math.max(1, Math.ceil(remainingCols / 2));
     const perCollectionColSpan = Math.max(1, remainingCols - totalColSpan);
+    const countForDays = (days: Date[], leafId: string) => {
+      let count = 0;
+      days.forEach((day) => {
+        const key = dayKey(day);
+        count += getDisplayCountForDay(leafId, key);
+      });
+      return count;
+    };
 
     const getWeekCollectionTotals = () => {
-      const totals = new Map<string, { name: string; count: number; duration: number; ids: Set<string> }>();
+      const totals = new Map<string, { name: string; count: number; duration: number }>();
       week.days.forEach((day) => {
         const key = dayKey(day);
-        const byLeaf = aggregates.dailyObjectDurations?.[key] || {};
-        Object.keys(byLeaf).forEach((leafId) => {
-          const items = byLeaf[leafId] || {};
-          Object.keys(items).forEach((itemId) => {
-            const coll = itemCollectionMap.get(itemId);
-            if (!coll) return;
-            if (!totals.has(coll.collectionId)) {
-              totals.set(coll.collectionId, { name: coll.collectionName, count: 0, duration: 0, ids: new Set() });
-            }
-            const entry = totals.get(coll.collectionId)!;
-            entry.duration += items[itemId] || 0;
-            if (!entry.ids.has(itemId)) {
-              entry.ids.add(itemId);
-              entry.count += 1;
-            }
-          });
+        leafColumns.forEach((leaf: any) => {
+          const collectionId = getLeafCollectionId(leaf) || dashboard?.sourceCollectionId;
+          if (!collectionId) return;
+          const collectionName = collections.find((c: any) => c.id === collectionId)?.name || 'Collection';
+          if (!totals.has(collectionId)) {
+            totals.set(collectionId, { name: collectionName, count: 0, duration: 0 });
+          }
+          const entry = totals.get(collectionId)!;
+          entry.count += getDisplayCountForDay(leaf.id, key);
+          const cell = aggregates.daily[key]?.[leaf.id];
+          if (cell && cell.duration) {
+            entry.duration += cell.duration;
+          }
         });
       });
       return Array.from(totals.values());
@@ -655,8 +797,14 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                           const tone = getCollectionTone(getLeafCollectionId(leaf));
                           return (
                             <>
-                              <th className={`px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.soft}`}>Nombre</th>
-                              <th className={`px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.soft}`}>Durée</th>
+                              {activeRecapMetrics.map((metric) => (
+                                <th
+                                  key={`${leaf.id}-${metric}`}
+                                  className={`px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.soft}`}
+                                >
+                                  {metric === 'count' ? 'Nombre' : 'Durée'}
+                                </th>
+                              ))}
                             </>
                           );
                         })()}
@@ -685,12 +833,8 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   {leafColumns.map((leaf: any) => {
                       const cell = aggregates.daily[key]?.[leaf.id] || { count: 0, duration: 0 };
                       const span = spanForDay(leaf.id, key);
-                      let countValue = '';
-                      if (span && span.isStart) {
-                        countValue = '1';
-                      } else if (!span && cell.count > 0) {
-                        countValue = cell.count.toString();
-                      }
+                      const displayCount = getDisplayCountForDay(leaf.id, key);
+                      const countValue = displayCount > 0 ? displayCount.toString() : '';
                       const itemIds = Object.keys(aggregates.dailyObjectDurations[key]?.[leaf.id] || {});
                       const itemsInCell = itemIds
                         .map((itemId) => {
@@ -785,8 +929,20 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                       };
                       return (
                         <React.Fragment key={`${week.week}-${key}-${leaf.id}`}>
-                          {renderCellWithMenu(countValue, countClasses)}
-                          {renderCellWithMenu(cellContent, durationClasses)}
+                          {activeRecapMetrics.map((metric) => {
+                            if (metric === 'count') {
+                              return (
+                                <React.Fragment key={`${week.week}-${key}-${leaf.id}-count`}>
+                                  {renderCellWithMenu(countValue, countClasses)}
+                                </React.Fragment>
+                              );
+                            }
+                            return (
+                              <React.Fragment key={`${week.week}-${key}-${leaf.id}-duration`}>
+                                {renderCellWithMenu(cellContent, durationClasses)}
+                              </React.Fragment>
+                            );
+                          })}
                         </React.Fragment>
                       );
                     })}
@@ -799,17 +955,12 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                 let totalCount = 0;
                 let totalDuration = 0;
                 leafColumns.forEach((leaf: any) => {
-                  let count = 0;
+                  const count = countForDays(week.days, leaf.id);
                   let duration = 0;
                   week.days.forEach((day) => {
                     const key = dayKey(day);
                     const cell = aggregates.daily[key]?.[leaf.id];
                     const span = spanForDay(leaf.id, key);
-                    if (span && span.isStart) {
-                      count += 1;
-                    } else if (!span && cell && cell.count) {
-                      count += cell.count;
-                    }
                     if (cell) {
                       duration += cell.duration;
                     }
@@ -818,9 +969,16 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   totalDuration += duration;
                 });
                 const perCollection = getWeekCollectionTotals();
+                const summaryParts = [] as string[];
+                if (activeRecapMetrics.includes('count')) {
+                  summaryParts.push(`${totalCount || 0} projet(s)`);
+                }
+                if (activeRecapMetrics.includes('duration')) {
+                  summaryParts.push(totalDuration ? formatDurationHeureMinute(totalDuration) : '0h00');
+                }
                 return [
                   <td key="total-count" className="px-2 py-1.5 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10 font-bold" colSpan={totalColSpan}>
-                    {totalCount || 0} projet(s) - {totalDuration ? formatDurationHeureMinute(totalDuration) : '0h00'}
+                    {summaryParts.join(' - ') || '0'}
                   </td>,
                   <td key="total-by-collection" className="px-2 py-1.5 text-left text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10" colSpan={perCollectionColSpan}>
                     <div className="flex flex-wrap gap-2">
@@ -845,29 +1003,33 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
   const renderMonthTotals = () => {
     if (!aggregates) return null;
-    const remainingCols = leafColumns.length * 2;
+    const remainingCols = leafColumns.length * metricsPerLeaf;
     const totalColSpan = Math.max(1, Math.ceil(remainingCols / 2));
     const perCollectionColSpan = Math.max(1, remainingCols - totalColSpan);
+    const countForAllDays = (leafId: string) => {
+      let count = 0;
+      Object.keys(aggregates.daily).forEach((key) => {
+        count += getDisplayCountForDay(leafId, key);
+      });
+      return count;
+    };
 
     const getMonthCollectionTotals = () => {
-      const totals = new Map<string, { name: string; count: number; duration: number; ids: Set<string> }>();
-      Object.keys(aggregates.dailyObjectDurations || {}).forEach((key) => {
-        const byLeaf = aggregates.dailyObjectDurations?.[key] || {};
-        Object.keys(byLeaf).forEach((leafId) => {
-          const items = byLeaf[leafId] || {};
-          Object.keys(items).forEach((itemId) => {
-            const coll = itemCollectionMap.get(itemId);
-            if (!coll) return;
-            if (!totals.has(coll.collectionId)) {
-              totals.set(coll.collectionId, { name: coll.collectionName, count: 0, duration: 0, ids: new Set() });
-            }
-            const entry = totals.get(coll.collectionId)!;
-            entry.duration += items[itemId] || 0;
-            if (!entry.ids.has(itemId)) {
-              entry.ids.add(itemId);
-              entry.count += 1;
-            }
-          });
+      const totals = new Map<string, { name: string; count: number; duration: number }>();
+      Object.keys(aggregates.daily || {}).forEach((key) => {
+        leafColumns.forEach((leaf: any) => {
+          const collectionId = getLeafCollectionId(leaf) || dashboard?.sourceCollectionId;
+          if (!collectionId) return;
+          const collectionName = collections.find((c: any) => c.id === collectionId)?.name || 'Collection';
+          if (!totals.has(collectionId)) {
+            totals.set(collectionId, { name: collectionName, count: 0, duration: 0 });
+          }
+          const entry = totals.get(collectionId)!;
+          entry.count += getDisplayCountForDay(leaf.id, key);
+          const cell = aggregates.daily[key]?.[leaf.id];
+          if (cell && cell.duration) {
+            entry.duration += cell.duration;
+          }
         });
       });
       return Array.from(totals.values());
@@ -892,7 +1054,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                 return (
                   <th
                     key={leaf.id}
-                    colSpan={2}
+                    colSpan={metricsPerLeaf}
                     className={`px-2 py-1.5 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.strong}`}
                   >
                     {leaf.label}
@@ -908,8 +1070,14 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     const tone = getCollectionTone(getLeafCollectionId(leaf));
                     return (
                       <>
-                        <th className={`px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.soft}`}>Nombre</th>
-                        <th className={`px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.soft}`}>Durée</th>
+                        {activeRecapMetrics.map((metric) => (
+                          <th
+                            key={`${leaf.id}-month-${metric}`}
+                            className={`px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.soft}`}
+                          >
+                            {metric === 'count' ? 'Nombre' : 'Durée'}
+                          </th>
+                        ))}
                       </>
                     );
                   })()}
@@ -921,21 +1089,26 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
             <tr className="bg-white/70 dark:bg-white/5">
               <td className="px-2 py-1.5 font-semibold text-neutral-700 dark:text-white border-r border-black/10 dark:border-white/10">Total Mois</td>
               {leafColumns.map((leaf) => {
-                let count = 0;
+                const count = countForAllDays(leaf.id);
                 let duration = 0;
                 Object.keys(aggregates.daily).forEach((key) => {
                   const cell = aggregates.daily[key]?.[leaf.id];
                   if (cell) {
-                    count += cell.count;
                     duration += cell.duration;
                   }
                 });
                 return (
                   <React.Fragment key={`month-total-${leaf.id}`}>
-                    <td className="px-2 py-1.5 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10">{count || ''}</td>
-                    <td className="px-2 py-1.5 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10">
-                      {duration ? formatDurationHeureMinute(duration) : ''}
-                    </td>
+                    {activeRecapMetrics.map((metric) => (
+                      <td
+                        key={`month-total-${leaf.id}-${metric}`}
+                        className="px-2 py-1.5 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10"
+                      >
+                        {metric === 'count'
+                          ? (count || '')
+                          : (duration ? formatDurationHeureMinute(duration) : '')}
+                      </td>
+                    ))}
                   </React.Fragment>
                 );
               })}
@@ -946,12 +1119,11 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                 let totalCount = 0;
                 let totalDuration = 0;
                 leafColumns.forEach((leaf: any) => {
-                  let count = 0;
+                  const count = countForAllDays(leaf.id);
                   let duration = 0;
                   Object.keys(aggregates.daily).forEach((key) => {
                     const cell = aggregates.daily[key]?.[leaf.id];
                     if (cell) {
-                      count += cell.count;
                       duration += cell.duration;
                     }
                   });
@@ -959,9 +1131,16 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                   totalDuration += duration;
                 });
                 const perCollection = getMonthCollectionTotals();
+                const summaryParts = [] as string[];
+                if (activeRecapMetrics.includes('count')) {
+                  summaryParts.push(`${totalCount || 0} projet(s)`);
+                }
+                if (activeRecapMetrics.includes('duration')) {
+                  summaryParts.push(totalDuration ? formatDurationHeureMinute(totalDuration) : '0h00');
+                }
                 return [
                   <td key="total-count" className="px-2 py-1.5 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10 font-bold" colSpan={totalColSpan}>
-                    {totalCount || 0} projet(s) - {totalDuration ? formatDurationHeureMinute(totalDuration) : '0h00'}
+                    {summaryParts.join(' - ') || '0'}
                   </td>,
                   <td key="total-by-collection" className="px-2 py-1.5 text-left text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10" colSpan={perCollectionColSpan}>
                     <div className="flex flex-wrap gap-2">
@@ -997,25 +1176,13 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     return targetProps.find((p: any) => p.type === 'date' || p.type === 'date_range') || null;
   };
 
-  const filterItemsByMonth = (items: any[], dateField: any) => {
-    if (!monthStart || !monthEnd) return items;
+  const filterItemsByPeriod = (items: any[], dateField: any) => {
+    if (!periodStart || !periodEnd) return items;
     if (!dateField) return [];
     return (items || []).filter((item: any) => {
-      const value = item?.[dateField.id];
-      if (!value) return false;
-      if (dateField.type === 'date') {
-        const d = new Date(value);
-        if (Number.isNaN(d.getTime())) return false;
-        return d >= monthStart && d <= monthEnd;
-      }
-      if (dateField.type === 'date_range') {
-        if (!value?.start || !value?.end) return false;
-        const start = new Date(value.start);
-        const end = new Date(value.end);
-        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
-        return start <= monthEnd && end >= monthStart;
-      }
-      return false;
+      const endDate = getItemEndDate(item, dateField);
+      if (!endDate) return false;
+      return endDate >= periodStart && endDate <= periodEnd;
     });
   };
 
@@ -1070,8 +1237,8 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         const rootFilteredItems = predicates.length
           ? baseItems.filter((item: any) => predicates.some((fn) => fn(item)))
           : baseItems;
-        const monthItems = filterItemsByMonth(rootFilteredItems, dateField);
-        if (!monthItems.length) return null;
+        const periodItems = filterItemsByPeriod(rootFilteredItems, dateField);
+        if (!periodItems.length) return null;
         const orderedProperties = getOrderedProperties(targetCollection, null);
         const titleParts = [targetCollection.name || 'Sans nom'];
         if (rootNode?.label) titleParts.push(rootNode.label);
@@ -1079,16 +1246,16 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           key: rootNode.id || targetCollection.id,
           title: titleParts.join(' · '),
           collection: targetCollection,
-          items: monthItems,
+          items: periodItems,
           orderedProperties,
           dateFieldLabel: dateField?.name,
         };
       })
       .filter(Boolean);
-  }, [dashboard, collections, dashboardFilters, monthStart, monthEnd]);
+  }, [dashboard, collections, dashboardFilters, periodStart, periodEnd]);
 
   const groupedWeeks = useMemo(() => {
-    if (!dashboard?.month || !dashboard?.year) return [];
+    if (!dashboard?.month || !dashboard?.year || periodScope !== 'month') return [];
     const year = dashboard.year;
     const month = dashboard.month - 1; // JS: 0 = janvier
     const firstDay = new Date(year, month, 1);
@@ -1115,7 +1282,265 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       weekNum++;
     }
     return weeks;
-  }, [dashboard?.month, dashboard?.year]);
+  }, [dashboard?.month, dashboard?.year, periodScope]);
+
+  const groupedMonths = useMemo(() => {
+    if (!dashboard?.year || periodScope !== 'year') return [];
+    return Array.from({ length: 12 }).map((_, idx) => ({
+      month: idx,
+      label: MONTH_NAMES[idx],
+    }));
+  }, [dashboard?.year, periodScope]);
+
+  const renderYearTable = () => {
+    if (!aggregates) return null;
+    const remainingCols = leafColumns.length * metricsPerLeaf;
+    const totalColSpan = Math.max(1, Math.ceil(remainingCols / 2));
+    const perCollectionColSpan = Math.max(1, remainingCols - totalColSpan);
+    const yearLabel = dashboard.year;
+    const rootGroups = (dashboard.columnTree || []).map((rootNode: any) => {
+      const leaves = getLeavesWithPath([rootNode]);
+      return {
+        node: rootNode,
+        leafIds: leaves.map((leaf: any) => leaf.id),
+        colSpan: Math.max(1, leaves.length * metricsPerLeaf),
+      };
+    });
+
+    const totalsByMonthAndLeaf = (monthIndex: number, leafId: string) => {
+      let count = 0;
+      let duration = 0;
+      Object.keys(aggregates.daily).forEach((key) => {
+        const [y, m] = key.split('-');
+        if (Number(y) !== yearLabel) return;
+        if (Number(m) !== monthIndex + 1) return;
+        const cell = aggregates.daily[key]?.[leafId];
+        if (cell) {
+          count += getDisplayCountForDay(leafId, key);
+          duration += cell.duration;
+        }
+      });
+      return { count, duration };
+    };
+
+    const totalsByMonthAndRoot = (monthIndex: number, leafIds: string[]) => {
+      let count = 0;
+      let duration = 0;
+      Object.keys(aggregates.daily).forEach((key) => {
+        const [y, m] = key.split('-');
+        if (Number(y) !== yearLabel) return;
+        if (Number(m) !== monthIndex + 1) return;
+        leafIds.forEach((leafId) => {
+          const cell = aggregates.daily[key]?.[leafId];
+          if (cell) {
+            count += getDisplayCountForDay(leafId, key);
+            duration += cell.duration;
+          }
+        });
+      });
+      return { count, duration };
+    };
+
+    const getYearCollectionTotals = () => {
+      const totals = new Map<string, { name: string; count: number; duration: number }>();
+      Object.keys(aggregates.daily || {}).forEach((key) => {
+        leafColumns.forEach((leaf: any) => {
+          const collectionId = getLeafCollectionId(leaf) || dashboard?.sourceCollectionId;
+          if (!collectionId) return;
+          const collectionName = collections.find((c: any) => c.id === collectionId)?.name || 'Collection';
+          if (!totals.has(collectionId)) {
+            totals.set(collectionId, { name: collectionName, count: 0, duration: 0 });
+          }
+          const entry = totals.get(collectionId)!;
+          entry.count += getDisplayCountForDay(leaf.id, key);
+          const cell = aggregates.daily[key]?.[leaf.id];
+          if (cell && cell.duration) {
+            entry.duration += cell.duration;
+          }
+        });
+      });
+      return Array.from(totals.values());
+    };
+
+    return (
+      <div className="overflow-auto rounded-xl border border-black/5 dark:border-white/10 shadow-sm bg-white/70 dark:bg-neutral-900/50 backdrop-blur">
+        <table className="min-w-full text-xs table-fixed">
+          <colgroup>
+            <col style={{ width: '140px' }} />
+            {leafColumns.map((_, i) => (
+              <col key={`year-${i}-metric`} style={{ width: '100px' }} />
+            ))}
+          </colgroup>
+          <thead className="bg-neutral-100/90 dark:bg-neutral-900/70 text-neutral-700 dark:text-neutral-300">
+            {(() => {
+              const headerRows = getTableHeaderRows();
+              return (
+                <>
+                  <tr>
+                    <th
+                      className="px-2 py-1.5 text-left border-b border-black/15 dark:border-white/15 whitespace-nowrap"
+                      rowSpan={headerRows.length}
+                    >
+                      Année {yearLabel}
+                    </th>
+                    {headerRows[0].map((cell: any, i: number) => {
+                      const tone = getCollectionTone(cell?.node?.collectionId || dashboard?.sourceCollectionId);
+                      return (
+                        <th
+                          key={i}
+                          colSpan={cell.colSpan}
+                          rowSpan={cell.rowSpan}
+                          className={`px-2 py-1.5 text-center border-b border-l border-black/10 dark:border-white/10 ${cell.isLeaf ? tone.soft : tone.strong}`}
+                        >
+                          {cell.label}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                  {headerRows.slice(1).map((row, rowIdx) => (
+                    <tr key={rowIdx + 1}>
+                      {row.map((cell: any, i: number) => {
+                        const tone = getCollectionTone(cell?.node?.collectionId || dashboard?.sourceCollectionId);
+                        return (
+                          <th
+                            key={i}
+                            colSpan={cell.colSpan}
+                            rowSpan={cell.rowSpan}
+                            className={`px-2 py-1.5 text-center border-b border-l border-black/10 dark:border-white/10 ${cell.isLeaf ? tone.soft : tone.strong}`}
+                          >
+                            {cell.label}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  <tr className="bg-neutral-100/90 dark:bg-neutral-900/70 text-neutral-700 dark:text-neutral-300">
+                    <th className="px-2 py-1 text-left border-b border-black/15 dark:border-white/15">Mois</th>
+                    {leafColumns.map((leaf: any) => (
+                      <React.Fragment key={leaf.id + '-year-metrics'}>
+                        {(() => {
+                          const tone = getCollectionTone(getLeafCollectionId(leaf));
+                          return (
+                            <>
+                              {activeRecapMetrics.map((metric) => (
+                                <th
+                                  key={`${leaf.id}-year-${metric}`}
+                                  className={`px-2 py-1 text-left border-b border-l border-black/10 dark:border-white/10 ${tone.soft}`}
+                                >
+                                  {metric === 'count' ? 'Nombre' : 'Durée'}
+                                </th>
+                              ))}
+                            </>
+                          );
+                        })()}
+                      </React.Fragment>
+                    ))}
+                  </tr>
+                </>
+              );
+            })()}
+          </thead>
+          <tbody>
+            {groupedMonths.map((month) => (
+              <React.Fragment key={`year-row-${month.month}`}>
+                <tr className="border-b border-black/10 dark:border-white/10 odd:bg-neutral-50/80 dark:odd:bg-white/5">
+                  <td className="px-2 py-1.5 text-neutral-700 dark:text-white border-r border-black/10 dark:border-white/10">
+                    {month.label}
+                  </td>
+                  {leafColumns.map((leaf) => {
+                    const totals = totalsByMonthAndLeaf(month.month, leaf.id);
+                    return (
+                      <React.Fragment key={`year-${month.month}-${leaf.id}`}>
+                        {activeRecapMetrics.map((metric) => (
+                          <td
+                            key={`year-${month.month}-${leaf.id}-${metric}`}
+                            className="px-2 py-1.5 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10"
+                          >
+                            {metric === 'count'
+                              ? (totals.count || '')
+                              : (totals.duration ? formatDurationHeureMinute(totals.duration) : '')}
+                          </td>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
+                </tr>
+                {rootGroups.length > 0 && (
+                  <tr className="bg-neutral-100/70 dark:bg-neutral-900/40">
+                    <td className="px-2 py-1.5 text-neutral-600 dark:text-neutral-300 border-r border-black/10 dark:border-white/10 text-xs">
+                      Total {month.label}
+                    </td>
+                    {rootGroups.map((group) => {
+                      const groupCollectionId = group.node?.collectionId || dashboard.sourceCollectionId;
+                      const groupCollectionName = collections.find((c: any) => c.id === groupCollectionId)?.name || 'Collection';
+                      const totals = totalsByMonthAndRoot(month.month, group.leafIds);
+                      const summaryParts = [] as string[];
+                      if (activeRecapMetrics.includes('count')) {
+                        summaryParts.push(`${totals.count || 0} ${groupCollectionName}`);
+                      }
+                      if (activeRecapMetrics.includes('duration')) {
+                        summaryParts.push(totals.duration ? formatDurationHeureMinute(totals.duration) : '0h00');
+                      }
+                      return (
+                        <td
+                          key={`year-total-${month.month}-${group.node?.id}`}
+                          colSpan={group.colSpan}
+                          className="px-2 py-1.5 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10 text-xs"
+                        >
+                          {summaryParts.join(' - ') || '0'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+            <tr className="bg-neutral-100/90 dark:bg-neutral-900/60">
+              <td className="px-2 py-1.5 font-bold text-neutral-700 dark:text-white border-r border-black/10 dark:border-white/10" colSpan={2}>Total année</td>
+              {(() => {
+                let totalCount = 0;
+                let totalDuration = 0;
+                leafColumns.forEach((leaf: any) => {
+                  Object.keys(aggregates.daily).forEach((key) => {
+                    const cell = aggregates.daily[key]?.[leaf.id];
+                    if (cell) {
+                      totalDuration += cell.duration;
+                      totalCount += getDisplayCountForDay(leaf.id, key);
+                    }
+                  });
+                });
+                const perCollection = getYearCollectionTotals();
+                const summaryParts = [] as string[];
+                if (activeRecapMetrics.includes('count')) {
+                  summaryParts.push(`${totalCount || 0} projet(s)`);
+                }
+                if (activeRecapMetrics.includes('duration')) {
+                  summaryParts.push(totalDuration ? formatDurationHeureMinute(totalDuration) : '0h00');
+                }
+                return [
+                  <td key="year-total" className="px-2 py-1.5 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10 font-bold" colSpan={totalColSpan}>
+                    {summaryParts.join(' - ') || '0'}
+                  </td>,
+                  <td key="year-by-collection" className="px-2 py-1.5 text-left text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10" colSpan={perCollectionColSpan}>
+                    <div className="flex flex-wrap gap-2">
+                      {perCollection.length === 0 && (
+                        <span className="text-neutral-500">Aucune collection</span>
+                      )}
+                      {perCollection.map((col) => (
+                        <span key={col.name} className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-neutral-700 dark:text-white text-xs border border-indigo-500/20">
+                          {col.name} · {col.count} · {formatDurationHeureMinute(col.duration)}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                ];
+              })()}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
     <div className="flex-1 flex flex-col gap-4 p-4 overflow-auto bg-gradient-to-b from-white/70 via-white/50 to-transparent dark:from-neutral-950/40 dark:via-neutral-950/20">
@@ -1169,6 +1594,57 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
               </button>
             ))}
           </div>
+          <div className="inline-flex rounded-full bg-white/60 dark:bg-white/5 p-1 border border-black/10 dark:border-white/10">
+            {([
+              { key: 'month', label: 'Mensuel' },
+              { key: 'year', label: 'Annuel' },
+            ] as const).map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => onUpdate({ periodScope: option.key })}
+                className={
+                  'px-3 py-1 text-xs rounded-full transition-all ' +
+                  (periodScope === option.key
+                    ? 'bg-violet-500/30 text-violet-700 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
+                }
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {viewType === 'recap' && (
+            <div className="inline-flex rounded-full bg-white/60 dark:bg-white/5 p-1 border border-black/10 dark:border-white/10">
+              {([
+                { key: 'count', label: 'Nombre' },
+                { key: 'duration', label: 'Durée' },
+              ] as const).map((option) => {
+                const isActive = activeRecapMetrics.includes(option.key);
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => {
+                      if (isActive && activeRecapMetrics.length === 1) return;
+                      const next = (isActive
+                        ? activeRecapMetrics.filter((m) => m !== option.key)
+                        : [...activeRecapMetrics, option.key]) as Array<'count' | 'duration'>;
+                      onUpdate({ recapMetrics: next });
+                    }}
+                    className={
+                      'px-3 py-1 text-xs rounded-full transition-all ' +
+                      (isActive
+                        ? 'bg-violet-500/30 text-violet-700 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                        : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
+                    }
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <select
             value={dashboard.month}
             onChange={(e) => onUpdate({ month: Number(e.target.value) })}
@@ -1199,11 +1675,15 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       <div className="flex-1 text-neutral-700 dark:text-neutral-200">
         <div className="space-y-10 rounded-xl p-4">
           {viewType === 'recap' ? (
-            <DashboardRecapView
-              groupedWeeks={groupedWeeks}
-              renderWeekTable={renderWeekTable}
-              renderMonthTotals={renderMonthTotals}
-            />
+            periodScope === 'year' ? (
+              renderYearTable()
+            ) : (
+              <DashboardRecapView
+                groupedWeeks={groupedWeeks}
+                renderWeekTable={renderWeekTable}
+                renderMonthTotals={renderMonthTotals}
+              />
+            )
           ) : (
             <DashboardTableView
               sections={tableSections}

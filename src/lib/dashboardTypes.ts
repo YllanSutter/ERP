@@ -21,6 +21,8 @@ export interface MonthlyDashboardConfig {
   month: number;
   includeWeekends: boolean;
   viewType?: 'recap' | 'table';
+  periodScope?: 'month' | 'year';
+  recapMetrics?: Array<'count' | 'duration'>;
   tableHiddenFieldsBySection?: Record<string, string[]>;
   typeField: string | null;
   globalDateField?: string | null;
