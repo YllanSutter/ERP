@@ -733,7 +733,9 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                         : `group relative overflow-visible px-2 py-1.5 text-right text-neutral-700 dark:text-white border-l border-black/10 dark:border-white/10 max-w-[130px] bg-white/70 dark:bg-neutral-900/30${hasObject ? ' bg-white/80 dark:bg-white/10' : ''}`;
                       // Afficher tous les items avec leur menu contextuel
                       const renderCellWithMenu = (content: React.ReactNode, className: string) => {
-                        if (!onShowNewItemModalForCollection) {
+                        const hasItems = itemsInCell.length > 0;
+                        const shouldWrap = Boolean(onShowNewItemModalForCollection || hasItems);
+                        if (!shouldWrap) {
                           return <td className={className}>{content}</td>;
                         }
                         return (
@@ -742,9 +744,26 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                               <td className={className}>{content}</td>
                             </ContextMenuTrigger>
                             <ContextMenuContent>
-                              <ContextMenuItem onSelect={() => handleCreateItemFromCell(leaf, day)}>
-                                Créer un objet
-                              </ContextMenuItem>
+                              {hasItems && (
+                                <>
+                                  {itemsInCell.map((item: any) => (
+                                    <ContextMenuItem
+                                      key={item.id}
+                                      onSelect={() => onViewDetail({ ...item, _collection: item._collection })}
+                                    >
+                                      {getNameValueUtil(item, item._collection)}
+                                    </ContextMenuItem>
+                                  ))}
+                                </>
+                              )}
+                              {onShowNewItemModalForCollection && (
+                                <>
+                                  {hasItems && <div className="my-1 h-px bg-neutral-700" />}
+                                  <ContextMenuItem onSelect={() => handleCreateItemFromCell(leaf, day)}>
+                                    Créer un objet
+                                  </ContextMenuItem>
+                                </>
+                              )}
                             </ContextMenuContent>
                           </ContextMenu>
                         );
