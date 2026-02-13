@@ -43,17 +43,17 @@ const TableHeader: React.FC<TableHeaderProps> = ({
               <ContextMenuTrigger asChild>
                 <th
                   className={
-                    "px-6 py-3 text-left text-xs font-medium text-neutral-600 dark:text-white uppercase tracking-wider border-b border-r border-[#ffffff10] cursor-pointer select-none transition hover:bg-violet-100/30 dark:hover:bg-violet-900/10" +
+                    "px-3 py-2 text-left text-[11px] font-medium text-neutral-600 dark:text-white uppercase tracking-wider border-b border-r border-[#ffffff10] cursor-pointer select-none transition hover:bg-violet-100/30 dark:hover:bg-violet-900/10" +
                     (isSorted ? ' bg-violet-200/40 dark:bg-violet-900/30' : '')
                   }
                   onClick={() => onSort && onSort(prop.id)}
                 >
-                  <div className="flex items-center gap-2 font-black">
-                    <PropIcon size={14} />
+                  <div className="flex items-center gap-1.5 font-black leading-tight">
+                    <PropIcon size={12} />
                     {prop.name}
                     {isSorted && (
                       <span className="ml-1">
-                        {sortState && sortState.direction === 'asc' ? <Icons.ChevronUp size={13} /> : <Icons.ChevronDown size={13} />}
+                        {sortState && sortState.direction === 'asc' ? <Icons.ChevronUp size={12} /> : <Icons.ChevronDown size={12} />}
                       </span>
                     )}
                   </div>

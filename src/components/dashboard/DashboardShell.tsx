@@ -3,6 +3,8 @@ const FilterModal = React.lazy(() => import('@/components/modals/FilterModal'));
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { DashboardColumnNode, MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 import DashboardColumnConfig from './DashboardColumnConfig';
+import DashboardTableView from './DashboardTableView';
+import DashboardRecapView from './DashboardRecapView';
 import {
   getMonday,
   MONTH_NAMES,
@@ -11,7 +13,7 @@ import {
   workDayEnd,
   workDayStart,
 } from '@/lib/calendarUtils';
-import { getFilteredItems } from '@/lib/filterUtils';
+import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -23,6 +25,7 @@ interface DashboardShellProps {
   dashboard: MonthlyDashboardConfig | null;
   collections: any[];
   onUpdate: (patch: Partial<MonthlyDashboardConfig>) => void;
+  onEdit?: (item: any) => void;
   onViewDetail: (item: any) => void;
   onDelete: (id: string) => void;
   dashboardFilters: Record<string, any[]>;
@@ -74,7 +77,7 @@ function itemMatchesTypeValues(itemValue: any, typeValues: string[], fieldType?:
   };
 
 
-const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onViewDetail, onDelete, dashboardFilters, setDashboardFilters, onShowNewItemModalForCollection }) => {
+const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onEdit, onViewDetail, onDelete, dashboardFilters, setDashboardFilters, onShowNewItemModalForCollection }) => {
       if (!dashboard) {
         return (
           <div className="flex items-center justify-center h-full text-neutral-500">
@@ -83,6 +86,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         );
       }
       const [showFilterModal, setShowFilterModal] = useState(false);
+      const viewType = dashboard.viewType || 'recap';
 
       const handleAddFilter = (property: string, operator: string, value: any) => {
         if (!dashboard || !dashboardFilters || !setDashboardFilters) return;
@@ -129,6 +133,16 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     });
     return map;
   }, [collections]);
+
+  const monthStart = useMemo(() => {
+    if (!dashboard?.year || !dashboard?.month) return null;
+    return new Date(dashboard.year, dashboard.month - 1, 1, 0, 0, 0, 0);
+  }, [dashboard?.year, dashboard?.month]);
+
+  const monthEnd = useMemo(() => {
+    if (!dashboard?.year || !dashboard?.month) return null;
+    return new Date(dashboard.year, dashboard.month, 0, 23, 59, 59, 999);
+  }, [dashboard?.year, dashboard?.month]);
 
   const getCollectionTone = (collectionId?: string) => {
     const palette = [
@@ -522,6 +536,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
     return { daily, spansByLeaf, spansByLeafDay, dailyObjectDurations };
   }, [dashboard, collection, collections, properties, filteredItems, leafColumns, resolvedTypeField]);
+
 
   if (!dashboard) {
     return (
@@ -969,6 +984,109 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     );
   };
 
+  const getCollectionDateField = (targetCollection: any, rootNode?: any) => {
+    const targetProps = targetCollection?.properties || [];
+    if (rootNode?.dateFieldId) {
+      const rootDate = targetProps.find((p: any) => p.id === rootNode.dateFieldId);
+      if (rootDate) return rootDate;
+    }
+    if (dashboard?.globalDateField) {
+      const globalProp = targetProps.find((p: any) => p.id === dashboard.globalDateField);
+      if (globalProp) return globalProp;
+    }
+    return targetProps.find((p: any) => p.type === 'date' || p.type === 'date_range') || null;
+  };
+
+  const filterItemsByMonth = (items: any[], dateField: any) => {
+    if (!monthStart || !monthEnd) return items;
+    if (!dateField) return [];
+    return (items || []).filter((item: any) => {
+      const value = item?.[dateField.id];
+      if (!value) return false;
+      if (dateField.type === 'date') {
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return false;
+        return d >= monthStart && d <= monthEnd;
+      }
+      if (dateField.type === 'date_range') {
+        if (!value?.start || !value?.end) return false;
+        const start = new Date(value.start);
+        const end = new Date(value.end);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+        return start <= monthEnd && end >= monthStart;
+      }
+      return false;
+    });
+  };
+
+  const buildNodeFilters = (node: any, props: any[]) => {
+    const filters: { field: string; values: string[]; type?: string }[] = [];
+    if (node?.filterField && Array.isArray(node.typeValues) && node.typeValues.length > 0) {
+      const prop = props.find((p: any) => p.id === node.filterField);
+      filters.push({ field: node.filterField, values: node.typeValues, type: prop?.type });
+    }
+    if (node?.groupField && node.groupValue) {
+      const prop = props.find((p: any) => p.id === node.groupField);
+      filters.push({ field: node.groupField, values: [node.groupValue], type: prop?.type });
+    }
+    return filters;
+  };
+
+  const matchesFilters = (item: any, filters: { field: string; values: string[]; type?: string }[]) => {
+    if (!filters.length) return true;
+    return filters.every((filter) => itemMatchesTypeValues(item?.[filter.field], filter.values, filter.type));
+  };
+
+  const buildRootGroupPredicates = (rootNode: any, props: any[]) => {
+    const leaves = getLeavesWithPath([rootNode]);
+    if (!leaves.length) return [] as ((item: any) => boolean)[];
+    return leaves.map((leaf: any) => {
+      const pathNodes = [...(leaf._parentPath || []), leaf];
+      const filters = pathNodes.flatMap((node) => buildNodeFilters(node, props));
+      return (item: any) => matchesFilters(item, filters);
+    });
+  };
+
+  const tableSections = useMemo(() => {
+    if (!dashboard) return [] as any[];
+    const filters = dashboardFilters?.[dashboard.id] || [];
+    const fakeViewConfig = { filters } as any;
+    return (dashboard.columnTree || [])
+      .map((rootNode: any) => {
+        const targetCollectionId = rootNode?.collectionId || dashboard.sourceCollectionId;
+        const targetCollection = collections.find((c: any) => c.id === targetCollectionId);
+        if (!targetCollection) return null;
+        const targetProps = targetCollection?.properties || [];
+        const dateField = getCollectionDateField(targetCollection, rootNode);
+        if (!dateField) return null;
+        const baseItems = getFilteredItems(
+          targetCollection,
+          fakeViewConfig,
+          { collectionId: null, ids: [] },
+          targetCollection.id,
+          collections
+        );
+        const predicates = buildRootGroupPredicates(rootNode, targetProps);
+        const rootFilteredItems = predicates.length
+          ? baseItems.filter((item: any) => predicates.some((fn) => fn(item)))
+          : baseItems;
+        const monthItems = filterItemsByMonth(rootFilteredItems, dateField);
+        if (!monthItems.length) return null;
+        const orderedProperties = getOrderedProperties(targetCollection, null);
+        const titleParts = [targetCollection.name || 'Sans nom'];
+        if (rootNode?.label) titleParts.push(rootNode.label);
+        return {
+          key: rootNode.id || targetCollection.id,
+          title: titleParts.join(' · '),
+          collection: targetCollection,
+          items: monthItems,
+          orderedProperties,
+          dateFieldLabel: dateField?.name,
+        };
+      })
+      .filter(Boolean);
+  }, [dashboard, collections, dashboardFilters, monthStart, monthEnd]);
+
   const groupedWeeks = useMemo(() => {
     if (!dashboard?.month || !dashboard?.year) return [];
     const year = dashboard.year;
@@ -1031,6 +1149,26 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <div className="inline-flex rounded-full bg-white/60 dark:bg-white/5 p-1 border border-black/10 dark:border-white/10">
+            {([
+              { key: 'recap', label: 'Récap complet' },
+              { key: 'table', label: 'Tableau' },
+            ] as const).map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => onUpdate({ viewType: option.key })}
+                className={
+                  'px-3 py-1 text-xs rounded-full transition-all ' +
+                  (viewType === option.key
+                    ? 'bg-violet-500/30 text-violet-700 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
+                }
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
           <select
             value={dashboard.month}
             onChange={(e) => onUpdate({ month: Number(e.target.value) })}
@@ -1060,8 +1198,23 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
       <div className="flex-1 text-neutral-700 dark:text-neutral-200">
         <div className="space-y-10 rounded-xl p-4">
-          {groupedWeeks.map((week) => renderWeekTable(week))}
-          {renderMonthTotals()}
+          {viewType === 'recap' ? (
+            <DashboardRecapView
+              groupedWeeks={groupedWeeks}
+              renderWeekTable={renderWeekTable}
+              renderMonthTotals={renderMonthTotals}
+            />
+          ) : (
+            <DashboardTableView
+              sections={tableSections}
+              collections={collections}
+              hiddenBySection={dashboard.tableHiddenFieldsBySection || {}}
+              onChangeHiddenBySection={(next) => onUpdate({ tableHiddenFieldsBySection: next })}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onViewDetail={onViewDetail}
+            />
+          )}
         </div>
       </div>
 

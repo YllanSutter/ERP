@@ -40,7 +40,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
   canEdit,
   canEditField,
   collection,
-  paddingLeft = 24,
+  paddingLeft = 16,
   animate = true,
 }) => {
   const RowComponent = animate ? motion.tr : 'tr';
@@ -62,12 +62,12 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
       <ContextMenuTrigger asChild>
         <RowComponent
           {...motionProps}
-          className="hover:bg-white/5 transition-colors border-b border-black/5 dark:border-white/5 cursor-context-menu"
+          className="hover:bg-white/5 transition-colors border-b border-black/5 dark:border-white/5 cursor-context-menu leading-tight"
         >
           {displayProperties.map((prop: any, index: number) => (
             <td
               key={prop.id}
-              className="px-3 py-2 whitespace-nowrap text-sm text-neutral-700 dark:text-neutral-300 relative"
+              className="px-2 py-1 whitespace-nowrap text-xs text-neutral-700 dark:text-neutral-300 relative"
               style={index === 0 ? { paddingLeft: `${paddingLeft}px` } : undefined}
             >
               <EditableProperty

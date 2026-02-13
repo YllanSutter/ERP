@@ -435,6 +435,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
               dashboard={activeDashboardConfig}
               collections={collections}
               onUpdate={(patch) => activeDashboard && handleUpdateDashboard(activeDashboard, patch)}
+              onEdit={(item: any) => itemHooks.updateItem(item)}
               onViewDetail={(item: any) => {
                 const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
                 setEditingItem(item);

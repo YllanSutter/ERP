@@ -20,6 +20,8 @@ export interface MonthlyDashboardConfig {
   year: number;
   month: number;
   includeWeekends: boolean;
+  viewType?: 'recap' | 'table';
+  tableHiddenFieldsBySection?: Record<string, string[]>;
   typeField: string | null;
   globalDateField?: string | null;
   globalDateRange?: { startField: string | null; endField: string | null };
