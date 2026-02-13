@@ -200,22 +200,6 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       transition={{ delay: 0.15 }}
       className="relative border-b border-black/5 dark:border-white/5bg-neutral-900/30 backdrop-blur px-8 py-4 z-10"
     >
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <IconComponent size={18} style={{ color: '#fff' }} />
-          <h2 className="text-xl font-bold">{currentCollection?.name || 'Aucune collection'}</h2>
-        </div>
-        <ShinyButton
-          onClick={() => {
-            if (!canEdit) return;
-            onShowNewItemModal();
-          }}
-          className={!canEdit ? 'opacity-60 pointer-events-none' : ''}
-        >
-          <Plus size={16} />
-          Nouveau
-        </ShinyButton>
-      </div>
 
       <div className="flex items-center gap-2 mb-4">
         {currentViews.map((view: any, i: number) => {
@@ -237,7 +221,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                       }, 100);
                     }}
                     className={cn(
-                      'px-4 py-2 pr-9 rounded-lg text-sm font-medium transition-all relative inline-flex items-center duration-300',
+                      'px-4 py-2 pr-9 rounded-lg text-xs font-medium transition-all relative inline-flex items-center duration-300',
                       activeView === view.id
                         ? 'bg-gradient-to-r from-violet-600 to-cyan-600 text-white shadow-lg'
                         : 'bg-black/5 dark:bg-white/5 text-neutral-400 hover:bg-white/10'
@@ -261,7 +245,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     )}
                     title={isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
                   >
-                    <Star size={14} fill={isFavorite ? "currentColor" : "none"} />
+                    <Star size={12} fill={isFavorite ? "currentColor" : "none"} />
                   </button>
                   {currentViews.length > 1 && activeView === view.id && (
                     <button
@@ -326,7 +310,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             onClick={() => canEdit && onShowNewViewModal()}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-black/5 dark:bg-white/5 text-neutral-400 hover:bg-white/10 duration-300 transition-all"
+            className="px-4 py-2 rounded-lg text-xs font-medium bg-black/5 dark:bg-white/5 text-neutral-400 hover:bg-white/10 duration-300 transition-all"
             disabled={!canEdit}
           >
             <Plus size={14} className="inline mr-1" />

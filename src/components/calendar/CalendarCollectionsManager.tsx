@@ -218,7 +218,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   return (
     <div>
       <div className="sticky md:relative top-0 z-10 mb-6">
-        <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between md:flex-wrap">
+        <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between md:flex-wrap lg:pl-[50px]">
           <h2 className="text-2xl font-bold text-white">
           {viewMode === 'month'
             ? `${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getFullYear()}`

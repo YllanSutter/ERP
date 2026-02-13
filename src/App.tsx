@@ -357,7 +357,8 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
 
       <AppHeader
         impersonatedRoleId={impersonatedRoleId}
-        availableRoles={availableRoles}
+        availableRoles={availableRoles.length ? availableRoles : userRoles || []}
+        activeCollectionName={currentCollection?.name || null}
         onNewCollection={() => setShowNewCollectionModal(true)}
         onImpersonate={impersonate}
         onShowAccessManager={() => setShowAccessManager(true)}
