@@ -230,10 +230,10 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:items-center md:flex-wrap">
             {showCollectionsSelector && (
               <details className="relative w-full sm:w-auto">
-                <summary className="list-none cursor-pointer select-none px-3 py-2 rounded-lg text-sm font-medium bg-black/10 dark:bg-white/5 text-neutral-700  dark:text-neutral-300 hover:bg-white/10 transition-all">
+                <summary className="list-none cursor-pointer select-none px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-white/5 text-neutral-700  dark:text-neutral-300 hover:bg-gray-200 transition-all duration-300">
                   Collections affichées
                 </summary>
-                <div className="absolute left-0 mt-2 w-[min(90vw,520px)] max-h-[60vh] overflow-auto rounded-xl border border-white/10 bg-neutral-950/95 p-4 shadow-xl backdrop-blur z-20">
+                <div className="absolute left-0 mt-2 w-[min(90vw,520px)] max-h-[60vh] overflow-auto rounded-xl border border-black/10 dark:border-white/10 bg-background dark:bg-neutral-950/95 p-4 shadow-xl backdrop-blur z-20">
                   <div className="space-y-4">
                     {collectionsWithDate.map((collection) => {
                       const dateOptions = collection.properties.filter(
@@ -254,7 +254,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-xs text-neutral-400">Temps</span>
                             <select
-                              className="bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
+                              className="bg-gray-100 dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
                               value={dateFields[collection.id] || ''}
                               onChange={(e) => onChangeDateField(collection.id, e.target.value)}
                               disabled={!isSelected || dateOptions.length === 0}
@@ -269,7 +269,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                               ))}
                             </select>
                             <select
-                              className="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm"
+                              className="bg-gray-100 border border-white/10 rounded px-2 py-1 text-sm"
                               value={collectionRoles[collection.id] || 'default'}
                               onChange={(e) => onChangeCollectionRole?.(collection.id, e.target.value as 'primary' | 'secondary' | 'default')}
                               disabled={!isSelected}
@@ -287,7 +287,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               </details>
             )}
             <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto md:flex-col lg:flex-row">
-              <div className="inline-flex rounded-full bg-white/5 p-1 border border-white/10 sm:w-auto">
+              <div className="inline-flex rounded-full bg-white/5 p-1 border border-black/10  dark:border-white/10 sm:w-auto">
                 {([
                   { key: 'month', label: 'Mois' },
                   { key: 'week', label: 'Semaine' },
@@ -300,8 +300,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                     className={
                       'px-3 py-1 text-xs rounded-full transition-all ' +
                       (viewMode === option.key
-                        ? 'bg-violet-500/30 text-violet-100 border border-violet-400/40 shadow-sm'
-                        : 'text-neutral-400 hover:text-white hover:bg-white/5')
+                        ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                        : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
                     }
                   >
                     {option.label}
@@ -312,7 +312,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           {(viewMode === 'week' || viewMode === 'day') && (
             <div className="flex w-full flex-wrap items-center gap-2 rounded-lg px-4 py-3 sm:w-auto sm:ml-2">
               <span className="text-xs text-neutral-400">Déplacement :</span>
-              <div className="inline-flex rounded-full bg-white/5 p-1 border border-white/10">
+              <div className="inline-flex rounded-full bg-white/5 p-1 border border-black/10  dark:border-white/10">
                 {([
                   { key: 'segment', label: 'Seul' },
                   { key: 'all', label: 'Complet' },
@@ -325,8 +325,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                     className={
                       'px-3 py-1 text-xs rounded-full transition-all ' +
                       (moveMode === option.key
-                        ? 'bg-violet-500/30 text-violet-100 border border-violet-400/40 shadow-sm'
-                        : 'text-neutral-400 hover:text-white hover:bg-white/5')
+                        ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                        : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
                     }
                   >
                     {option.label}
@@ -341,7 +341,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
             </button>
             <button
               onClick={() => setCurrentDate(new Date())}
-              className="px-4 py-2 text-sm font-medium bg-violet-500 dark:bg-violet-500/20 hover:bg-violet-700 dark:hover:bg-violet-500/30 text-violet-200 rounded-lg transition-colors border border-violet-500/30"
+              className="px-4 text-sm font-medium bg-violet-500 dark:bg-violet-500/20 hover:bg-violet-700 dark:hover:bg-violet-500/30 text-white dark:text-violet-200 rounded-lg transition-colors border border-violet-500/30"
             >
               Aujourd'hui
             </button>

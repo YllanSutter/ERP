@@ -327,14 +327,14 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                     <div className="flex justify-end gap-2 pt-2 absolute -top-7 left-1">
                       <button
                         onClick={() => onViewDetail(item)}
-                        className="px-2 py-0.5 rounded text-xs text-neutral-700 dark:text-white bg-blue-500/20 hover:bg-blue-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
+                        className="px-2 py-0.5 rounded text-xs text-white dark:text-white bg-blue-800/50 hover:bg-blue-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
                       >
                         Éditer
                       </button>
                       {canEdit && (
                         <button
                           onClick={() => onDelete(item.id)}
-                          className="px-2 py-0.5 rounded text-xs text-neutral-700 dark:text-white bg-red-500/20 hover:bg-red-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
+                          className="px-2 py-0.5 rounded text-xs text-white bg-red-800/50 hover:bg-red-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
                         >
                           Supprimer
                         </button>

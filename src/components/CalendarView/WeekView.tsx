@@ -349,7 +349,7 @@ const WeekView: React.FC<WeekViewProps> = ({
     return { top, height };
   };
   return (
-    <div className="space-y-3 overflow-x-auto">
+    <div className="space-y-3 overflow-x-auto ">
       <div className={`grid ${weekDays.length === 1 ? 'grid-cols-[50px_minmax(0,1fr)]' : 'grid-cols-[50px_repeat(5,1fr)]'} min-w-min`}>
         <div className="w-10 text-right"></div>
         {weekDays.map((date, idx) => {
@@ -504,7 +504,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                 return (
                   <div
                     key={`${dayIndex}-${hour}`}
-                    className={cn('h-24 border-b border-l border-black/10 dark:border-white/5 transition-colors bg-background dark:bg-neutral-900/30 hover:bg-gray-100 dark:hover:bg-neutral-800/30')}
+                    className={cn('h-24 border-b border-l border-black/10 dark:border-white/5 transition-colors bg-gray-100/80 dark:bg-neutral-900/30 hover:bg-gray-100 dark:hover:bg-neutral-800/30')}
                     onMouseDown={(e) => {
                       if (e.button !== 0) return;
                       if (!secondaryCollection) return;

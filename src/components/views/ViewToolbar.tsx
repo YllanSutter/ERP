@@ -228,15 +228,15 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
           className={
             'h-8 w-8 rounded-full flex items-center justify-center border transition-all ' +
             (showToolbarTools
-              ? 'bg-violet-500/30 text-violet-100 border-violet-400/40'
-              : 'bg-black/5 dark:bg-white/5 text-neutral-400 border-black/10 dark:border-white/10 hover:bg-white/10')
+              ? 'bg-violet-500 dark:bg-violet-500/30 text-white dark:text-violet-100 border-violet-400/40'
+              : 'bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 border-black/10 dark:border-white/10 hover:bg-white/10')
           }
           title="Outils de vue"
           aria-label="Outils de vue"
         >
           <Settings size={14} />
         </button>
-        <div className="inline-flex rounded-full bg-white/5 p-1 border border-white/10">
+        <div className="inline-flex rounded-full bg-white/5 p-1 border border-black/10  dark:border-white/10">
           {viewTypeMeta
             .filter((meta) => (viewsByType.get(meta.type) || []).length > 0)
             .map((meta) => {
@@ -254,14 +254,14 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     className={
                       'px-3 py-1 text-xs rounded-full transition-all inline-flex items-center gap-1 ' +
                       (isActiveType
-                        ? 'bg-violet-500/30 text-violet-100 border border-violet-400/40 shadow-sm'
-                        : 'text-neutral-400 hover:text-white hover:bg-white/5')
+                        ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                        : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
                     }
                   >
                     <Icon size={12} />
                     {meta.label}
                   </button>
-                  <div className="absolute left-0 top-full min-w-[220px] rounded-xl border border-white/10 bg-neutral-950/95 p-2 shadow-xl backdrop-blur z-20 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto">
+                  <div className="absolute left-0 top-full min-w-[220px] rounded-xl border border-black/10 dark:border-white/10 bg-background dark:bg-neutral-950/95 p-2 shadow-xl backdrop-blur z-20 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto">
                     {/* <div className="text-[11px] uppercase tracking-wide text-neutral-500 mb-1 px-2">
                       {meta.label}
                     </div> */}
@@ -278,8 +278,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                 className={cn(
                                   'w-full text-left px-2 py-1 rounded-md text-xs transition-all',
                                   isActive
-                                    ? 'bg-violet-500/20 text-violet-100 border border-violet-400/30'
-                                    : 'text-neutral-300 hover:bg-white/10'
+                                    ? 'bg-violet-500/20 text-neutral-600 dark:text-violet-100 border border-violet-400/30'
+                                    : 'dark:text-neutral-300 text-neutral-700 hover:bg-white/10 dark:hover:bg-black/10'
                                 )}
                               >
                                 <span>{isFavorite ? '★ ' : ''}{view.name}</span>
@@ -310,7 +310,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                               {currentViews.length > 1 && (
                                 <ContextMenuItem
                                   onSelect={() => onDeleteView(view.id)}
-                                  className="gap-2 text-red-300 focus:bg-red-500/20"
+                                  className="gap-2 text-red-500 focus:bg-red-500/20"
                                 >
                                   <Icons.Trash size={14} />
                                   <span>Supprimer la vue</span>
@@ -333,7 +333,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             'h-8 w-8 rounded-full flex items-center justify-center border transition-all ' +
             (!canEdit
               ? 'opacity-60 pointer-events-none bg-black/5 dark:bg-white/5 text-neutral-400 border-black/10 dark:border-white/10'
-              : 'bg-black/5 dark:bg-white/5 text-neutral-300 border-black/10 dark:border-white/10 hover:bg-white/10')
+              : 'bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300 border-black/10 dark:border-white/10 hover:bg-white/10')
           }
           title="Nouvelle vue"
           aria-label="Nouvelle vue"
@@ -355,7 +355,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             onClick={() => canEdit && onQuickCreateItem()}
-            className="px-3 py-2 rounded-lg text-sm font-medium bg-black/10 dark:bg-white/10 text-neutral-600 dark:text-neutral-200 hover:bg-white/10 duration-300 transition-all"
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-white/10 text-neutral-600 dark:text-neutral-200 hover:bg-white/10 duration-300 transition-all"
             disabled={!canEdit}
           >
             <Zap size={14} className="inline mr-1" />
@@ -374,8 +374,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
               className="bg-background border-b border-black/15 dark:border-white/15 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-200 placeholder:text-neutral-500 focus:outline-none"
             />
             {isSearchOpen && activeCollections.length > 0 && (
-              <div className="absolute left-0 mt-2 w-[28rem] rounded-lg border border-black/10 dark:border-white/10 bg-gray-200 dark:bg-neutral-900 shadow-xl backdrop-blur z-30 p-3">
-                <div className="text-sm text-neutral-500 mb-2">
+              <div className="absolute left-0 mt-2 w-[28rem] rounded-lg border border-black/10 dark:border-white/10 bg-background dark:bg-neutral-900 shadow-xl backdrop-blur z-30 p-3">
+                <div className="text-sm text-neutral-700 dark:text-neutral-400 mb-2">
                   {searchQuery.trim()
                     ? 'Résultats de recherche'
                     : ''}
@@ -390,7 +390,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                         'px-2.5 py-1 rounded-md text-sm font-semibold transition-all',
                         activeSearchCollectionId === 'all'
                           ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30'
-                          : 'text-neutral-500 hover:text-neutral-300 border border-white/10'
+                          : 'text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 border border-black/10 dark:border-white/10 '
                       )}
                     >
                       Tout
@@ -405,7 +405,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                           'px-2.5 py-1 rounded-md text-sm font-semibold transition-all',
                           activeSearchCollectionId === col.id
                             ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30'
-                            : 'text-neutral-500 hover:text-neutral-300 border border-white/10'
+                            : 'text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 border border-black/10 dark:border-white/10'
                         )}
                       >
                         {col.name}
@@ -428,11 +428,11 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                           className="w-full flex items-center justify-between rounded-md px-2 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-white/10"
                         >
                           <span className="truncate">{getItemLabel(collection, item)}</span>
-                          <span className="text-[11px] text-neutral-500">{collection.name}</span>
+                          <span className="text-[11px] text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 ">{collection.name}</span>
                         </button>
                       ))
                     ) : (
-                      <div className="text-sm text-neutral-500">Aucun résultat.</div>
+                      <div className="text-sm text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 ">Aucun résultat.</div>
                     )
                   ) : searchResults.collection && searchResults.items.length > 0 ? (
                     searchResults.items.map((item: any) => (
@@ -450,7 +450,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                       </button>
                     ))
                   ) : (
-                    <div className="text-sm text-neutral-500">Aucun résultat.</div>
+                    <div className="text-sm text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 ">Aucun résultat.</div>
                   )}
                 </div>
               </div>
@@ -465,21 +465,21 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             <>
               <button
                 onClick={onShowFilterModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
               >
                 <Filter size={14} />
                 Filtrer
               </button>
               <button
                 onClick={onShowGroupModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
               >
                 <Layers size={14} />
                 Grouper
               </button>
               <button
                 onClick={() => canEdit && onShowNewPropertyModal()}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
                 disabled={!canEdit}
               >
                 <Plus size={14} />
@@ -489,7 +489,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
               <div className="relative" ref={settingsRef}>
                 <button
                   onClick={() => onSetShowViewSettings(!showViewSettings)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-black/10 dark:bg-white/5 text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
                 >
                   <Settings size={14} />
                   Paramètres
@@ -524,8 +524,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                             : [];
                           const viewable = props.filter((p: any) => canViewFieldFn(p.id, col.id));
                           return (
-                            <div key={col.id} className="rounded-lg border border-white/10 p-2">
-                              <div className="text-sm font-semibold text-neutral-500 mb-2">{col.name}</div>
+                            <div key={col.id} className="rounded-lg border border-black/10 dark:border-white/10 p-2">
+                              <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-2">{col.name}</div>
                               <div className="space-y-2">
                                 {viewable.map((prop: any) => {
                                   const isVisible = visibleIds.includes(prop.id);
@@ -553,7 +553,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                           if (!canEdit) return;
                                           onEditProperty(prop);
                                         }}
-                                        className="text-neutral-500 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
+                                        className="text-neutral-700 dark:text-neutral-300 hover:text-cyan-400 p-1 rounded hover:bg-dark/10 dark:hover:bg-white/10"
                                         title="Modifier la propriété"
                                       >
                                         <Icons.Edit2 size={14} />
@@ -562,7 +562,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                   );
                                 })}
                                 {viewable.length === 0 && (
-                                  <div className="text-sm text-neutral-500">Aucun champ visible.</div>
+                                  <div className="text-sm text-neutral-700 dark:text-neutral-300">Aucun champ visible.</div>
                                 )}
                               </div>
                             </div>
@@ -586,7 +586,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                 isDragging && 'border border-cyan-500/60'
                               )}
                             >
-                              <div className="text-neutral-500 cursor-grab">
+                              <div className="text-neutral-700 dark:text-neutral-300 cursor-grab">
                                 <Icons.GripVertical size={16} />
                               </div>
                               <div className="relative flex items-center">
@@ -597,7 +597,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                   className="peer h-4 w-4 appearance-none rounded border-2 border-black/20 dark:border-white/20 bg-background dark:bg-neutral-800 checked:bg-neutral-400  checked:border-transparent transition-all cursor-pointer"
                                 />
                                 <svg
-                                  className="absolute left-0.5 top-0.5 h-3 w-3 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
+                                  className="absolute left-0.5 top-0.5 h-3 w-3 text-neutral-700 dark:text-neutral-300 pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
                                   fill="none"
                                   viewBox="0 0 24 24"
                                   stroke="currentColor"
@@ -614,7 +614,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                   if (!canEdit) return;
                                   onEditProperty(prop);
                                 }}
-                                className="ml-auto text-neutral-500 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
+                                className="ml-auto text-neutral-700 dark:text-neutral-300 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
                                 title="Modifier la propriété"
                               >
                                 <Icons.Edit2 size={14} />
@@ -634,11 +634,11 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
 
           {currentViewConfig?.filters.map((filter: any, idx: number) => (
             <React.Fragment key={idx}>
-              {idx > 0 && <span className="text-neutral-400 text-sm">&</span>}
+              {idx > 0 && <span className="text-neutral-700 dark:text-neutral-300 text-sm">&</span>}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center gap-2 px-3 py-1.5 bg-violet-500/20 text-neutral-500 dark:text-neutral-300 rounded-lg text-sm border border-violet-500/30 lowercase"
+                className="flex items-center gap-2 px-3 py-1.5 bg-violet-500/20 text-neutral-700 dark:text-neutral-300 rounded-lg text-sm border border-violet-500/30 lowercase"
               >
                 <span>
                   {(() => {
@@ -652,7 +652,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     return (
                       <>
                         {sourceCollection?.name && (
-                          <span className="text-neutral-500">{sourceCollection.name} · </span>
+                          <span className="text-neutral-700 dark:text-neutral-300">{sourceCollection.name} · </span>
                         )}
                         {sourceProp?.name || 'Champ'}{' '}
                       </>

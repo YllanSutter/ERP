@@ -70,9 +70,9 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
               <button
                 key={vt.value}
                 onClick={() => setType(vt.value)}
-                className={cn('w-full flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all', type === vt.value ? 'border-violet-500 bg-violet-500/20' : 'border-black/10 hover:border-black/20 dark:border-white/10 dark:hover:border-white/20')}
+                className={cn('w-full flex items-center gap-3 px-4 py-3 rounded-lg border transition-all', type === vt.value ? 'border-violet-500 bg-violet-500/20' : 'border-black/10 hover:border-black/20 dark:border-white/10 dark:hover:border-white/20')}
               >
-                <span className="font-medium">{vt.label}</span>
+                <span className="font-medium text-neutral-700 dark:text-white">{vt.label}</span>
               </button>
             ))}
           </div>

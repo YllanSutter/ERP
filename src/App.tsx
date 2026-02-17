@@ -1067,8 +1067,8 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
         />
       )}
       {showAccessManager && canManagePermissions && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-          <div className="bg-neutral-900 rounded-lg shadow-lg p-6 min-w-[400px] max-w-[90vw] max-h-[90vh] overflow-auto relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background dark:bg-neutral-900 bg-opacity-60">
+          <div className="bg-background dark:bg-neutral-900 rounded-lg shadow-lg p-6 min-w-[400px] max-w-[90vw] max-h-[90vh] overflow-auto relative">
             <AccessManager
               collections={collections}
               onClose={() => setShowAccessManager(false)}

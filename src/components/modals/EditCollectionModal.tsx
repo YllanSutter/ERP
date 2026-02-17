@@ -122,7 +122,7 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
                     {(Icons as any)[icon] ? React.createElement((Icons as any)[icon], { size: 20 }) : <Icons.Database size={20} />}
                   </button>
                   {showIconPopover && (
-                    <div className="absolute z-[1200] mt-2 w-[320px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
+                    <div className="absolute z-[150] mt-2 w-[320px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
                       <IconPicker value={icon} onChange={(val) => { setIcon(val); setShowIconPopover(false); }} mode="all" />
                     </div>
                   )}
@@ -137,7 +137,7 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
                     title="Choisir une couleur"
                   />
                   {showColorPopover && (
-                    <div className="absolute z-[1200] mt-2 w-[320px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
+                    <div className="absolute z-[150] mt-2 w-[320px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
                       <ColorPicker value={color} onChange={(val) => { setColor(val); setShowColorPopover(false); }} />
                     </div>
                   )}

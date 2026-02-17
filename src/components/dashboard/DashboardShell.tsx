@@ -1618,7 +1618,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                 className={
                   'px-3 py-1 text-xs rounded-full transition-all ' +
                   (viewType === option.key
-                    ? 'bg-violet-500/30 text-violet-700 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                    ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 dark:text-violet-100 border border-violet-400/40 shadow-sm'
                     : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
                 }
               >
@@ -1638,7 +1638,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                 className={
                   'px-3 py-1 text-xs rounded-full transition-all ' +
                   (periodScope === option.key
-                    ? 'bg-violet-500/30 text-violet-700 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                    ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
                     : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
                 }
               >
@@ -1667,7 +1667,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     className={
                       'px-3 py-1 text-xs rounded-full transition-all ' +
                       (isActive
-                        ? 'bg-violet-500/30 text-violet-700 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                        ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
                         : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
                     }
                   >

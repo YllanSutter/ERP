@@ -84,7 +84,7 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
                     {OptIcon ? <OptIcon size={18} /> : <Icons.Tag size={18} />}
                   </button>
                   {openIconIndex === opt._idx && (
-                    <div className="absolute z-[1200] mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
+                    <div className="absolute z-[150] mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
                       <IconPicker
                         value={opt.icon || defaultIcon}
                         onChange={(val) => { updateOption(opt._idx, { icon: val }); setOpenIconIndex(null); }}
@@ -101,7 +101,7 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
                     title="Choisir une couleur"
                   />
                   {openColorIndex === opt._idx && (
-                    <div className="absolute z-[1200] mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
+                    <div className="absolute z-[150] mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
                       <ColorPicker
                         value={opt.color || defaultColor}
                         onChange={(val) => { updateOption(opt._idx, { color: val }); setOpenColorIndex(null); }}
@@ -152,7 +152,7 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
               {(Icons as any)[newOptionIcon] ? React.createElement((Icons as any)[newOptionIcon], { size: 18 }) : <Icons.Tag size={18} />}
             </button>
             {showIconPopover && (
-              <div className="absolute z-[1200] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
+              <div className="absolute z-[150] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
                 <IconPicker value={newOptionIcon} onChange={(val) => { setNewOptionIcon(val); setShowIconPopover(false); }} mode="all" />
               </div>
             )}
@@ -166,7 +166,7 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
               title="Choisir une couleur"
             />
             {showColorPopover && (
-              <div className="absolute z-[1200] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
+              <div className="absolute z-[150] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
                 <ColorPicker value={newOptionColor} onChange={(val) => { setNewOptionColor(val); setShowColorPopover(false); }} />
               </div>
             )}

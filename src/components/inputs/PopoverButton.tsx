@@ -53,11 +53,11 @@ export const PopoverButton: React.FC<PopoverButtonProps> = ({
         </button>
       </PopoverTrigger>
       <PopoverContent 
-        className={cn(
-          "p-2 bg-white text-neutral-700 border border-black/10 dark:bg-neutral-900 dark:text-neutral-200 dark:border-white/10 z-[300] pointer-events-auto",
-          contentClassName
-        )}
-      >
+          className={cn(
+            "p-2 bg-white text-neutral-700 border border-black/10 dark:bg-neutral-900 dark:text-neutral-200 dark:border-white/10 z-[160] pointer-events-auto -mt-2",
+            contentClassName
+          )}
+        >
         {content}
       </PopoverContent>
     </Popover>

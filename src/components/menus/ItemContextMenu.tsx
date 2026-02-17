@@ -85,7 +85,7 @@ const ItemContextMenu: React.FC<ItemContextMenuProps> = ({
             <ContextMenuSeparator />
             <ContextMenuItem
               onSelect={() => onDelete(item.id)}
-              className="gap-2 text-red-300 focus:bg-red-500/20"
+              className="gap-2 text-red-500 focus:bg-red-500/20"
             >
               <Trash2 size={14} />
               <span>Supprimer</span>

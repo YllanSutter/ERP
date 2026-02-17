@@ -278,7 +278,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
                 </span>
               )}
             </div>
-            <div className="text-[9px] opacity-70 absolute right-4 top-1">
+            <div className="text-[9px] opacity-70 absolute right-4 top-1 font-bold">
               {(() => {
                 const startH = Math.floor(startTime);
                 const startM = Math.round((startTime - startH) * 60);
