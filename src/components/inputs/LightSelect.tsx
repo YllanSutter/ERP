@@ -62,7 +62,7 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
               <button
                 type="button"
                 className={cn(
-                  'px-2 py-1 rounded-full text-xs border transition',
+                  'px-2 py-1 rounded-full text-xs border border-black/10 dark:border-white/10 transition',
                   !value ? 'bg-white/15 border-white/20 text-white' : 'bg-white/5 border-white/10 text-neutral-300 hover:bg-white/10'
                 )}
                 onClick={() => {
@@ -84,7 +84,7 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
                     type="button"
                     className={cn(
                       'px-2 py-1 rounded-full text-xs border transition flex items-center gap-1',
-                      selected ? 'font-semibold' : 'hover:bg-white/10'
+                      selected ? 'font-semibold' : 'hover:bg-black/10 dark:hover:bg-white/10'
                     )}
                     style={selected ? { backgroundColor: `${optColor}22`, borderColor: `${optColor}55`, color: optColor } : { borderColor: 'rgba(255,255,255,0.08)' }}
                     onClick={() => {

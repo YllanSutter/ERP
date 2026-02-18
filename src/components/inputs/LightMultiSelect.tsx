@@ -2,6 +2,7 @@ import React from 'react';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { OptionType } from './LightSelect';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/tiptap-ui-primitive/tooltip';
 import { PopoverButton } from './PopoverButton';
 
 interface LightMultiSelectProps {
@@ -13,14 +14,16 @@ interface LightMultiSelectProps {
   className?: string;
   disabled?: boolean;
   getOptionLabel?: (opt: OptionType) => string;
+  maxVisible?: number;
 }
 
 const getOptionValue = (opt: OptionType) => typeof opt === 'string' ? opt : opt.value;
 const getOptionColor = (opt: OptionType) => typeof opt === 'string' ? '#8b5cf6' : (opt.color || '#8b5cf6');
 const getOptionIcon = (opt: OptionType) => typeof opt === 'string' ? null : (opt.icon || null);
 
-export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, values, onChange, placeholder = 'Aucun', sizeClass = 'text-sm h-8', className, disabled = false, getOptionLabel }) => {
+export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, values, onChange, placeholder = 'Aucun', sizeClass = 'text-sm h-8', className, disabled = false, getOptionLabel, maxVisible }) => {
   const selectedValues: string[] = Array.isArray(values) ? values : (values ? [values] : []);
+  const MAX_VISIBLE = typeof maxVisible === 'number' ? maxVisible : 2;
 
   // Fonction pour retirer un tag
   const removeValue = (val: string) => {
@@ -38,11 +41,14 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
 
   return (
     <div className={cn('flex items-center gap-2', sizeClass, className)}>
-      <div className="flex gap-1 flex-1 flex-wrap">
+      <div
+        className="flex gap-1 flex-1 overflow-x-auto whitespace-nowrap min-w-0"
+        style={{ maxWidth: 320 }}
+      >
         {selectedValues.length === 0 && (
           <span className="text-xs text-neutral-500 items-center flex">{placeholder}</span>
         )}
-        {selectedValues.map((val) => {
+        {selectedValues.slice(0, MAX_VISIBLE).map((val) => {
           const opt = options.find((o) => getOptionValue(o) === val);
           const color = opt ? getOptionColor(opt) : '#8b5cf6';
           const iconName = opt ? getOptionIcon(opt) : null;
@@ -68,6 +74,27 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
             </span>
           );
         })}
+        {selectedValues.length > MAX_VISIBLE && (
+          <Tooltip delay={200}>
+            <TooltipTrigger asChild>
+              <span
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 border border-white/10 cursor-default select-none"
+                tabIndex={0}
+                style={{ outline: 'none' }}
+              >
+                +{selectedValues.length - MAX_VISIBLE} 
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="max-w-xs whitespace-pre-line text-xs">
+                {selectedValues.slice(MAX_VISIBLE).map(val => {
+                  const opt = options.find((o) => getOptionValue(o) === val);
+                  return opt ? (getOptionLabel ? getOptionLabel(opt) : (typeof opt === 'string' ? opt : (opt.label || opt.value))) : val;
+                }).join(', ')}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
       {!disabled && (
         <PopoverButton
@@ -91,9 +118,9 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
                   type="button"
                   className={cn(
                     'px-2 py-1 rounded-full text-xs border transition flex items-center gap-1',
-                    checked ? 'font-semibold' : 'hover:bg-white/10'
+                    checked ? 'font-semibold' : 'hover:bg-black/10 dark:hover:bg-white/10'
                   )}
-                  style={checked ? { backgroundColor: `${optColor}22`, borderColor: `${optColor}55`, color: optColor } : { borderColor: 'rgba(255,255,255,0.08)' }}
+                  style={checked ? { backgroundColor: `${optColor}22`, borderColor: `${optColor}55`, color: optColor } : {  }}
                   onClick={() => toggleValue(optValue)}
                 >
                   {OptIcon && <OptIcon size={12} className="opacity-80" />}

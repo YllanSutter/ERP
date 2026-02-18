@@ -277,6 +277,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                                 onRelationChange={onRelationChange}
                                 onNavigateToCollection={onNavigateToCollection}
                                 readOnly={!canEdit || !canEditFieldFn(firstProp.id)}
+                                maxVisible={firstProp.type === 'multi_select' ? 1 : undefined}
                               />
                             </div>
                           </div>
@@ -316,6 +317,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                                   onRelationChange={onRelationChange}
                                   onNavigateToCollection={onNavigateToCollection}
                                   readOnly={!canEdit || !canEditFieldFn(prop.id)}
+                                  maxVisible={prop.type === 'multi_select' ? 1 : undefined}
                                 />
                               </div>
                             </div>

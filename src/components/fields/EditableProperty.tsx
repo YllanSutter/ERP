@@ -28,6 +28,7 @@ interface EditablePropertyProps {
   onRelationChange?: (property: any, item: any, value: any) => void;
   onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
   forceRichEditor?: boolean;
+  maxVisible?: number; // Ajouté pour LightMultiSelect
 }
 
 // Composants utilitaires extraits
@@ -395,10 +396,10 @@ const RelationEditor = ({
               key={ti.id}
               type="button"
               className={cn(
-                'px-2 py-1 rounded-full text-xs border transition',
-                checked ? 'font-semibold' : 'hover:bg-white/10'
+                'px-2 py-1 rounded-full text-xs border border-black/10 dark:border-white/10 transition',
+                checked ? 'font-semibold' : 'hover:bg-black/10 dark:hover:bg-white/10'
               )}
-              style={checked ? { backgroundColor: 'rgba(139,92,246,0.16)', borderColor: 'rgba(139,92,246,0.35)', color: '#a78bfa' } : { borderColor: 'rgba(255,255,255,0.08)' }}
+              style={checked ? { backgroundColor: 'rgba(139,92,246,0.16)', color: '#a78bfa' } : {  }}
               onClick={() => {
                 toggleItem(ti.id, !checked);
                 close();
@@ -417,7 +418,7 @@ const RelationEditor = ({
         <button
           type="button"
           className={cn(
-            'px-2 py-1 rounded-full text-xs border transition',
+            'px-2 py-1 rounded-full text-xs border border-black/10 dark:border-white/10 transition',
             !value ? 'bg-white/15 border-white/20 text-white' : 'bg-white/5 border-white/10 text-neutral-300 hover:bg-white/10'
           )}
           onClick={() => {
@@ -435,8 +436,8 @@ const RelationEditor = ({
               key={ti.id}
               type="button"
               className={cn(
-                'px-2 py-1 rounded-full text-xs border transition',
-                selected ? 'font-semibold' : 'hover:bg-white/10'
+                'px-2 py-1 rounded-full text-xs border border-black/10 dark:border-white/10 transition',
+                selected ? 'font-semibold' : 'hover:bg-black/10 dark:hover:bg-white/10'
               )}
               style={selected ? { backgroundColor: 'rgba(139,92,246,0.16)', borderColor: 'rgba(139,92,246,0.35)', color: '#a78bfa' } : { borderColor: 'rgba(255,255,255,0.08)' }}
               onClick={() => {
@@ -578,7 +579,8 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   currentItem,
   onRelationChange,
   onNavigateToCollection,
-  forceRichEditor = false
+  forceRichEditor = false,
+  maxVisible
 }) => {
   const sizeClasses = {
     sm: 'text-xs h-7',
@@ -617,6 +619,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
         className={className}
         sizeClass={sizeClasses}
         disabled={readOnly}
+        maxVisible={maxVisible}
       />
     );
   }

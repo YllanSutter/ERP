@@ -467,16 +467,7 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
 
       
 
-      <AppHeader
-        impersonatedRoleId={impersonatedRoleId}
-        availableRoles={availableRoles.length ? availableRoles : userRoles || []}
-        activeCollectionName={currentCollection?.name || null}
-        onNewCollection={() => setShowNewCollectionModal(true)}
-        onImpersonate={impersonate}
-        onShowAccessManager={() => setShowAccessManager(true)}
-        theme={theme}
-        setTheme={setTheme}
-      />
+     
 
       <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen} className="flex flex-1 overflow-hidden">
         <Sidebar
@@ -543,6 +534,16 @@ function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
         />
 
         <SidebarInset className="flex-1 flex flex-col overflow-hidden">
+           <AppHeader
+            impersonatedRoleId={impersonatedRoleId}
+            availableRoles={availableRoles.length ? availableRoles : userRoles || []}
+            activeCollectionName={currentCollection?.name || null}
+            onNewCollection={() => setShowNewCollectionModal(true)}
+            onImpersonate={impersonate}
+            onShowAccessManager={() => setShowAccessManager(true)}
+            theme={theme}
+            setTheme={setTheme}
+          />
           {activeDashboard ? (
             <DashboardShell
               dashboard={activeDashboardConfig}

@@ -116,9 +116,9 @@ const MonthView: React.FC<MonthViewProps> = ({
               )}
             >
               {day && (
-                <div className="flex flex-col h-full justify-between">
+                <div className="grid h-full items-center content-center relative">
                   <span className={cn(
-                    'font-semibold',
+                    'font-semibold absolute top-2 left-1/2',
                     isToday && 'text-cyan-500',
                     !isToday && 'text-neutral-700 dark:text-neutral-300'
                   )}>
@@ -151,7 +151,7 @@ const MonthView: React.FC<MonthViewProps> = ({
                             </button>
                           </ItemContextMenu>
                           {segments.length > 0 && (
-                            <div className="absolute left-0 top-full mt-1 w-44 rounded-md border border-neutral-700 bg-neutral-900 p-2 text-[10px] text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none group-hover:pointer-events-auto">
+                            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-44 rounded-md border border-neutral-200 dark:border-neutral-700 bg-gray-100 dark:bg-neutral-900 p-2 text-[10px] text-neutral-700 dark:text-white opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none group-hover:pointer-events-auto">
                               <div className="space-y-1">
                                 {segments.map((segment: any, segIdx: number) => (
                                   <div key={segIdx} className="flex items-center gap-1">

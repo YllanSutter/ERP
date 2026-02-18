@@ -594,7 +594,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                   type="checkbox"
                                   checked={!isHidden}
                                   onChange={() => onToggleFieldVisibility(prop.id)}
-                                  className="peer h-4 w-4 appearance-none rounded border-2 border-black/20 dark:border-white/20 bg-background dark:bg-neutral-800 checked:bg-neutral-400  checked:border-transparent transition-all cursor-pointer"
+                                  className="peer h-4 w-4 appearance-none rounded border-2 border-black/20 dark:border-white/20 bg-background dark:bg-neutral-800 checked:bg-neutral-100  checked:border-transparent transition-all cursor-pointer"
                                 />
                                 <svg
                                   className="absolute left-0.5 top-0.5 h-3 w-3 text-neutral-700 dark:text-neutral-300 pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
