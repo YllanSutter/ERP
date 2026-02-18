@@ -8,8 +8,24 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_PUBLIC_URL || 'postgresql://postgres:postgres123@localhost:5433/erp_db',
 });
 
+const waitForUsersTable = async () => {
+  let exists = false;
+  for (let i = 0; i < 30; i++) {
+    try {
+      const res = await pool.query("SELECT to_regclass('public.users') AS exists");
+      if (res.rows[0].exists) {
+        exists = true;
+        break;
+      }
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  if (!exists) throw new Error("La table 'users' n'existe pas après 60s.");
+};
+
 const createAdminUser = async () => {
   try {
+    await waitForUsersTable();
     // Vérifier si l'admin existe déjà
     const existing = await pool.query(
       'SELECT id FROM users WHERE email = $1',

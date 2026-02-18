@@ -17,7 +17,7 @@ services:
     networks:
       - erp_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d erp_db"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d erp_postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -33,7 +33,7 @@ services:
       PORT: 4000
       CLIENT_ORIGIN: http://localhost:3000
       JWT_SECRET: change-this-secret-key-in-production-32-chars-min
-      DATABASE_PUBLIC_URL: postgresql://postgres:postgres123@postgres:5432/erp_db
+      DATABASE_PUBLIC_URL: postgresql://postgres:postgres@postgres:5432/erp_postgres
       BACKUP_DIR: /app/backups
       BACKUP_RETENTION_DAYS: 7
     volumes:
@@ -54,8 +54,13 @@ services:
         cd /app &&
         npm install --include=dev &&
         npm run build &&
-        node init-admin.js &&
-        npm start
+        (npm start &) &&
+        echo '⏳ Attente du serveur...' && \
+        until pg_isready -h db -p 5432 -U $$POSTGRES_USER; do sleep 1; done && \
+        sleep 5 && \
+        node init-admin.js && \
+        wait
+        apk add --no-cache postgresql-client && \
       "
 
 volumes:
