@@ -534,23 +534,22 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                     if (!file) return;
                     try {
                       const text = await file.text();
-                      const data = JSON.parse(text);
-                      if (!Array.isArray(data)) {
-                        alert('Le fichier doit contenir un tableau d\'appstate.');
-                        return;
-                      }
+                      const fullData = JSON.parse(text);  // Garde TOUT le JSON
                       const res = await fetch(`${API_URL}/appstate`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',
-                        body: JSON.stringify(data),
+                        body: JSON.stringify(fullData),  // ← Envoi TOUT (users + appstate + ...)
                       });
                       if (!res.ok) throw new Error('Erreur import appstate');
-                      alert('Import appstate réussi !');
+                      alert('✅ Import COMPLET réussi ! BDD entièrement remplacée.');
+                      // Optionnel : reload tout
+                      loadAll();
                     } catch (err) {
-                      alert('Erreur lors de l\'import appstate.');
+                      alert(`❌ Erreur lors de l'import : ${err}`);
                     }
                   }}
+
                 />
               </label>
               <button onClick={loadAll} className="p-2 rounded-lg hover:bg-white/10 text-neutral-600 dark:text-white" title="Rafraîchir">
