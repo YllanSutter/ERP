@@ -310,6 +310,34 @@ const bootstrap = async () => {
   `);
 
   await ensureSystemRoles();
+
+  // État initial complet pour app_state
+  const initialState = {
+    collections: [],
+    views: {},
+    dashboards: [],
+    dashboardSort: 'created',
+    dashboardFilters: {},
+    favorites: { views: [], items: [] }
+  };
+  // Vérifier s'il existe déjà une entrée app_state
+  const stateExists = await pool.query('SELECT 1 FROM app_state LIMIT 1');
+  if (stateExists.rowCount === 0) {
+    // Créer un utilisateur admin temporaire si besoin (pour la FK user_id)
+    let adminUser = await pool.query("SELECT id FROM users WHERE email = 'admin@erp.local'");
+    if (adminUser.rowCount === 0) {
+      const adminId = uuidv4();
+      await pool.query(
+        'INSERT INTO users (id, email, name, password_hash, provider) VALUES ($1, $2, $3, $4, $5)',
+        [adminId, 'admin@erp.local', 'Administrator', '', 'local']
+      );
+      adminUser = { rows: [{ id: adminId }] };
+    }
+    await pool.query(
+      'INSERT INTO app_state (user_id, data) VALUES ($1, $2)',
+      [adminUser.rows[0].id, JSON.stringify(initialState)]
+    );
+  }
 };
 
 const ensureSystemRoles = async () => {

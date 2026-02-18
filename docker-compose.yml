@@ -54,13 +54,9 @@ services:
         cd /app &&
         npm install --include=dev &&
         npm run build &&
-        (npm start &) &&
         echo '⏳ Attente du serveur...' && \
-        until pg_isready -h db -p 5432 -U $$POSTGRES_USER; do sleep 1; done && \
-        sleep 5 && \
         node init-admin.js && \
-        wait
-        apk add --no-cache postgresql-client && \
+        npm start
       "
 
 volumes:
