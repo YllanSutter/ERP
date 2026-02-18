@@ -445,12 +445,11 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                 className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs shadow "
                 style={{ minWidth: 80 }}
                 onClick={async () => {
-                  // Exporter tout le contenu de la table app_state + CSV par collection
+                  // Export JSON brut
                   try {
                     const res = await fetch(`${API_URL}/appstate`, { credentials: 'include' });
                     if (!res.ok) throw new Error('Erreur export appstate');
                     const data = await res.json();
-                    // Export JSON brut
                     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -460,23 +459,35 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
-
-                    // Export CSV par collection (dans un zip)
-                    // On ne peut parser que les collections du state global (user_id == null)
-                    const globalRow = data.find((row: { user_id: null; }) => row.user_id === null);
-                    if (!globalRow) return;
+                  } catch (err) {
+                    alert('Erreur lors de l\'export appstate.');
+                  }
+                }}
+              >
+                Export JSON
+              </button>
+              <button
+                className="px-3 py-1 rounded bg-yellow-600 hover:bg-yellow-700 text-white text-xs shadow "
+                style={{ minWidth: 80 }}
+                onClick={async () => {
+                  // Export CSV par collection (dans un zip)
+                  try {
+                    const res = await fetch(`${API_URL}/appstate`, { credentials: 'include' });
+                    if (!res.ok) throw new Error('Erreur export appstate');
+                    const data = await res.json();
+                    const appStateArr = Array.isArray(data.app_state) ? data.app_state : [];
+                    // Prend la première entrée app_state trouvée (si aucune globale)
+                    const row = appStateArr.find((row: { user_id: null; }) => row.user_id === null) || appStateArr[0];
+                    if (!row) return;
                     let state;
                     try {
-                      state = JSON.parse(globalRow.data);
+                      state = JSON.parse(row.data);
                     } catch (e) {
-                      alert('Impossible de parser le state global pour CSV');
+                      alert('Impossible de parser le state pour CSV');
                       return;
                     }
                     const collections = Array.isArray(state.collections) ? state.collections : [];
                     if (collections.length === 0) return;
-
-                    // Génère un CSV pour chaque collection
-                    // Utilise JSZip pour zip (ajoute la dépendance si besoin)
                     let JSZip;
                     try {
                       JSZip = (await import('jszip')).default;
@@ -488,9 +499,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                     for (const col of collections) {
                       const items = Array.isArray(col.items) ? col.items : [];
                       if (items.length === 0) continue;
-                      // Colonnes = toutes les clés rencontrées dans les items
                       const allKeys = Array.from(new Set(items.flatMap((item: {}) => Object.keys(item))));
-                      // En-tête CSV
                       const header = allKeys.join(',');
                       const csvRows = [header];
                       for (const item of items) {
@@ -517,11 +526,11 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                     document.body.removeChild(azip);
                     URL.revokeObjectURL(zipUrl);
                   } catch (err) {
-                    alert('Erreur lors de l\'export appstate ou CSV.');
+                    alert('Erreur lors de l\'export CSV.');
                   }
                 }}
               >
-                Exporter
+                Export CSV
               </button>
               <label className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs shadow cursor-pointer" style={{ minWidth: 80, textAlign: 'center' }}>
                 Importer
