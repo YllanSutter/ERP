@@ -5,6 +5,7 @@ services:
     container_name: erp_postgres
     restart: unless-stopped
     environment:
+      NODE_ENV: production
       POSTGRES_DB: erp_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres123
@@ -28,7 +29,7 @@ services:
     restart: "no"
     working_dir: /app
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 4000
       CLIENT_ORIGIN: http://localhost:3000
       JWT_SECRET: change-this-secret-key-in-production-32-chars-min
@@ -53,10 +54,8 @@ services:
         cd /app &&
         npm install --include=dev &&
         npm run build &&
-        (npm start &) &&
-        sleep 10 &&
         node init-admin.js &&
-        wait
+        npm start
       "
 
 volumes:

@@ -5,16 +5,16 @@ RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files FIRST
 COPY package*.json ./
 
 # Install all dependencies (including dev dependencies for build)
 RUN npm ci
 
-# Copy source code
+# Copy source code AFTER npm install
 COPY . .
 
-# Build the application
+# Build application
 RUN npm run build
 
 # Production stage

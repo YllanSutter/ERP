@@ -210,6 +210,19 @@ const bootstrap = async () => {
     );
   `);
 
+  // Ajout des colonnes favorite_views et favorite_items si manquantes
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='favorite_views') THEN
+        ALTER TABLE users ADD COLUMN favorite_views TEXT[] DEFAULT ARRAY[]::TEXT[];
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='favorite_items') THEN
+        ALTER TABLE users ADD COLUMN favorite_items TEXT[] DEFAULT ARRAY[]::TEXT[];
+      END IF;
+    END$$;
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS roles (
       id UUID PRIMARY KEY,
