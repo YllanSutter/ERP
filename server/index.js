@@ -1067,39 +1067,80 @@ app.post('/api/db/backups/:name/restore', requireAuth, async (req, res) => {
 // --- State routes (protected + filtered) -------------------------------
 
 // --- Export/Import app_state (admin only) ---
+// --- Export/Import global state (admin only) ---
 app.get('/api/appstate', requireAuth, async (req, res) => {
-  // Seuls les admins peuvent exporter tout l'appstate
+  // Seuls les admins peuvent exporter tout l'état
   const isAdmin = req.auth.roles.some((r) => r.name === 'admin');
   if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
   try {
-    const result = await pool.query('SELECT * FROM app_state ORDER BY id ASC');
-    res.json(result.rows);
+    const users = (await pool.query('SELECT * FROM users ORDER BY id ASC')).rows;
+    const app_state = (await pool.query('SELECT * FROM app_state ORDER BY id ASC')).rows;
+    const roles = (await pool.query('SELECT * FROM roles ORDER BY id ASC')).rows;
+    const permissions = (await pool.query('SELECT * FROM permissions ORDER BY id ASC')).rows;
+    const user_roles = (await pool.query('SELECT * FROM user_roles ORDER BY user_id, role_id ASC')).rows;
+    res.json({ users, app_state, roles, permissions, user_roles });
   } catch (err) {
-    console.error('Failed to export app_state', err);
-    res.status(500).json({ error: 'Failed to export app_state' });
+    console.error('Failed to export global state', err);
+    res.status(500).json({ error: 'Failed to export global state' });
   }
 });
 
 app.post('/api/appstate', requireAuth, async (req, res) => {
-  // Seuls les admins peuvent importer tout l'appstate
+  // Seuls les admins peuvent importer tout l'état
   const isAdmin = req.auth.roles.some((r) => r.name === 'admin');
   if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
   try {
-    const data = req.body;
-    if (!Array.isArray(data)) return res.status(400).json({ error: 'Array of app_state rows required' });
-    // On efface tout puis on insère tout (mode "remplacement total")
+    const { users, app_state, roles, permissions, user_roles } = req.body || {};
+    if (!Array.isArray(users) || !Array.isArray(app_state) || !Array.isArray(roles) || !Array.isArray(permissions) || !Array.isArray(user_roles)) {
+      return res.status(400).json({ error: 'Invalid import format' });
+    }
+    // Désactiver les contraintes FK temporairement
+    await pool.query('SET session_replication_role = replica;');
+    // Vider toutes les tables dans l'ordre inverse des dépendances
+    await pool.query('DELETE FROM user_roles');
+    await pool.query('DELETE FROM permissions');
+    await pool.query('DELETE FROM roles');
     await pool.query('DELETE FROM app_state');
-    for (const row of data) {
-      // On ne fait confiance qu'aux champs connus
+    await pool.query('DELETE FROM users');
+    // Réinsérer dans l'ordre des dépendances
+    for (const user of users) {
+      await pool.query(
+        'INSERT INTO users (id, email, name, provider, provider_id, password_hash, created_at, favorite_views, favorite_items) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+        [user.id, user.email, user.name, user.provider, user.provider_id, user.password_hash, user.created_at, user.favorite_views || [], user.favorite_items || []]
+      );
+    }
+    for (const role of roles) {
+      await pool.query(
+        'INSERT INTO roles (id, name, description, is_system) VALUES ($1,$2,$3,$4)',
+        [role.id, role.name, role.description, role.is_system]
+      );
+    }
+    for (const perm of permissions) {
+      await pool.query(
+        'INSERT INTO permissions (id, role_id, collection_id, item_id, field_id, can_read, can_write, can_delete, can_manage_fields, can_manage_views, can_manage_permissions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+        [perm.id, perm.role_id, perm.collection_id, perm.item_id, perm.field_id, perm.can_read, perm.can_write, perm.can_delete, perm.can_manage_fields, perm.can_manage_views, perm.can_manage_permissions]
+      );
+    }
+    for (const row of app_state) {
       await pool.query(
         'INSERT INTO app_state (id, user_id, data) VALUES ($1, $2, $3)',
         [row.id, row.user_id, row.data]
       );
     }
-    res.json({ ok: true, count: data.length });
+    for (const ur of user_roles) {
+      await pool.query(
+        'INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)',
+        [ur.user_id, ur.role_id]
+      );
+    }
+    // Réactiver les contraintes FK
+    await pool.query('SET session_replication_role = DEFAULT;');
+    res.json({ ok: true });
   } catch (err) {
-    console.error('Failed to import app_state', err);
-    res.status(500).json({ error: 'Failed to import app_state' });
+    console.error('Failed to import global state', err);
+    // Toujours réactiver les contraintes FK en cas d'erreur
+    await pool.query('SET session_replication_role = DEFAULT;');
+    res.status(500).json({ error: 'Failed to import global state' });
   }
 });
 const filterStateForUser = (data, ctx) => {
