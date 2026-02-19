@@ -41,6 +41,7 @@ const createAdminUser = async () => {
     // Créer l'utilisateur admin
     const adminId = uuidv4();
     const passwordHash = bcrypt.hashSync('admin123', 10);
+    console.log('Hash généré pour admin123 :', passwordHash);
 
     await pool.query(
       'INSERT INTO users (id, email, name, password_hash, provider) VALUES ($1, $2, $3, $4, $5)',
