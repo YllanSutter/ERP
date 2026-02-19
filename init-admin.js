@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 const { Pool } = pkg;
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_PUBLIC_URL || 'postgresql://postgres:postgres123@localhost:5433/erp_db',
+  connectionString: process.env.DATABASE_PUBLIC_URL || 'postgresql://postgres:postgres@postgres:5432/erp_postgres',
 });
 
 const waitForUsersTable = async () => {
