@@ -138,6 +138,15 @@ docker-compose -f docker-compose.simple.yml exec postgres psql -U postgres -d er
 # Sauvegarder
 docker-compose -f docker-compose.simple.yml exec postgres pg_dump -U postgres erp_db > backup.sql
 ```
+### Perte du mdp postgre ?
+docker exec -it erp_postgres psql -U postgres
+ALTER USER postgres WITH PASSWORD 'ton_nouveau_mot_de_passe';
+
+### VERIFIER Tables
+docker exec -it erp_postgres psql -U postgres -d erp_db
+\dt
+\d users
+SELECT * FROM users;
 
 ## 📈 Mise à l'échelle
 

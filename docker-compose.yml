@@ -57,8 +57,6 @@ services:
         npm run build && \
         echo '⏳ Attente du serveur...' && \
         npm start & \
-        while ! nc -z localhost 4000; do echo '⏳ Attente du backend...'; sleep 2; done && \
-        node init-admin.js && \
         wait
       "
 
