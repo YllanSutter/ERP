@@ -322,15 +322,17 @@ const bootstrap = async () => {
   };
   // Vérifier s'il existe déjà une entrée app_state
   const stateExists = await pool.query('SELECT 1 FROM app_state LIMIT 1');
-  if (stateExists.rowCount === 0) {
-    // Utilisateur pour la FK : on prend le premier utilisateur existant, sinon NULL
-    const userRes = await pool.query('SELECT id FROM users LIMIT 1');
-    const userId = userRes.rowCount ? userRes.rows[0].id : null;
-    await pool.query(
-      'INSERT INTO app_state (user_id, data) VALUES ($1, $2)',
-      [userId, JSON.stringify(initialState)]
-    );
-  }
+    if (stateExists.rowCount === 0) {
+      // Insérer l'état seulement s'il existe au moins un utilisateur
+      const userRes = await pool.query('SELECT id FROM users LIMIT 1');
+      if (userRes.rowCount > 0) {
+        const userId = userRes.rows[0].id;
+        await pool.query(
+          'INSERT INTO app_state (user_id, data) VALUES ($1, $2)',
+          [userId, JSON.stringify(initialState)]
+        );
+      }
+    }
 };
 
 const ensureSystemRoles = async () => {
@@ -463,6 +465,22 @@ const createLocalUser = async ({ email, password, name }) => {
     const admin = await pool.query('SELECT id FROM roles WHERE name = $1', ['admin']);
     if (admin.rowCount) {
       await pool.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, admin.rows[0].id]);
+    }
+    // Création automatique de l'app_state pour le premier utilisateur
+    const stateExists = await pool.query('SELECT 1 FROM app_state LIMIT 1');
+    if (stateExists.rowCount === 0) {
+      const initialState = {
+        collections: [],
+        views: {},
+        dashboards: [],
+        dashboardSort: 'created',
+        dashboardFilters: {},
+        favorites: { views: [], items: [] }
+      };
+      await pool.query(
+        'INSERT INTO app_state (user_id, data) VALUES ($1, $2)',
+        [userId, JSON.stringify(initialState)]
+      );
     }
   } else {
     // Utilisateurs suivants = viewer par défaut
