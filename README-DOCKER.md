@@ -140,7 +140,7 @@ docker-compose -f docker-compose.simple.yml exec postgres pg_dump -U postgres er
 ```
 ### Perte du mdp postgre ?
 docker exec -it erp_postgres psql -U postgres
-ALTER USER postgres WITH PASSWORD 'ton_nouveau_mot_de_passe';
+ALTER USER postgres WITH PASSWORD 'postgres';
 
 ### VERIFIER Tables
 docker exec -it erp_postgres psql -U postgres -d erp_db

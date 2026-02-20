@@ -44,7 +44,7 @@ if (process.env.DATABASE_PUBLIC_URL) {
 // --- Backup configuration ----------------------------------------------
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, '../backups');
 const BACKUP_RETENTION_DAYS = Number(process.env.BACKUP_RETENTION_DAYS || 14);
-const BACKUP_INTERVAL_MINUTES = Number(process.env.BACKUP_INTERVAL_MINUTES || 0);
+const BACKUP_INTERVAL_MINUTES = Number(process.env.BACKUP_INTERVAL_MINUTES) || 0;
 
 const ensureBackupDir = async () => {
   await fs.promises.mkdir(BACKUP_DIR, { recursive: true });
@@ -1318,8 +1318,9 @@ let serverInstance;
     global.io = io;
 
     // Sauvegardes automatiques (optionnelles)
-    if (BACKUP_INTERVAL_MINUTES > 0) {
+    if (BACKUP_INTERVAL_MINUTES > 0 && !isNaN(BACKUP_INTERVAL_MINUTES)) {
       const intervalMs = BACKUP_INTERVAL_MINUTES * 60 * 1000;
+      console.log(`[BACKUP] Sauvegardes automatiques toutes les ${BACKUP_INTERVAL_MINUTES} minutes`);
       setInterval(async () => {
         try {
           await createDbBackup('auto');
@@ -1327,6 +1328,8 @@ let serverInstance;
           console.error('[BACKUP] Échec sauvegarde automatique', err);
         }
       }, intervalMs);
+    } else {
+      console.log('[BACKUP] Sauvegardes automatiques désactivées');
     }
 
     // Nettoyage initial des anciennes sauvegardes
