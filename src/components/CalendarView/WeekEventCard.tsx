@@ -2,6 +2,7 @@ import React, { Fragment, useState, useRef, useEffect } from 'react';
 import { ColorSet, EventStyle, calculateEventPosition, formatTimeDisplay, formatFieldValue as formatFieldValueUtil, splitEventByWorkdays } from '@/lib/calendarUtils';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { useIsBreakpoint } from '@/hooks/use-is-breakpoint';
 import { GripHorizontal, Trash2 } from 'lucide-react';
 import {
   ContextMenu,
@@ -139,6 +140,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     onNavigateToCollection,
     onShowNewItemModalForCollection,
   }) => {
+     const isMobile = useIsBreakpoint('max', 768);
     const { topOffset, heightPx } = calculateEventPosition(
       startTime,
       endTime,
@@ -278,20 +280,23 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
                 </span>
               )}
             </div>
-            <div className="text-[9px] opacity-70 absolute right-4 top-1 font-bold">
-              {(() => {
-                const startH = Math.floor(startTime);
-                const startM = Math.round((startTime - startH) * 60);
-                const endH = Math.floor(previewEndTime);
-                const endM = Math.round((previewEndTime - endH) * 60);
-                return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
-              })()}
-            </div>
+            {!isMobile && (
+              <div className="text-[9px] opacity-70 absolute right-4 top-1 font-bold">
+                {(() => {
+                  const startH = Math.floor(startTime);
+                  const startM = Math.round((startTime - startH) * 60);
+                  const endH = Math.floor(previewEndTime);
+                  const endM = Math.round((previewEndTime - endH) * 60);
+                  return `${formatTimeDisplay(startH, startM)} - ${formatTimeDisplay(endH, endM)}`;
+                })()}
+              </div>
+            )}
             {/* {label && <div className="text-[9px] truncate">{label}</div>} */}
             {/* Champs éditables comme dans KanbanView */}
-            <div className="space-y-1 w-full">
+            <div className="space-y-1 w-full lg:opacity-100 opacity-0">
               {collectionProps
                 .filter((prop: any) => visibleIds.includes(prop.id) && !hiddenFields.includes(prop.id) && canViewFieldFn(prop.id))
+                .filter((_: any, idx: number) => !isMobile || idx === 0)
                 .map((prop: any) => (
                   <div key={prop.id} className="flex items-center gap-1 text-[9px] truncate">
                     <span className="text-neutral-500 block mb-1">{prop.name}:</span>

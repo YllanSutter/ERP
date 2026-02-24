@@ -217,7 +217,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   // Rendu header + panneaux de filtre + vue calendrier
   return (
     <div>
-      <div className="sticky md:relative top-0 z-10 mb-6">
+      <div className="lg:sticky relative top-0 z-10 mb-6">
         <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between md:flex-wrap lg:pl-[50px]">
           <h2 className="text-2xl font-bold text-neutral-700 dark:text-white">
           {viewMode === 'month'
@@ -269,7 +269,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                               ))}
                             </select>
                             <select
-                              className="bg-gray-100 border border-white/10 rounded px-2 py-1 text-sm"
+                              className="bg-black/10 dark:bg-white/10 border border-white/10 rounded px-2 py-1 text-sm"
                               value={collectionRoles[collection.id] || 'default'}
                               onChange={(e) => onChangeCollectionRole?.(collection.id, e.target.value as 'primary' | 'secondary' | 'default')}
                               disabled={!isSelected}

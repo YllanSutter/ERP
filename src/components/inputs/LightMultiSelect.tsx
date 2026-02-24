@@ -46,7 +46,7 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
         style={{ maxWidth: 320 }}
       >
         {selectedValues.length === 0 && (
-          <span className="text-xs text-neutral-500 items-center flex">{placeholder}</span>
+          <span className=" text-neutral-500 items-center flex text-[9px]">{placeholder}</span>
         )}
         {selectedValues.slice(0, MAX_VISIBLE).map((val) => {
           const opt = options.find((o) => getOptionValue(o) === val);

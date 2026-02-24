@@ -350,7 +350,7 @@ const WeekView: React.FC<WeekViewProps> = ({
   };
   return (
     <div className="space-y-3 overflow-x-auto ">
-      <div className={`grid ${weekDays.length === 1 ? 'grid-cols-[50px_minmax(0,1fr)]' : 'grid-cols-[50px_repeat(5,1fr)]'} min-w-min`}>
+      <div className={`grid ${weekDays.length === 1 ? 'grid-cols-[50px_minmax(0,1fr)]' : 'lg:grid-cols-[50px_repeat(5,1fr)] grid-cols-[20px_repeat(5,1fr)]'} min-w-min`}>
         <div className="w-10 text-right"></div>
         {weekDays.map((date, idx) => {
           const isToday = date.toDateString() === new Date().toDateString();
@@ -369,10 +369,10 @@ const WeekView: React.FC<WeekViewProps> = ({
           );
         })}
       </div>
-      <div className={`grid ${weekDays.length === 1 ? 'justify-center grid-cols-[50px_minmax(0,1fr)]' : 'grid-cols-[50px_repeat(5,1fr)]'} min-w-min`}>
-        <div className=" text-right justify-self-end pr-4">
+      <div className={`grid ${weekDays.length === 1 ? 'justify-center grid-cols-[50px_minmax(0,1fr)]' : 'lg:grid-cols-[50px_repeat(5,1fr)] grid-cols-[20px_repeat(5,1fr)]'} min-w-min`}>
+        <div className=" text-right justify-self-end lg:pr-4 pr-2">
           {hours.map(hour => (
-            <div key={hour} className="h-24 text-xs text-neutral-700 dark:text-white font-medium pt-1">{hour}:00</div>
+            <div key={hour} className="h-24 text-xs text-neutral-700 dark:text-white font-medium pt-1">{hour}<span className='lg:inline-block hidden  '>:00</span></div>
           ))}
         </div>
         {weekDays.map((date, dayIndex) => {

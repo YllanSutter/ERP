@@ -8,13 +8,13 @@ services:
       NODE_ENV: production
       POSTGRES_DB: erp_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: 4GSUWF4XQB699
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
-      DATABASE_PUBLIC_URL: postgresql://postgres:postgres@postgres:5432/erp_db
+      DATABASE_PUBLIC_URL: postgresql://postgres:4GSUWF4XQB699@postgres:5432/erp_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     networks:
       - erp_network
     healthcheck:
@@ -32,9 +32,9 @@ services:
     environment:
       NODE_ENV: development
       PORT: 4000
-      CLIENT_ORIGIN: http://localhost:4000
+      CLIENT_ORIGIN: localhost:4000
       JWT_SECRET: change-this-secret-key-in-production-32-chars-min
-      DATABASE_PUBLIC_URL: postgresql://postgres:postgres@postgres:5432/erp_db
+      DATABASE_PUBLIC_URL: postgresql://postgres:4GSUWF4XQB699@postgres:5432/erp_db
       BACKUP_DIR: /app/backups
       BACKUP_RETENTION_DAYS: 7
     volumes:

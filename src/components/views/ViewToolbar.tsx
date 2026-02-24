@@ -218,7 +218,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       initial={{ y: -10, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.15 }}
-      className="relative border-b border-black/5 dark:border-white/5bg-neutral-900/30 backdrop-blur px-8 py-4 z-10"
+      className="relative border-b border-black/5 dark:border-white/5bg-neutral-900/30 backdrop-blur lg-px-8 px-2 py-4 z-10"
     >
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -236,7 +236,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         >
           <Settings size={14} />
         </button>
-        <div className="inline-flex rounded-full bg-white/5 p-1 border border-black/10  dark:border-white/10">
+        <div className="inline-flex rounded-full bg-white/5 p-1 border border-black/10  dark:border-white/10 overflow-x-auto max-w-[calc(100%-100px)]">
           {viewTypeMeta
             .filter((meta) => (viewsByType.get(meta.type) || []).length > 0)
             .map((meta) => {
@@ -340,27 +340,29 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         >
           <Plus size={14} />
         </button>
-        <div className="flex items-center gap-2">
-          <ShinyButton
-            onClick={() => {
-              if (!canEdit) return;
-              onShowNewItemModal();
-            }}
-            className={`!px-3 !py-2 text-sm ${!canEdit ? 'opacity-60 pointer-events-none' : ''}`}
-          >
-            <Plus size={14} className="inline mr-1" />
-            {newItemLabel}
-          </ShinyButton>
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            onClick={() => canEdit && onQuickCreateItem()}
-            className="px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-white/10 text-neutral-600 dark:text-neutral-200 hover:bg-white/10 duration-300 transition-all"
-            disabled={!canEdit}
-          >
-            <Zap size={14} className="inline mr-1" />
-            Création rapide
-          </motion.button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <ShinyButton
+              onClick={() => {
+                if (!canEdit) return;
+                onShowNewItemModal();
+              }}
+              className={`!px-3 !py-2 lg:text-sm text-xs ${!canEdit ? 'opacity-60 pointer-events-none' : ''}`}
+            >
+              <Plus size={14} className="inline mr-1" />
+              {newItemLabel}
+            </ShinyButton>
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              onClick={() => canEdit && onQuickCreateItem()}
+              className="px-3 py-2 rounded-lg lg:text-sm text-xs font-medium bg-gray-100 dark:bg-white/10 text-neutral-600 dark:text-neutral-200 hover:bg-white/10 duration-300 transition-all"
+              disabled={!canEdit}
+            >
+              <Zap size={14} className="inline mr-1" />
+              Création rapide
+            </motion.button>
+            </div>
           <div className="relative">
             <input
               value={searchQuery}
@@ -371,11 +373,11 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
               onFocus={() => setIsSearchOpen(true)}
               onBlur={() => setTimeout(() => setIsSearchOpen(false), 150)}
               placeholder="Rechercher un projet…"
-              className="bg-background border-b border-black/15 dark:border-white/15 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-200 placeholder:text-neutral-500 focus:outline-none"
+              className="bg-background border-b border-black/15 dark:border-white/15 px-3 py-2 lg:text-sm text-xs text-neutral-700 dark:text-neutral-200 placeholder:text-neutral-500 focus:outline-none"
             />
             {isSearchOpen && activeCollections.length > 0 && (
-              <div className="absolute left-0 mt-2 w-[28rem] rounded-lg border border-black/10 dark:border-white/10 bg-background dark:bg-neutral-900 shadow-xl backdrop-blur z-30 p-3">
-                <div className="text-sm text-neutral-700 dark:text-neutral-400 mb-2">
+              <div className="absolute left-0 mt-2 w-[28rem] max-w-[80vw] rounded-lg border border-black/10 dark:border-white/10 bg-background dark:bg-neutral-900 shadow-xl backdrop-blur z-30 p-3">
+                <div className="lg:text-sm text-xs text-neutral-700 dark:text-neutral-400 mb-2">
                   {searchQuery.trim()
                     ? 'Résultats de recherche'
                     : ''}
@@ -465,21 +467,21 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             <>
               <button
                 onClick={onShowFilterModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 lg:text-sm text-xs transition-all duration-300"
               >
                 <Filter size={14} />
                 Filtrer
               </button>
               <button
                 onClick={onShowGroupModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 lg:text-sm text-xs transition-all duration-300"
               >
                 <Layers size={14} />
                 Grouper
               </button>
               <button
                 onClick={() => canEdit && onShowNewPropertyModal()}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 lg:text-sm text-xs transition-all duration-300"
                 disabled={!canEdit}
               >
                 <Plus size={14} />
@@ -489,7 +491,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
               <div className="relative" ref={settingsRef}>
                 <button
                   onClick={() => onSetShowViewSettings(!showViewSettings)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 text-sm transition-all duration-300"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 lg:text-sm text-xs transition-all duration-300"
                 >
                   <Settings size={14} />
                   Paramètres
@@ -729,7 +731,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
               key={idx}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-neutral-700 dark:text-white rounded-lg text-sm border border-cyan-500/30"
+              className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-neutral-700 dark:text-white rounded-lg lg:text-sm text-xs border border-cyan-500/30"
             >
               <span>
                 Groupé par: {currentCollection?.properties.find((p: any) => p.id === group)?.name}

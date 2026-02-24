@@ -125,7 +125,7 @@ const MonthView: React.FC<MonthViewProps> = ({
                     {day}
                   </span>
                   {groupedList.length > 0 && (
-                    <div className="flex flex-col gap-1 mt-1">
+                    <div className="flex flex-col gap-1 mt-1 ">
                       {groupedList.map(({ item, segments }, i) => (
                         <div key={item.id + '-' + i} className="relative group">
                           <ItemContextMenu
@@ -135,7 +135,7 @@ const MonthView: React.FC<MonthViewProps> = ({
                             canEdit={canEditCollection(item.__collectionId)}
                           >
                             <button
-                              className="text-[10px] text-violet-600 dark:text-violet-300 font-medium text-left truncate hover:underline"
+                              className="text-[10px] text-violet-600 dark:text-violet-300 font-medium text-left truncate hover:underline lg:opacity-100 hover:opacity-100 opacity-0"
                               title={getNameValue(item)}
                               onClick={e => {
                                 e.stopPropagation();
