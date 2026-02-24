@@ -236,7 +236,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         >
           <Settings size={14} />
         </button>
-        <div className="inline-flex rounded-full bg-white/5 p-1 border border-black/10  dark:border-white/10 overflow-x-auto max-w-[calc(100%-100px)]">
+        <div className="inline-flex rounded-full bg-white/5 p-1 border border-black/10  dark:border-white/10  max-w-[calc(100%-100px)]">
           {viewTypeMeta
             .filter((meta) => (viewsByType.get(meta.type) || []).length > 0)
             .map((meta) => {

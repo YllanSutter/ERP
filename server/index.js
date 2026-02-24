@@ -44,7 +44,7 @@ if (process.env.DATABASE_PUBLIC_URL) {
 // --- Backup configuration ----------------------------------------------
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, '../backups');
 const BACKUP_RETENTION_DAYS = Number(process.env.BACKUP_RETENTION_DAYS || 14);
-const BACKUP_INTERVAL_MINUTES = Number(process.env.BACKUP_INTERVAL_MINUTES) || 0;
+const BACKUP_INTERVAL_MINUTES = Number(process.env.BACKUP_INTERVAL_MINUTES) || 1440; // Par défaut toutes les 24h
 
 const ensureBackupDir = async () => {
   await fs.promises.mkdir(BACKUP_DIR, { recursive: true });
