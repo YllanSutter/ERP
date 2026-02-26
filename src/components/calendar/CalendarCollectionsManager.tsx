@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Settings } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import MonthView from '../CalendarView/MonthView';
 import WeekView from '../CalendarView/WeekView';
 import { 
@@ -50,6 +52,23 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   viewModeStorageKey,
 }) => {
   const [moveMode, setMoveMode] = useState<'all' | 'segment' | 'segment-following'>('segment');
+  const [showOptions, setShowOptions] = useState(false);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+  const optionsContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const ref = optionsContainerRef.current;
+    if (!ref) return;
+    const observer = new window.ResizeObserver((entries) => {
+      for (let entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(ref);
+    // Initial width
+    setContainerWidth(ref.offsetWidth);
+    return () => observer.disconnect();
+  }, []);
   // Fonction pour gérer le déplacement d'un événement (drag & drop)
   /**
    * Déplace uniquement le segment concerné (par défaut), ou tous les segments si moveAllSegments=true
@@ -286,69 +305,98 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                 </div>
               </details>
             )}
-            <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto md:flex-col lg:flex-row">
-              <div className="inline-flex rounded-full bg-white/5 p-1 border border-black/10  dark:border-white/10 sm:w-auto">
-                {([
-                  { key: 'month', label: 'Mois' },
-                  { key: 'week', label: 'Semaine' },
-                  { key: 'day', label: 'Jour' },
-                ] as const).map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setViewModePersist(option.key)}
-                    className={
-                      'px-3 py-1 text-xs rounded-full transition-all ' +
-                      (viewMode === option.key
-                        ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
-                        : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
-                    }
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-          {/* Option de déplacement visible seulement en vue calendrier (week ou day) */}
-          {(viewMode === 'week' || viewMode === 'day') && (
-            <div className="flex w-full flex-wrap items-center gap-2 rounded-lg px-4 py-3 sm:w-auto sm:ml-2">
-              <span className="text-xs text-neutral-400">Déplacement :</span>
-              <div className="inline-flex rounded-full bg-white/5 p-1 border border-black/10  dark:border-white/10">
-                {([
-                  { key: 'segment', label: 'Seul' },
-                  { key: 'all', label: 'Complet' },
-                  { key: 'segment-following', label: ' + suivants' },
-                ] as const).map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setMoveMode(option.key)}
-                    className={
-                      'px-3 py-1 text-xs rounded-full transition-all ' +
-                      (moveMode === option.key
-                        ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
-                        : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
-                    }
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="flex">
-            <button onClick={() => setCurrentDate(getPreviousPeriod(currentDate, viewMode))} className="rounded-lg p-2 transition-colors hover:bg-white/10">
-              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg>
-            </button>
-            <button
-              onClick={() => setCurrentDate(new Date())}
-              className="px-4 text-sm font-medium bg-violet-500 dark:bg-violet-500/20 hover:bg-violet-700 dark:hover:bg-violet-500/30 text-white dark:text-violet-200 rounded-lg transition-colors border border-violet-500/30"
+            <div
+              ref={optionsContainerRef}
+              className={
+                'flex w-full flex-wrap gap-3 ' +
+                (containerWidth > 0 && containerWidth < 1024 && showOptions
+                  ? 'flex-col items-center'
+                  : 'items-center lg:w-auto md:flex-col lg:flex-row')
+              }
             >
-              Aujourd'hui
-            </button>
-            <button onClick={() => setCurrentDate(getNextPeriod(currentDate, viewMode))} className="rounded-lg p-2 transition-colors hover:bg-white/10">
-              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
-            </button>
-            </div>
+              {/* Bouton réglages visible uniquement si largeur < 1024px */}
+              {containerWidth > 0 && containerWidth < 1024 && (
+                <button
+                  type="button"
+                  className="flex items-center justify-center rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300 hover:bg-white/10 p-2 transition-all"
+                  onClick={() => setShowOptions((v) => !v)}
+                  aria-label="Afficher les options calendrier"
+                >
+                  <Calendar size={18} />
+                </button>
+              )}
+              {/* Bloc d'options caché si largeur < 1024px sauf si showOptions, sinon toujours visible, et flex-col center si <1024px */}
+              <div
+                className={
+                  'flex-1 flex flex-wrap gap-3 transition-all duration-300 ' +
+                  (containerWidth > 0 && containerWidth < 1024
+                    ? (showOptions ? 'flex flex-col items-center' : 'hidden')
+                    : 'lg:flex-row md:flex-col items-center')
+                }
+              >
+                <div className="inline-flex rounded-full bg-white/5 p-1 border border-black/10  dark:border-white/10 sm:w-auto">
+                  {([
+                    { key: 'month', label: 'Mois' },
+                    { key: 'week', label: 'Semaine' },
+                    { key: 'day', label: 'Jour' },
+                  ] as const).map((option) => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setViewModePersist(option.key)}
+                      className={
+                        'px-3 py-1 text-xs rounded-full transition-all ' +
+                        (viewMode === option.key
+                          ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                          : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
+                      }
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                {/* Option de déplacement visible seulement en vue calendrier (week ou day) */}
+                {(viewMode === 'week' || viewMode === 'day') && (
+                  <div className="flex w-full flex-wrap items-center gap-2 rounded-lg px-4 py-3 sm:w-auto sm:ml-2">
+                    <span className="text-xs text-neutral-400">Déplacement :</span>
+                    <div className="inline-flex rounded-full bg-white/5 p-1 border border-black/10  dark:border-white/10">
+                      {([
+                        { key: 'segment', label: 'Seul' },
+                        { key: 'all', label: 'Complet' },
+                        { key: 'segment-following', label: ' + suivants' },
+                      ] as const).map((option) => (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => setMoveMode(option.key)}
+                          className={
+                            'px-3 py-1 text-xs rounded-full transition-all ' +
+                            (moveMode === option.key
+                              ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                              : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
+                          }
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="flex">
+                <button onClick={() => setCurrentDate(getPreviousPeriod(currentDate, viewMode))} className="rounded-lg p-2 transition-colors hover:bg-white/10">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <button
+                  onClick={() => setCurrentDate(new Date())}
+                  className="px-4 text-sm font-medium bg-violet-500 dark:bg-violet-500/20 hover:bg-violet-700 dark:hover:bg-violet-500/30 text-white dark:text-violet-200 rounded-lg transition-colors border border-violet-500/30"
+                >
+                  Aujourd'hui
+                </button>
+                <button onClick={() => setCurrentDate(getNextPeriod(currentDate, viewMode))} className="rounded-lg p-2 transition-colors hover:bg-white/10">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
