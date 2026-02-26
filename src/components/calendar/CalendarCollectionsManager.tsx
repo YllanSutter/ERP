@@ -217,7 +217,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   // Rendu header + panneaux de filtre + vue calendrier
   return (
     <div>
-      <div className="lg:sticky relative top-0 z-10 mb-6">
+      <div className="z-10 mb-6">
         <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between md:flex-wrap lg:pl-[50px]">
           <h2 className="text-2xl font-bold text-neutral-700 dark:text-white">
           {viewMode === 'month'

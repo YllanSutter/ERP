@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import ShinyButton from '@/components/ui/ShinyButton';
 import DraggableList from '@/components/inputs/DraggableList';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
@@ -325,45 +326,33 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                 </div>
               );
             })}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => canEdit && onShowNewViewModal()}
+                    className={
+                      'h-6 w-6 rounded-full flex items-center justify-center border transition-all ' +
+                      (!canEdit
+                        ? 'opacity-60 pointer-events-none bg-black/5 dark:bg-white/5 text-neutral-400 border-black/10 dark:border-white/10'
+                        : 'bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300 border-black/10 dark:border-white/10 hover:bg-white/10')
+                    }
+                    aria-label="Nouvelle vue"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="center">
+                  Nouvelle vue
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
         </div>
-        <button
-          type="button"
-          onClick={() => canEdit && onShowNewViewModal()}
-          className={
-            'h-8 w-8 rounded-full flex items-center justify-center border transition-all ' +
-            (!canEdit
-              ? 'opacity-60 pointer-events-none bg-black/5 dark:bg-white/5 text-neutral-400 border-black/10 dark:border-white/10'
-              : 'bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300 border-black/10 dark:border-white/10 hover:bg-white/10')
-          }
-          title="Nouvelle vue"
-          aria-label="Nouvelle vue"
-        >
-          <Plus size={14} />
-        </button>
+      
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
-            <ShinyButton
-              onClick={() => {
-                if (!canEdit) return;
-                onShowNewItemModal();
-              }}
-              className={`!px-3 !py-2 lg:text-sm text-xs ${!canEdit ? 'opacity-60 pointer-events-none' : ''}`}
-            >
-              <Plus size={14} className="inline mr-1" />
-              {newItemLabel}
-            </ShinyButton>
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              onClick={() => canEdit && onQuickCreateItem()}
-              className="px-3 py-2 rounded-lg lg:text-sm text-xs font-medium bg-gray-100 dark:bg-white/10 text-neutral-600 dark:text-neutral-200 hover:bg-white/10 duration-300 transition-all"
-              disabled={!canEdit}
-            >
-              <Zap size={14} className="inline mr-1" />
-              Création rapide
-            </motion.button>
-            </div>
-          <div className="relative">
+              <div className="relative">
             <input
               value={searchQuery}
               onChange={(e) => {
@@ -458,6 +447,44 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
               </div>
             )}
           </div>
+            <TooltipProvider>
+              <div className="flex items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <motion.button
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      onClick={() => canEdit && onShowNewItemModal()}
+                      className="px-3 py-2 rounded-lg lg:text-sm text-xs font-medium bg-gray-100 dark:bg-white/10 text-neutral-600 dark:text-neutral-200 hover:bg-white/10 duration-300 transition-all"
+                      disabled={!canEdit}
+                    >
+                      <Plus size={14} className="inline" />
+                    </motion.button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="center">
+                    {newItemLabel}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <motion.button
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      onClick={() => canEdit && onQuickCreateItem()}
+                      className="px-3 py-2 rounded-lg lg:text-sm text-xs font-medium bg-gray-100 dark:bg-white/10 text-neutral-600 dark:text-neutral-200 hover:bg-white/10 duration-300 transition-all"
+                      disabled={!canEdit}
+                    >
+                      <Zap size={14} className="inline" />
+                    </motion.button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="center">
+                    Création rapide
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </TooltipProvider>
+            </div>
+        
         </div>
       </div>
 
