@@ -97,7 +97,8 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     register,
     logout,
     impersonate,
-    impersonatedRoleId
+    impersonatedRoleId,
+    isAdminBase
   } = useAuth();
   const [collections, setCollections] = useState<any[]>(defaultCollections);
   // console.log(collections);
@@ -326,7 +327,10 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     const loadUsers = async () => {
       if (!user) return;
       try {
-        const res = await fetch(`${API_URL}/users`, { credentials: 'include' });
+        // Ne pas envoyer le header d'impersonation pour charger la liste complète (besoin des droits admin)
+        const res = await fetch(`${API_URL}/users`, { 
+          credentials: 'include'
+        });
         if (res.ok) {
           const data = await res.json();
           setAvailableUsers(data || []);
@@ -337,6 +341,28 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     };
     loadUsers();
   }, [user]);
+
+  useEffect(() => {
+    // Charger tous les rôles disponibles pour le sélecteur de rôle admin
+    // IMPORTANT: on charge toujours les rôles si l'utilisateur est admin de base,
+    // même s'il impersonne un rôle sans permissions
+    const loadRoles = async () => {
+      if (!user || !isAdminBase) return;
+      try {
+        // Ne pas envoyer le header d'impersonation pour charger la liste complète (besoin des droits admin de base)
+        const res = await fetch(`${API_URL}/roles`, { 
+          credentials: 'include'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAvailableRoles(data || []);
+        }
+      } catch (err) {
+        console.error('Impossible de charger les rôles', err);
+      }
+    };
+    loadRoles();
+  }, [user, isAdminBase]);
 
   useEffect(() => {
     if (!activeCollection) return;
@@ -542,7 +568,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
         <SidebarInset className="flex-1 flex flex-col overflow-hidden">
            <AppHeader
             impersonatedRoleId={impersonatedRoleId}
-            availableRoles={availableRoles.length ? availableRoles : userRoles || []}
+            availableRoles={availableRoles}
             activeCollectionName={currentCollection?.name || null}
             onNewCollection={() => setShowNewCollectionModal(true)}
             onImpersonate={impersonate}
@@ -587,6 +613,17 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                   <Plus size={16} />
                   Créer une collection
                 </ShinyButton>
+              </div>
+            </motion.div>
+          ) : !currentCollection ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="flex-1 flex items-center justify-center"
+            >
+              <div className="text-center text-neutral-400">
+                <p>Collection non accessible avec vos permissions actuelles</p>
               </div>
             </motion.div>
           ) : (
@@ -1074,7 +1111,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
           view={(views[viewVisibilityTarget.collectionId] || []).find(
             (v) => v.id === viewVisibilityTarget.viewId
           )}
-          roles={availableRoles.length ? availableRoles : userRoles || []}
+          roles={availableRoles}
           users={availableUsers}
           onClose={() => setViewVisibilityTarget(null)}
           onSave={(roleIds, userIds) => {

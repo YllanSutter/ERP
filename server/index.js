@@ -550,9 +550,15 @@ const requireAuth = async (req, res, next) => {
     if (!baseCtx) return res.status(401).json({ error: 'Invalid user' });
 
     const isAdmin = baseCtx.roles.some((r) => r.name === 'admin');
-    const impersonateRoleId = req.cookies.impersonate_role_id || null;
+    const impersonateRoleId = req.cookies.impersonate_role_id || req.headers['x-impersonate-role-id'] || null;
 
     if (impersonateRoleId && isAdmin) {
+      // Vérifier que le rôle existe toujours
+      const roleCheck = await pool.query('SELECT id FROM roles WHERE id = $1', [impersonateRoleId]);
+      if (roleCheck.rows.length === 0) {
+        req.auth = { ...baseCtx, baseRoles: baseCtx.roles, baseIsAdmin: isAdmin };
+        return next();
+      }
       const impCtx = await loadUserContext(decoded.sub, impersonateRoleId);
       req.auth = {
         ...(impCtx || baseCtx),
@@ -605,6 +611,15 @@ const hasPermission = (ctx, scope, action) => {
 
 const requirePermission = (action, scopeBuilder = () => ({})) => {
   return (req, res, next) => {
+    const scope = scopeBuilder(req);
+    if (hasPermission(req.auth, scope, action)) return next();
+    return res.status(403).json({ error: 'Forbidden' });
+  };
+};
+
+const requireBaseAdminOrPermission = (action, scopeBuilder = () => ({})) => {
+  return (req, res, next) => {
+    if (req.auth?.baseIsAdmin) return next();
     const scope = scopeBuilder(req);
     if (hasPermission(req.auth, scope, action)) return next();
     return res.status(403).json({ error: 'Forbidden' });
@@ -895,7 +910,6 @@ app.post('/api/auth/impersonate', requireAuth, async (req, res) => {
   const { roleId } = req.body || {};
 
   if (!roleId) {
-    // Clear impersonation
     res.clearCookie('impersonate_role_id');
     return res.json({ ok: true, impersonatedRoleId: null });
   }
@@ -909,6 +923,7 @@ app.post('/api/auth/impersonate', requireAuth, async (req, res) => {
     secure: process.env.NODE_ENV === 'production',
     maxAge: 24 * 60 * 60 * 1000,
   });
+
   return res.json({ ok: true, impersonatedRoleId: roleId });
 });
 
@@ -919,7 +934,7 @@ app.post('/api/auth/logout', (_req, res) => {
 });
 
 // --- Users / Roles / Permissions ---------------------------------------
-app.get('/api/users', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
+app.get('/api/users', requireAuth, requireBaseAdminOrPermission('can_manage_permissions'), async (_req, res) => {
   const users = await pool.query(
     `SELECT u.id, u.email, u.name, u.provider, COALESCE(json_agg(ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL), '[]') as role_ids
      FROM users u
@@ -974,7 +989,7 @@ app.delete('/api/users/:id', requireAuth, requirePermission('can_manage_permissi
   }
 });
 
-app.get('/api/roles', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
+app.get('/api/roles', requireAuth, requireBaseAdminOrPermission('can_manage_permissions'), async (_req, res) => {
   const roles = await pool.query('SELECT * FROM roles');
   res.json(roles.rows);
 });

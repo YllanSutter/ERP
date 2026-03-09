@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Settings,
   Star,
@@ -26,6 +26,7 @@ import {
   SidebarTrigger,
   useSidebar
 } from '@/components/ui/sidebar';
+import { useAuth } from '@/auth/AuthProvider';
 
 interface SidebarProps {
   collections: any[];
@@ -67,6 +68,34 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [expandedFavorites, setExpandedFavorites] = useState(true);
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
+  const { isAdmin, isEditor, permissions } = useAuth();
+
+  const canReadCollection = useMemo(() => {
+    return (collectionId: string) => {
+      if (isAdmin || isEditor) return true;
+      const perms = permissions || [];
+      const collectionPerm = perms.find(
+        (p: any) =>
+          (p.collection_id || null) === collectionId &&
+          (p.item_id || null) === null &&
+          (p.field_id || null) === null
+      );
+      if (collectionPerm) return Boolean(collectionPerm.can_read);
+      const globalPerm = perms.find(
+        (p: any) =>
+          (p.collection_id || null) === null &&
+          (p.item_id || null) === null &&
+          (p.field_id || null) === null
+      );
+      if (globalPerm) return Boolean(globalPerm.can_read);
+      return false;
+    };
+  }, [isAdmin, isEditor, permissions]);
+
+  const visibleCollections = useMemo(
+    () => (collections || []).filter((c: any) => canReadCollection(c.id)),
+    [collections, canReadCollection]
+  );
 
   const canSeeView = (view: any) => {
     const allowedRoles = view?.visibleToRoles || [];
@@ -79,13 +108,31 @@ const Sidebar: React.FC<SidebarProps> = ({
     return roleOk || userOk;
   };
 
+  const canSeeDashboard = (dashboard: any) => {
+    if (isAdmin) return true; // Admins voient tout
+    const allowedRoles = dashboard?.visibleToRoles || [];
+    const allowedUsers = dashboard?.visibleToUsers || [];
+    const hasRoleRestriction = allowedRoles.length > 0;
+    const hasUserRestriction = allowedUsers.length > 0;
+    if (!hasRoleRestriction && !hasUserRestriction) return true;
+    const roleOk = hasRoleRestriction ? allowedRoles.some((rid: string) => userRoleIds.includes(rid)) : false;
+    const userOk = hasUserRestriction ? allowedUsers.includes(userId) : false;
+    return roleOk || userOk;
+  };
+
+  const visibleDashboards = useMemo(
+    () => (dashboards || []).filter(canSeeDashboard),
+    [dashboards, userRoleIds, userId, isAdmin]
+  );
+
   // Construire la liste des vues favorites avec leurs infos
   const favoriteViewsList = favorites.views
     .map((viewId) => {
       for (const [collectionId, collectionViews] of Object.entries(views)) {
+        if (!canReadCollection(collectionId)) continue;
         const view = collectionViews.find((v: any) => v.id === viewId && canSeeView(v));
         if (view) {
-          const collection = collections.find((c) => c.id === collectionId);
+          const collection = visibleCollections.find((c) => c.id === collectionId);
           return { view, collection, collectionId };
         }
       }
@@ -96,7 +143,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   // Construire la liste des items favoris avec leurs infos
   const favoriteItemsList = favorites.items
     .map((itemId) => {
-      for (const collection of collections) {
+      for (const collection of visibleCollections) {
         const item = collection.items.find((it: any) => it.id === itemId);
         if (item) {
           const nameField = collection.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
@@ -234,12 +281,12 @@ const Sidebar: React.FC<SidebarProps> = ({
               </button>
             }
           />
-          {dashboards.length === 0 ? (
-            <div className="text-xs text-neutral-500 px-3 py-2 max-h-4 inline-block overflow-hidden">Aucun dashboard pour l’instant</div>
+          {visibleDashboards.length === 0 ? (
+            <div className="text-xs text-neutral-500 px-3 py-2 max-h-4 inline-block overflow-hidden">Aucun dashboard pour l'instant</div>
           ) : (
             <SidebarGroupContent className="mt-2">
               <SidebarMenu>
-                {dashboards.map((db) => (
+                {visibleDashboards.map((db) => (
                   <SidebarMenuItem key={db.id} className="group">
                     <SidebarMenuButton
                       onClick={() => onSelectDashboard(db.id)}
@@ -292,7 +339,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <SectionHeader label="Collections" />
           <SidebarGroupContent className="mt-2">
             <SidebarMenu>
-              {collections.map((col) => {
+              {visibleCollections.map((col) => {
                 const IconComponent = (Icons as any)[col.icon] || Icons.Folder;
                 return (
                   <SidebarMenuItem key={col.id} className="group">

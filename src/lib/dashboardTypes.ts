@@ -29,6 +29,8 @@ export interface MonthlyDashboardConfig {
   globalDateRange?: { startField: string | null; endField: string | null };
   globalDurationField?: string | null;
   columnTree: DashboardColumnNode[];
+  visibleToRoles?: string[];
+  visibleToUsers?: string[];
   createdAt?: string;
   updatedAt?: string;
 }

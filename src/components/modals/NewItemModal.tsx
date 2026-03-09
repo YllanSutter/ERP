@@ -75,16 +75,106 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   onToggleFavoriteItem,
   orderedProperties
 }) => {
+  const { user, isAdmin, isEditor, permissions } = useAuth();
+
+  const canReadCollection = React.useCallback((collectionId?: string | null) => {
+    if (!collectionId) return false;
+    if (isAdmin || isEditor) return true;
+    const perms = permissions || [];
+    const collectionPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === collectionId &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (collectionPerm) return Boolean(collectionPerm.can_read);
+    const globalPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === null &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (globalPerm) return Boolean(globalPerm.can_read);
+    return false;
+  }, [isAdmin, isEditor, permissions]);
+
+  const canWriteCollection = React.useCallback((collectionId?: string | null) => {
+    if (!collectionId) return false;
+    if (isAdmin || isEditor) return true;
+    const perms = permissions || [];
+    const collectionPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === collectionId &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (collectionPerm) return Boolean(collectionPerm.can_write);
+    const globalPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === null &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (globalPerm) return Boolean(globalPerm.can_write);
+    return false;
+  }, [isAdmin, isEditor, permissions]);
+
+  const canReadField = React.useCallback((collectionId: string | null | undefined, fieldId: string) => {
+    if (!collectionId || !fieldId) return false;
+    if (isAdmin || isEditor) return true;
+    const perms = permissions || [];
+    const fieldPerm = perms.find(
+      (p: any) =>
+        (p.field_id || null) === fieldId &&
+        (p.collection_id || null) === collectionId &&
+        (p.item_id || null) === null
+    );
+    if (fieldPerm) return Boolean(fieldPerm.can_read);
+    return canReadCollection(collectionId);
+  }, [isAdmin, isEditor, permissions, canReadCollection]);
+
+  const canWriteField = React.useCallback((collectionId: string | null | undefined, fieldId: string) => {
+    if (!collectionId || !fieldId) return false;
+    if (isAdmin || isEditor) return true;
+    const perms = permissions || [];
+    const fieldPerm = perms.find(
+      (p: any) =>
+        (p.field_id || null) === fieldId &&
+        (p.collection_id || null) === collectionId &&
+        (p.item_id || null) === null
+    );
+    if (fieldPerm) return Boolean(fieldPerm.can_write);
+    return canWriteCollection(collectionId);
+  }, [isAdmin, isEditor, permissions, canWriteCollection]);
+
+  const readableCollections = useMemo(
+    () => (collections || []).filter((c: any) => canReadCollection(c.id)),
+    [collections, canReadCollection]
+  );
+
+  const writableCollections = useMemo(
+    () => readableCollections.filter((c: any) => canWriteCollection(c.id)),
+    [readableCollections, canWriteCollection]
+  );
+
   // Ajout d'un sélecteur de collection (pour création uniquement)
   const [selectedCollectionId, setSelectedCollectionId] = useState(collection.id);
-  const selectedCollection = collections.find((c: any) => c.id === selectedCollectionId) || collection;
+  const selectedCollection =
+    readableCollections.find((c: any) => c.id === selectedCollectionId) ||
+    readableCollections[0] ||
+    collection;
   const isReallyEditing = Boolean(editingItem && editingItem.id);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [templateDialogItems, setTemplateDialogItems] = useState<any[]>([]);
   const [templateDialogSelection, setTemplateDialogSelection] = useState<Record<string, boolean>>({});
   const [templateDialogPayload, setTemplateDialogPayload] = useState<{ nextData: any; nextAutoFilled: Record<string, boolean> } | null>(null);
   const [templateDialogNeedsSegments, setTemplateDialogNeedsSegments] = useState(false);
-  const { user } = useAuth();
+  React.useEffect(() => {
+    const exists = readableCollections.some((c: any) => c.id === selectedCollectionId);
+    if (exists) return;
+    const nextId = writableCollections[0]?.id || readableCollections[0]?.id || collection?.id;
+    if (nextId) setSelectedCollectionId(nextId);
+  }, [selectedCollectionId, readableCollections, writableCollections, collection?.id]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyData, setHistoryData] = useState<{ base: any; versions: any[] } | null>(null);
   const [historySelectedIndex, setHistorySelectedIndex] = useState<number | null>(null);
@@ -650,6 +740,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   }, [selectedCollection]);
 
   const handleChange = (propId: string, value: any) => {
+    if (!canWriteField(selectedCollection?.id, propId)) return;
     // Plus besoin de vérifier si c'est un champ date
     // Tous les changements sont envoyés au serveur qui recalculera les segments
     let nextData = { ...formData, [propId]: value };
@@ -740,7 +831,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     if (!editingItem) {
       // Cherche la première valeur trouvée dans formData parmi tous les champs date de la collection courante
       let previousDateValue = undefined;
-      const prevCol = collections.find((c: any) => c.id === selectedCollectionId) || collection;
+      const prevCol = readableCollections.find((c: any) => c.id === selectedCollectionId) || collection;
       const prevDateFields = prevCol.properties.filter((p: any) => p.type === 'date');
       if (formData && prevDateFields.length > 0) {
         for (let i = 0; i < prevDateFields.length; i++) {
@@ -759,7 +850,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   // Quand selectedCollectionId change, si pendingDateValue est défini, on préremplit tous les champs date
   React.useEffect(() => {
     if (!editingItem && pendingDateValue !== undefined && !draftAppliedRef.current) {
-      const newCol = collections.find((c: any) => c.id === selectedCollectionId) || collection;
+      const newCol = readableCollections.find((c: any) => c.id === selectedCollectionId) || collection;
       const dateFields = newCol.properties.filter((p: any) => p.type === 'date');
       let prefill: any = {};
       if (pendingDateValue) {
@@ -827,10 +918,12 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const richTextFallback = (selectedCollection.properties || []).filter(
     (p: any) => p.type === 'rich_text'
   );
-  const propsList = richTextFallback.reduce((acc: any[], prop: any) => {
+  const readableBaseProps = (basePropsList || []).filter((p: any) => canReadField(selectedCollection?.id, p.id));
+  const readableRichTextFallback = (richTextFallback || []).filter((p: any) => canReadField(selectedCollection?.id, p.id));
+  const propsList = readableRichTextFallback.reduce((acc: any[], prop: any) => {
     if (acc.some((p) => p.id === prop.id)) return acc;
     return [...acc, prop];
-  }, basePropsList as any[]);
+  }, readableBaseProps as any[]);
   const classicProps = propsList.filter((p: any) => p.type !== 'relation');
   const richTextProps = classicProps.filter((p: any) => p.type === 'rich_text');
   const classicPropsSansRichText = classicProps.filter((p: any) => p.type !== 'rich_text');
@@ -880,6 +973,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   );
 
   const handleSave = (saveFn: (item: any) => void) => {
+    if (!canWriteCollection(selectedCollectionId)) {
+      alert('Vous n\'avez pas les droits pour modifier cette collection.');
+      return;
+    }
     disableDraftRef.current = true;
     setHasLocalDraft(false);
     try {
@@ -993,17 +1090,18 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 value={formData[classicPropsSansRichText[0].id]}
                 onChange={(val) => handleChange(classicPropsSansRichText[0].id, val)}
                 size="xl"
-                collections={collections}
-                collection={collection}
+                collections={readableCollections}
+                collection={selectedCollection}
                 currentItem={formData}
                 onRelationChange={(property, item, value) => {
+                  if (!canWriteField(selectedCollection?.id, property.id)) return;
                   if (property.type === 'relation' || property.type === 'multi_select') {
                     setFormData({ ...formData, [property.id]: value });
                   } else {
                     setFormData(item);
                   }
                 }}
-                readOnly={false}
+                readOnly={!canWriteField(selectedCollection?.id, classicPropsSansRichText[0].id)}
                 forceRichEditor={true}
               />
             )}
@@ -1016,7 +1114,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 value={selectedCollectionId}
                 onChange={handleCollectionChange}
               >
-                {collections.map((col: any) => (
+                {writableCollections.map((col: any) => (
                   <option key={col.id} value={col.id}>{col.name}</option>
                 ))}
               </select>
@@ -1076,13 +1174,14 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       value={formData[prop.id]}
                       onChange={(val) => handleChange(prop.id, val)}
                       size="md"
-                      collections={collections}
-                      collection={collection}
+                      collections={readableCollections}
+                      collection={selectedCollection}
                       currentItem={formData}
                       onRelationChange={(property, item, value) => {
+                        if (!canWriteField(selectedCollection?.id, property.id)) return;
                         setFormData({ ...formData, [property.id]: value });
                       }}
-                      readOnly={false}
+                      readOnly={!canWriteField(selectedCollection?.id, prop.id)}
                     />
                   </div>
                 ))}
@@ -1169,17 +1268,18 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       value={formData[prop.id]}
                       onChange={(val) => handleChange(prop.id, val)}
                       size="md"
-                      collections={collections}
-                      collection={collection}
+                      collections={readableCollections}
+                      collection={selectedCollection}
                       currentItem={formData}
                       onRelationChange={(property, item, value) => {
+                        if (!canWriteField(selectedCollection?.id, property.id)) return;
                         if (property.type === 'relation' || property.type === 'multi_select') {
                           setFormData({ ...formData, [property.id]: value });
                         } else {
                           setFormData(item);
                         }
                       }}
-                      readOnly={false}
+                      readOnly={!canWriteField(selectedCollection?.id, prop.id)}
                       forceRichEditor={true}
                     />
                   </div>
@@ -1198,6 +1298,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 <div className="text-neutral-500 text-sm">Aucun champ date</div>
               )}
               {dateProps.map((dateProp: any) => {
+                const canWriteDateProp = canWriteField(selectedCollection?.id, dateProp.id);
                 const segments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
                 const autoSegments = previewSegments.filter((seg: { label: any; }) => seg.label === dateProp.name);
                 
@@ -1221,8 +1322,12 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     <div className="flex items-center justify-between mb-3">
                       <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">{dateProp.name}</label>
                       <button
-                        onClick={() => setEditingDateProp(dateProp)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
+                        onClick={() => {
+                          if (!canWriteDateProp) return;
+                          setEditingDateProp(dateProp);
+                        }}
+                        disabled={!canWriteDateProp}
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Edit2 size={12} />
                         Modifier
@@ -1282,7 +1387,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                               <button
                                 type="button"
                                 className="mt-3 w-full px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
+                                disabled={!canWriteDateProp}
                                 onClick={() => {
+                                  if (!canWriteDateProp) return;
                                   const oldManualSegs = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label !== dateProp.name);
                                   setFormData({ ...formData, _eventSegments: [...oldManualSegs, ...autoSegments], _preserveEventSegments: false });
                                 }}
@@ -1313,10 +1420,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       value={formData[prop.id]}
                       onChange={(val) => handleChange(prop.id, val)}
                       size="md"
-                      collections={collections}
-                      collection={collection}
+                      collections={readableCollections}
+                      collection={selectedCollection}
                       currentItem={formData}
-                      readOnly={false}
+                      readOnly={!canWriteField(selectedCollection?.id, prop.id)}
                       forceRichEditor={true}
                     />
                   </div>

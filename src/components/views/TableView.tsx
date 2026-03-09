@@ -51,6 +51,15 @@ const TableView: React.FC<TableViewProps> = ({
   initialExpandedGroups,
   onExpandedGroupsChange,
 }) => {
+  // Guard: si pas de collection, ne rien afficher
+  if (!collection) {
+    return (
+      <div className="flex items-center justify-center h-full text-neutral-500">
+        <p>Collection non accessible</p>
+      </div>
+    );
+  }
+
   const onSortStateChangeRef = useRef(onSortStateChange);
   const lastSortSerializedRef = useRef<string | null>(null);
 

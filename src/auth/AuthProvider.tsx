@@ -33,7 +33,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const refresh = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' });
+      const headers: Record<string, string> = {};
+      if (impersonatedRoleId) {
+        headers['X-Impersonate-Role-Id'] = impersonatedRoleId;
+      }
+      const res = await fetch(`${API_URL}/auth/me`, { 
+        credentials: 'include',
+        headers
+      });
       if (!res.ok) {
         setUser(null);
         setRoles([]);
@@ -126,8 +133,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     },
     logout,
     impersonate: async (roleId: string | null) => {
-      setLoading(true);
       try {
+        // Mettre à jour immédiatement le state pour les prochaines requêtes
+        setImpersonatedRoleId(roleId);
         const res = await fetch(`${API_URL}/auth/impersonate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -136,11 +144,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
+          setImpersonatedRoleId(null);
           throw new Error(data.error || 'Impersonation failed');
         }
         await refresh();
-      } finally {
-        setLoading(false);
+      } catch (err) {
+        setImpersonatedRoleId(null);
+        throw err;
       }
     },
     isAdmin,

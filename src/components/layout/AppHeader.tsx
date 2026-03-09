@@ -118,7 +118,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             </span>
           </div>
         ))}
-        {(isAdminBase || canManagePermissions) && (
+        {(isAdminBase || canManagePermissions || Boolean(impersonatedRoleId)) && (
           <div className="flex items-center gap-2 text-xs text-neutral-400">
             <span className="text-neutral-500 hidden md:inline">Rôle :</span>
             <select

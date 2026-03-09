@@ -20,6 +20,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { useAuth } from '@/auth/AuthProvider';
 
 interface DashboardShellProps {
   dashboard: MonthlyDashboardConfig | null;
@@ -109,14 +110,83 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         }));
       };
 
+  const { isAdmin, isEditor, permissions, user, roles } = useAuth();
+
+  // Vérifier si l'utilisateur peut voir ce dashboard
+  const canSeeDashboard = React.useMemo(() => {
+    if (!dashboard) return false;
+    if (isAdmin) return true;
+    const allowedRoles = dashboard.visibleToRoles || [];
+    const allowedUsers = dashboard.visibleToUsers || [];
+    const hasRoleRestriction = allowedRoles.length > 0;
+    const hasUserRestriction = allowedUsers.length > 0;
+    if (!hasRoleRestriction && !hasUserRestriction) return true;
+    const userRoleIds = (roles || []).map((r: any) => r.id);
+    const roleOk = hasRoleRestriction ? allowedRoles.some((rid: string) => userRoleIds.includes(rid)) : false;
+    const userOk = hasUserRestriction ? allowedUsers.includes(user?.id) : false;
+    return roleOk || userOk;
+  }, [dashboard, isAdmin, roles, user]);
+
+  const canReadCollection = React.useCallback((collectionId?: string | null) => {
+    if (!collectionId) return false;
+    if (isAdmin || isEditor) return true;
+    const perms = permissions || [];
+    const collectionPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === collectionId &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (collectionPerm) return Boolean(collectionPerm.can_read);
+    const globalPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === null &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (globalPerm) return Boolean(globalPerm.can_read);
+    return false;
+  }, [isAdmin, isEditor, permissions]);
+
+  const canWriteCollection = React.useCallback((collectionId?: string | null) => {
+    if (!collectionId) return false;
+    if (isAdmin || isEditor) return true;
+    const perms = permissions || [];
+    const collectionPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === collectionId &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (collectionPerm) return Boolean(collectionPerm.can_write);
+    const globalPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === null &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (globalPerm) return Boolean(globalPerm.can_write);
+    return false;
+  }, [isAdmin, isEditor, permissions]);
+
   const years = useMemo(() => {
     const current = new Date().getFullYear();
     return [current - 1, current, current + 1];
   }, []);
 
+  const readableCollections = useMemo(
+    () => (collections || []).filter((c: any) => canReadCollection(c.id)),
+    [collections, canReadCollection]
+  );
+
+  const writableCollectionIds = useMemo(
+    () => new Set(readableCollections.filter((c: any) => canWriteCollection(c.id)).map((c: any) => c.id)),
+    [readableCollections, canWriteCollection]
+  );
+
   const collection = useMemo(
-    () => collections.find((c) => c.id === dashboard?.sourceCollectionId),
-    [collections, dashboard?.sourceCollectionId]
+    () => readableCollections.find((c) => c.id === dashboard?.sourceCollectionId),
+    [readableCollections, dashboard?.sourceCollectionId]
   );
 
   const properties = collection?.properties || [];
@@ -124,12 +194,12 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     if (!dashboard || !collection?.items) return [];
     const filters = dashboardFilters?.[dashboard.id] || [];
     const fakeViewConfig = { filters };
-    return getFilteredItems(collection, fakeViewConfig, { collectionId: null, ids: [] }, collection.id, collections);
-  }, [dashboard, collection, dashboardFilters, collections]);
+    return getFilteredItems(collection, fakeViewConfig, { collectionId: null, ids: [] }, collection.id, readableCollections);
+  }, [dashboard, collection, dashboardFilters, readableCollections]);
 
   const itemCollectionMap = useMemo(() => {
     const map = new Map<string, { collectionId: string; collectionName: string }>();
-    collections.forEach((coll: any) => {
+    readableCollections.forEach((coll: any) => {
       (coll.items || []).forEach((it: any) => {
         if (it?.id) {
           map.set(it.id, { collectionId: coll.id, collectionName: coll.name || 'Sans nom' });
@@ -137,7 +207,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       });
     });
     return map;
-  }, [collections]);
+  }, [readableCollections]);
 
   const periodStart = useMemo(() => {
     if (!dashboard?.year || !dashboard?.month) return null;
@@ -163,7 +233,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       { soft: 'bg-white/80 dark:bg-neutral-950/15', strong: 'bg-neutral-100/80 dark:bg-neutral-950/30' },
       { soft: 'bg-neutral-50/70 dark:bg-neutral-900/35', strong: 'bg-neutral-200/70 dark:bg-neutral-900/50' },
     ];
-    const idx = Math.max(0, collections.findIndex((c: any) => c.id === collectionId));
+    const idx = Math.max(0, readableCollections.findIndex((c: any) => c.id === collectionId));
     return palette[idx % palette.length];
   };
 
@@ -243,7 +313,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
   const buildPrefillForCell = (leaf: any, day: Date) => {
     const rootGroup = leaf?._parentPath && leaf._parentPath.length > 0 ? leaf._parentPath[0] : null;
     const targetCollectionId = rootGroup?.collectionId || dashboard?.sourceCollectionId || null;
-    const targetCollection = collections.find((c: any) => c.id === targetCollectionId) || collection;
+    const targetCollection = readableCollections.find((c: any) => c.id === targetCollectionId) || collection;
     if (!targetCollection) return null;
 
     const targetProperties = targetCollection?.properties || [];
@@ -300,6 +370,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     if (!onShowNewItemModalForCollection) return;
     const payload = buildPrefillForCell(leaf, day);
     if (!payload) return;
+    if (!writableCollectionIds.has(payload.collection.id)) return;
     onShowNewItemModalForCollection(payload.collection, payload.item);
   };
 
@@ -326,7 +397,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     leafColumns.forEach((leaf: any) => {
       const rootGroup = leaf._parentPath && leaf._parentPath.length > 0 ? leaf._parentPath[0] : null;
       const groupCollectionId = rootGroup?.collectionId || dashboard.sourceCollectionId;
-      const groupCollection = collections.find((c: any) => c.id === groupCollectionId) || collection;
+      const groupCollection = readableCollections.find((c: any) => c.id === groupCollectionId) || collection;
       const groupProperties = groupCollection?.properties || [];
       let groupItems: any[] = [];
       if (groupCollection?.id === collection?.id) {
@@ -334,7 +405,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       } else if (groupCollection) {
         const filters = dashboardFilters?.[dashboard.id] || [];
         const fakeViewConfig = { filters } as any;
-        groupItems = getFilteredItems(groupCollection, fakeViewConfig, { collectionId: null, ids: [] }, groupCollection.id, collections);
+        groupItems = getFilteredItems(groupCollection, fakeViewConfig, { collectionId: null, ids: [] }, groupCollection.id, readableCollections);
       }
 
       let filteredGroupItems = groupItems;
@@ -371,7 +442,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       map.set(leaf.id, { items: filteredGroupItems, dateField });
     });
     return map;
-  }, [dashboard, leafColumns, collections, collection, filteredItems, dashboardFilters]);
+  }, [dashboard, leafColumns, readableCollections, collection, filteredItems, dashboardFilters]);
 
   const getItemEndDate = (item: any, dateField: any) => {
     if (!item || !dateField) return null;
@@ -510,7 +581,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     leafColumns.forEach((leaf: any) => {
       const rootGroup = leaf._parentPath && leaf._parentPath.length > 0 ? leaf._parentPath[0] : null;
       const groupCollectionId = rootGroup?.collectionId || dashboard.sourceCollectionId;
-      const groupCollection = collections.find((c: any) => c.id === groupCollectionId) || collection;
+      const groupCollection = readableCollections.find((c: any) => c.id === groupCollectionId) || collection;
       const groupProperties = groupCollection?.properties || [];
       let groupItems = [];
       if (groupCollection.id === collection?.id) {
@@ -518,7 +589,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
       } else {
         const filters = dashboardFilters?.[dashboard.id] || [];
         const fakeViewConfig = { filters };
-        groupItems = getFilteredItems(groupCollection, fakeViewConfig, { collectionId: null, ids: [] }, groupCollection.id, collections);
+        groupItems = getFilteredItems(groupCollection, fakeViewConfig, { collectionId: null, ids: [] }, groupCollection.id, readableCollections);
       }
       let filteredGroupItems = groupItems;
       let filterHierarchy: { field: string, values: string[] }[] = [];
@@ -609,7 +680,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     leafColumns.forEach((leaf: any) => {
       const rootGroup = leaf._parentPath && leaf._parentPath.length > 0 ? leaf._parentPath[0] : null;
       const groupCollectionId = rootGroup?.collectionId || dashboard.sourceCollectionId;
-      const groupCollection = collections.find((c: any) => c.id === groupCollectionId) || collection;
+      const groupCollection = readableCollections.find((c: any) => c.id === groupCollectionId) || collection;
       const groupProperties = groupCollection?.properties || [];
       let dateFieldId = rootGroup?.dateFieldId || dashboard.globalDateField;
       if (leaf.dateFieldOverride && leaf.dateFieldOverride.single) {
@@ -653,13 +724,29 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     });
 
     return { daily, spansByLeaf, spansByLeafDay, dailyObjectDurations };
-  }, [dashboard, collection, collections, properties, filteredItems, leafColumns, resolvedTypeField, periodStart, periodEnd]);
+  }, [dashboard, collection, readableCollections, properties, filteredItems, leafColumns, resolvedTypeField, periodStart, periodEnd]);
 
 
   if (!dashboard) {
     return (
       <div className="flex-1 flex items-center justify-center text-neutral-400">
         Aucun dashboard sélectionné
+      </div>
+    );
+  }
+
+  if (!canSeeDashboard) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-neutral-400">
+        Vous n'avez pas accès à ce dashboard
+      </div>
+    );
+  }
+
+  if (!collection) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-neutral-400">
+        Collection source du dashboard non accessible
       </div>
     );
   }
@@ -705,7 +792,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         leafColumns.forEach((leaf: any) => {
           const collectionId = getLeafCollectionId(leaf) || dashboard?.sourceCollectionId;
           if (!collectionId) return;
-          const collectionName = collections.find((c: any) => c.id === collectionId)?.name || 'Collection';
+          const collectionName = readableCollections.find((c: any) => c.id === collectionId)?.name || 'Collection';
           if (!totals.has(collectionId)) {
             totals.set(collectionId, { name: collectionName, count: 0, duration: 0 });
           }
@@ -838,7 +925,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                       const itemIds = Object.keys(aggregates.dailyObjectDurations[key]?.[leaf.id] || {});
                       const itemsInCell = itemIds
                         .map((itemId) => {
-                          for (const coll of collections) {
+                          for (const coll of readableCollections) {
                             const found = coll.items?.find((it: any) => it.id === itemId);
                             if (found) return { ...found, _collection: coll };
                           }
@@ -1020,7 +1107,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         leafColumns.forEach((leaf: any) => {
           const collectionId = getLeafCollectionId(leaf) || dashboard?.sourceCollectionId;
           if (!collectionId) return;
-          const collectionName = collections.find((c: any) => c.id === collectionId)?.name || 'Collection';
+          const collectionName = readableCollections.find((c: any) => c.id === collectionId)?.name || 'Collection';
           if (!totals.has(collectionId)) {
             totals.set(collectionId, { name: collectionName, count: 0, duration: 0 });
           }
@@ -1221,7 +1308,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     return (dashboard.columnTree || [])
       .map((rootNode: any) => {
         const targetCollectionId = rootNode?.collectionId || dashboard.sourceCollectionId;
-        const targetCollection = collections.find((c: any) => c.id === targetCollectionId);
+        const targetCollection = readableCollections.find((c: any) => c.id === targetCollectionId);
         if (!targetCollection) return null;
         const targetProps = targetCollection?.properties || [];
         const dateField = getCollectionDateField(targetCollection, rootNode);
@@ -1231,7 +1318,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           fakeViewConfig,
           { collectionId: null, ids: [] },
           targetCollection.id,
-          collections
+          readableCollections
         );
         const predicates = buildRootGroupPredicates(rootNode, targetProps);
         const rootFilteredItems = predicates.length
@@ -1284,7 +1371,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         };
       })
         .filter(Boolean);
-  }, [dashboard, collections, dashboardFilters, periodStart, periodEnd, periodScope]);
+  }, [dashboard, readableCollections, dashboardFilters, periodStart, periodEnd, periodScope]);
 
   const groupedWeeks = useMemo(() => {
     if (!dashboard?.month || !dashboard?.year || periodScope !== 'month') return [];
@@ -1379,7 +1466,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         leafColumns.forEach((leaf: any) => {
           const collectionId = getLeafCollectionId(leaf) || dashboard?.sourceCollectionId;
           if (!collectionId) return;
-          const collectionName = collections.find((c: any) => c.id === collectionId)?.name || 'Collection';
+          const collectionName = readableCollections.find((c: any) => c.id === collectionId)?.name || 'Collection';
           if (!totals.has(collectionId)) {
             totals.set(collectionId, { name: collectionName, count: 0, duration: 0 });
           }
@@ -1504,7 +1591,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                     </td>
                     {rootGroups.map((group) => {
                       const groupCollectionId = group.node?.collectionId || dashboard.sourceCollectionId;
-                      const groupCollectionName = collections.find((c: any) => c.id === groupCollectionId)?.name || 'Collection';
+                      const groupCollectionName = readableCollections.find((c: any) => c.id === groupCollectionId)?.name || 'Collection';
                       const totals = totalsByMonthAndRoot(month.month, group.leafIds);
                       const summaryParts = [] as string[];
                       if (activeRecapMetrics.includes('count')) {
@@ -1598,7 +1685,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
             <Suspense fallback={<div className="text-neutral-700 dark:text-white">Chargement…</div>}>
               <FilterModal
                 properties={properties}
-                collections={collections}
+                collections={readableCollections}
                 onClose={() => setShowFilterModal(false)}
                 onAdd={handleAddFilter}
               />
@@ -1719,7 +1806,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           ) : (
             <DashboardTableView
               sections={tableSections}
-              collections={collections}
+              collections={readableCollections}
               hiddenBySection={dashboard.tableHiddenFieldsBySection || {}}
               onChangeHiddenBySection={(next) => onUpdate({ tableHiddenFieldsBySection: next })}
               onEdit={onEdit}
@@ -1732,7 +1819,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
       <DashboardColumnConfig
         dashboard={dashboard}
-        collections={collections}
+        collections={readableCollections}
         properties={properties}
         leafColumns={leafColumns}
         onUpdate={onUpdate}
