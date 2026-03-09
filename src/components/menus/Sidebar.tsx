@@ -172,33 +172,69 @@ const Sidebar: React.FC<SidebarProps> = ({
     </div>
   );
 
-  const MenuButton = ({
+  const sharedButtonClass = cn(collapsed ? 'justify-center' : '');
+  const sharedHeaderActionClass =
+    'p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-black dark:hover:text-white';
+
+  const RowActions = ({ actions }: { actions?: Array<{ title: string; onClick: (e: React.MouseEvent) => void; className?: string; icon: React.ReactNode }> }) => {
+    if (collapsed || !actions?.length) return null;
+    return (
+      <>
+        {actions.map((action, idx) => (
+          <SidebarMenuAction
+            key={`${action.title}-${idx}`}
+            onClick={action.onClick}
+            title={action.title}
+            showOnHover
+            className={action.className}
+          >
+            {action.icon}
+          </SidebarMenuAction>
+        ))}
+      </>
+    );
+  };
+
+  const SidebarRow = ({
+    itemKey,
     icon: Icon,
     label,
-    active,
     onClick,
+    title,
+    active,
     right,
-    title
+    iconClassName = 'text-neutral-500 dark:text-white',
+    labelClassName = 'text-[13px] font-medium flex-1 text-left truncate',
+    itemClassName,
+    actions,
   }: {
+    itemKey: string;
     icon: any;
     label: string;
-    active?: boolean;
     onClick: () => void;
-    right?: React.ReactNode;
     title?: string;
+    active?: boolean;
+    right?: React.ReactNode;
+    iconClassName?: string;
+    labelClassName?: string;
+    itemClassName?: string;
+    actions?: Array<{ title: string; onClick: (e: React.MouseEvent) => void; className?: string; icon: React.ReactNode }>;
   }) => (
-    <SidebarMenuButton
-      onClick={onClick}
-      title={title || label}
-      isActive={!!active}
-      size="default"
-      tooltip={label}
-      className={cn(collapsed ? 'justify-center' : '')}
-    >
-      <Icon size={14} className="shrink-0" />
-      {!collapsed && <span className="flex-1 text-left truncate">{label}</span>}
-      {!collapsed && right}
-    </SidebarMenuButton>
+    <SidebarMenuItem key={itemKey} className={itemClassName}>
+      <SidebarMenuButton
+        onClick={onClick}
+        title={title || label}
+        isActive={!!active}
+        size="default"
+        tooltip={label}
+        className={sharedButtonClass}
+      >
+        <Icon size={14} className={iconClassName} />
+        {!collapsed && <span className={labelClassName}>{label}</span>}
+        {!collapsed && right}
+      </SidebarMenuButton>
+      <RowActions actions={actions} />
+    </SidebarMenuItem>
   );
 
   return (
@@ -238,28 +274,28 @@ const Sidebar: React.FC<SidebarProps> = ({
                   {favoriteViewsList.map(({ view, collectionId }: any) => {
                     const IconComponent = (Icons as any)[view.icon] || Icons.Folder;
                     return (
-                      <SidebarMenuItem key={view.id}>
-                        <MenuButton
-                          icon={IconComponent}
-                          label={view.name}
-                          onClick={() => onSelectView(collectionId, view.id)}
-                          right={<Star size={12} className="text-yellow-500 opacity-60" fill="currentColor" />}
-                        />
-                      </SidebarMenuItem>
+                      <SidebarRow
+                        key={view.id}
+                        itemKey={view.id}
+                        icon={IconComponent}
+                        label={view.name}
+                        onClick={() => onSelectView(collectionId, view.id)}
+                        right={<Star size={12} className="text-yellow-500 opacity-60" fill="currentColor" />}
+                      />
                     );
                   })}
 
                   {favoriteItemsList.map(({ item, collection, itemName }: any) => {
                     const IconComponent = (Icons as any)[collection.icon] || Icons.Folder;
                     return (
-                      <SidebarMenuItem key={item.id}>
-                        <MenuButton
-                          icon={IconComponent}
-                          label={itemName}
-                          onClick={() => onSelectItem(collection.id, item.id)}
-                          right={<Star size={12} className="text-yellow-500 opacity-60" fill="currentColor" />}
-                        />
-                      </SidebarMenuItem>
+                      <SidebarRow
+                        key={item.id}
+                        itemKey={item.id}
+                        icon={IconComponent}
+                        label={itemName}
+                        onClick={() => onSelectItem(collection.id, item.id)}
+                        right={<Star size={12} className="text-yellow-500 opacity-60" fill="currentColor" />}
+                      />
                     );
                   })}
                 </SidebarMenu>
@@ -268,114 +304,107 @@ const Sidebar: React.FC<SidebarProps> = ({
           </SidebarGroup>
         )}
 
-        <SidebarGroup className="mb-6">
-          <SectionHeader
-            label="Dashboards"
-            action={
+        {[
+          {
+            key: 'dashboards',
+            label: 'Dashboards',
+            className: 'mb-6',
+            headerAction: (
               <button
                 onClick={onCreateDashboard}
-                className="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-black dark:hover:text-white"
+                className={sharedHeaderActionClass}
                 title="Nouveau dashboard"
               >
                 <Plus size={14} />
               </button>
-            }
-          />
-          {visibleDashboards.length === 0 ? (
-            <div className="text-xs text-neutral-500 px-3 py-2 max-h-4 inline-block overflow-hidden">Aucun dashboard pour l'instant</div>
-          ) : (
-            <SidebarGroupContent className="mt-2">
-              <SidebarMenu>
-                {visibleDashboards.map((db) => (
-                  <SidebarMenuItem key={db.id} className="group">
-                    <SidebarMenuButton
-                      onClick={() => onSelectDashboard(db.id)}
-                      title={db.name}
-                      size="default"
-                      tooltip={db.name}
-                      className={cn(collapsed ? 'justify-center' : '')}
-                    >
-                      <LayoutDashboard size={14} className="text-neutral-600 dark:text-white" />
-                      {!collapsed && (
-                        <span className="flex-1 text-left truncate text-neutral-600 hover:text-black dark:hover:text-white transition-all duration-300">
-                          {db.name}
-                        </span>
-                      )}
-                    </SidebarMenuButton>
-                    {!collapsed && (
-                      <>
-                        <SidebarMenuAction
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDuplicateDashboard(db.id);
-                          }}
-                          title="Dupliquer"
-                          showOnHover
-                          className="right-10 text-neutral-600 dark:text-white hover:text-black dark:hover:text-white"
-                        >
-                          <Copy size={14} />
-                        </SidebarMenuAction>
-                        <SidebarMenuAction
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteDashboard(db.id);
-                          }}
-                          title="Supprimer"
-                          showOnHover
-                          className="right-2 text-red-800 dark:text-red-300 hover:text-white hover:bg-red-500/30"
-                        >
-                          <Trash size={14} />
-                        </SidebarMenuAction>
-                      </>
-                    )}
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          )}
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SectionHeader label="Collections" />
-          <SidebarGroupContent className="mt-2">
-            <SidebarMenu>
-              {visibleCollections.map((col) => {
-                const IconComponent = (Icons as any)[col.icon] || Icons.Folder;
-                return (
-                  <SidebarMenuItem key={col.id} className="group">
-                    <SidebarMenuButton
-                      onClick={() => onSelectCollection(col.id)}
-                      title={col.name}
-                      isActive={activeCollection === col.id}
-                      size="default"
-                      tooltip={col.name}
-                      className={cn(collapsed ? 'justify-center' : '')}
-                    >
-                      <IconComponent size={14} className="text-neutral-500 dark:text-white" />
-                      {!collapsed && (
-                        <>
-                          <span className="text-sm font-medium flex-1 text-left truncate">{col.name}</span>
-                          <span className="text-xs text-neutral-500 bg-white/5 px-2 py-1 rounded">
-                            {col.items.length}
-                          </span>
-                        </>
-                      )}
-                    </SidebarMenuButton>
-                    {!collapsed && (
-                      <SidebarMenuAction
-                        onClick={() => onEditCollection(col)}
-                        title="Éditer la collection"
-                        showOnHover
-                      >
-                        <Settings size={16} />
-                      </SidebarMenuAction>
-                    )}
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+            ),
+            rows: visibleDashboards.map((db: any) => ({
+              key: db.id,
+              icon: LayoutDashboard,
+              label: db.name,
+              onClick: () => onSelectDashboard(db.id),
+              itemClassName: 'group',
+              actions: [
+                {
+                  title: 'Dupliquer',
+                  onClick: (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    onDuplicateDashboard(db.id);
+                  },
+                  className: 'right-10 text-neutral-600 dark:text-white hover:text-black dark:hover:text-white',
+                  icon: <Copy size={14} />,
+                },
+                {
+                  title: 'Supprimer',
+                  onClick: (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    onDeleteDashboard(db.id);
+                  },
+                  className: 'right-2 text-red-800 dark:text-red-300 hover:text-white hover:bg-red-500/30',
+                  icon: <Trash size={14} />,
+                },
+              ],
+            })),
+            empty: <div className="text-xs text-neutral-500 px-3 py-2 max-h-4 inline-block overflow-hidden"></div>,
+          },
+          {
+            key: 'collections',
+            label: 'Collections',
+            className: '',
+            headerAction: null,
+            rows: visibleCollections.map((col: any) => {
+              const IconComponent = (Icons as any)[col.icon] || Icons.Folder;
+              return {
+                key: col.id,
+                icon: IconComponent,
+                label: col.name,
+                onClick: () => onSelectCollection(col.id),
+                active: activeCollection === col.id,
+                itemClassName: 'group',
+                right: (
+                  <span className="text-xs text-neutral-500 bg-white/5 px-2 py-1 rounded">
+                    {col.items.length}
+                  </span>
+                ),
+                actions: [
+                  {
+                    title: 'Éditer la collection',
+                    onClick: () => onEditCollection(col),
+                    icon: <Settings size={16} />,
+                  },
+                ],
+              };
+            }),
+            empty: null,
+          },
+        ].map((section) => (
+          <SidebarGroup key={section.key} className={section.className}>
+            <SectionHeader label={section.label} action={section.headerAction || undefined} />
+            {section.rows.length === 0 ? (
+              section.empty
+            ) : (
+              <SidebarGroupContent className="mt-2">
+                <SidebarMenu>
+                  {section.rows.map((row: any) => (
+                    <SidebarRow
+                      key={row.key}
+                      itemKey={row.key}
+                      icon={row.icon}
+                      label={row.label}
+                      onClick={row.onClick}
+                      active={row.active}
+                      right={row.right}
+                      iconClassName={row.iconClassName}
+                      labelClassName={row.labelClassName}
+                      itemClassName={row.itemClassName}
+                      actions={row.actions}
+                    />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            )}
+          </SidebarGroup>
+        ))}
       </SidebarContent>
     </SidebarRoot>
   );

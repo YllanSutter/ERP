@@ -1125,7 +1125,9 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
           <div className="bg-background dark:bg-neutral-900 rounded-lg shadow-lg p-6 min-w-[400px] max-w-[90vw] max-h-[90vh] overflow-auto relative">
             <AccessManager
               collections={collections}
+              dashboards={dashboards}
               onClose={() => setShowAccessManager(false)}
+              onUpdateDashboards={(nextDashboards) => setDashboards(nextDashboards)}
               onImportCollections={(importedData) => {
                 // Supporte l'ancien format (array) ou le nouveau (objet)
                 let collectionsToImport = importedData;

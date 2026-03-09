@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, RefreshCw, Shield, UserPlus, Plus, Download, Trash2, Database, RotateCcw } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/auth/AuthProvider';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -15,7 +16,19 @@ const flags = [
   { key: 'can_manage_permissions', label: 'Permissions', hint: 'Gérer les droits des rôles et utilisateurs' },
 ];
 
-const AccessManager = ({ collections, onClose, onImportCollections }: { collections: any[]; onClose: () => void; onImportCollections?: (collections: any[]) => void }) => {
+const AccessManager = ({
+  collections,
+  dashboards,
+  onClose,
+  onImportCollections,
+  onUpdateDashboards,
+}: {
+  collections: any[];
+  dashboards: any[];
+  onClose: () => void;
+  onImportCollections?: (collections: any[]) => void;
+  onUpdateDashboards?: (dashboards: any[]) => void;
+}) => {
   const { isAdminBase: isAdmin, refresh: refreshAuth, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<any[]>([]);
@@ -32,6 +45,7 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
   const [backupLabel, setBackupLabel] = useState('');
   const [backupBusy, setBackupBusy] = useState(false);
   const [selectedBackupDay, setSelectedBackupDay] = useState('');
+  const [permissionsTab, setPermissionsTab] = useState<'global' | 'collections' | 'dashboards'>('global');
 
   const loadAll = async () => {
     try {
@@ -229,6 +243,51 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
         (p.item_id || null) === itmId &&
         (p.field_id || null) === fldId
     );
+  };
+
+  const isDashboardVisibleForRole = (dashboard: any, roleId: string) => {
+    const allowedRoles = Array.isArray(dashboard?.visibleToRoles) ? dashboard.visibleToRoles : [];
+    const allowedUsers = Array.isArray(dashboard?.visibleToUsers) ? dashboard.visibleToUsers : [];
+    const hasRestriction = allowedRoles.length > 0 || allowedUsers.length > 0;
+    if (!hasRestriction) return true;
+    return allowedRoles.includes(roleId);
+  };
+
+  const toggleDashboardVisibilityForRole = (dashboardId: string, roleId: string, visible: boolean) => {
+    if (!onUpdateDashboards) return;
+
+    const allRoleIds = roles.map((r) => r.id);
+    const nextDashboards = (dashboards || []).map((db: any) => {
+      if (db.id !== dashboardId) return db;
+
+      const currentRoles = Array.isArray(db.visibleToRoles) ? [...db.visibleToRoles] : [];
+      const currentUsers = Array.isArray(db.visibleToUsers) ? [...db.visibleToUsers] : [];
+      const hasRestriction = currentRoles.length > 0 || currentUsers.length > 0;
+
+      if (visible) {
+        // Si non restreint, déjà visible pour tout le monde
+        if (!hasRestriction) return db;
+        const merged = Array.from(new Set([...currentRoles, roleId]));
+        return { ...db, visibleToRoles: merged };
+      }
+
+      // Si non restreint et on retire un rôle, on crée une allow-list pour tous les autres rôles
+      if (!hasRestriction) {
+        return {
+          ...db,
+          visibleToRoles: allRoleIds.filter((id) => id !== roleId),
+          visibleToUsers: currentUsers,
+        };
+      }
+
+      return {
+        ...db,
+        visibleToRoles: currentRoles.filter((id: string) => id !== roleId),
+        visibleToUsers: currentUsers,
+      };
+    });
+
+    onUpdateDashboards(nextDashboards);
   };
 
   const savePermission = async (roleId: string, scope: any, flag: string, value: boolean) => {
@@ -803,135 +862,179 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
                   {loading && <span className="text-xs text-neutral-500">Chargement…</span>}
                 </div>
                 {selectedRoleId ? (
-                  <div className="space-y-4 max-h-[520px] overflow-auto pr-1">
-                    {/* Global */}
-                    {(() => {
-                      const scope = { type: 'global', label: 'Global', collectionId: null, itemId: null, fieldId: null };
-                      const perm = findPermission(selectedRoleId, scope) || {};
-                      return (
-                        <div key="global" className="bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 rounded-lg overflow-hidden">
-                          <div className="px-4 py-3 bg-cyan-500/10 border-b border-cyan-500/20">
-                            <div className="text-sm font-semibold">Global</div>
-                            <div className="text-xs text-neutral-600 dark:text-white mt-0.5">Permissions appliquées à toutes les collections</div>
-                          </div>
-                          <div className="px-4 py-3">
-                            <div className="text-xs font-medium text-neutral-600 dark:text-white mb-2">Paramètres global</div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                              {flags.map((f) => {
-                                const isChecked = !!perm[f.key];
-                                return (
-                                  <label
-                                    key={f.key}
-                                    className="flex items-center gap-2 text-xs text-neutral-500 dark:text-white hover:text-black cursor-pointer"
-                                    title={f.hint}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={(e) => toggleFlag(selectedRoleId, scope, f.key, e.target.checked)}
-                                      disabled={busy}
-                                      className="cursor-pointer"
-                                    />
-                                    <span>{f.label}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
+                  <Tabs value={permissionsTab} onValueChange={(v) => setPermissionsTab(v as any)} className="w-full">
+                    <TabsList className="mb-3 w-full justify-start gap-2 bg-transparent p-0">
+                      <TabsTrigger value="global" className="border border-black/10 dark:border-white/10">Global</TabsTrigger>
+                      <TabsTrigger value="collections" className="border border-black/10 dark:border-white/10">Collections</TabsTrigger>
+                      <TabsTrigger value="dashboards" className="border border-black/10 dark:border-white/10">Dashboards</TabsTrigger>
+                    </TabsList>
 
-                    {/* Collections + Propriétés */}
-                    {collectionsWithProps.map((col) => {
-                      const collectionScope = { type: 'collection', label: col.name, collectionId: col.id, itemId: null, fieldId: null };
-                      const permCol = findPermission(selectedRoleId, collectionScope) || {};
-                      const propertyFlags = flags.filter((f) => ['can_read', 'can_write', 'can_delete'].includes(f.key));
-
-                      return (
-                        <div key={col.id} className="bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 rounded-lg overflow-hidden">
-                          <div className="px-4 py-3 bg-white/5 border-b border-black/10 dark:border-white/5">
-                            <div className="text-sm font-semibold">{col.name}</div>
-                            <div className="text-xs text-neutral-600 dark:text-white mt-0.5">Permissions de collection et propriétés</div>
-                          </div>
-
-                          {/* Collection-level */}
-                          <div className="px-4 py-3 border-b border-black/10 dark:border-white/5">
-                            <div className="text-xs font-medium text-neutral-600 dark:text-white mb-2">Collection</div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                              {flags.map((f) => {
-                                const isChecked = !!permCol[f.key];
-                                return (
-                                  <label
-                                    key={f.key}
-                                    className="flex items-center gap-2 text-xs text-neutral-500 dark:text-white hover:text-black cursor-pointer"
-                                    title={f.hint}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={(e) => toggleFlag(selectedRoleId, collectionScope, f.key, e.target.checked)}
-                                      disabled={busy}
-                                      className="cursor-pointer"
-                                    />
-                                    <span>{f.label}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Properties-level */}
-                          <div className="px-4 py-3">
-                            <div className="text-xs font-medium text-neutral-600 dark:text-white mb-2">Propriétés (champs)</div>
-                            {col.properties.length === 0 ? (
-                              <div className="text-xs text-neutral-500">Aucune propriété dans cette collection.</div>
-                            ) : (
-                              <div className="space-y-2 max-h-56 overflow-auto pr-1">
-                                {col.properties.map((prop: any) => {
-                                  const propScope = { type: 'property', label: prop.name, collectionId: col.id, itemId: null, fieldId: prop.id };
-                                  const permProp = findPermission(selectedRoleId, propScope) || {};
-
-                                  return (
-                                    <div
-                                      key={prop.id}
-                                      className="flex items-center justify-between bg-white dark:bg-neutral-950/60 border border-black/10 dark:border-white/5 rounded-lg px-3 py-2"
-                                    >
-                                      <div>
-                                        <div className="text-sm font-medium text-black dark:text-white">{prop.name}</div>
-                                        <div className="text-xs text-neutral-500">{prop.type}</div>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        {propertyFlags.map((f) => {
-                                          const isChecked = !!permProp[f.key];
-                                          return (
-                                            <label
-                                              key={f.key}
-                                              className="flex items-center gap-1 text-xs text-neutral-500 hover:text-black dark:text-white cursor-pointer"
-                                              title={`${f.label} ce champ`}
-                                            >
-                                              <input
-                                                type="checkbox"
-                                                checked={isChecked}
-                                                onChange={(e) => toggleFlag(selectedRoleId, propScope, f.key, e.target.checked)}
-                                                disabled={busy}
-                                                className="cursor-pointer"
-                                              />
-                                              <span>{f.label}</span>
-                                            </label>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                    <TabsContent value="global" className="mt-0 p-0 border-0">
+                      <div className="space-y-4 max-h-[520px] overflow-auto pr-1">
+                        {(() => {
+                          const scope = { type: 'global', label: 'Global', collectionId: null, itemId: null, fieldId: null };
+                          const perm = findPermission(selectedRoleId, scope) || {};
+                          return (
+                            <div key="global" className="bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 rounded-lg overflow-hidden">
+                              <div className="px-4 py-3 bg-cyan-500/10 border-b border-cyan-500/20">
+                                <div className="text-sm font-semibold">Global</div>
+                                <div className="text-xs text-neutral-600 dark:text-white mt-0.5">Permissions appliquées à toutes les collections</div>
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                              <div className="px-4 py-3">
+                                <div className="text-xs font-medium text-neutral-600 dark:text-white mb-2">Paramètres global</div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                  {flags.map((f) => {
+                                    const isChecked = !!perm[f.key];
+                                    return (
+                                      <label
+                                        key={f.key}
+                                        className="flex items-center gap-2 text-xs text-neutral-500 dark:text-white hover:text-black cursor-pointer"
+                                        title={f.hint}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={(e) => toggleFlag(selectedRoleId, scope, f.key, e.target.checked)}
+                                          disabled={busy}
+                                          className="cursor-pointer"
+                                        />
+                                        <span>{f.label}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="collections" className="mt-0 p-0 border-0">
+                      <div className="space-y-4 max-h-[520px] overflow-auto pr-1">
+                        {collectionsWithProps.map((col) => {
+                          const collectionScope = { type: 'collection', label: col.name, collectionId: col.id, itemId: null, fieldId: null };
+                          const permCol = findPermission(selectedRoleId, collectionScope) || {};
+                          const propertyFlags = flags.filter((f) => ['can_read', 'can_write', 'can_delete'].includes(f.key));
+
+                          return (
+                            <div key={col.id} className="bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 rounded-lg overflow-hidden">
+                              <div className="px-4 py-3 bg-white/5 border-b border-black/10 dark:border-white/5">
+                                <div className="text-sm font-semibold">{col.name}</div>
+                                <div className="text-xs text-neutral-600 dark:text-white mt-0.5">Permissions de collection et propriétés</div>
+                              </div>
+
+                              <div className="px-4 py-3 border-b border-black/10 dark:border-white/5">
+                                <div className="text-xs font-medium text-neutral-600 dark:text-white mb-2">Collection</div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                  {flags.map((f) => {
+                                    const isChecked = !!permCol[f.key];
+                                    return (
+                                      <label
+                                        key={f.key}
+                                        className="flex items-center gap-2 text-xs text-neutral-500 dark:text-white hover:text-black cursor-pointer"
+                                        title={f.hint}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={(e) => toggleFlag(selectedRoleId, collectionScope, f.key, e.target.checked)}
+                                          disabled={busy}
+                                          className="cursor-pointer"
+                                        />
+                                        <span>{f.label}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              <div className="px-4 py-3">
+                                <div className="text-xs font-medium text-neutral-600 dark:text-white mb-2">Propriétés (champs)</div>
+                                {col.properties.length === 0 ? (
+                                  <div className="text-xs text-neutral-500">Aucune propriété dans cette collection.</div>
+                                ) : (
+                                  <div className="space-y-2 max-h-56 overflow-auto pr-1">
+                                    {col.properties.map((prop: any) => {
+                                      const propScope = { type: 'property', label: prop.name, collectionId: col.id, itemId: null, fieldId: prop.id };
+                                      const permProp = findPermission(selectedRoleId, propScope) || {};
+
+                                      return (
+                                        <div
+                                          key={prop.id}
+                                          className="flex items-center justify-between bg-white dark:bg-neutral-950/60 border border-black/10 dark:border-white/5 rounded-lg px-3 py-2"
+                                        >
+                                          <div>
+                                            <div className="text-sm font-medium text-black dark:text-white">{prop.name}</div>
+                                            <div className="text-xs text-neutral-500">{prop.type}</div>
+                                          </div>
+                                          <div className="flex items-center gap-3">
+                                            {propertyFlags.map((f) => {
+                                              const isChecked = !!permProp[f.key];
+                                              return (
+                                                <label
+                                                  key={f.key}
+                                                  className="flex items-center gap-1 text-xs text-neutral-500 hover:text-black dark:text-white cursor-pointer"
+                                                  title={`${f.label} ce champ`}
+                                                >
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={(e) => toggleFlag(selectedRoleId, propScope, f.key, e.target.checked)}
+                                                    disabled={busy}
+                                                    className="cursor-pointer"
+                                                  />
+                                                  <span>{f.label}</span>
+                                                </label>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="dashboards" className="mt-0 p-0 border-0">
+                      <div className="space-y-2 max-h-[520px] overflow-auto pr-1">
+                        {(dashboards || []).length === 0 && (
+                          <p className="text-sm text-neutral-500">Aucun dashboard.</p>
+                        )}
+                        {(dashboards || []).map((db: any) => {
+                          const checked = isDashboardVisibleForRole(db, selectedRoleId);
+                          const restricted = (db?.visibleToRoles?.length || 0) > 0 || (db?.visibleToUsers?.length || 0) > 0;
+                          return (
+                            <div
+                              key={db.id}
+                              className="flex items-center justify-between bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 rounded-lg px-3 py-2"
+                            >
+                              <div>
+                                <div className="text-sm font-medium text-black dark:text-white">{db.name}</div>
+                                <div className="text-xs text-neutral-500">
+                                  {restricted ? 'Restreint par visibilité' : 'Visible pour tout le monde'}
+                                </div>
+                              </div>
+                              <label className="flex items-center gap-2 text-xs text-neutral-500 dark:text-white cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => toggleDashboardVisibilityForRole(db.id, selectedRoleId, e.target.checked)}
+                                  className="cursor-pointer"
+                                />
+                                <span>Visible pour ce rôle</span>
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                 ) : (
                   <p className="text-sm text-neutral-500">Sélectionnez un rôle pour éditer ses permissions.</p>
                 )}
