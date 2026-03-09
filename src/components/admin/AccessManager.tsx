@@ -119,12 +119,22 @@ const AccessManager = ({ collections, onClose, onImportCollections }: { collecti
         credentials: 'include',
         body: JSON.stringify({ label: backupLabel.trim() || undefined }),
       });
-      if (!res.ok) throw new Error('Create backup failed');
+      if (!res.ok) {
+        let message = 'Impossible de créer la sauvegarde.';
+        try {
+          const errData = await res.json();
+          if (errData?.detail) message = `${message}\n${errData.detail}`;
+          else if (errData?.error) message = `${message}\n${errData.error}`;
+        } catch {
+          // ignore parse error
+        }
+        throw new Error(message);
+      }
       setBackupLabel('');
       await reloadBackups();
     } catch (err) {
       console.error(err);
-      alert('Impossible de créer la sauvegarde.');
+      alert(err instanceof Error ? err.message : 'Impossible de créer la sauvegarde.');
     } finally {
       setBackupBusy(false);
     }

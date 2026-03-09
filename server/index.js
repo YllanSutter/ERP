@@ -112,6 +112,20 @@ const pruneBackups = async () => {
   }
 };
 
+const formatBackupError = (err) => {
+  const stderr = typeof err?.stderr === 'string' ? err.stderr.trim() : '';
+  const stdout = typeof err?.stdout === 'string' ? err.stdout.trim() : '';
+
+  if (err?.code === 'ENOENT') {
+    return 'pg_dump introuvable sur le serveur. Installez postgresql-client (ou ajoutez pg_dump au PATH).';
+  }
+
+  if (stderr) return stderr;
+  if (stdout) return stdout;
+  if (err?.message) return String(err.message);
+  return 'Erreur inconnue lors de la création de la sauvegarde.';
+};
+
 const createDbBackup = async (label = '') => {
   await ensureBackupDir();
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -1023,7 +1037,7 @@ app.post('/api/db/backups', requireAuth, async (req, res) => {
     return res.json({ ok: true, backup });
   } catch (err) {
     console.error('Failed to create backup', err);
-    return res.status(500).json({ error: 'Failed to create backup' });
+    return res.status(500).json({ error: 'Failed to create backup', detail: formatBackupError(err) });
   }
 });
 
