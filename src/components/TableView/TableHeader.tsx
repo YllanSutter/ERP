@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as Icons from 'lucide-react';
 import { Property } from '@/lib/types';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
@@ -19,6 +19,10 @@ export interface TableHeaderProps {
   collectionId?: string;
   sortState?: { column: string | null; direction: 'asc' | 'desc' };
   onSort?: (columnId: string) => void;
+  enableSelection?: boolean;
+  allSelected?: boolean;
+  partiallySelected?: boolean;
+  onToggleSelectAll?: (checked: boolean) => void;
 }
 
 const TableHeader: React.FC<TableHeaderProps> = ({
@@ -30,8 +34,19 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   collectionId,
   sortState,
   onSort,
+  enableSelection = false,
+  allSelected = false,
+  partiallySelected = false,
+  onToggleSelectAll,
 }) => {
   const canEdit = useCanEdit(collectionId);
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!selectAllRef.current) return;
+    selectAllRef.current.indeterminate = partiallySelected;
+  }, [partiallySelected]);
+
   // Exclure les propriétés en menu contextuel de l'affichage du header
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
 
@@ -87,6 +102,19 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   return (
     <thead className="bg-gray-300 dark:bg-black/30 border-b border-black/5 dark:border-white/5">
       <tr>
+        {enableSelection && (
+          <th className="w-10 px-2 py-2 text-center border-b border-r border-[#ffffff10]">
+            <input
+              ref={selectAllRef}
+              type="checkbox"
+              checked={allSelected}
+              onChange={(e) => onToggleSelectAll?.(e.target.checked)}
+              onClick={(e) => e.stopPropagation()}
+              className="h-4 w-4 rounded border-neutral-400"
+              aria-label="Sélectionner tout"
+            />
+          </th>
+        )}
         {displayProperties.map((prop: any) => {
           const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
           const isSorted = sortState?.column === prop.id;

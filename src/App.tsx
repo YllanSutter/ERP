@@ -65,20 +65,26 @@ const App = () => {
   }, [theme]);
 
     // Nettoie récursivement un objet pour supprimer les cycles et les clés privées (commençant par _)
-function cleanForSave(obj: any, seen: WeakSet<object> = new WeakSet()): any {
+function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
   if (obj === null || typeof obj !== 'object') return obj;
-  if (seen.has(obj)) return undefined;
-  seen.add(obj);
+  if (stack.has(obj)) return undefined;
+
   if (Array.isArray(obj)) {
-    return obj.map((item) => cleanForSave(item, seen)).filter((v) => v !== undefined);
+    stack.add(obj);
+    const arr = obj.map((item) => cleanForSave(item, stack)).filter((v) => v !== undefined);
+    stack.delete(obj);
+    return arr;
   }
+
+  stack.add(obj);
   const result: Record<string, any> = {};
   for (const key in obj) {
     if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
     // On NE filtre plus les clés commençant par _ pour garder _eventSegments
-    const val = cleanForSave(obj[key], seen);
+    const val = cleanForSave(obj[key], stack);
     if (val !== undefined) result[key] = val;
   }
+  stack.delete(obj);
   return result;
 }
   // Filtres par dashboard (clé = dashboard.id)

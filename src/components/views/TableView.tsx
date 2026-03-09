@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Plus, Zap } from 'lucide-react';
 import { useGrouping } from '@/lib/hooks/useGrouping';
 import { TableViewProps } from '@/lib/types';
 import GroupRenderer from '@/components/TableView/GroupRenderer';
 import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
+import EditableProperty from '@/components/fields/EditableProperty';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
 import {
   ContextMenu,
@@ -13,6 +14,16 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@/components/ui/context-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const TableView: React.FC<TableViewProps> = ({
   collection,
@@ -76,6 +87,11 @@ const TableView: React.FC<TableViewProps> = ({
   const hasContextActions = Boolean(onShowNewItemModal || onQuickCreateItem);
   const newItemLabel = collection?.name ? `Nouveau ${collection.name}` : 'Nouvel élément';
 
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [bulkFieldId, setBulkFieldId] = useState('');
+  const [bulkValue, setBulkValue] = useState<any>('');
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+
   if (!collection) {
     return (
       <div className="flex items-center justify-center h-full text-neutral-700 dark:text-neutral-500">
@@ -89,70 +105,279 @@ const TableView: React.FC<TableViewProps> = ({
     !hiddenFields.includes(p.id) && canViewFieldFn(p.id)
   );
 
+  const bulkEditableProperties = useMemo(
+    () => visibleProperties.filter((p: any) => !p.showContextMenu && canEditFieldFn(p.id)),
+    [visibleProperties]
+  );
+
+  const selectedBulkProperty = useMemo(
+    () => bulkEditableProperties.find((p) => p.id === bulkFieldId),
+    [bulkEditableProperties, bulkFieldId]
+  );
+
+  const getDefaultBulkValue = useCallback((prop?: any) => {
+    if (!prop) return '';
+    if (prop.type === 'checkbox') return false;
+    if (prop.type === 'multiselect' || prop.type === 'multi_select') return [];
+    if (prop.type === 'relation') return prop.relation?.type === 'one_to_one' ? null : [];
+    return '';
+  }, []);
+
+  useEffect(() => {
+    if (!bulkEditableProperties.length) {
+      setBulkFieldId('');
+      return;
+    }
+    if (!bulkEditableProperties.some((p) => p.id === bulkFieldId)) {
+      setBulkFieldId(bulkEditableProperties[0].id);
+    }
+  }, [bulkEditableProperties, bulkFieldId]);
+
+  useEffect(() => {
+    const currentIds = new Set(items.map((item) => item.id));
+    setSelectedItemIds((prev) => {
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (currentIds.has(id)) next.add(id);
+      });
+      return next;
+    });
+  }, [items]);
+
+  const selectableItems = canEdit ? items : [];
+  const allSelected = selectableItems.length > 0 && selectableItems.every((item) => selectedItemIds.has(item.id));
+  const partiallySelected = !allSelected && selectedItemIds.size > 0;
+
+  const handleToggleSelectAll = useCallback((checked: boolean) => {
+    if (!checked) {
+      setSelectedItemIds(new Set());
+      return;
+    }
+    setSelectedItemIds(new Set(selectableItems.map((item) => item.id)));
+  }, [selectableItems]);
+
+  const handleSelectionChange = useCallback((itemId: string, checked: boolean) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(itemId);
+      else next.delete(itemId);
+      return next;
+    });
+  }, []);
+
+  const selectedCount = selectedItemIds.size;
+
+  const handleBulkFieldChange = useCallback((nextFieldId: string) => {
+    setBulkFieldId(nextFieldId);
+    const prop = bulkEditableProperties.find((p) => p.id === nextFieldId);
+    setBulkValue(getDefaultBulkValue(prop));
+  }, [bulkEditableProperties, getDefaultBulkValue]);
+
+  const handleBulkApply = useCallback(() => {
+    if (!canEdit || !bulkFieldId || selectedItemIds.size === 0) return;
+
+    const property = collection.properties.find((p) => p.id === bulkFieldId);
+    if (!property) return;
+
+    let parsedValue: any = bulkValue;
+    if (property.type === 'number' && typeof bulkValue === 'string') {
+      const n = Number(bulkValue);
+      if (Number.isNaN(n)) return;
+      parsedValue = n;
+    }
+
+    const cloneForItem = (val: any) => {
+      if (val === null || typeof val !== 'object') return val;
+      try {
+        return structuredClone(val);
+      } catch {
+        return JSON.parse(JSON.stringify(val));
+      }
+    };
+
+    items.forEach((item) => {
+      if (!selectedItemIds.has(item.id)) return;
+      onEdit({ ...item, [bulkFieldId]: cloneForItem(parsedValue) });
+    });
+  }, [canEdit, bulkFieldId, bulkValue, selectedItemIds, collection, items, onEdit]);
+
+  const handleBulkDelete = useCallback(() => {
+    if (!canEdit || selectedItemIds.size === 0) return;
+    setBulkDeleteDialogOpen(true);
+  }, [canEdit, selectedItemIds]);
+
+  const confirmBulkDelete = useCallback(() => {
+    const idsToDelete = Array.from(selectedItemIds);
+    idsToDelete.forEach((id) => onDelete(id));
+    setSelectedItemIds(new Set());
+    setBulkDeleteDialogOpen(false);
+  }, [selectedItemIds, onDelete]);
+
   const content = (
-    <div className=" border border-black/10 dark:border-white/5 rounded-lg overflow-hidden backdrop-blur">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <TableHeader
-            visibleProperties={visibleProperties}
-            items={items}
-            onEditProperty={onEditProperty}
-            onToggleField={onToggleField}
-            onDeleteProperty={onDeleteProperty}
-            collectionId={collection?.id}
-            sortState={sortState}
-            onSort={handleSort}
-          />
-          <tbody className="divide-y divide-white/5">
-            {groupedStructure ? (
-              // Rendu des groupes avec la nouvelle logique
-              groupedStructure.rootGroups.map(rootGroup => (
-                <GroupRenderer
-                  key={rootGroup}
-                  groupPath={rootGroup}
-                  depth={0}
-                  groups={groups}
-                  groupedStructure={groupedStructure}
+    <>
+      <div className=" border border-black/10 dark:border-white/5 rounded-lg overflow-hidden backdrop-blur">
+        {canEdit && (
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20">
+            <span className="text-xs text-neutral-600 dark:text-neutral-300">
+              {selectedCount} sélectionné{selectedCount > 1 ? 's' : ''}
+            </span>
+            <select
+              className="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900"
+              value={bulkFieldId}
+              onChange={(e) => handleBulkFieldChange(e.target.value)}
+              disabled={!bulkEditableProperties.length}
+            >
+              {bulkEditableProperties.map((prop) => (
+                <option key={prop.id} value={prop.id}>
+                  {prop.name}
+                </option>
+              ))}
+            </select>
+            <div className="min-w-[220px]">
+              {selectedBulkProperty ? (
+                <EditableProperty
+                  property={selectedBulkProperty}
+                  value={bulkValue}
+                  onChange={setBulkValue}
+                  size="sm"
+                  readOnly={!bulkFieldId}
+                  collections={collections}
                   collection={collection}
-                  collections={collections}
-                  expandedGroups={expandedGroups}
-                  toggleGroup={toggleGroup}
-                  itemsMap={itemsMap}
-                  visibleProperties={visibleProperties}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  onViewDetail={onViewDetail}
-                  onRelationChange={onRelationChange}
-                  onNavigateToCollection={onNavigateToCollection}
-                  canEdit={canEdit}
-                  canEditField={canEditFieldFn}
-                  sortItems={sortItems}
+                  currentItem={{ id: 'bulk-editor', [selectedBulkProperty.id]: bulkValue }}
+                  onRelationChange={(prop, _item, val) => {
+                    if (prop.id === selectedBulkProperty.id) setBulkValue(val);
+                  }}
                 />
-              ))
-            ) : (
-              // Sans groupes : affichage normal
-              sortItems(items).map(item => (
-                <TableItemRow
-                  key={item.id}
-                  item={item}
-                  visibleProperties={visibleProperties}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  onViewDetail={onViewDetail}
-                  collections={collections}
-                  onRelationChange={onRelationChange}
-                  onNavigateToCollection={onNavigateToCollection}
-                  canEdit={canEdit}
-                  canEditField={canEditFieldFn}
-                  animate={false}
-                  collection = {collection}
+              ) : (
+                <input
+                  type="text"
+                  value={String(bulkValue ?? '')}
+                  onChange={(e) => setBulkValue(e.target.value)}
+                  placeholder="Valeur à appliquer"
+                  className="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900"
+                  disabled
                 />
-              ))
-            )}
-          </tbody>
-        </table>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleBulkApply}
+              disabled={!bulkFieldId || selectedCount === 0}
+              className="text-xs px-2 py-1 rounded bg-violet-600 text-white disabled:opacity-50"
+            >
+              Appliquer
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedItemIds(new Set())}
+              disabled={selectedCount === 0}
+              className="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 disabled:opacity-50"
+            >
+              Désélectionner
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              disabled={selectedCount === 0}
+              className="text-xs px-2 py-1 rounded bg-red-600 text-white disabled:opacity-50"
+            >
+              Supprimer la sélection
+            </button>
+          </div>
+        )}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <TableHeader
+              visibleProperties={visibleProperties}
+              items={items}
+              onEditProperty={onEditProperty}
+              onToggleField={onToggleField}
+              onDeleteProperty={onDeleteProperty}
+              collectionId={collection?.id}
+              sortState={sortState}
+              onSort={handleSort}
+              enableSelection={canEdit}
+              allSelected={allSelected}
+              partiallySelected={partiallySelected}
+              onToggleSelectAll={handleToggleSelectAll}
+            />
+            <tbody className="divide-y divide-white/5">
+              {groupedStructure ? (
+                // Rendu des groupes avec la nouvelle logique
+                groupedStructure.rootGroups.map(rootGroup => (
+                  <GroupRenderer
+                    key={rootGroup}
+                    groupPath={rootGroup}
+                    depth={0}
+                    groups={groups}
+                    groupedStructure={groupedStructure}
+                    collection={collection}
+                    collections={collections}
+                    expandedGroups={expandedGroups}
+                    toggleGroup={toggleGroup}
+                    itemsMap={itemsMap}
+                    visibleProperties={visibleProperties}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onViewDetail={onViewDetail}
+                    onRelationChange={onRelationChange}
+                    onNavigateToCollection={onNavigateToCollection}
+                    canEdit={canEdit}
+                    canEditField={canEditFieldFn}
+                    sortItems={sortItems}
+                    enableSelection={canEdit}
+                    selectedItemIds={selectedItemIds}
+                    onSelectionChange={handleSelectionChange}
+                  />
+                ))
+              ) : (
+                // Sans groupes : affichage normal
+                sortItems(items).map(item => (
+                  <TableItemRow
+                    key={item.id}
+                    item={item}
+                    visibleProperties={visibleProperties}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onViewDetail={onViewDetail}
+                    collections={collections}
+                    onRelationChange={onRelationChange}
+                    onNavigateToCollection={onNavigateToCollection}
+                    canEdit={canEdit}
+                    canEditField={canEditFieldFn}
+                    animate={false}
+                    collection = {collection}
+                    enableSelection={canEdit}
+                    isSelected={selectedItemIds.has(item.id)}
+                    onSelectionChange={handleSelectionChange}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+
+      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer la sélection ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action supprimera définitivement {selectedCount} élément{selectedCount > 1 ? 's' : ''}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={confirmBulkDelete}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 
   if (!hasContextActions) {

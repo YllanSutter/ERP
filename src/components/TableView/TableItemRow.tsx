@@ -25,7 +25,10 @@ export interface TableItemRowProps {
   canEditField: (fieldId: string) => boolean;
   paddingLeft?: number;
   animate?: boolean;
-  collection?:any
+  collection?: any;
+  enableSelection?: boolean;
+  isSelected?: boolean;
+  onSelectionChange?: (itemId: string, checked: boolean) => void;
 }
 
 const TableItemRow: React.FC<TableItemRowProps> = ({
@@ -42,6 +45,9 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
   collection,
   paddingLeft = 16,
   animate = true,
+  enableSelection = false,
+  isSelected = false,
+  onSelectionChange,
 }) => {
   const RowComponent = animate ? motion.tr : 'tr';
   const motionProps = animate
@@ -64,6 +70,18 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
           {...motionProps}
           className="hover:bg-white/5 transition-colors border-b border-black/5 dark:border-white/5 cursor-context-menu leading-tight"
         >
+          {enableSelection && (
+            <td className="px-2 py-1 text-center align-middle">
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={(e) => onSelectionChange?.(item.id, e.target.checked)}
+                onClick={(e) => e.stopPropagation()}
+                className="h-4 w-4 rounded border-neutral-400"
+                aria-label={`Sélectionner ${item.name || item.id}`}
+              />
+            </td>
+          )}
           {displayProperties.map((prop: any, index: number) => (
             <td
               key={prop.id}

@@ -23,6 +23,9 @@ interface GroupRendererProps {
   canEdit: boolean;
   canEditField: (fieldId: string) => boolean;
   sortItems?: (arr: any[]) => any[];
+  enableSelection?: boolean;
+  selectedItemIds?: Set<string>;
+  onSelectionChange?: (itemId: string, checked: boolean) => void;
 }
 
 const GroupRenderer: React.FC<GroupRendererProps> = ({
@@ -44,6 +47,9 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   canEdit,
   canEditField,
   sortItems,
+  enableSelection = false,
+  selectedItemIds,
+  onSelectionChange,
 }) => {
   const groupData = groupedStructure.structure[groupPath];
   if (!groupData) return null;
@@ -62,6 +68,8 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   );
   const itemCount = countItemsInGroup(groupPath, groupedStructure.structure);
 
+  const displayColumnCount = visibleProperties.filter((p: any) => !p.showContextMenu).length;
+
   return (
     <React.Fragment key={groupPath}>
       <GroupHeader
@@ -72,7 +80,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
         depth={depth}
         isExpanded={isExpanded}
         onToggle={() => toggleGroup(groupPath)}
-        colSpan={visibleProperties.length + (canEdit ? 1 : 0)}
+        colSpan={displayColumnCount + (enableSelection ? 1 : 0)}
       />
 
       {isExpanded && (
@@ -99,6 +107,9 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               canEdit={canEdit}
               canEditField={canEditField}
               sortItems={sortItems}
+              enableSelection={enableSelection}
+              selectedItemIds={selectedItemIds}
+              onSelectionChange={onSelectionChange}
             />
           ))}
 
@@ -119,6 +130,9 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               canEditField={canEditField}
               paddingLeft={24 + (depth + 1) * 20}
               animate={true}
+              enableSelection={enableSelection}
+              isSelected={selectedItemIds?.has(item.id) ?? false}
+              onSelectionChange={onSelectionChange}
             />
           ))}
         </>
