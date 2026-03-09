@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
+import { Check } from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
 import {
   ContextMenu,
@@ -100,14 +101,21 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
         >
           {enableSelection && (
             <td className="px-2 py-1 text-center align-middle">
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={(e) => onSelectionChange?.(item.id, e.target.checked)}
+              <label
+                className="inline-flex items-center justify-center cursor-pointer"
                 onClick={(e) => e.stopPropagation()}
-                className="h-4 w-4 rounded border border-black/20 dark:border-white/20 bg-white/80 dark:bg-neutral-800 accent-violet-500 shadow-sm"
-                aria-label={`Sélectionner ${item.name || item.id}`}
-              />
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={(e) => onSelectionChange?.(item.id, e.target.checked)}
+                  className="sr-only peer"
+                  aria-label={`Sélectionner ${item.name || item.id}`}
+                />
+                <span className="h-4 w-4 rounded-md border border-black/20 dark:border-white/20 bg-white/80 dark:bg-neutral-800 shadow-sm transition-colors peer-checked:bg-violet-500 peer-checked:border-violet-500 flex items-center justify-center">
+                  {isSelected && <Check size={12} className="text-white" />}
+                </span>
+              </label>
             </td>
           )}
           {displayProperties.map((prop: any, index: number) => (

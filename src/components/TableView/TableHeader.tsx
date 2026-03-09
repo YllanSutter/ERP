@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import * as Icons from 'lucide-react';
 import { Property } from '@/lib/types';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
@@ -40,13 +40,6 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   onToggleSelectAll,
 }) => {
   const canEdit = useCanEdit(collectionId);
-  const selectAllRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!selectAllRef.current) return;
-    selectAllRef.current.indeterminate = partiallySelected;
-  }, [partiallySelected]);
-
   // Exclure les propriétés en menu contextuel de l'affichage du header
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
 
@@ -104,15 +97,23 @@ const TableHeader: React.FC<TableHeaderProps> = ({
       <tr>
         {enableSelection && (
           <th className="w-10 px-2 py-2 text-center border-b border-r border-[#ffffff10]">
-            <input
-              ref={selectAllRef}
-              type="checkbox"
-              checked={allSelected}
-              onChange={(e) => onToggleSelectAll?.(e.target.checked)}
+            <label
+              className="inline-flex items-center justify-center cursor-pointer"
               onClick={(e) => e.stopPropagation()}
-              className="h-4 w-4 rounded border border-black/20 dark:border-white/20 bg-white/80 dark:bg-neutral-800 accent-violet-500 shadow-sm"
-              aria-label="Sélectionner tout"
-            />
+            >
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={(e) => onToggleSelectAll?.(e.target.checked)}
+                className="sr-only"
+                aria-label="Sélectionner tout"
+              />
+              <span className="h-4 w-4 rounded-md border border-black/20 dark:border-white/20 bg-white/80 dark:bg-neutral-800 shadow-sm transition-colors flex items-center justify-center">
+                {(allSelected || partiallySelected) && (
+                  allSelected ? <Icons.Check size={12} className="text-violet-500" /> : <Icons.Minus size={12} className="text-violet-500" />
+                )}
+              </span>
+            </label>
           </th>
         )}
         {displayProperties.map((prop: any) => {
