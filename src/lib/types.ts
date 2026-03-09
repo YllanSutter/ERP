@@ -61,4 +61,8 @@ export interface TableViewProps {
   groups?: string[];
   onShowNewItemModal?: () => void;
   onQuickCreateItem?: () => void;
+  initialSortState?: { column: string | null; direction: 'asc' | 'desc' };
+  onSortStateChange?: (state: { column: string | null; direction: 'asc' | 'desc' }) => void;
+  initialExpandedGroups?: string[];
+  onExpandedGroupsChange?: (groupPaths: string[]) => void;
 }

@@ -29,6 +29,14 @@ export interface TableItemRowProps {
   enableSelection?: boolean;
   isSelected?: boolean;
   onSelectionChange?: (itemId: string, checked: boolean) => void;
+  draggableRow?: boolean;
+  isDragging?: boolean;
+  isDragOver?: boolean;
+  onRowDragStart?: React.DragEventHandler<HTMLTableRowElement>;
+  onRowDragEnter?: React.DragEventHandler<HTMLTableRowElement>;
+  onRowDragOver?: React.DragEventHandler<HTMLTableRowElement>;
+  onRowDrop?: React.DragEventHandler<HTMLTableRowElement>;
+  onRowDragEnd?: React.DragEventHandler<HTMLTableRowElement>;
 }
 
 const TableItemRow: React.FC<TableItemRowProps> = ({
@@ -48,12 +56,31 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
   enableSelection = false,
   isSelected = false,
   onSelectionChange,
+  draggableRow = false,
+  isDragging = false,
+  isDragOver = false,
+  onRowDragStart,
+  onRowDragEnter,
+  onRowDragOver,
+  onRowDrop,
+  onRowDragEnd,
 }) => {
   const RowComponent = animate ? motion.tr : 'tr';
   const motionProps = animate
     ? {
         initial: { opacity: 0 },
         animate: { opacity: 1 },
+      }
+    : {};
+
+  const rowDragProps = !animate
+    ? {
+        draggable: draggableRow,
+        onDragStart: onRowDragStart,
+        onDragEnter: onRowDragEnter,
+        onDragOver: onRowDragOver,
+        onDrop: onRowDrop,
+        onDragEnd: onRowDragEnd,
       }
     : {};
 
@@ -68,7 +95,8 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
       <ContextMenuTrigger asChild>
         <RowComponent
           {...motionProps}
-          className="hover:bg-white/5 transition-colors border-b border-black/5 dark:border-white/5 cursor-context-menu leading-tight"
+          {...(rowDragProps as any)}
+          className={`hover:bg-white/5 transition-colors border-b border-black/5 dark:border-white/5 cursor-context-menu leading-tight ${draggableRow ? 'cursor-move' : ''} ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'outline outline-1 outline-violet-500/60' : ''}`}
         >
           {enableSelection && (
             <td className="px-2 py-1 text-center align-middle">
@@ -77,7 +105,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                 checked={isSelected}
                 onChange={(e) => onSelectionChange?.(item.id, e.target.checked)}
                 onClick={(e) => e.stopPropagation()}
-                className="h-4 w-4 rounded border-neutral-400"
+                className="h-4 w-4 rounded border border-black/20 dark:border-white/20 bg-white/80 dark:bg-neutral-800 accent-violet-500 shadow-sm"
                 aria-label={`Sélectionner ${item.name || item.id}`}
               />
             </td>

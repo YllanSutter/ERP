@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Plus, Zap } from 'lucide-react';
 import { useGrouping } from '@/lib/hooks/useGrouping';
 import { TableViewProps } from '@/lib/types';
@@ -6,7 +6,8 @@ import GroupRenderer from '@/components/TableView/GroupRenderer';
 import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
 import EditableProperty from '@/components/fields/EditableProperty';
-import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
+import { useCanEdit } from '@/lib/hooks/useCanEdit';
+import { useAuth } from '@/auth/AuthProvider';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -24,6 +25,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
+const ROW_SELECTION_FIELD_ID = '__rowSelection';
 
 const TableView: React.FC<TableViewProps> = ({
   collection,
@@ -43,15 +46,43 @@ const TableView: React.FC<TableViewProps> = ({
   groups = [],
   onShowNewItemModal,
   onQuickCreateItem,
+  initialSortState,
+  onSortStateChange,
+  initialExpandedGroups,
+  onExpandedGroupsChange,
 }) => {
+  const onSortStateChangeRef = useRef(onSortStateChange);
+  const lastSortSerializedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    onSortStateChangeRef.current = onSortStateChange;
+  }, [onSortStateChange]);
+
   const { itemsMap, groupedStructure, expandedGroups, toggleGroup } = useGrouping(
     items,
     groups,
-    collection.properties
+    collection.properties,
+    initialExpandedGroups,
+    onExpandedGroupsChange
   );
 
   // Tri par colonne
-  const [sortState, setSortState] = useState<{ column: string | null; direction: 'asc' | 'desc' }>({ column: null, direction: 'asc' });
+  const [sortState, setSortState] = useState<{ column: string | null; direction: 'asc' | 'desc' }>(
+    initialSortState || { column: null, direction: 'asc' }
+  );
+
+  useEffect(() => {
+    setSortState(initialSortState || { column: null, direction: 'asc' });
+  }, [initialSortState?.column, initialSortState?.direction, collection?.id]);
+
+  useEffect(() => {
+    const cb = onSortStateChangeRef.current;
+    if (!cb) return;
+    const serialized = JSON.stringify(sortState);
+    if (serialized === lastSortSerializedRef.current) return;
+    lastSortSerializedRef.current = serialized;
+    cb(sortState);
+  }, [sortState]);
 
   const handleSort = useCallback((columnId: string) => {
     setSortState((prev) => {
@@ -82,8 +113,64 @@ const TableView: React.FC<TableViewProps> = ({
   
   // Hooks de permissions
   const canEdit = useCanEdit(collection?.id);
-  const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, collection?.id);
-  const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, collection?.id);
+  const { isAdmin, isEditor, permissions } = useAuth();
+  const canEditFieldFn = useCallback((fieldId: string) => {
+    if (isAdmin || isEditor) return true;
+    const perms = permissions || [];
+    if (fieldId) {
+      const fieldPerm = perms.find(
+        (p: any) =>
+          (p.field_id || null) === fieldId &&
+          (p.collection_id || null) === (collection?.id || null) &&
+          (p.item_id || null) === null
+      );
+      if (fieldPerm) return Boolean(fieldPerm.can_write);
+    }
+    const collectionPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === (collection?.id || null) &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (collectionPerm) return Boolean(collectionPerm.can_write);
+    const globalPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === null &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (globalPerm) return Boolean(globalPerm.can_write);
+    return false;
+  }, [isAdmin, isEditor, permissions, collection?.id]);
+
+  const canViewFieldFn = useCallback((fieldId: string) => {
+    if (isAdmin || isEditor) return true;
+    const perms = permissions || [];
+    if (fieldId) {
+      const fieldPerm = perms.find(
+        (p: any) =>
+          (p.field_id || null) === fieldId &&
+          (p.collection_id || null) === (collection?.id || null) &&
+          (p.item_id || null) === null
+      );
+      if (fieldPerm) return Boolean(fieldPerm.can_read);
+    }
+    const collectionPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === (collection?.id || null) &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (collectionPerm) return Boolean(collectionPerm.can_read);
+    const globalPerm = perms.find(
+      (p: any) =>
+        (p.collection_id || null) === null &&
+        (p.item_id || null) === null &&
+        (p.field_id || null) === null
+    );
+    if (globalPerm) return Boolean(globalPerm.can_read);
+    return false;
+  }, [isAdmin, isEditor, permissions, collection?.id]);
   const hasContextActions = Boolean(onShowNewItemModal || onQuickCreateItem);
   const newItemLabel = collection?.name ? `Nouveau ${collection.name}` : 'Nouvel élément';
 
@@ -91,6 +178,8 @@ const TableView: React.FC<TableViewProps> = ({
   const [bulkFieldId, setBulkFieldId] = useState('');
   const [bulkValue, setBulkValue] = useState<any>('');
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [dragItemId, setDragItemId] = useState<string | null>(null);
+  const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
 
   if (!collection) {
     return (
@@ -104,6 +193,8 @@ const TableView: React.FC<TableViewProps> = ({
   const visibleProperties = orderedProperties.filter(p => 
     !hiddenFields.includes(p.id) && canViewFieldFn(p.id)
   );
+
+  const showSelectionColumn = canEdit && !hiddenFields.includes(ROW_SELECTION_FIELD_ID);
 
   const bulkEditableProperties = useMemo(
     () => visibleProperties.filter((p: any) => !p.showContextMenu && canEditFieldFn(p.id)),
@@ -147,6 +238,47 @@ const TableView: React.FC<TableViewProps> = ({
   const selectableItems = canEdit ? items : [];
   const allSelected = selectableItems.length > 0 && selectableItems.every((item) => selectedItemIds.has(item.id));
   const partiallySelected = !allSelected && selectedItemIds.size > 0;
+
+  useEffect(() => {
+    if (showSelectionColumn) return;
+    setSelectedItemIds(new Set());
+  }, [showSelectionColumn]);
+
+  const canReorderRows = canEdit && !sortState.column;
+
+  const reorderItemsById = useCallback((sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const nextItems = [...items];
+    const from = nextItems.findIndex((it) => it.id === sourceId);
+    const to = nextItems.findIndex((it) => it.id === targetId);
+    if (from === -1 || to === -1 || from === to) return;
+    const [moved] = nextItems.splice(from, 1);
+    nextItems.splice(to, 0, moved);
+    onReorderItems(nextItems);
+  }, [items, onReorderItems]);
+
+  const handleRowDragStart = useCallback((itemId: string) => {
+    if (!canReorderRows) return;
+    setDragItemId(itemId);
+  }, [canReorderRows]);
+
+  const handleRowDragEnter = useCallback((itemId: string) => {
+    if (!canReorderRows || !dragItemId) return;
+    setDragOverItemId(itemId);
+  }, [canReorderRows, dragItemId]);
+
+  const handleRowDrop = useCallback((targetItemId: string, e: React.DragEvent<HTMLTableRowElement>) => {
+    if (!canReorderRows || !dragItemId) return;
+    e.preventDefault();
+    reorderItemsById(dragItemId, targetItemId);
+    setDragItemId(null);
+    setDragOverItemId(null);
+  }, [canReorderRows, dragItemId, reorderItemsById]);
+
+  const handleRowDragEnd = useCallback(() => {
+    setDragItemId(null);
+    setDragOverItemId(null);
+  }, []);
 
   const handleToggleSelectAll = useCallback((checked: boolean) => {
     if (!checked) {
@@ -216,7 +348,7 @@ const TableView: React.FC<TableViewProps> = ({
   const content = (
     <>
       <div className=" border border-black/10 dark:border-white/5 rounded-lg overflow-hidden backdrop-blur">
-        {canEdit && (
+        {showSelectionColumn && (
           <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20">
             <span className="text-xs text-neutral-600 dark:text-neutral-300">
               {selectedCount} sélectionné{selectedCount > 1 ? 's' : ''}
@@ -283,6 +415,11 @@ const TableView: React.FC<TableViewProps> = ({
             >
               Supprimer la sélection
             </button>
+            {canReorderRows && (
+              <span className="text-[11px] text-neutral-500 dark:text-neutral-400 ml-auto">
+                Astuce : glisser-déposer une ligne pour réordonner
+              </span>
+            )}
           </div>
         )}
         <div className="overflow-x-auto">
@@ -296,7 +433,7 @@ const TableView: React.FC<TableViewProps> = ({
               collectionId={collection?.id}
               sortState={sortState}
               onSort={handleSort}
-              enableSelection={canEdit}
+              enableSelection={showSelectionColumn}
               allSelected={allSelected}
               partiallySelected={partiallySelected}
               onToggleSelectAll={handleToggleSelectAll}
@@ -325,9 +462,16 @@ const TableView: React.FC<TableViewProps> = ({
                     canEdit={canEdit}
                     canEditField={canEditFieldFn}
                     sortItems={sortItems}
-                    enableSelection={canEdit}
+                    enableSelection={showSelectionColumn}
                     selectedItemIds={selectedItemIds}
                     onSelectionChange={handleSelectionChange}
+                    draggableRows={canReorderRows}
+                    dragItemId={dragItemId}
+                    dragOverItemId={dragOverItemId}
+                    onRowDragStart={handleRowDragStart}
+                    onRowDragEnter={handleRowDragEnter}
+                    onRowDrop={handleRowDrop}
+                    onRowDragEnd={handleRowDragEnd}
                   />
                 ))
               ) : (
@@ -347,9 +491,20 @@ const TableView: React.FC<TableViewProps> = ({
                     canEditField={canEditFieldFn}
                     animate={false}
                     collection = {collection}
-                    enableSelection={canEdit}
+                    enableSelection={showSelectionColumn}
                     isSelected={selectedItemIds.has(item.id)}
                     onSelectionChange={handleSelectionChange}
+                    draggableRow={canReorderRows}
+                    isDragging={dragItemId === item.id}
+                    isDragOver={dragOverItemId === item.id && dragItemId !== item.id}
+                    onRowDragStart={() => handleRowDragStart(item.id)}
+                    onRowDragEnter={() => handleRowDragEnter(item.id)}
+                    onRowDragOver={(e) => {
+                      if (!canReorderRows) return;
+                      e.preventDefault();
+                    }}
+                    onRowDrop={(e) => handleRowDrop(item.id, e)}
+                    onRowDragEnd={handleRowDragEnd}
                   />
                 ))
               )}

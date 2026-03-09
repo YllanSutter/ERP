@@ -110,7 +110,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
               checked={allSelected}
               onChange={(e) => onToggleSelectAll?.(e.target.checked)}
               onClick={(e) => e.stopPropagation()}
-              className="h-4 w-4 rounded border-neutral-400"
+              className="h-4 w-4 rounded border border-black/20 dark:border-white/20 bg-white/80 dark:bg-neutral-800 accent-violet-500 shadow-sm"
               aria-label="Sélectionner tout"
             />
           </th>

@@ -26,6 +26,8 @@ import {
   ContextMenuTrigger
 } from '@/components/ui/context-menu';
 
+const ROW_SELECTION_FIELD_ID = '__rowSelection';
+
 interface ViewToolbarProps {
   currentCollection: any;
   currentViews: any[];
@@ -134,6 +136,14 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   
   // Filtrer les propriétés que l'utilisateur peut voir
   const viewableProperties = orderedProperties.filter(prop => canViewFieldFn(prop.id));
+  const tableSystemOptions = useMemo(() => {
+    if (currentViewConfig?.type !== 'table') return [];
+    return [{ id: ROW_SELECTION_FIELD_ID, name: 'Cases de sélection' }];
+  }, [currentViewConfig?.type]);
+  const viewableSettingsItems = useMemo(
+    () => [...tableSystemOptions, ...viewableProperties],
+    [tableSystemOptions, viewableProperties]
+  );
   const operatorLabels: Record<string, string> = {
     equals: 'Est égal à',
     not_equals: 'Est différent de',
@@ -600,14 +610,17 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                       </div>
                     ) : (
                       <DraggableList
-                        items={viewableProperties}
+                        items={viewableSettingsItems}
                         getId={(p) => p.id}
                         onReorder={(next) => {
-                          const nextOrder = next.map((p: any) => p.id);
+                          const nextOrder = next
+                            .map((p: any) => p.id)
+                            .filter((id: string) => id !== ROW_SELECTION_FIELD_ID);
                           onUpdateViewFieldOrder(nextOrder);
                         }}
                         renderItem={(prop: any, { isDragging }) => {
                           const isHidden = currentViewConfig?.hiddenFields?.includes(prop.id);
+                          const isSystemOption = prop.id === ROW_SELECTION_FIELD_ID;
                           return (
                             <div
                               className={cn(
@@ -615,9 +628,15 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                 isDragging && 'border border-cyan-500/60'
                               )}
                             >
-                              <div className="text-neutral-700 dark:text-neutral-300 cursor-grab">
-                                <Icons.GripVertical size={16} />
-                              </div>
+                              {!isSystemOption ? (
+                                <div className="text-neutral-700 dark:text-neutral-300 cursor-grab">
+                                  <Icons.GripVertical size={16} />
+                                </div>
+                              ) : (
+                                <div className="text-neutral-400 dark:text-neutral-500">
+                                  <Icons.Square size={16} />
+                                </div>
+                              )}
                               <div className="relative flex items-center">
                                 <input
                                   type="checkbox"
@@ -638,16 +657,18 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                               <div className="flex items-center gap-2">
                                 <span>{prop.name}</span>
                               </div>
-                              <button
-                                onClick={() => {
-                                  if (!canEdit) return;
-                                  onEditProperty(prop);
-                                }}
-                                className="ml-auto text-neutral-700 dark:text-neutral-300 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
-                                title="Modifier la propriété"
-                              >
-                                <Icons.Edit2 size={14} />
-                              </button>
+                              {!isSystemOption && (
+                                <button
+                                  onClick={() => {
+                                    if (!canEdit) return;
+                                    onEditProperty(prop);
+                                  }}
+                                  className="ml-auto text-neutral-700 dark:text-neutral-300 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
+                                  title="Modifier la propriété"
+                                >
+                                  <Icons.Edit2 size={14} />
+                                </button>
+                              )}
                             </div>
                           );
                         }}

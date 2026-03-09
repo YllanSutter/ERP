@@ -26,6 +26,13 @@ interface GroupRendererProps {
   enableSelection?: boolean;
   selectedItemIds?: Set<string>;
   onSelectionChange?: (itemId: string, checked: boolean) => void;
+  draggableRows?: boolean;
+  dragItemId?: string | null;
+  dragOverItemId?: string | null;
+  onRowDragStart?: (itemId: string) => void;
+  onRowDragEnter?: (itemId: string) => void;
+  onRowDrop?: (targetItemId: string, e: React.DragEvent<HTMLTableRowElement>) => void;
+  onRowDragEnd?: () => void;
 }
 
 const GroupRenderer: React.FC<GroupRendererProps> = ({
@@ -50,6 +57,13 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   enableSelection = false,
   selectedItemIds,
   onSelectionChange,
+  draggableRows = false,
+  dragItemId,
+  dragOverItemId,
+  onRowDragStart,
+  onRowDragEnter,
+  onRowDrop,
+  onRowDragEnd,
 }) => {
   const groupData = groupedStructure.structure[groupPath];
   if (!groupData) return null;
@@ -110,6 +124,13 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               enableSelection={enableSelection}
               selectedItemIds={selectedItemIds}
               onSelectionChange={onSelectionChange}
+              draggableRows={draggableRows}
+              dragItemId={dragItemId}
+              dragOverItemId={dragOverItemId}
+              onRowDragStart={onRowDragStart}
+              onRowDragEnter={onRowDragEnter}
+              onRowDrop={onRowDrop}
+              onRowDragEnd={onRowDragEnd}
             />
           ))}
 
@@ -129,10 +150,21 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               canEdit={canEdit}
               canEditField={canEditField}
               paddingLeft={24 + (depth + 1) * 20}
-              animate={true}
+              animate={false}
               enableSelection={enableSelection}
               isSelected={selectedItemIds?.has(item.id) ?? false}
               onSelectionChange={onSelectionChange}
+              draggableRow={draggableRows}
+              isDragging={dragItemId === item.id}
+              isDragOver={dragOverItemId === item.id && dragItemId !== item.id}
+              onRowDragStart={() => onRowDragStart?.(item.id)}
+              onRowDragEnter={() => onRowDragEnter?.(item.id)}
+              onRowDragOver={(e) => {
+                if (!draggableRows) return;
+                e.preventDefault();
+              }}
+              onRowDrop={(e) => onRowDrop?.(item.id, e)}
+              onRowDragEnd={() => onRowDragEnd?.()}
             />
           ))}
         </>

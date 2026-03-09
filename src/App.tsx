@@ -707,6 +707,16 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     groups={activeViewConfig?.groups || []}
                     onShowNewItemModal={() => setShowNewItemModal(true)}
                     onQuickCreateItem={handleQuickCreateItem}
+                    initialSortState={activeViewConfig?.tableSortState || { column: null, direction: 'asc' }}
+                    onSortStateChange={(state) => {
+                      if (!activeView) return;
+                      viewHooks.updateView(activeView, { tableSortState: state });
+                    }}
+                    initialExpandedGroups={activeViewConfig?.expandedGroups}
+                    onExpandedGroupsChange={(groupPaths) => {
+                      if (!activeView) return;
+                      viewHooks.updateView(activeView, { expandedGroups: groupPaths });
+                    }}
                   />
                 )}
                 {activeViewConfig?.type === 'kanban' && (
