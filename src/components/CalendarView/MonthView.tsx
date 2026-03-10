@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/auth/AuthProvider';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
+import { MONTH_NAMES } from '@/lib/calendarUtils';
 
 interface MonthViewProps {
   currentDate: Date;
@@ -49,7 +50,6 @@ const MonthView: React.FC<MonthViewProps> = ({
     }
     return false;
   };
-  const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
   const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);

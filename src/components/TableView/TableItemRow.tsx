@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
-import { Check } from 'lucide-react';
+import { Check, GripVertical } from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
 import {
   ContextMenu,
@@ -33,6 +33,12 @@ export interface TableItemRowProps {
   draggableRow?: boolean;
   isDragging?: boolean;
   isDragOver?: boolean;
+  enableDragReorder?: boolean;
+  onDragStart?: (itemId: string, e: React.DragEvent<HTMLDivElement>) => void;
+  onDragEnter?: (itemId: string) => void;
+  onDragOver?: (e: React.DragEvent<HTMLTableRowElement>) => void;
+  onDrop?: (itemId: string, e: React.DragEvent<HTMLTableRowElement>) => void;
+  onDragEnd?: () => void;
   onRowDragStart?: React.DragEventHandler<HTMLTableRowElement>;
   onRowDragEnter?: React.DragEventHandler<HTMLTableRowElement>;
   onRowDragOver?: React.DragEventHandler<HTMLTableRowElement>;
@@ -60,6 +66,12 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
   draggableRow = false,
   isDragging = false,
   isDragOver = false,
+  enableDragReorder = false,
+  onDragStart,
+  onDragEnter,
+  onDragOver,
+  onDrop,
+  onDragEnd,
   onRowDragStart,
   onRowDragEnter,
   onRowDragOver,
@@ -74,14 +86,37 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
       }
     : {};
 
+  const handleRowDragStart = (e: React.DragEvent<HTMLTableRowElement>) => {
+    // Empêcher le drag si on vient d'un input ou élement éditable
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
+      e.preventDefault();
+      return;
+    }
+    onRowDragStart?.(e);
+  };
+
   const rowDragProps = !animate
     ? {
         draggable: draggableRow,
-        onDragStart: onRowDragStart,
+        onDragStart: handleRowDragStart,
         onDragEnter: onRowDragEnter,
         onDragOver: onRowDragOver,
         onDrop: onRowDrop,
         onDragEnd: onRowDragEnd,
+      }
+    : {};
+
+  const handleDragHandleStart = (e: React.DragEvent<HTMLDivElement>) => {
+    onDragStart?.(item.id, e);
+  };
+
+  const rowDropProps = !animate
+    ? {
+        onDragEnter: () => onDragEnter?.(item.id),
+        onDragOver: onDragOver,
+        onDrop: (e: React.DragEvent<HTMLTableRowElement>) => onDrop?.(item.id, e),
+        onDragEnd: onDragEnd,
       }
     : {};
 
@@ -96,9 +131,21 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
       <ContextMenuTrigger asChild>
         <RowComponent
           {...motionProps}
-          {...(rowDragProps as any)}
-          className={`hover:bg-white/5 transition-colors border-b border-black/5 dark:border-white/5 cursor-context-menu leading-tight ${draggableRow ? 'cursor-move' : ''} ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'outline outline-1 outline-violet-500/60' : ''}`}
+          {...(rowDropProps as any)}
+          className={`hover:bg-white/5 transition-colors border-b border-black/5 dark:border-white/5 cursor-context-menu leading-tight ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'outline outline-1 outline-violet-500/60' : ''}`}
         >
+          {enableDragReorder && (
+            <td className="px-1 py-1 text-center align-middle w-8">
+              <div
+                draggable
+                onDragStart={handleDragHandleStart}
+                className="inline-flex items-center justify-center cursor-grab active:cursor-grabbing hover:text-violet-400 transition-colors"
+                title="Glisser pour réorganiser"
+              >
+                <GripVertical size={14} />
+              </div>
+            </td>
+          )}
           {enableSelection && (
             <td className="px-2 py-1 text-center align-middle">
               <label
@@ -121,8 +168,9 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
           {displayProperties.map((prop: any, index: number) => (
             <td
               key={prop.id}
-              className="px-2 py-1 whitespace-nowrap text-xs text-neutral-700 dark:text-neutral-300 relative"
+              className="px-2 py-1 whitespace-nowrap text-xs text-neutral-700 dark:text-neutral-300 relative user-select-auto"
               style={index === 0 ? { paddingLeft: `${paddingLeft}px` } : undefined}
+              onMouseDown={(e) => e.stopPropagation()}
             >
               <EditableProperty
                 property={prop}

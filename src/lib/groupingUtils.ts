@@ -37,7 +37,18 @@ export function buildGroupStructure(
       const prop = properties.find((p: any) => p.id === groupId);
       if (!prop) continue;
 
-      const groupValue = String(item[groupId] || '(vide)');
+      const rawValue = item[groupId];
+      let groupValue: string;
+      
+      // Formater la valeur selon le type
+      if (prop.type === 'date' || (prop as any).dateGranularity) {
+        groupValue = formatDateByGranularity(rawValue, (prop as any).dateGranularity);
+      } else if (rawValue === null || rawValue === undefined || rawValue === '') {
+        groupValue = '(vide)';
+      } else {
+        groupValue = String(rawValue);
+      }
+      
       const parentPath = currentPath;
       currentPath = currentPath ? `${currentPath}/${groupValue}` : groupValue;
 
@@ -66,6 +77,30 @@ export function buildGroupStructure(
 }
 
 /**
+ * Formater une valeur de date selon la granularité
+ */
+export function formatDateByGranularity(dateString: string, granularity?: string): string {
+  if (!dateString) return '(vide)';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return String(dateString);
+    
+    if (granularity === 'year') {
+      return date.getFullYear().toString();
+    } else if (granularity === 'month') {
+      return date.toLocaleDateString('fr-FR', { month: 'long' });
+    } else if (granularity === 'month-year') {
+      return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    } else {
+      // Full date format
+      return date.toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+  } catch (e) {
+    return String(dateString);
+  }
+}
+
+/**
  * Obtenir le libellé d'une valeur pour affichage
  */
 export function getGroupLabel(
@@ -74,6 +109,10 @@ export function getGroupLabel(
   collections: Collection[]
 ): string {
   if (!value && value !== 0 && value !== false) return '(vide)';
+  
+  if (property.type === 'date' || (property as any).dateGranularity) {
+    return formatDateByGranularity(value, (property as any).dateGranularity);
+  }
   
   if (property.type === 'relation') {
     const targetCollection = collections.find(

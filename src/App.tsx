@@ -20,8 +20,7 @@ import LayoutView from '@/components/views/LayoutView';
 import { useAuth } from '@/auth/AuthProvider';
 import NewCollectionModal from '@/components/modals/NewCollectionModal';
 import EditCollectionModal from '@/components/modals/EditCollectionModal';
-import NewPropertyModal from '@/components/modals/NewPropertyModal';
-import EditPropertyModal from '@/components/modals/EditPropertyModal';
+import PropertyModal from '@/components/modals/PropertyModal';
 import NewItemModal from '@/components/modals/NewItemModal';
 import FilterModal from '@/components/modals/FilterModal';
 import GroupModal from '@/components/modals/GroupModal';
@@ -121,7 +120,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
   const [isLoaded, setIsLoaded] = useState(false);
 
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
-  const [showNewPropertyModal, setShowNewPropertyModal] = useState(false);
+  const [showPropertyModal, setShowPropertyModal] = useState(false);
   const [showNewItemModal, setShowNewItemModal] = useState(false);
   const [modalCollection, setModalCollection] = useState<any>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -132,7 +131,6 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editingProperty, setEditingProperty] = useState<any>(null);
-  const [showEditPropertyModal, setShowEditPropertyModal] = useState(false);
   const [editingCollection, setEditingCollection] = useState<any>(null);
   const [showEditCollectionModal, setShowEditCollectionModal] = useState(false);
   const [showViewSettings, setShowViewSettings] = useState(false);
@@ -667,7 +665,10 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                   setShowFilterModal(true);
                 }}
                 onShowGroupModal={() => setShowGroupModal(true)}
-                onShowNewPropertyModal={() => setShowNewPropertyModal(true)}
+                onShowNewPropertyModal={() => {
+                  setEditingProperty(null);
+                  setShowPropertyModal(true);
+                }}
                 onShowNewItemModal={() => setShowNewItemModal(true)}
                 onQuickCreateItem={handleQuickCreateItem}
                 onSetShowViewSettings={setShowViewSettings}
@@ -686,13 +687,21 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                 }}
                 onEditProperty={(prop) => {
                   setEditingProperty(prop);
-                  setShowEditPropertyModal(true);
+                  setShowPropertyModal(true);
                 }}
                 onEditFilter={(index) => {
                   setEditingFilterIndex(index);
                   setShowFilterModal(true);
                 }}
                 onRemoveFilter={viewHooks.removeFilter}
+                onUpdateFilterValue={(index, newValue) => {
+                  if (!activeView) return;
+                  const nextFilters = [...(activeViewConfig?.filters || [])];
+                  if (nextFilters[index]) {
+                    nextFilters[index] = { ...nextFilters[index], value: newValue };
+                    viewHooks.updateView(activeView, { filters: nextFilters });
+                  }
+                }}
                 onClearRelationFilter={clearRelationFilter}
                 onRemoveGroup={viewHooks.removeGroup}
                 onToggleFavoriteView={(viewId: string) => {
@@ -765,7 +774,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     onDeleteProperty={collectionHooks.deleteProperty}
                     onEditProperty={(prop: any) => {
                       setEditingProperty(prop);
-                      setShowEditPropertyModal(true);
+                      setShowPropertyModal(true);
                     }}
                     collections={collections}
                     onRelationChange={(prop: any, item: any, val: any) => {
@@ -1006,27 +1015,21 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
           }}
         />
       )}
-      {showNewPropertyModal && activeCollection && (
-        <NewPropertyModal
-          onClose={() => setShowNewPropertyModal(false)}
-          onSave={(property) => {
-
-            collectionHooks.addProperty(property);
-            setShowNewPropertyModal(false);
-          }}
-          collections={collections}
-          currentCollection={activeCollection}
-        />
-      )}
-      {showEditPropertyModal && editingProperty && (
-        <EditPropertyModal
+      {showPropertyModal && activeCollection && (
+        <PropertyModal
           onClose={() => {
-            setShowEditPropertyModal(false);
+            setShowPropertyModal(false);
             setEditingProperty(null);
           }}
           onSave={(property) => {
-            collectionHooks.updateProperty(property);
-            setShowEditPropertyModal(false);
+            if (editingProperty) {
+              // Modification
+              collectionHooks.updateProperty(property);
+            } else {
+              // Création
+              collectionHooks.addProperty(property);
+            }
+            setShowPropertyModal(false);
             setEditingProperty(null);
           }}
           property={editingProperty}

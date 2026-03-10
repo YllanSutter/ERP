@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { getNameValue as getNameValueLib } from '@/lib/calendarUtils';
+import { getNameValue as getNameValueLib, MONTH_NAMES } from '@/lib/calendarUtils';
 import { motion } from 'framer-motion';
 import { getFilteredItems } from '@/lib/filterUtils';
 import CalendarCollectionsManager from '../calendar/CalendarCollectionsManager';
@@ -277,10 +277,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // --- Ajout navigation et sélecteur de vue ---
   // Fonctions utilitaires pour navigation
-  const MONTH_NAMES = [
-    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-  ];
   const getMonday = (date: Date) => {
     const d = new Date(date);
     const day = d.getDay();

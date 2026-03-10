@@ -117,8 +117,9 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
                     className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
                   >
                     <option value="full">Date complète</option>
-                    <option value="month">Mois</option>
-                    <option value="year">Année</option>
+                    <option value="month">Mois uniquement</option>
+                    <option value="month-year">Mois + Année</option>
+                    <option value="year">Année uniquement</option>
                   </select>
                 </div>
                 <div className="flex items-end">

@@ -578,7 +578,7 @@ const TableView: React.FC<TableViewProps> = ({
               type="button"
               onClick={handleBulkApply}
               disabled={!bulkFieldId || selectedCount === 0}
-              className="text-xs px-2 py-1 rounded bg-violet-600 text-white disabled:opacity-50"
+              className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-500/10 border border-white/10 hover:bg-white/20 transition cursor-pointer group"
             >
               Appliquer
             </button>
@@ -586,7 +586,7 @@ const TableView: React.FC<TableViewProps> = ({
               type="button"
               onClick={() => setSelectedItemIds(new Set())}
               disabled={selectedCount === 0}
-              className="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 disabled:opacity-50"
+              className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-violet-500/10 border border-white/10 hover:bg-white/20 transition cursor-pointer group"
             >
               Désélectionner
             </button>
@@ -594,7 +594,7 @@ const TableView: React.FC<TableViewProps> = ({
               type="button"
               onClick={handleBulkDelete}
               disabled={selectedCount === 0}
-              className="text-xs px-2 py-1 rounded bg-red-600 text-white disabled:opacity-50"
+              className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-500/10 border border-white/10 hover:bg-white/20 transition cursor-pointer group"
             >
               Supprimer la sélection
             </button>
@@ -616,6 +616,7 @@ const TableView: React.FC<TableViewProps> = ({
               collectionId={collection?.id}
               sortState={sortState}
               onSort={handleSort}
+              enableDragReorder={canReorderRows}
               enableSelection={showSelectionColumn}
               allSelected={allSelected}
               partiallySelected={partiallySelected}
@@ -682,17 +683,21 @@ const TableView: React.FC<TableViewProps> = ({
                     enableSelection={showSelectionColumn}
                     isSelected={selectedItemIds.has(item.id)}
                     onSelectionChange={handleSelectionChange}
-                    draggableRow={canReorderRows}
+                    enableDragReorder={canReorderRows}
                     isDragging={dragItemId === item.id}
                     isDragOver={dragOverItemId === item.id && dragItemId !== item.id}
-                    onRowDragStart={() => handleRowDragStart(item.id)}
-                    onRowDragEnter={() => handleRowDragEnter(item.id)}
-                    onRowDragOver={(e) => {
+                    onDragStart={(itemId, e) => {
+                      e.dataTransfer!.effectAllowed = 'move';
+                      handleRowDragStart(itemId);
+                    }}
+                    onDragEnter={handleRowDragEnter}
+                    onDragOver={(e) => {
                       if (!canReorderRows) return;
                       e.preventDefault();
+                      e.dataTransfer!.dropEffect = 'move';
                     }}
-                    onRowDrop={(e) => handleRowDrop(item.id, e)}
-                    onRowDragEnd={handleRowDragEnd}
+                    onDrop={handleRowDrop}
+                    onDragEnd={handleRowDragEnd}
                   />
                 ))
               )}
@@ -700,6 +705,7 @@ const TableView: React.FC<TableViewProps> = ({
             {Object.keys(totalFields).length > 0 && items.length > 0 && (
               <tfoot className="bg-violet-50/50 dark:bg-violet-900/10 border-t-2 border-violet-200 dark:border-violet-800">
                 <tr>
+                  {canReorderRows && <td className="px-1 py-2 w-8"></td>}
                   {showSelectionColumn && <td className="px-2 py-2"></td>}
                   {displayProperties.map((prop: any) => {
                     const totalType = totalFields[prop.id];

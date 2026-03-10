@@ -100,7 +100,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
         depth={depth}
         isExpanded={isExpanded}
         onToggle={() => toggleGroup(groupPath)}
-        colSpan={displayColumnCount + (enableSelection ? 1 : 0)}
+        colSpan={displayColumnCount + (draggableRows ? 1 : 0) + (enableSelection ? 1 : 0)}
       />
 
       {isExpanded && (
@@ -143,8 +143,10 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
             />
           ))}
 
-          {/* Items de ce groupe */}
-          {(sortItems ? sortItems(groupData.itemIds.map(itemId => itemsMap.get(itemId)).filter(Boolean)) : groupData.itemIds.map(itemId => itemsMap.get(itemId)).filter(Boolean)).map(item => (
+          {(() => {
+            const groupItems = groupData.itemIds.map(itemId => itemsMap.get(itemId)).filter(Boolean);
+            const sortedItems = sortItems ? sortItems(groupItems) : groupItems;
+            return sortedItems.map(item => (
             <TableItemRow
               key={item.id}
               item={item}
@@ -163,23 +165,29 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               enableSelection={enableSelection}
               isSelected={selectedItemIds?.has(item.id) ?? false}
               onSelectionChange={onSelectionChange}
-              draggableRow={draggableRows}
+              enableDragReorder={draggableRows}
               isDragging={dragItemId === item.id}
               isDragOver={dragOverItemId === item.id && dragItemId !== item.id}
-              onRowDragStart={() => onRowDragStart?.(item.id)}
-              onRowDragEnter={() => onRowDragEnter?.(item.id)}
-              onRowDragOver={(e) => {
+              onDragStart={(itemId, e) => {
+                e.dataTransfer!.effectAllowed = 'move';
+                onRowDragStart?.(itemId);
+              }}
+              onDragEnter={onRowDragEnter}
+              onDragOver={(e) => {
                 if (!draggableRows) return;
                 e.preventDefault();
+                e.dataTransfer!.dropEffect = 'move';
               }}
-              onRowDrop={(e) => onRowDrop?.(item.id, e)}
-              onRowDragEnd={() => onRowDragEnd?.()}
+              onDrop={onRowDrop}
+              onDragEnd={onRowDragEnd}
             />
-          ))}
+            ));
+          })()}
 
           {/* Ligne de total pour ce groupe */}
           {Object.keys(totalFields).length > 0 && groupData.itemIds.length > 0 && calculateTotal && formatTotal && (
-            <tr className="bg-violet-50/30 dark:bg-violet-900/5 border-t border-violet-200/50 dark:border-violet-800/30">
+            <tr className="bg-violet-50/30 dark:bg-neutral-800/15 border-t border-violet-200/50 dark:border-violet-800/30">
+              {draggableRows && <td className="px-1 py-1 w-8"></td>}
               {enableSelection && <td className="px-2 py-1"></td>}
               {visibleProperties.filter((p: any) => !p.showContextMenu).map((prop: any, index: number) => {
                 const totalType = totalFields[prop.id];
@@ -193,7 +201,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                     </td>
                   );
                 }
-                const groupItems = groupData.itemIds.map(itemId => itemsMap.get(itemId)).filter(Boolean);
+                const groupItems = groupData.itemIds.map(itemId => itemsMap.get(itemId)).filter((item): item is Item => Boolean(item));
                 const total = calculateTotal(prop.id, groupItems, totalType);
                 return (
                   <td 

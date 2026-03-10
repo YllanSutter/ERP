@@ -351,6 +351,7 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                   >
                     <option value="full">Date complète</option>
                     <option value="month">Mois uniquement</option>
+                    <option value="month-year">Mois + Année</option>
                     <option value="year">Année uniquement</option>
                   </select>
                 </div>

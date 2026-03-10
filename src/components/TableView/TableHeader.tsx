@@ -27,6 +27,7 @@ export interface TableHeaderProps {
   allSelected?: boolean;
   partiallySelected?: boolean;
   onToggleSelectAll?: (checked: boolean) => void;
+  enableDragReorder?: boolean;
   totalFields?: Record<string, string>;
   onToggleTotalField?: (fieldId: string, totalType: string | null) => void;
 }
@@ -44,6 +45,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   allSelected = false,
   partiallySelected = false,
   onToggleSelectAll,
+  enableDragReorder = false,
   totalFields = {},
   onToggleTotalField,
 }) => {
@@ -139,6 +141,9 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   return (
     <thead className="bg-gray-300 dark:bg-black/30 border-b border-black/5 dark:border-white/5">
       <tr>
+        {enableDragReorder && (
+          <th className="w-8 px-1 py-2 text-center border-b border-r border-[#ffffff10]"></th>
+        )}
         {enableSelection && (
           <th className="w-10 px-2 py-2 text-center border-b border-r border-[#ffffff10]">
             <label

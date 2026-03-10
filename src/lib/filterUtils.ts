@@ -12,8 +12,31 @@ export const getFilteredItems = (
     filtered = filtered.filter((item) => {
       const prop = (currentCollection.properties || []).find((p: any) => p.id === filter.property);
       if (!prop) return true;
-      const itemVal = item[filter.property];
+      let itemVal = item[filter.property];
       const fVal = filter.value;
+      
+      // Handle date fields with granularity
+      if ((prop.type === 'date' || prop.type === 'date_range') && prop.dateGranularity && itemVal) {
+        const date = new Date(itemVal);
+        const granularity = prop.dateGranularity;
+        
+        if (granularity === 'year') {
+          itemVal = String(date.getFullYear());
+        } else if (granularity === 'month') {
+          const MONTH_NAMES = [
+            'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+            'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+          ];
+          itemVal = MONTH_NAMES[date.getMonth()];
+        } else if (granularity === 'month-year') {
+          const MONTH_NAMES = [
+            'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+            'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+          ];
+          itemVal = `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+        }
+      }
+      
       const isArrayVal = Array.isArray(itemVal);
 
       switch (filter.operator) {

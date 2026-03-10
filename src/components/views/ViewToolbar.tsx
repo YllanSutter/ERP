@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import ShinyButton from '@/components/ui/ShinyButton';
 import DraggableList from '@/components/inputs/DraggableList';
+import FilterValueDisplay from '@/components/filters/FilterValueDisplay';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
 import {
@@ -53,6 +54,7 @@ interface ViewToolbarProps {
   onSetTotalField: (fieldId: string, totalType: string | null) => void;
   onEditProperty: (property: any) => void;
   onEditFilter: (index: number) => void;
+  onUpdateFilterValue: (index: number, value: any) => void;
   onRemoveFilter: (index: number) => void;
   onClearRelationFilter: () => void;
   onRemoveGroup: (property: string) => void;
@@ -89,6 +91,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onSetTotalField,
   onEditProperty,
   onEditFilter,
+  onUpdateFilterValue,
   onRemoveFilter,
   onClearRelationFilter,
   onRemoveGroup,
@@ -157,6 +160,13 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
     is_not_empty: "N'est pas vide"
   };
   const getOperatorLabel = (op: string) => operatorLabels[op] || op;
+  const getFilterSource = (filter: any) => {
+    const sourceCollection =
+      collections.find((c: any) => c.properties?.some((p: any) => p.id === filter.property)) ||
+      currentCollection;
+    const sourceProp = sourceCollection?.properties?.find((p: any) => p.id === filter.property);
+    return { sourceCollection, sourceProp };
+  };
   const calendarCollectionIds = Array.isArray(currentViewConfig?.calendarCollectionIds)
     ? currentViewConfig.calendarCollectionIds
     : currentCollection
@@ -231,7 +241,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       initial={{ y: -10, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.15 }}
-      className="relative border-b border-black/5 dark:border-white/5bg-neutral-900/30 backdrop-blur lg-px-8 px-2 py-4 z-10"
+      className="relative border-b border-black/5 dark:border-white/5bg-neutral-900/30 backdrop-blur lg:px-6 px-2 py-4 z-10"
     >
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -684,84 +694,57 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             </>
           )}
 
-          {currentViewConfig?.filters.map((filter: any, idx: number) => (
+          {currentViewConfig?.filters.map((filter: any, idx: number) => {
+            const { sourceCollection, sourceProp } = getFilterSource(filter);
+            const previousFilter = idx > 0 ? currentViewConfig?.filters?.[idx - 1] : null;
+            const previousSource = previousFilter ? getFilterSource(previousFilter) : null;
+            const showCollectionName =
+              !previousSource?.sourceCollection?.id ||
+              previousSource.sourceCollection.id !== sourceCollection?.id;
+
+            return (
             <React.Fragment key={idx}>
               {idx > 0 && <span className="text-neutral-700 dark:text-neutral-300 text-sm">&</span>}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center gap-2 px-3 py-1.5 bg-violet-500/20 text-neutral-700 dark:text-neutral-300 rounded-lg text-sm border border-violet-500/30 lowercase"
+                className="flex relative items-center gap-2 px-3 py-1.5 pt-3 bg-violet-500/20 text-neutral-700 dark:text-neutral-300 rounded-lg text-xs border border-violet-500/30 lowercase"
               >
-                <span>
-                  {(() => {
-                    const sourceCollection =
-                      collections.find((c: any) =>
-                        c.properties?.some((p: any) => p.id === filter.property)
-                      ) || currentCollection;
-                    const sourceProp = sourceCollection?.properties?.find(
-                      (p: any) => p.id === filter.property
-                    );
-                    return (
-                      <>
-                        {sourceCollection?.name && (
-                          <span className="text-neutral-700 dark:text-neutral-300">{sourceCollection.name} · </span>
-                        )}
-                        {sourceProp?.name || 'Champ'}{' '}
-                      </>
-                    );
-                  })()}
+                <span className="absolute -top-2.5 left-3">
+                  {showCollectionName && sourceCollection?.name && (
+                    <span className="text-neutral-700 dark:text-neutral-300">{sourceCollection.name} · </span>
+                  )}
+                  {sourceProp?.name || 'Champ'}{' '}
                   {getOperatorLabel(filter.operator)}{' '}
-                  {(() => {
-                    const sourceCollection =
-                      collections.find((c: any) =>
-                        c.properties?.some((p: any) => p.id === filter.property)
-                      ) || currentCollection;
-                    const prop = sourceCollection?.properties?.find(
-                      (p: any) => p.id === filter.property
-                    );
-                    if (prop?.type === 'relation') {
-                      const targetCol = collections.find(
-                        (c: any) => c.id === prop.relation?.targetCollectionId
-                      );
-                      if (!targetCol) return filter.value;
-                      const nameField =
-                        targetCol.properties.find((p: any) => p.name === 'Nom' || p.id === 'name') ||
-                        targetCol.properties[0] ||
-                        ({ id: 'name' } as any);
-                      if (Array.isArray(filter.value)) {
-                        return filter.value
-                          .map((id: string) => {
-                            const item = targetCol.items.find((i: any) => i.id === id);
-                            return item ? item[nameField.id] || item.name || id : id;
-                          })
-                          .join(' & ');
-                      } else {
-                        const item = targetCol.items.find((i: any) => i.id === filter.value);
-                        return item ? item[nameField.id] || item.name || filter.value : filter.value;
-                      }
-                    }
-                    if (Array.isArray(filter.value)) {
-                      return filter.value.join(' & ');
-                    }
-                    return filter.value;
-                  })()}
                 </span>
+                <div className="flex-shrink-0 min-w-0">
+                  <FilterValueDisplay
+                    filter={filter}
+                    property={sourceProp}
+                    collections={collections}
+                    currentCollection={currentCollection}
+                    canEdit={canEdit}
+                    onUpdateValue={(newValue) => onUpdateFilterValue(idx, newValue)}
+                  />
+                </div>
                 <button
                   onClick={() => {
                     if (!canEdit) return;
                     onEditFilter(idx);
                   }}
-                  className={cn('hover:bg-violet-500/30 rounded p-0.5', !canEdit && 'opacity-60 pointer-events-none')}
-                  title="Modifier le filtre"
+                  className={cn('hover:bg-violet-500/30 rounded px-1.5 py-0.5 inline-flex items-center gap-1', !canEdit && 'opacity-60 pointer-events-none')}
+                  title="Modifier la règle (champ/opérateur)"
+                  aria-label="Modifier la règle"
                 >
-                  <Icons.Edit2 size={14} />
+                  <Icons.SlidersHorizontal size={14} />
                 </button>
                 <button onClick={() => onRemoveFilter(idx)} className="hover:bg-violet-500/30 rounded p-0.5">
                   <X size={14} />
                 </button>
               </motion.div>
             </React.Fragment>
-          ))}
+            );
+          })}
 
           {relationFilter.collectionId === activeCollection && relationFilter.ids.length > 0 && (
             <motion.div

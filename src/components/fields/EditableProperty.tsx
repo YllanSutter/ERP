@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { workDayStart, workDayEnd } from '@/lib/calendarUtils';
+import { formatDateByGranularity } from '@/lib/groupingUtils';
 
 interface EditablePropertyProps {
   property: any;
@@ -185,7 +186,7 @@ const NumberInput = ({
   };
 
   const displayValue = value ?? '';
-  const inputLength = Math.min(Math.max(String(displayValue).length || 1, 6), 20);
+  const inputLength = Math.min(Math.max(String(displayValue).length || 1, 10), 20);
 
   return (
     <div className={cn('inline-flex items-center gap-1', className)}>
@@ -970,16 +971,10 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     const dateGranularity = property.dateGranularity || 'full';
     const includeDuration = property.includeDuration !== false;
 
-    // Fonction pour formater la date selon la granularité
-    const formatDateByGranularity = (date: Date) => {
+    // Fonction pour formater la date selon la granularité (importée depuis groupingUtils)
+    const formatDateForDisplay = (date: Date) => {
       if (!date || isNaN(date.getTime())) return '';
-      if (dateGranularity === 'month') {
-        return format(date, 'MMMM yyyy', { locale: fr });
-      }
-      if (dateGranularity === 'year') {
-        return format(date, 'yyyy');
-      }
-      return format(date, 'dd MMM yyyy HH:mm', { locale: fr });
+      return formatDateByGranularity(date.toISOString(), dateGranularity);
     };
 
     const getTimeOptions = () => {
@@ -1013,8 +1008,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
             )}
           >
             <CalendarIcon size={14} className="opacity-50" />
-            {value ? formatDateByGranularity(selectedDate!) : (
+            {value ? formatDateForDisplay(selectedDate!) : (
               dateGranularity === 'month' ? 'Choisir un mois' :
+              dateGranularity === 'month-year' ? 'Choisir un mois et une année' :
               dateGranularity === 'year' ? 'Choisir une année' :
               'Choisir une date et heure'
             )}
@@ -1044,6 +1040,24 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
             {dateGranularity === 'month' ? (
               <div className="flex flex-col gap-2 p-2 min-w-[200px]">
                 <label className="block text-xs font-medium text-neutral-400">Sélectionner un mois</label>
+                <select
+                  value={selectedDate ? selectedDate.getMonth() : new Date().getMonth()}
+                  onChange={(e) => {
+                    const month = parseInt(e.target.value);
+                    const year = selectedDate ? selectedDate.getFullYear() : new Date().getFullYear();
+                    const date = new Date(year, month, 1, 9, 0, 0, 0);
+                    handleEventUpdate(property.id, date.toISOString());
+                  }}
+                  className="w-full px-3 py-2 bg-background dark:bg-neutral-800/50 border border-white/10 rounded text-sm text-black dark:text-white"
+                >
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i} value={i}>{format(new Date(2000, i, 1), 'MMMM', { locale: fr })}</option>
+                  ))}
+                </select>
+              </div>
+            ) : dateGranularity === 'month-year' ? (
+              <div className="flex flex-col gap-2 p-2 min-w-[200px]">
+                <label className="block text-xs font-medium text-neutral-400">Sélectionner un mois et une année</label>
                 <select
                   value={selectedDate ? selectedDate.getMonth() : new Date().getMonth()}
                   onChange={(e) => {

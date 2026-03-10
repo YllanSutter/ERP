@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import ShinyButton from '@/components/ui/ShinyButton';
 import { LightSelect } from '@/components/inputs/LightSelect';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
+import { MONTH_NAMES } from '@/lib/calendarUtils';
 
 interface FilterModalProps {
   properties: any[];
@@ -170,6 +171,72 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
                   options={opts}
                   values={currentValues}
                   onChange={(vals) => setValue(vals)}
+                />
+              );
+            }
+            if (selectedProp?.type === 'date' || selectedProp?.type === 'date_range') {
+              const granularity = selectedProp.dateGranularity || 'full';
+              
+              if (granularity === 'month') {
+                return (
+                  <select
+                    value={typeof value === 'string' ? value : ''}
+                    onChange={(e) => setValue(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+                  >
+                    <option value="">Sélectionner...</option>
+                    {MONTH_NAMES.map((month, idx) => (
+                      <option key={idx} value={month}>{month}</option>
+                    ))}
+                  </select>
+                );
+              }
+              
+              if (granularity === 'month-year') {
+                const years = Array.from({ length: 21 }, (_, i) => 2020 + i);
+                const options = [];
+                for (const year of years) {
+                  for (const month of MONTH_NAMES) {
+                    options.push(`${month} ${year}`);
+                  }
+                }
+                return (
+                  <select
+                    value={typeof value === 'string' ? value : ''}
+                    onChange={(e) => setValue(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none max-h-64 overflow-y-auto"
+                  >
+                    <option value="">Sélectionner...</option>
+                    {options.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                );
+              }
+              
+              if (granularity === 'year') {
+                const years = Array.from({ length: 21 }, (_, i) => 2020 + i);
+                return (
+                  <select
+                    value={typeof value === 'string' ? value : ''}
+                    onChange={(e) => setValue(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+                  >
+                    <option value="">Sélectionner...</option>
+                    {years.map((year) => (
+                      <option key={year} value={String(year)}>{year}</option>
+                    ))}
+                  </select>
+                );
+              }
+              
+              // full: date complète
+              return (
+                <input
+                  type="date"
+                  value={typeof value === 'string' ? value : ''}
+                  onChange={(e) => setValue(e.target.value)}
+                  className="w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
                 />
               );
             }

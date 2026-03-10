@@ -38,6 +38,16 @@ export interface RelationConfig {
   type?: 'one-to-one' | 'one-to-many' | 'many-to-many';
 }
 
+// Granularités de date disponibles
+export const DATE_GRANULARITIES = [
+  { value: 'full', label: 'Date complète' },
+  { value: 'month', label: 'Mois uniquement' },
+  { value: 'month-year', label: 'Mois + Année' },
+  { value: 'year', label: 'Année uniquement' }
+] as const;
+
+export type DateGranularity = typeof DATE_GRANULARITIES[number]['value'];
+
 export interface Item {
   id: string;
   [key: string]: any;

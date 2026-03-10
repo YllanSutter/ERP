@@ -3,6 +3,7 @@ import { Settings } from 'lucide-react';
 import { Calendar } from 'lucide-react';
 import MonthView from '../CalendarView/MonthView';
 import WeekView from '../CalendarView/WeekView';
+import { MONTH_NAMES } from '@/lib/calendarUtils';
 import { 
   moveAllSegmentsOfItem, 
   updateSegmentInItem,
@@ -162,10 +163,6 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
     }
   };
   // --- State pour la vue et la date courante ---
-  const MONTH_NAMES = [
-    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-  ];
   const getMonday = (date: string | number | Date) => {
     const d = new Date(date);
     const day = d.getDay();
