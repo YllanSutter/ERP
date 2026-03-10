@@ -97,7 +97,7 @@ const applyRelationChangeInternal = (
 
 export const useItems = (
   collections: any[],
-  setCollections: (collections: any[]) => void,
+  setCollections: (collections: any[] | ((prevCollections: any[]) => any[])) => void,
   activeCollection: string | null
 ) => {
   const generateItemId = () => {
@@ -168,12 +168,12 @@ export const useItems = (
     const targetCollectionId = collectionId || item.__collectionId || activeCollection;
     if (!targetCollectionId) return;
 
-    setCollections((prevCollections) => {
-      const sourceCollection = prevCollections.find((c) => c.id === targetCollectionId);
+    setCollections((prevCollections: any[]) => {
+      const sourceCollection = prevCollections.find((c: any) => c.id === targetCollectionId);
       if (!sourceCollection) return prevCollections;
       const prevItem = sourceCollection.items.find((i: any) => i.id === item.id) || {};
 
-      let updatedCollections = prevCollections.map((col) => {
+      let updatedCollections = prevCollections.map((col: any) => {
         if (col.id === targetCollectionId) {
           return { ...col, items: col.items.map((i: any) => (i.id === item.id ? item : i)) };
         }
@@ -205,10 +205,13 @@ export const useItems = (
   const deleteItem = (itemId: string, collectionId?: string) => {
     const deletedCollectionId = collectionId || activeCollection;
     if (!deletedCollectionId) return;
+    console.log('deleteItem called:', itemId, 'collectionId:', deletedCollectionId, 'current collections count:', collections.length);
     // 1) Remove the item from its source collection
     let updatedCollections = collections.map((col) => {
       if (col.id === deletedCollectionId) {
-        return { ...col, items: col.items.filter((i: any) => i.id !== itemId) };
+        const filtered = { ...col, items: col.items.filter((i: any) => i.id !== itemId) };
+        console.log('deleteItem - filtering collection:', col.id, 'removed:', col.items.length - filtered.items.length, 'items remain:', filtered.items.length);
+        return filtered;
       }
       return col;
     });
@@ -241,12 +244,65 @@ export const useItems = (
       return { ...col, items: newItems };
     });
 
+    console.log('deleteItem - calling setCollections');
+    setCollections(updatedCollections);
+  };
+
+  const bulkDeleteItems = (itemIds: string[], collectionId?: string) => {
+    const deletedCollectionId = collectionId || activeCollection;
+    if (!deletedCollectionId || itemIds.length === 0) return;
+    console.log('bulkDeleteItems called:', itemIds, 'collectionId:', deletedCollectionId, 'count:', itemIds.length);
+    
+    const itemIdSet = new Set(itemIds);
+    
+    // 1) Remove all items from their source collection in ONE pass
+    let updatedCollections = collections.map((col) => {
+      if (col.id === deletedCollectionId) {
+        const originalCount = col.items.length;
+        const filtered = { ...col, items: col.items.filter((i: any) => !itemIdSet.has(i.id)) };
+        const removedCount = originalCount - filtered.items.length;
+        console.log('bulkDeleteItems - filtering collection:', col.id, 'removed:', removedCount, 'items remain:', filtered.items.length);
+        return filtered;
+      }
+      return col;
+    });
+
+    // 2) Cleanup relations in other collections that point to the deleted items' collection
+    updatedCollections = updatedCollections.map((col) => {
+      const newItems = (col.items || []).map((it: any) => {
+        let next = { ...it };
+        (col.properties || []).forEach((prop: any) => {
+          if (prop.type !== 'relation') return;
+          const relation = prop.relation || {};
+          const targetCollectionId = relation.targetCollectionId;
+          const relationType = relation.type || 'many_to_many';
+          const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
+
+          // Only relations that target the active (deleted items) collection
+          if (targetCollectionId === deletedCollectionId) {
+            const val = next[prop.id];
+            if (isSourceMany) {
+              const arr = Array.isArray(val) ? val : [];
+              const filtered = arr.filter((id: string) => !itemIdSet.has(id));
+              if (filtered.length !== arr.length) next[prop.id] = filtered;
+            } else {
+              if (itemIdSet.has(val)) next[prop.id] = null;
+            }
+          }
+        });
+        return next;
+      });
+      return { ...col, items: newItems };
+    });
+
+    console.log('bulkDeleteItems - calling setCollections once with all deletions');
     setCollections(updatedCollections);
   };
 
   return {
     saveItem,
     updateItem,
-    deleteItem
+    deleteItem,
+    bulkDeleteItems
   };
 };

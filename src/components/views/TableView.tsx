@@ -33,6 +33,7 @@ const TableView: React.FC<TableViewProps> = ({
   items,
   onEdit,
   onDelete,
+  onBulkDelete,
   hiddenFields,
   orderedProperties,
   onReorderItems,
@@ -500,10 +501,23 @@ const TableView: React.FC<TableViewProps> = ({
 
   const confirmBulkDelete = useCallback(() => {
     const idsToDelete = Array.from(selectedItemIds);
-    idsToDelete.forEach((id) => onDelete(id));
+    console.log('confirmBulkDelete - idsToDelete:', idsToDelete, 'count:', idsToDelete.length);
+    // Vider la sélection et fermer le dialog d'abord
     setSelectedItemIds(new Set());
     setBulkDeleteDialogOpen(false);
-  }, [selectedItemIds, onDelete]);
+    // Utiliser bulkDeleteItems si disponible, sinon fallback à boucle onDelete
+    if (onBulkDelete) {
+      console.log('confirmBulkDelete - using onBulkDelete');
+      onBulkDelete(idsToDelete, collection?.id);
+    } else {
+      console.log('confirmBulkDelete - fallback to individual onDelete calls');
+      idsToDelete.forEach((id, index) => {
+        console.log(`confirmBulkDelete - deleting item ${index}:`, id);
+        onDelete(id);
+      });
+    }
+    console.log('confirmBulkDelete - all deletes called');
+  }, [selectedItemIds, onDelete, onBulkDelete, collection?.id]);
 
   const content = (
     <>
@@ -528,6 +542,7 @@ const TableView: React.FC<TableViewProps> = ({
             <div className="min-w-[220px]">
               {selectedBulkProperty ? (
                 <EditableProperty
+                  key={`bulk-${selectedBulkProperty.id}-${selectedBulkProperty.type}`}
                   property={selectedBulkProperty}
                   value={bulkValue}
                   onChange={setBulkValue}

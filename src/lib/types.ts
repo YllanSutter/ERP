@@ -48,6 +48,7 @@ export interface TableViewProps {
   items: Item[];
   onEdit: (item: Item) => void;
   onDelete: (id: string) => void;
+  onBulkDelete?: (ids: string[], collectionId?: string) => void;
   hiddenFields: string[];
   orderedProperties: Property[];
   onReorderItems: (items: Item[]) => void;
