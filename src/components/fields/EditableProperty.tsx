@@ -377,6 +377,12 @@ const RelationEditor = ({
   isSourceMany: boolean;
 }) => {
   const selectedIds = Array.isArray(value) ? value : (value ? [value] : []);
+  const relationMaxVisibleRaw = property?.relation?.maxVisible;
+  const relationMaxVisible = Number.isFinite(Number(relationMaxVisibleRaw)) && Number(relationMaxVisibleRaw) > 0
+    ? Number(relationMaxVisibleRaw)
+    : null;
+  const visibleSelectedIds = relationMaxVisible ? selectedIds.slice(0, relationMaxVisible) : selectedIds;
+  const hiddenSelectedCount = selectedIds.length - visibleSelectedIds.length;
   const ViewerButton = (
     <LinkedItemsViewer
       isSourceMany={isSourceMany}
@@ -717,7 +723,7 @@ const RelationEditor = ({
   return (
     <div className={cn("flex items-center gap-2 justify-end ", className)}>
       <div className="flex gap-1 flex-1 min-w-0 justify-end flex-wrap max-w-[200px] overflow-hidden max-h-[100px] overflow-y-auto">
-        {selectedIds.map((id: string) => {
+        {visibleSelectedIds.map((id: string) => {
           const it = targetItems.find((ti: any) => ti.id === id);
           const label = it ? getItemName(it) : id;
           const baseColor = property.color || '#8b5cf6';
@@ -760,6 +766,11 @@ const RelationEditor = ({
             </span>
           );
         })}
+        {hiddenSelectedCount > 0 && (
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium border border-black/10 dark:border-white/10 text-neutral-600 dark:text-neutral-300 bg-black/5 dark:bg-white/5">
+            +{hiddenSelectedCount}
+          </span>
+        )}
         {selectedIds.length === 0 && (
           <span className="text-xs text-neutral-500">
             {isSourceMany ? 'Aucun lien' : 'Aucun'}

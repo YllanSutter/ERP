@@ -24,6 +24,9 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
   const [options, setOptions] = useState<OptionType[]>(property.options || []);
   const [relationTarget, setRelationTarget] = useState(property.relation?.targetCollectionId || '');
   const [relationType, setRelationType] = useState(property.relation?.type || 'many_to_many');
+  const [relationMaxVisible, setRelationMaxVisible] = useState(
+    property.relation?.maxVisible != null ? String(property.relation.maxVisible) : ''
+  );
   const [relationFilterField, setRelationFilterField] = useState(property.relation?.filter?.fieldId || '');
   const [relationFilterValue, setRelationFilterValue] = useState(property.relation?.filter?.value || '');
   const [showContextMenu, setShowContextMenu] = useState(property.showContextMenu || false);
@@ -71,6 +74,12 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
         return;
       }
       const relation: any = { targetCollectionId: relationTarget, type: relationType };
+      if (relationMaxVisible !== '') {
+        const parsedMax = Number(relationMaxVisible);
+        if (Number.isFinite(parsedMax) && parsedMax > 0) {
+          relation.maxVisible = Math.floor(parsedMax);
+        }
+      }
       if (relationFilterField && relationFilterValue) {
         relation.filter = { fieldId: relationFilterField, value: relationFilterValue };
       }
@@ -386,6 +395,18 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                   <option value="one_to_many">One to Many</option>
                   <option value="many_to_many">Many to Many</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Max affiché dans la cellule</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={relationMaxVisible}
+                  onChange={(e) => setRelationMaxVisible(e.target.value)}
+                  placeholder="Ex: 3 (laisser vide = sans limite)"
+                  className="w-full px-4 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+                />
               </div>
               {relationTarget && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
