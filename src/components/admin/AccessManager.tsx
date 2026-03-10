@@ -574,16 +574,16 @@ const AccessManager = ({
                 className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs shadow "
                 style={{ minWidth: 80 }}
                 onClick={async () => {
-                  // Export JSON brut
+                  // Export JSON de l'organisation active
                   try {
-                    const res = await fetch(`${API_URL}/appstate`, { credentials: 'include' });
+                    const res = await fetch(`${API_URL}/appstate?scope=organization`, { credentials: 'include' });
                     if (!res.ok) throw new Error('Erreur export appstate');
                     const data = await res.json();
                     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'erp_appstate_export.json';
+                    a.download = 'erp_organization_export.json';
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
@@ -593,20 +593,44 @@ const AccessManager = ({
                   }
                 }}
               >
-                Export JSON
+                Export Orga JSON
+              </button>
+              <button
+                className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-xs shadow "
+                style={{ minWidth: 80 }}
+                onClick={async () => {
+                  // Export JSON global (toutes organisations)
+                  try {
+                    const res = await fetch(`${API_URL}/appstate?scope=global`, { credentials: 'include' });
+                    if (!res.ok) throw new Error('Erreur export global appstate');
+                    const data = await res.json();
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'erp_global_export.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  } catch (err) {
+                    alert('Erreur lors de l\'export global appstate.');
+                  }
+                }}
+              >
+                Export Complet
               </button>
               <button
                 className="px-3 py-1 rounded bg-yellow-600 hover:bg-yellow-700 text-white text-xs shadow "
                 style={{ minWidth: 80 }}
                 onClick={async () => {
-                  // Export CSV par collection (dans un zip)
+                  // Export CSV des collections de l'organisation active (dans un zip)
                   try {
-                    const res = await fetch(`${API_URL}/appstate`, { credentials: 'include' });
+                    const res = await fetch(`${API_URL}/appstate?scope=organization`, { credentials: 'include' });
                     if (!res.ok) throw new Error('Erreur export appstate');
                     const data = await res.json();
                     const appStateArr = Array.isArray(data.app_state) ? data.app_state : [];
-                    // Prend la première entrée app_state trouvée (si aucune globale)
-                    const row = appStateArr.find((row: { user_id: null; }) => row.user_id === null) || appStateArr[0];
+                    const row = appStateArr[0];
                     if (!row) return;
                     let state;
                     try {
@@ -673,14 +697,14 @@ const AccessManager = ({
                     try {
                       const text = await file.text();
                       const fullData = JSON.parse(text);  // Garde TOUT le JSON
-                      const res = await fetch(`${API_URL}/appstate`, {
+                      const res = await fetch(`${API_URL}/appstate?scope=organization`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',
                         body: JSON.stringify(fullData),  // ← Envoi TOUT (users + appstate + ...)
                       });
                       if (!res.ok) throw new Error('Erreur import appstate');
-                      alert('✅ Import COMPLET réussi ! BDD entièrement remplacée.');
+                      alert('✅ Import organisation réussi ! Seule l’organisation active a été remplacée.');
                       // Optionnel : reload tout
                       loadAll();
                     } catch (err) {
@@ -711,6 +735,9 @@ const AccessManager = ({
                     <RefreshCw size={16} />
                   </button>
                 </div>
+                <p className="text-xs text-neutral-500 mb-3">
+                  Les sauvegardes BDD sont globales (toutes les organisations), pas limitées à l’organisation active.
+                </p>
                 <div className="flex items-center gap-2 mb-3">
                   <input
                     className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
