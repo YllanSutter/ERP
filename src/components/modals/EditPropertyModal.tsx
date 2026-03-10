@@ -32,6 +32,8 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
   const [showColorPopover, setShowColorPopover] = useState(false);
   const [dateGranularity, setDateGranularity] = useState(property.dateGranularity || 'full');
   const [includeDuration, setIncludeDuration] = useState(property.includeDuration !== false);
+  const [numberPrefix, setNumberPrefix] = useState(property.numberPrefix || '');
+  const [numberSuffix, setNumberSuffix] = useState(property.numberSuffix || '');
 
   const targetCollection = (collections || []).find((c: any) => c.id === relationTarget);
   const filterProp = targetCollection?.properties?.find((p: any) => p.id === relationFilterField);
@@ -56,6 +58,13 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
       delete updatedProperty.options;
     }
     delete updatedProperty.defaultDuration;
+    if (type === 'number') {
+      updatedProperty.numberPrefix = numberPrefix;
+      updatedProperty.numberSuffix = numberSuffix;
+    } else {
+      delete updatedProperty.numberPrefix;
+      delete updatedProperty.numberSuffix;
+    }
     if (type === 'relation') {
       if (!relationTarget) {
         alert('Veuillez choisir une collection cible');
@@ -428,6 +437,33 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
 
           {(type === 'select' || type === 'multi_select') && (
             <OptionListEditor options={options} onChange={setOptions} />
+          )}
+
+          {type === 'number' && (
+            <div className="space-y-4 border-t border-black/10 dark:border-white/10 pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Préfixe</label>
+                  <input
+                    type="text"
+                    value={numberPrefix}
+                    onChange={(e) => setNumberPrefix(e.target.value)}
+                    placeholder="Ex: €"
+                    className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Suffixe</label>
+                  <input
+                    type="text"
+                    value={numberSuffix}
+                    onChange={(e) => setNumberSuffix(e.target.value)}
+                    placeholder="Ex: € / kg / h"
+                    className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
           )}
 
           <div className="border-t border-white/10 pt-4">

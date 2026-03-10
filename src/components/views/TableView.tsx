@@ -327,13 +327,21 @@ const TableView: React.FC<TableViewProps> = ({
     const property = visibleProperties.find(p => p.id === fieldId);
     if (!property || total === null) return '';
 
+    const numberPrefix = property.numberPrefix || '';
+    const numberSuffix = property.numberSuffix || '';
+    const withAffixes = (formatted: string) => `${numberPrefix}${formatted}${numberSuffix}`;
+
     // Formater les nombres avec décimales si nécessaire
     if (typeof total === 'number') {
       if (totalType === 'avg') {
-        return total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const formatted = total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return property.type === 'number' ? withAffixes(formatted) : formatted;
       }
       if (property.type === 'number') {
-        return total.toLocaleString('fr-FR');
+        if (totalType === 'count' || totalType === 'unique') {
+          return total.toLocaleString('fr-FR');
+        }
+        return withAffixes(total.toLocaleString('fr-FR'));
       }
     }
 

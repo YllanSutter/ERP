@@ -77,7 +77,7 @@ function SimpleInput({
       placeholder={placeholder}
       disabled={readOnly}
       className={cn(
-        "px-2 py-1 bg-transparent border border-transparent text-neutral-700 dark:text-white placeholder-neutral-600 focus:border-black/10 dark:focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+        "py-1 bg-transparent border border-transparent text-neutral-700 dark:text-white placeholder-neutral-600 focus:border-black/10 dark:focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
         sizeClasses,
         className
       )}
@@ -150,6 +150,89 @@ const UrlInput = ({
           <Icons.ExternalLink size={12} />
         </a>
       )}
+    </div>
+  );
+};
+
+const NumberInput = ({
+  value,
+  onChange,
+  sizeClasses,
+  className,
+  readOnly,
+  prefix,
+  suffix
+}: {
+  value: any;
+  onChange: (value: any) => void;
+  sizeClasses: string;
+  className?: string;
+  readOnly?: boolean;
+  prefix?: string;
+  suffix?: string;
+}) => {
+  const parseNumeric = (raw: any): number | null => {
+    if (raw === null || raw === undefined || raw === '') return null;
+    const normalized = String(raw).replace(',', '.');
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const stepBy = (direction: 1 | -1) => {
+    const current = parseNumeric(value) ?? 0;
+    const next = current + direction;
+    onChange(String(next));
+  };
+
+  const displayValue = value ?? '';
+  const inputLength = Math.min(Math.max(String(displayValue).length || 1, 6), 20);
+
+  return (
+    <div className={cn('inline-flex items-center gap-1', className)}>
+      {prefix ? (
+        <span className="text-xs text-neutral-500 dark:text-neutral-400 select-none mr-0.5">{prefix}</span>
+      ) : null}
+      <input
+        type="text"
+        inputMode="decimal"
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => {
+          const parsed = parseNumeric(e.target.value);
+          if (e.target.value === '') return;
+          if (parsed !== null) onChange(String(parsed));
+        }}
+        disabled={readOnly}
+        className={cn(
+          'px-2 py-1 bg-transparent border border-transparent text-neutral-700 dark:text-white placeholder-neutral-600 focus:border-black/10 dark:focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+          sizeClasses
+        )}
+        style={{ width: `${inputLength}ch` }}
+        placeholder="0"
+      />
+      {suffix ? (
+        <span className="text-sm text-neutral-500 dark:text-neutral-400 select-none -ml-5 mr-1.5">{suffix}</span>
+      ) : null}
+      <div className="flex flex-col gap-0.5">
+        <button
+          type="button"
+          onClick={() => stepBy(1)}
+          disabled={readOnly}
+          className="h-3.5 w-4 flex items-center justify-center rounded border border-black/10 dark:border-white/15 text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Augmenter"
+        >
+          <Icons.ChevronUp size={10} />
+        </button>
+        <button
+          type="button"
+          onClick={() => stepBy(-1)}
+          disabled={readOnly}
+          className="h-3.5 w-4 flex items-center justify-center rounded border border-black/10 dark:border-white/15 text-neutral-600 dark:text-neutral-300 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Diminuer"
+        >
+          <Icons.ChevronDown size={10} />
+        </button>
+      </div>
     </div>
   );
 };
@@ -1128,7 +1211,17 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
   // Number
   if (property.type === 'number') {
-    return <SimpleInput type="number" value={value} onChange={onChange} sizeClasses={sizeClasses} className={className} readOnly={readOnly} />;
+    return (
+      <NumberInput
+        value={value}
+        onChange={onChange}
+        sizeClasses={sizeClasses}
+        className={className}
+        readOnly={readOnly}
+        prefix={property.numberPrefix}
+        suffix={property.numberSuffix}
+      />
+    );
   }
 
   // URL
