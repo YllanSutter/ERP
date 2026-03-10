@@ -30,6 +30,8 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
   const [defaultTemplates, setDefaultTemplates] = useState<any[]>(property.defaultTemplates || []);
   const [showIconPopover, setShowIconPopover] = useState(false);
   const [showColorPopover, setShowColorPopover] = useState(false);
+  const [dateGranularity, setDateGranularity] = useState(property.dateGranularity || 'full');
+  const [includeDuration, setIncludeDuration] = useState(property.includeDuration !== false);
 
   const targetCollection = (collections || []).find((c: any) => c.id === relationTarget);
   const filterProp = targetCollection?.properties?.find((p: any) => p.id === relationFilterField);
@@ -44,7 +46,9 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
       icon,
       color,
       showContextMenu,
-      defaultTemplates
+      defaultTemplates,
+      dateGranularity: type === 'date' || type === 'date_range' ? dateGranularity : undefined,
+      includeDuration: type === 'date' || type === 'date_range' ? includeDuration : undefined
     };
     if (type === 'select' || type === 'multi_select') {
       updatedProperty.options = options;
@@ -216,15 +220,33 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                             forceRichEditor={true}
                           />
                         ) : type === 'date' || type === 'date_range' ? (
-                          <input
-                            type="number"
-                            min="0.25"
-                            step="0.25"
-                            value={tpl.value ?? ''}
-                            onChange={(e) => updateTemplate({ value: e.target.value === '' ? '' : Number(e.target.value) })}
-                            className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
-                            placeholder="Durée (heures)"
-                          />
+                          <div className="space-y-2">
+                            <select
+                              value={tpl.value === 'current_date' ? 'current_date' : 'custom'}
+                              onChange={(e) => {
+                                if (e.target.value === 'current_date') {
+                                  updateTemplate({ value: 'current_date' });
+                                } else {
+                                  updateTemplate({ value: includeDuration ? 1 : null });
+                                }
+                              }}
+                              className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
+                            >
+                              <option value="current_date">Date actuelle</option>
+                              <option value="custom">Durée personnalisée</option>
+                            </select>
+                            {tpl.value !== 'current_date' && includeDuration && (
+                              <input
+                                type="number"
+                                min="0.25"
+                                step="0.25"
+                                value={tpl.value ?? ''}
+                                onChange={(e) => updateTemplate({ value: e.target.value === '' ? '' : Number(e.target.value) })}
+                                className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
+                                placeholder="Durée (heures)"
+                              />
+                            )}
+                          </div>
                         ) : (
                           <EditableProperty
                             property={{
@@ -312,6 +334,35 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
             </div>
           </div>
 
+          {(type === 'date' || type === 'date_range') && (
+            <div className="space-y-4 border-t border-black/10 dark:border-white/10 pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Granularité d'affichage</label>
+                  <select
+                    value={dateGranularity}
+                    onChange={(e) => setDateGranularity(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+                  >
+                    <option value="full">Date complète</option>
+                    <option value="month">Mois uniquement</option>
+                    <option value="year">Année uniquement</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includeDuration}
+                      onChange={(e) => setIncludeDuration(e.target.checked)}
+                      className="w-4 h-4 rounded border-white/10"
+                    />
+                    <span className="text-sm font-medium text-neutral-600 dark:text-neutral-300">Inclure la durée</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
 
           {type === 'relation' && (
             <div className="space-y-4">

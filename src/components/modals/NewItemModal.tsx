@@ -314,10 +314,24 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       const match = getMatchingTemplate(prop, nextData, sourceFieldId);
       if (!match) return;
 
-      const desiredValue = match.value;
-      const targetKey = prop.type === 'date' || prop.type === 'date_range'
-        ? `${prop.id}_duration`
-        : prop.id;
+      let desiredValue = match.value;
+      
+      // Gérer le template 'current_date' pour les champs date
+      const isDateField = prop.type === 'date' || prop.type === 'date_range';
+      if (isDateField && desiredValue === 'current_date') {
+        // Pour current_date, on doit remplir le champ date lui-même, pas la durée
+        const currentDateValue = nextData[prop.id];
+        if (isEmptyValue(currentDateValue)) {
+          nextData[prop.id] = new Date().toISOString();
+          nextAutoFilled[prop.id] = true;
+        } else if (nextAutoFilled[prop.id]) {
+          nextData[prop.id] = new Date().toISOString();
+        }
+        return;
+      }
+      
+      // Pour les autres templates de date (durée), on continue avec la logique existante
+      const targetKey = isDateField ? `${prop.id}_duration` : prop.id;
       const currentValue = nextData[targetKey];
       const isDurationTarget = targetKey.endsWith('_duration');
 

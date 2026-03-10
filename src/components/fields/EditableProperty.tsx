@@ -636,6 +636,20 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     const durationKey = `${property.id}_duration`;
     const currentDuration = currentItem?.[durationKey] || property.defaultDuration || 1;
     const { handleEventUpdate } = useDateHandlers(property, currentItem!, collections!, collection!, onChange, onRelationChange);
+    const dateGranularity = property.dateGranularity || 'full';
+    const includeDuration = property.includeDuration !== false;
+
+    // Fonction pour formater la date selon la granularité
+    const formatDateByGranularity = (date: Date) => {
+      if (!date) return '';
+      if (dateGranularity === 'month') {
+        return format(date, 'MMMM', { locale: fr });
+      }
+      if (dateGranularity === 'year') {
+        return format(date, 'yyyy');
+      }
+      return format(date, 'dd MMM yyyy HH:mm', { locale: fr });
+    };
 
     const getTimeOptions = () => {
       const options = [];
@@ -668,12 +682,16 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
             )}
           >
             <CalendarIcon size={14} className="opacity-50" />
-            {value ? format(selectedDate!, 'dd MMM yyyy HH:mm', { locale: fr }) : 'Choisir une date et heure'}
+            {value ? formatDateByGranularity(selectedDate!) : (
+              dateGranularity === 'month' ? 'Choisir un mois' :
+              dateGranularity === 'year' ? 'Choisir une année' :
+              'Choisir une date et heure'
+            )}
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0 bg-background dark:bg-neutral-900 border-neutral-700" align="start">
           <div className="flex flex-row gap-4 p-3">
-            {onRelationChange && currentItem && (
+            {includeDuration && onRelationChange && currentItem && (
               <div className="flex flex-col items-center justify-center min-w-[110px]">
                 <label className="block text-xs font-medium text-neutral-400 mb-1.5">Durée (H:M)</label>
                 <select
@@ -697,11 +715,22 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
               selected={selectedDate}
               onSelect={(date) => {
                 if (date) {
-                  const existingDate = value ? new Date(value) : null;
-                  if (existingDate) {
-                    date.setHours(existingDate.getHours(), existingDate.getMinutes());
+                  if (dateGranularity === 'month') {
+                    // Pour le mois, on met au 1er du mois
+                    date.setDate(1);
+                    date.setHours(9, 0, 0, 0);
+                  } else if (dateGranularity === 'year') {
+                    // Pour l'année, on met au 1er janvier
+                    date.setMonth(0, 1);
+                    date.setHours(9, 0, 0, 0);
                   } else {
-                    date.setHours(9, 0);
+                    // Date complète
+                    const existingDate = value ? new Date(value) : null;
+                    if (existingDate) {
+                      date.setHours(existingDate.getHours(), existingDate.getMinutes());
+                    } else {
+                      date.setHours(9, 0);
+                    }
                   }
                   handleEventUpdate(property.id, date.toISOString());
                 }
@@ -709,23 +738,25 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
               initialFocus
               className="bg-background text-black dark:bg-neutral-900 dark:text-white"
             />
-            <div className="flex flex-col items-center justify-center min-w-[110px]">
-              <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure (H:M)</label>
-              <select
-                value={currentTime}
-                onChange={e => {
-                  const [hours, minutes] = e.target.value.split(':');
-                  const d = value ? new Date(value) : new Date();
-                  d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-                  handleEventUpdate(property.id, d.toISOString());
-                }}
-                className="w-full h-50 text-center bg-background text-black dark:bg-neutral-900 dark:text-white border-l border-white/10 text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
-                size={9}
-                style={{ WebkitAppearance: 'none', appearance: 'none' }}
-              >
-                {timeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </div>
+            {dateGranularity === 'full' && (
+              <div className="flex flex-col items-center justify-center min-w-[110px]">
+                <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure (H:M)</label>
+                <select
+                  value={currentTime}
+                  onChange={e => {
+                    const [hours, minutes] = e.target.value.split(':');
+                    const d = value ? new Date(value) : new Date();
+                    d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                    handleEventUpdate(property.id, d.toISOString());
+                  }}
+                  className="w-full h-50 text-center bg-background text-black dark:bg-neutral-900 dark:text-white border-l border-white/10 text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
+                  size={9}
+                  style={{ WebkitAppearance: 'none', appearance: 'none' }}
+                >
+                  {timeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         </PopoverContent>
       </Popover>
