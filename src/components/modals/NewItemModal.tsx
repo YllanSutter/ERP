@@ -1,18 +1,18 @@
 import React, { useState, useMemo, useRef } from 'react';
 // Mini composant Tabs local
-function Tabs({ tabs, active, onTab, className = "" }: { tabs: string[], active: string, onTab: (tab: string) => void, className?: string }) {
+function Tabs({ tabs, active, onTab, className = "" }: { tabs: { id: string; label: string }[], active: string, onTab: (tabId: string) => void, className?: string }) {
   return (
     <div className={"flex gap-2 border-b border-black/10 dark:border-white/10 mb-4 flex-wrap " + className}>
       {tabs.map(tab => (
         <button
-          key={tab}
-          onClick={() => onTab(tab)}
+          key={tab.id}
+          onClick={() => onTab(tab.id)}
           className={
             "px-3 py-1 rounded-t text-sm font-medium transition-all duration-300 " +
-            (active === tab ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-black dark:hover:text-white")
+            (active === tab.id ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-black dark:hover:text-white")
           }
         >
-          {tab}
+          {tab.label}
         </button>
       ))}
     </div>
@@ -928,18 +928,68 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const richTextProps = classicProps.filter((p: any) => p.type === 'rich_text');
   const classicPropsSansRichText = classicProps.filter((p: any) => p.type !== 'rich_text');
   const relationProps = propsList.filter((p: any) => p.type === 'relation');
-  // Pour chaque champ de type 'date', créer un onglet dédié aux plages horaires
   const dateProps = propsList.filter((p: any) => p.type === 'date');
-  const extraTabs = [
-    { id: '__relations__', name: 'Relation', type: 'relation' },
-    ...dateProps.map((p: any) => ({ id: `_eventSegments_${p.id}`, name: `${p.name}`, type: 'segments', dateProp: p })),
-  ];
-  const [activeTab, setActiveTab] = useState(extraTabs[0]?.id || '');
+
+  const propHasMeaningfulValue = React.useCallback((prop: any) => {
+    const raw = formData[prop.id];
+    if (!isEmptyValue(raw)) return true;
+    if (prop.type === 'date' || prop.type === 'date_range') {
+      const durationKey = `${prop.id}_duration`;
+      if (!isEmptyValue(formData[durationKey])) return true;
+    }
+    return false;
+  }, [formData]);
+
+  const detailsPropsForDisplay = isReallyEditing
+    ? classicPropsSansRichText.slice(1).filter((p: any) => propHasMeaningfulValue(p))
+    : classicPropsSansRichText.slice(1);
+
+  const relationPropsForDisplay = isReallyEditing
+    ? relationProps.filter((p: any) => propHasMeaningfulValue(p))
+    : relationProps;
 
   // Calcule les segments prégénérés côté client (pour aperçu dans le modal)
   const previewSegments = useMemo(() => {
     return calculateSegmentsClient(formData, selectedCollection);
   }, [formData, selectedCollection]);
+
+  const datePropsForDisplay = useMemo(() => {
+    if (!isReallyEditing) return dateProps;
+    return dateProps.filter((dateProp: any) => {
+      const manualSegments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
+      const autoSegments = previewSegments.filter((seg: { label: any; }) => seg.label === dateProp.name);
+      if (manualSegments.length > 0 || autoSegments.length > 0) return true;
+      if (!isEmptyValue(formData[dateProp.id])) return true;
+      if (!isEmptyValue(formData[`${dateProp.id}_duration`])) return true;
+      return false;
+    });
+  }, [isReallyEditing, dateProps, formData, previewSegments]);
+
+  const richTextPropsForDisplay = useMemo(() => {
+    if (!isReallyEditing) return richTextProps;
+    // Important UX: s'il y a plusieurs champs rich text,
+    // on les affiche tous en onglets (même vides) pour pouvoir naviguer/remplir.
+    if (richTextProps.length > 1) return richTextProps;
+    // Sinon (un seul rich text), on garde la logique "afficher seulement s'il y a du contenu".
+    return richTextProps.filter((p: any) => propHasMeaningfulValue(p));
+  }, [isReallyEditing, richTextProps, propHasMeaningfulValue]);
+
+  const richTextTabs = useMemo(
+    () => richTextPropsForDisplay.map((prop: any, index: number) => ({
+      id: prop.id,
+      label: String(prop?.name || '').trim() || (index === 0 ? 'Tâches' : `Texte ${index + 1}`),
+    })),
+    [richTextPropsForDisplay]
+  );
+  const [activeRichTextTab, setActiveRichTextTab] = useState<string>('');
+  React.useEffect(() => {
+    if (!richTextTabs.length) {
+      if (activeRichTextTab !== '') setActiveRichTextTab('');
+      return;
+    }
+    const exists = richTextTabs.some((tab: { id: string; label: string }) => tab.id === activeRichTextTab);
+    if (!exists) setActiveRichTextTab(richTextTabs[0].id);
+  }, [richTextTabs, activeRichTextTab]);
 
   // Détecte si les segments ont changé et demande confirmation
   const segmentsHaveChanged = useMemo(() => {
@@ -1158,13 +1208,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           <div className="space-y-6">
           
           {/* Relations en haut sur toute la largeur */}
-          {relationProps.length > 0 && (
+          {relationPropsForDisplay.length > 0 && (
             <div className="pb-10 border-b border-black/10 dark:border-white/10">
               <div className="border-t border-black/10 dark:border-white/10 pt-8 relative">
                 <h4 className="absolute -top-3 left-0 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-700 dark:text-neutral-400 mb-4 uppercase tracking-wide">Relations</h4>
               </div>
               <div className="flex gap-4 items-center flex-wrap pl-4">
-                {relationProps.map((prop: any) => (
+                {relationPropsForDisplay.map((prop: any) => (
                   <div className="flex items-center gap-3" key={prop.id}>
                     <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
                       {prop.name} {prop.required && <span className="text-red-500">*</span>}
@@ -1190,11 +1240,14 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           )}
 
           {/* Grid à 2 colonnes : champs classiques à gauche, horaires à droite */}
-          <div className="grid grid-cols-1 xl:grid-cols-[1.6fr_0.6fr] gap-6 relative">
+          <div className={`grid grid-cols-1 ${datePropsForDisplay.length > 0 ? 'xl:grid-cols-[1.6fr_0.6fr]' : ''} gap-6 relative`}>
           
           {/* Partie gauche : champs classiques */}
+          {(detailsPropsForDisplay.length > 0 || !isReallyEditing) && (
           <div className="min-w-[0]">
-            <h4 className="absolute -top-[35px] left-0 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-4 uppercase tracking-wide">Détails</h4>
+            {detailsPropsForDisplay.length > 0 && (
+              <h4 className="absolute -top-[35px] left-0 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-4 uppercase tracking-wide">Détails</h4>
+            )}
 
             {/* Grande barre verticale à droite des labels */}
             <div
@@ -1202,7 +1255,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               id="big-label-bar"
             >
               {/* Petites barres alignées à chaque label (calcul dynamique) */}
-              {classicPropsSansRichText.slice(1).map((prop: any) => (
+              {detailsPropsForDisplay.map((prop: any) => (
                 <div
                   key={prop.id}
                   id={`mini-bar-${prop.id}`}
@@ -1224,13 +1277,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 />
               ))}
             </div>
-            {classicPropsSansRichText.length <= 1 && (
+            {detailsPropsForDisplay.length === 0 && !isReallyEditing && (
               <div className="text-neutral-500 text-sm">Aucun champ classique supplémentaire</div>
             )}
             <div
               className="flex flex-col space-y-3 group/classic-fields"
             >
-              {classicPropsSansRichText.slice(1).map((prop: any) => (
+              {detailsPropsForDisplay.map((prop: any) => (
                 <div
                   key={prop.id}
                   className="flex gap-0 items-stretch group/item focus-within:z-10 py-2 border-b border-black/10 dark:border-white/10 last:border-b-0"
@@ -1287,17 +1340,16 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               ))}
             </div>
           </div>
+          )}
 
           {/* Colonne droite : Plages horaires */}
+          {datePropsForDisplay.length > 0 && (
           <div className="min-w-[0] relative">
             <div className="mb-4">
               <h4 className="absolute -top-[35px] -left-2 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-4 uppercase tracking-wide">Horaires</h4>
             </div>
             <div className="space-y-6">
-              {dateProps.length === 0 && (
-                <div className="text-neutral-500 text-sm">Aucun champ date</div>
-              )}
-              {dateProps.map((dateProp: any) => {
+              {datePropsForDisplay.map((dateProp: any) => {
                 const canWriteDateProp = canWriteField(selectedCollection?.id, dateProp.id);
                 const segments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
                 const autoSegments = previewSegments.filter((seg: { label: any; }) => seg.label === dateProp.name);
@@ -1406,28 +1458,52 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               })}
             </div>
           </div>
+          )}
           </div>
 
           {/* Rich text en pleine largeur sur les deux colonnes */}
-          {richTextProps.length > 0 && (
+          {richTextPropsForDisplay.length > 0 && (
             <div className="pt-6 relative">
-              <div className="space-y-6 border border-black/5">
-                {richTextProps.map((prop: any) => (
-                  <div key={prop.id} className="pb-10 last:border-0 last:pb-0 relative">
-                    <div className="absolute -top-3 left-3 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-4 uppercase tracking-wide z-10">{prop.name}</div>
-                    <EditableProperty
-                      property={prop}
-                      value={formData[prop.id]}
-                      onChange={(val) => handleChange(prop.id, val)}
-                      size="md"
-                      collections={readableCollections}
-                      collection={selectedCollection}
-                      currentItem={formData}
-                      readOnly={!canWriteField(selectedCollection?.id, prop.id)}
-                      forceRichEditor={true}
-                    />
+              <div className="relative space-y-4 border border-black/5 p-3 pt-7">
+                {richTextTabs.length > 1 ? (
+                  <div className="absolute top-7 left-5 flex flex-wrap gap-2 z-10">
+                    {richTextTabs.map((tab: { id: string; label: string }) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveRichTextTab(tab.id)}
+                        className={
+                          "px-4 py-1 rounded-full text-xs font-semibold uppercase tracking-wide transition-all duration-200 " +
+                          (activeRichTextTab === tab.id
+                            ? "bg-neutral-800 text-white"
+                            : "bg-background dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 border border-black/10 dark:border-white/10 hover:text-neutral-900 dark:hover:text-neutral-200")
+                        }
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <div className="absolute -top-3 left-3 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide z-10">
+                    {richTextTabs[0]?.label || 'Tâches'}
+                  </div>
+                )}
+                {richTextPropsForDisplay
+                  .filter((prop: any) => !activeRichTextTab || prop.id === activeRichTextTab)
+                  .map((prop: any) => (
+                    <div key={prop.id} className="pb-10 last:border-0 last:pb-0 relative">
+                      <EditableProperty
+                        property={prop}
+                        value={formData[prop.id]}
+                        onChange={(val) => handleChange(prop.id, val)}
+                        size="md"
+                        collections={readableCollections}
+                        collection={selectedCollection}
+                        currentItem={formData}
+                        readOnly={!canWriteField(selectedCollection?.id, prop.id)}
+                        forceRichEditor={true}
+                      />
+                    </div>
+                  ))}
               </div>
             </div>
           )}
