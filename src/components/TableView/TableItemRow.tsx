@@ -168,8 +168,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
           {displayProperties.map((prop: any, index: number) => (
             <td
               key={prop.id}
-              className="px-2 py-1 whitespace-nowrap text-xs text-neutral-700 dark:text-neutral-300 relative user-select-auto"
-              style={index === 0 ? { paddingLeft: `${paddingLeft}px` } : undefined}
+              className="px-4 py-1 whitespace-nowrap text-xs text-neutral-700 dark:text-neutral-300 relative user-select-auto"
               onMouseDown={(e) => e.stopPropagation()}
             >
               <EditableProperty
