@@ -316,20 +316,99 @@ const RelationEditor = ({
     targetItems.filter((ti: any) => getItemName(ti).toLowerCase().includes(searchQuery.toLowerCase())),
   [targetItems, getItemName, searchQuery]);
 
-  const handleCreateNew = useCallback(() => {
-    const nameField = targetCollection?.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
-    const nameValue = newItemData[nameField?.id || 'name'];
-    if (!nameValue?.trim()) return;
+  // Récupérer les templates de champs qui ont des conditions
+  const availableTemplates = useMemo(() => {
+    const templates: any[] = [];
+    targetCollection?.properties?.forEach((prop: any) => {
+      if (prop.defaultTemplates && Array.isArray(prop.defaultTemplates)) {
+        prop.defaultTemplates.forEach((tpl: any) => {
+          if (tpl.when?.fieldId && tpl.when?.value) {
+            templates.push({ ...tpl, targetFieldId: prop.id, targetFieldName: prop.name });
+          }
+        });
+      }
+    });
+    return templates;
+  }, [targetCollection]);
 
-    const newItem = { id: `new_${Date.now()}`, ...newItemData };
-    targetCollection.items.push(newItem);
-    
-    const nextValue = isSourceMany ? [...selectedIds, newItem.id] : newItem.id;
-    onRelationChange(property, currentItem, nextValue);
-    
-    setNewItemData({});
-    setIsCreating(false);
-    setSearchQuery('');
+  const handleCreateNew = useCallback((templateData?: any) => {
+    try {
+      const dataToUse = templateData || newItemData;
+      
+      console.log('handleCreateNew - dataToUse:', dataToUse);
+      
+      // Copier toutes les valeurs du formulaire, même vides
+      const cleanData: any = {};
+      targetCollection?.properties?.forEach((prop: any) => {
+        if (prop.type === 'relation') return;
+        const value = dataToUse[prop.id];
+        console.log(`handleCreateNew - ${prop.id} (${prop.name}):`, value);
+        
+        if (value !== undefined && value !== null) {
+          // Pour les objets complexes, essayer de les cloner proprement
+          if (typeof value === 'object' && !Array.isArray(value)) {
+            try {
+              cleanData[prop.id] = JSON.parse(JSON.stringify(value));
+            } catch {
+              // Si JSON.stringify échoue, ignorer cette propriété
+              console.warn(`Propriété ${prop.id} ignorée (référence circulaire)`);
+            }
+          } else {
+            cleanData[prop.id] = value;
+          }
+        }
+      });
+
+      // Trouver le champ name pour s'assurer qu'il y a une valeur
+      const nameField = targetCollection?.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
+      const nameFieldId = nameField?.id || 'name';
+      let nameValue = cleanData[nameFieldId];
+      
+      console.log('handleCreateNew - nameFieldId:', nameFieldId, 'nameValue:', nameValue);
+      
+      // Si pas de nom, créer un nom par défaut
+      if (!nameValue || !String(nameValue).trim()) {
+        nameValue = `Nouvel élément ${Date.now()}`;
+      }
+      
+      // Assurer que le nom est dans cleanData
+      cleanData[nameFieldId] = nameValue;
+      
+      console.log('handleCreateNew - final cleanData:', cleanData);
+
+      const newItem = { 
+        id: `new_${Date.now()}`, 
+        ...cleanData
+      };
+      
+      // Ajouter l'item directement à la collection pour que la liaison se fasse
+      if (!targetCollection?.items) {
+        console.error('targetCollection ou items est manquant', targetCollection);
+        return;
+      }
+      
+      targetCollection.items.push(newItem);
+      
+      const nextValue = isSourceMany ? [...selectedIds, newItem.id] : newItem.id;
+      
+      // Mettre à jour currentItem avec la nouvelle relation ET ajouter les nouvelles données au targetCollection
+      const updatedCurrentItem = { ...currentItem, [property.id]: nextValue };
+      
+      // Marquer les données du nouvel élément pour que le parent sache les sauvegarder
+      if (!targetCollection.__newItems) {
+        targetCollection.__newItems = [];
+      }
+      targetCollection.__newItems.push(newItem);
+      
+      onRelationChange(property, updatedCurrentItem, nextValue);
+      
+      setNewItemData({});
+      setIsCreating(false);
+      setSearchQuery('');
+    } catch (error) {
+      console.error('Erreur lors de la création:', error);
+      alert('Erreur lors de la création de l\'élément. Vérifiez la console pour plus de détails.');
+    }
   }, [newItemData, targetCollection, isSourceMany, selectedIds, onRelationChange, property, currentItem]);
 
   const toggleItem = useCallback((itemId: string, checked: boolean) => {
@@ -339,6 +418,78 @@ const RelationEditor = ({
     onRelationChange(property, currentItem, next);
   }, [selectedIds, onRelationChange, property, currentItem]);
 
+  // Fonction utilitaire pour évaluer une valeur de template
+  const evaluateTemplateValue = useCallback((value: any, propType: string) => {
+    const now = new Date();
+    
+    // Évaluer les templates dynamiques
+    if (typeof value === 'string') {
+      if (value.includes('{{now:month}}')) {
+        // Mois actuel au 1er du mois à 9h
+        const date = new Date(now.getFullYear(), now.getMonth(), 1, 9, 0, 0);
+        return date.toISOString();
+      } else if (value.includes('{{now:year}}')) {
+        // Année actuelle au 1er janvier à 9h
+        const date = new Date(now.getFullYear(), 0, 1, 9, 0, 0);
+        return date.toISOString();
+      } else if (value.includes('{{now}}')) {
+        // Maintenant
+        return now.toISOString();
+      }
+    }
+    
+    if (propType === 'date' && typeof value === 'string') {
+      // Si c'est une date et que la valeur n'est pas déjà une ISO string
+      if (!value.match(/^\d{4}-\d{2}-\d{2}T/)) {
+        // Essayer de parser différents formats
+        if (value.match(/^\d{4}-\d{2}$/)) {
+          // Format YYYY-MM
+          const [year, month] = value.split('-');
+          const date = new Date(parseInt(year), parseInt(month) - 1, 1, 9, 0, 0);
+          return date.toISOString();
+        } else if (value.match(/^\d{4}$/)) {
+          // Format YYYY
+          const date = new Date(parseInt(value), 0, 1, 9, 0, 0);
+          return date.toISOString();
+        } else {
+          // Essayer de créer une date valide
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            return date.toISOString();
+          } else {
+            // Valeur par défaut : maintenant
+            return now.toISOString();
+          }
+        }
+      }
+    }
+    
+    return value;
+  }, []);
+
+  // Fonction pour initialiser les données avec les templates applicables
+  const initializeWithTemplates = useCallback(() => {
+    const initialData: any = {};
+    
+    targetCollection?.properties?.forEach((prop: any) => {
+      if (prop.defaultTemplates && Array.isArray(prop.defaultTemplates)) {
+        // Prendre tous les templates qui ont une valeur
+        const applicableTemplates = prop.defaultTemplates.filter((tpl: any) => 
+          tpl.value !== undefined && tpl.value !== null && tpl.value !== ''
+        );
+        
+        // Utiliser le premier template trouvé
+        const applicableTemplate = applicableTemplates[0];
+        
+        if (applicableTemplate) {
+          const evaluatedValue = evaluateTemplateValue(applicableTemplate.value, prop.type);
+          initialData[prop.id] = evaluatedValue;
+        }
+      }
+    });
+    return initialData;
+  }, [targetCollection, evaluateTemplateValue]);
+
   const createForm = (
     <div className="space-y-2">
       <div className="flex items-center justify-between pb-2 border-b border-white/10">
@@ -347,16 +498,40 @@ const RelationEditor = ({
           <Icons.X size={16} />
         </button>
       </div>
-      <div className="space-y-2 max-h-96 overflow-y-auto">
+      <div className="space-y-3 max-h-96 overflow-y-auto">
         {targetCollection?.properties?.map((prop: any) => {
           if (prop.type === 'relation') return null;
+          const fieldValue = newItemData[prop.id];
+          const applicableTemplates = (prop.defaultTemplates || []).filter((tpl: any) => 
+            tpl.value !== undefined && tpl.value !== null && tpl.value !== ''
+          );
+          
           return (
             <div key={prop.id}>
-              <label className="block text-xs font-medium text-neutral-400 mb-1">{prop.name}</label>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className="block text-xs font-medium text-neutral-400">{prop.name}</label>
+                {applicableTemplates.length > 0 && (
+                  <div className="flex gap-1">
+                    {applicableTemplates.map((tpl: any, idx: number) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          const evaluatedValue = evaluateTemplateValue(tpl.value, prop.type);
+                          setNewItemData((prev: any) => ({ ...prev, [prop.id]: evaluatedValue }));
+                        }}
+                        className="text-xs px-1.5 py-0.5 bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/30 rounded text-emerald-300"
+                        title={`Utiliser: ${tpl.value}`}
+                      >
+                        Auto
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <EditableProperty
                 property={prop}
-                value={newItemData[prop.id]}
-                onChange={(val) => setNewItemData({ ...newItemData, [prop.id]: val })}
+                value={fieldValue}
+                onChange={(val) => setNewItemData((prev: any) => ({ ...prev, [prop.id]: val }))}
                 size="sm"
                 collections={collections}
                 currentItem={newItemData}
@@ -369,7 +544,7 @@ const RelationEditor = ({
       </div>
       <div className="flex gap-2 pt-2 border-t border-white/10">
         <button
-          onClick={handleCreateNew}
+          onClick={() => handleCreateNew()}
           className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-violet-600 hover:bg-violet-700 rounded text-sm text-white font-medium"
         >
           <Icons.Check size={14} />
@@ -534,13 +709,75 @@ const RelationEditor = ({
               
               {isCreating ? createForm : (
                 <>
-                  <button
-                    onClick={() => setIsCreating(true)}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 rounded text-sm text-neutral-700 dark:text-white"
-                  >
-                    <Icons.Plus size={14} />
-                    Créer nouveau
-                  </button>
+                  {availableTemplates.length > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between pb-2 border-b border-black/10 dark:border-white/10">
+                        <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Créer depuis un template</span>
+                      </div>
+                      <div className="space-y-1">
+                        {availableTemplates.map((tpl: any, index: number) => {
+                          // Trouver la propriété source dans la collection actuelle pour afficher la condition
+                          const whenProp = currentItem?.__collectionId ? 
+                            collections?.find((c: any) => c.id === currentItem.__collectionId)?.properties?.find((p: any) => p.id === tpl.when.fieldId) : 
+                            null;
+                          const conditionText = whenProp ? `${whenProp.name} = ${tpl.when.value}` : tpl.when.value;
+                          
+                          return (
+                            <button
+                              key={index}
+                              onClick={() => {
+                                // Commencer avec toutes les valeurs des templates
+                                const templateData: any = initializeWithTemplates();
+                                // Évaluer et ajouter les valeurs spécifiques de ce template
+                                const targetProp = targetCollection?.properties?.find((p: any) => p.id === tpl.targetFieldId);
+                                if (targetProp) {
+                                  templateData[tpl.targetFieldId] = evaluateTemplateValue(tpl.value, targetProp.type);
+                                }
+                                // Ajouter la condition when
+                                templateData[tpl.when.fieldId] = tpl.when.value;
+                                
+                                // Mettre à jour les deux états synchroniquement
+                                setNewItemData(templateData);
+                                setIsCreating(true);
+                              }}
+                              className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 rounded text-sm text-neutral-700 dark:text-white"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Icons.Sparkles size={14} />
+                                <span className="text-xs">{conditionText}</span>
+                              </div>
+                              <Icons.Plus size={12} />
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="pt-2 border-t border-black/10 dark:border-white/10">
+                        <button
+                          onClick={() => {
+                            const initialData = initializeWithTemplates();
+                            setNewItemData(initialData);
+                            setIsCreating(true);
+                          }}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 rounded text-sm text-neutral-700 dark:text-white"
+                        >
+                          <Icons.Plus size={14} />
+                          Créer sans template
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const initialData = initializeWithTemplates();
+                        setNewItemData(initialData);
+                        setIsCreating(true);
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 rounded text-sm text-neutral-700 dark:text-white"
+                    >
+                      <Icons.Plus size={14} />
+                      Créer nouveau
+                    </button>
+                  )}
                   {renderSearchList(close)}
                 </>
               )}
@@ -632,7 +869,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   // Date
   if (property.type === 'date') {
     const [open, setOpen] = useState(false);
-    const selectedDate = value ? new Date(value) : undefined;
+    const selectedDate = value && !isNaN(new Date(value).getTime()) ? new Date(value) : undefined;
     const durationKey = `${property.id}_duration`;
     const currentDuration = currentItem?.[durationKey] || property.defaultDuration || 1;
     const { handleEventUpdate } = useDateHandlers(property, currentItem!, collections!, collection!, onChange, onRelationChange);
@@ -641,9 +878,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
     // Fonction pour formater la date selon la granularité
     const formatDateByGranularity = (date: Date) => {
-      if (!date) return '';
+      if (!date || isNaN(date.getTime())) return '';
       if (dateGranularity === 'month') {
-        return format(date, 'MMMM', { locale: fr });
+        return format(date, 'MMMM yyyy', { locale: fr });
       }
       if (dateGranularity === 'year') {
         return format(date, 'yyyy');
@@ -691,7 +928,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0 bg-background dark:bg-neutral-900 border-neutral-700" align="start">
           <div className="flex flex-row gap-4 p-3">
-            {includeDuration && onRelationChange && currentItem && (
+            {includeDuration && onRelationChange && currentItem && dateGranularity === 'full' && (
               <div className="flex flex-col items-center justify-center min-w-[110px]">
                 <label className="block text-xs font-medium text-neutral-400 mb-1.5">Durée (H:M)</label>
                 <select
@@ -710,52 +947,92 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                 </select>
               </div>
             )}
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={(date) => {
-                if (date) {
-                  if (dateGranularity === 'month') {
-                    // Pour le mois, on met au 1er du mois
-                    date.setDate(1);
-                    date.setHours(9, 0, 0, 0);
-                  } else if (dateGranularity === 'year') {
-                    // Pour l'année, on met au 1er janvier
-                    date.setMonth(0, 1);
-                    date.setHours(9, 0, 0, 0);
-                  } else {
-                    // Date complète
-                    const existingDate = value ? new Date(value) : null;
-                    if (existingDate) {
-                      date.setHours(existingDate.getHours(), existingDate.getMinutes());
-                    } else {
-                      date.setHours(9, 0);
-                    }
-                  }
-                  handleEventUpdate(property.id, date.toISOString());
-                }
-              }}
-              initialFocus
-              className="bg-background text-black dark:bg-neutral-900 dark:text-white"
-            />
-            {dateGranularity === 'full' && (
-              <div className="flex flex-col items-center justify-center min-w-[110px]">
-                <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure (H:M)</label>
+            {dateGranularity === 'month' ? (
+              <div className="flex flex-col gap-2 p-2 min-w-[200px]">
+                <label className="block text-xs font-medium text-neutral-400">Sélectionner un mois</label>
                 <select
-                  value={currentTime}
-                  onChange={e => {
-                    const [hours, minutes] = e.target.value.split(':');
-                    const d = value ? new Date(value) : new Date();
-                    d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-                    handleEventUpdate(property.id, d.toISOString());
+                  value={selectedDate ? selectedDate.getMonth() : new Date().getMonth()}
+                  onChange={(e) => {
+                    const month = parseInt(e.target.value);
+                    const year = selectedDate ? selectedDate.getFullYear() : new Date().getFullYear();
+                    const date = new Date(year, month, 1, 9, 0, 0, 0);
+                    handleEventUpdate(property.id, date.toISOString());
                   }}
-                  className="w-full h-50 text-center bg-background text-black dark:bg-neutral-900 dark:text-white border-l border-white/10 text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
-                  size={9}
-                  style={{ WebkitAppearance: 'none', appearance: 'none' }}
+                  className="w-full px-3 py-2 bg-background dark:bg-neutral-800/50 border border-white/10 rounded text-sm text-black dark:text-white"
                 >
-                  {timeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i} value={i}>{format(new Date(2000, i, 1), 'MMMM', { locale: fr })}</option>
+                  ))}
+                </select>
+                <select
+                  value={selectedDate ? selectedDate.getFullYear() : new Date().getFullYear()}
+                  onChange={(e) => {
+                    const year = parseInt(e.target.value);
+                    const month = selectedDate ? selectedDate.getMonth() : new Date().getMonth();
+                    const date = new Date(year, month, 1, 9, 0, 0, 0);
+                    handleEventUpdate(property.id, date.toISOString());
+                  }}
+                  className="w-full px-3 py-2 bg-background dark:bg-neutral-800/50 border border-white/10 rounded text-sm text-black dark:text-white"
+                >
+                  {Array.from({ length: 21 }, (_, i) => 2020 + i).map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
                 </select>
               </div>
+            ) : dateGranularity === 'year' ? (
+              <div className="flex flex-col gap-2 p-2 min-w-[200px]">
+                <label className="block text-xs font-medium text-neutral-400">Sélectionner une année</label>
+                <select
+                  value={selectedDate ? selectedDate.getFullYear() : new Date().getFullYear()}
+                  onChange={(e) => {
+                    const year = parseInt(e.target.value);
+                    const date = new Date(year, 0, 1, 9, 0, 0, 0);
+                    handleEventUpdate(property.id, date.toISOString());
+                  }}
+                  className="w-full px-3 py-2 bg-background dark:bg-neutral-800/50 border border-white/10 rounded text-sm text-black dark:text-white"
+                >
+                  {Array.from({ length: 21 }, (_, i) => 2020 + i).map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <>
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    if (date) {
+                      const existingDate = value ? new Date(value) : null;
+                      if (existingDate && !isNaN(existingDate.getTime())) {
+                        date.setHours(existingDate.getHours(), existingDate.getMinutes());
+                      } else {
+                        date.setHours(9, 0);
+                      }
+                      handleEventUpdate(property.id, date.toISOString());
+                    }
+                  }}
+                  initialFocus
+                  className="bg-background text-black dark:bg-neutral-900 dark:text-white"
+                />
+                <div className="flex flex-col items-center justify-center min-w-[110px]">
+                  <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure (H:M)</label>
+                  <select
+                    value={currentTime}
+                    onChange={e => {
+                      const [hours, minutes] = e.target.value.split(':');
+                      const d = value ? new Date(value) : new Date();
+                      d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                      handleEventUpdate(property.id, d.toISOString());
+                    }}
+                    className="w-full h-50 text-center bg-background text-black dark:bg-neutral-900 dark:text-white border-l border-white/10 text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
+                    size={9}
+                    style={{ WebkitAppearance: 'none', appearance: 'none' }}
+                  >
+                    {timeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+              </>
             )}
           </div>
         </PopoverContent>

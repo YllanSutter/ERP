@@ -673,6 +673,17 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                 onSetShowViewSettings={setShowViewSettings}
                 onToggleFieldVisibility={viewHooks.toggleFieldVisibility}
                 onUpdateViewFieldOrder={viewHooks.updateViewFieldOrder}
+                onSetTotalField={(fieldId: string, totalType: string | null) => {
+                  if (!activeView) return;
+                  const currentTotalFields = activeViewConfig?.totalFields || {};
+                  const nextTotalFields = { ...currentTotalFields };
+                  if (totalType === null) {
+                    delete nextTotalFields[fieldId];
+                  } else {
+                    nextTotalFields[fieldId] = totalType;
+                  }
+                  viewHooks.updateView(activeView, { totalFields: nextTotalFields });
+                }}
                 onEditProperty={(prop) => {
                   setEditingProperty(prop);
                   setShowEditPropertyModal(true);
@@ -759,6 +770,16 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     onRelationChange={(prop: any, item: any, val: any) => {
                       const updatedItem = { ...item, [prop.id]: val };
                       itemHooks.updateItem(updatedItem);
+                      
+                      // Les nouveaux items créés dans une relation sont déjà dans targetCollection.items
+                      // (ajoutés par handleCreateNew), donc on les laisse là et on nettoie juste le marker
+                      const targetCollectionId = prop.relation?.targetCollectionId;
+                      if (targetCollectionId) {
+                        const targetCollection = collections.find((c: any) => c.id === targetCollectionId);
+                        if (targetCollection && targetCollection.__newItems) {
+                          delete targetCollection.__newItems;
+                        }
+                      }
                     }}
                     onNavigateToCollection={handleNavigateToCollection}
                     groups={activeViewConfig?.groups || []}
@@ -773,6 +794,18 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     onExpandedGroupsChange={(groupPaths) => {
                       if (!activeView) return;
                       viewHooks.updateView(activeView, { expandedGroups: groupPaths });
+                    }}
+                    totalFields={activeViewConfig?.totalFields || {}}
+                    onSetTotalField={(fieldId: string, totalType: string | null) => {
+                      if (!activeView) return;
+                      const currentTotalFields = activeViewConfig?.totalFields || {};
+                      const nextTotalFields = { ...currentTotalFields };
+                      if (totalType === null) {
+                        delete nextTotalFields[fieldId];
+                      } else {
+                        nextTotalFields[fieldId] = totalType;
+                      }
+                      viewHooks.updateView(activeView, { totalFields: nextTotalFields });
                     }}
                   />
                 )}

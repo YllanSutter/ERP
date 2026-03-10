@@ -33,6 +33,9 @@ interface GroupRendererProps {
   onRowDragEnter?: (itemId: string) => void;
   onRowDrop?: (targetItemId: string, e: React.DragEvent<HTMLTableRowElement>) => void;
   onRowDragEnd?: () => void;
+  totalFields?: Record<string, string>;
+  calculateTotal?: (fieldId: string, items: Item[], totalType: string) => any;
+  formatTotal?: (fieldId: string, total: any, totalType: string) => string;
 }
 
 const GroupRenderer: React.FC<GroupRendererProps> = ({
@@ -64,6 +67,9 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   onRowDragEnter,
   onRowDrop,
   onRowDragEnd,
+  totalFields = {},
+  calculateTotal,
+  formatTotal,
 }) => {
   const groupData = groupedStructure.structure[groupPath];
   if (!groupData) return null;
@@ -131,6 +137,9 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               onRowDragEnter={onRowDragEnter}
               onRowDrop={onRowDrop}
               onRowDragEnd={onRowDragEnd}
+              totalFields={totalFields}
+              calculateTotal={calculateTotal}
+              formatTotal={formatTotal}
             />
           ))}
 
@@ -167,6 +176,37 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               onRowDragEnd={() => onRowDragEnd?.()}
             />
           ))}
+
+          {/* Ligne de total pour ce groupe */}
+          {Object.keys(totalFields).length > 0 && groupData.itemIds.length > 0 && calculateTotal && formatTotal && (
+            <tr className="bg-violet-50/30 dark:bg-violet-900/5 border-t border-violet-200/50 dark:border-violet-800/30">
+              {enableSelection && <td className="px-2 py-1"></td>}
+              {visibleProperties.filter((p: any) => !p.showContextMenu).map((prop: any, index: number) => {
+                const totalType = totalFields[prop.id];
+                if (!totalType) {
+                  return (
+                    <td 
+                      key={prop.id} 
+                      className="px-3 py-1 text-[10px] text-neutral-400"
+                      style={index === 0 ? { paddingLeft: `${24 + (depth + 1) * 20}px` } : undefined}
+                    >
+                    </td>
+                  );
+                }
+                const groupItems = groupData.itemIds.map(itemId => itemsMap.get(itemId)).filter(Boolean);
+                const total = calculateTotal(prop.id, groupItems, totalType);
+                return (
+                  <td 
+                    key={prop.id} 
+                    className="px-3 py-1 text-[10px] font-medium text-violet-600 dark:text-violet-400"
+                    style={index === 0 ? { paddingLeft: `${24 + (depth + 1) * 20}px` } : undefined}
+                  >
+                    {formatTotal(prop.id, total, totalType)}
+                  </td>
+                );
+              })}
+            </tr>
+          )}
         </>
       )}
     </React.Fragment>

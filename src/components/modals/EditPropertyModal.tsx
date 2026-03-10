@@ -221,31 +221,18 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                           />
                         ) : type === 'date' || type === 'date_range' ? (
                           <div className="space-y-2">
-                            <select
-                              value={tpl.value === 'current_date' ? 'current_date' : 'custom'}
-                              onChange={(e) => {
-                                if (e.target.value === 'current_date') {
-                                  updateTemplate({ value: 'current_date' });
-                                } else {
-                                  updateTemplate({ value: includeDuration ? 1 : null });
-                                }
-                              }}
+                            <input
+                              type="text"
+                              value={tpl.value ?? ''}
+                              onChange={(e) => updateTemplate({ value: e.target.value })}
                               className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
-                            >
-                              <option value="current_date">Date actuelle</option>
-                              <option value="custom">Durée personnalisée</option>
-                            </select>
-                            {tpl.value !== 'current_date' && includeDuration && (
-                              <input
-                                type="number"
-                                min="0.25"
-                                step="0.25"
-                                value={tpl.value ?? ''}
-                                onChange={(e) => updateTemplate({ value: e.target.value === '' ? '' : Number(e.target.value) })}
-                                className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
-                                placeholder="Durée (heures)"
-                              />
-                            )}
+                              placeholder="Ex: {{now:month}}, {{now:year}}, {{now}}, ou durée en heures"
+                            />
+                            <p className="text-xs text-neutral-500">
+                              Templates: <code className="px-1 bg-black/10 dark:bg-white/10 rounded">{'{{now:month}}'}</code> (mois actuel), 
+                              <code className="px-1 bg-black/10 dark:bg-white/10 rounded ml-1">{'{{now:year}}'}</code> (année actuelle), 
+                              <code className="px-1 bg-black/10 dark:bg-white/10 rounded ml-1">{'{{now}}'}</code> (maintenant), ou un nombre pour la durée
+                            </p>
                           </div>
                         ) : (
                           <EditableProperty

@@ -65,4 +65,6 @@ export interface TableViewProps {
   onSortStateChange?: (state: { column: string | null; direction: 'asc' | 'desc' }) => void;
   initialExpandedGroups?: string[];
   onExpandedGroupsChange?: (groupPaths: string[]) => void;
+  totalFields?: Record<string, string>; // fieldId -> totalType (sum, count, unique, avg, min, max)
+  onSetTotalField?: (fieldId: string, totalType: string | null) => void;
 }

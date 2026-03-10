@@ -50,6 +50,7 @@ interface ViewToolbarProps {
   onSetShowViewSettings: (show: boolean) => void;
   onToggleFieldVisibility: (fieldId: string) => void;
   onUpdateViewFieldOrder: (nextOrder: string[]) => void;
+  onSetTotalField: (fieldId: string, totalType: string | null) => void;
   onEditProperty: (property: any) => void;
   onEditFilter: (index: number) => void;
   onRemoveFilter: (index: number) => void;
@@ -85,6 +86,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onSetShowViewSettings,
   onToggleFieldVisibility,
   onUpdateViewFieldOrder,
+  onSetTotalField,
   onEditProperty,
   onEditFilter,
   onRemoveFilter,

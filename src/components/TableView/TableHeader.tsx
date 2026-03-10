@@ -8,6 +8,10 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuLabel,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
 } from '@/components/ui/context-menu';
 
 export interface TableHeaderProps {
@@ -23,6 +27,8 @@ export interface TableHeaderProps {
   allSelected?: boolean;
   partiallySelected?: boolean;
   onToggleSelectAll?: (checked: boolean) => void;
+  totalFields?: Record<string, string>;
+  onToggleTotalField?: (fieldId: string, totalType: string | null) => void;
 }
 
 const TableHeader: React.FC<TableHeaderProps> = ({
@@ -38,10 +44,48 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   allSelected = false,
   partiallySelected = false,
   onToggleSelectAll,
+  totalFields = {},
+  onToggleTotalField,
 }) => {
   const canEdit = useCanEdit(collectionId);
   // Exclure les propriétés en menu contextuel de l'affichage du header
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
+
+  // Types de totaux disponibles selon le type de champ
+  const getTotalTypesForProperty = (prop: any) => {
+    const common = [
+      { value: 'count', label: 'Compte' },
+      { value: 'unique', label: 'Valeurs uniques' },
+    ];
+    
+    if (prop.type === 'number') {
+      return [
+        { value: 'sum', label: 'Somme' },
+        { value: 'avg', label: 'Moyenne' },
+        { value: 'min', label: 'Minimum' },
+        { value: 'max', label: 'Maximum' },
+        ...common,
+      ];
+    }
+    
+    if (prop.type === 'checkbox') {
+      return [
+        { value: 'count-true', label: 'Nombre cochés' },
+        { value: 'count-false', label: 'Nombre décochés' },
+        ...common,
+      ];
+    }
+    
+    if (prop.type === 'relation') {
+      return [
+        { value: 'count-linked', label: 'Nombre liés' },
+        { value: 'unique', label: 'Éléments uniques' },
+        { value: 'count', label: 'Nombre de lignes' },
+      ];
+    }
+    
+    return common;
+  };
 
   const collectValues = (propId: string) => {
     const values: string[] = [];
@@ -156,6 +200,53 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                     <Icons.ExternalLink size={14} />
                     <span>Ouvrir URLs</span>
                   </ContextMenuItem>
+                )}
+                {onToggleTotalField && (
+                  <>
+                    <ContextMenuSeparator />
+                    <ContextMenuSub>
+                      <ContextMenuSubTrigger className="flex items-center gap-2 text-neutral-700 dark:text-neutral-200">
+                        <Icons.Sigma size={14} />
+                        <span>Total</span>
+                        {totalFields[prop.id] && (
+                          <Icons.Check size={14} className="ml-auto text-violet-500 dark:text-violet-400" />
+                        )}
+                      </ContextMenuSubTrigger>
+                      <ContextMenuSubContent>
+                        {getTotalTypesForProperty(prop).map((totalType) => (
+                          <ContextMenuItem
+                            key={totalType.value}
+                            onClick={() => {
+                              // Si on clique sur le total déjà actif, on le désactive
+                              if (totalFields[prop.id] === totalType.value) {
+                                onToggleTotalField(prop.id, null);
+                              } else {
+                                onToggleTotalField(prop.id, totalType.value);
+                              }
+                            }}
+                            className="flex items-center justify-between gap-2 text-neutral-700 dark:text-neutral-200"
+                          >
+                            <span>{totalType.label}</span>
+                            {totalFields[prop.id] === totalType.value && (
+                              <Icons.Check size={14} className="text-violet-500 dark:text-violet-400" />
+                            )}
+                          </ContextMenuItem>
+                        ))}
+                        {totalFields[prop.id] && (
+                          <>
+                            <ContextMenuSeparator />
+                            <ContextMenuItem
+                              onClick={() => onToggleTotalField(prop.id, null)}
+                              className="flex items-center gap-2 text-red-600 dark:text-red-400"
+                            >
+                              <Icons.X size={14} />
+                              <span>Désactiver</span>
+                            </ContextMenuItem>
+                          </>
+                        )}
+                      </ContextMenuSubContent>
+                    </ContextMenuSub>
+                  </>
                 )}
                 {canEdit && (
                   <>

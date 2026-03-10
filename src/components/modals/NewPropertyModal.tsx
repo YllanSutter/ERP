@@ -38,6 +38,8 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
   const [relationFilterField, setRelationFilterField] = useState('');
   const [relationFilterValue, setRelationFilterValue] = useState('');
   const [defaultTemplates, setDefaultTemplates] = useState<any[]>([]);
+  const [dateGranularity, setDateGranularity] = useState('full');
+  const [includeDuration, setIncludeDuration] = useState(true);
 
   const targetCollection = (collections || []).find((c: any) => c.id === relationTarget);
   const filterProp = targetCollection?.properties?.find((p: any) => p.id === relationFilterField);
@@ -48,6 +50,10 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
     const property: any = { name, type, icon: 'Tag', color: '#8b5cf6' };
     if (type === 'select' || type === 'multi_select') {
       property.options = options;
+    }
+    if (type === 'date' || type === 'date_range') {
+      property.dateGranularity = dateGranularity;
+      property.includeDuration = includeDuration;
     }
     if (type === 'relation') {
       if (!relationTarget) {
@@ -87,6 +93,35 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
               <option key={key} value={key}>{label}</option>
             ))}
           </select>
+          {(type === 'date' || type === 'date_range') && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Granularité</label>
+                  <select
+                    value={dateGranularity}
+                    onChange={(e) => setDateGranularity(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+                  >
+                    <option value="full">Date complète</option>
+                    <option value="month">Mois</option>
+                    <option value="year">Année</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includeDuration}
+                      onChange={(e) => setIncludeDuration(e.target.checked)}
+                      className="w-4 h-4 rounded border-white/10"
+                    />
+                    <span className="text-sm font-medium text-neutral-600 dark:text-neutral-300">Inclure la durée</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Templates conditionnels</label>
@@ -204,15 +239,20 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
                                     className="bg-gray-200 dark:bg-neutral-800/50"
                                   />
                                 ) : type === 'date' || type === 'date_range' ? (
-                                  <input
-                                    type="number"
-                                    min="0.25"
-                                    step="0.25"
-                                    value={tpl.value ?? ''}
-                                    onChange={(e) => updateTemplate({ value: e.target.value === '' ? '' : Number(e.target.value) })}
-                                    className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
-                                    placeholder="Durée (heures)"
-                                  />
+                                  <div className="space-y-2">
+                                    <input
+                                      type="text"
+                                      value={tpl.value ?? ''}
+                                      onChange={(e) => updateTemplate({ value: e.target.value })}
+                                      className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white"
+                                      placeholder="Ex: {{now:month}}, {{now:year}}, {{now}}, ou durée en heures"
+                                    />
+                                    <p className="text-xs text-neutral-500">
+                                      Templates: <code className="px-1 bg-black/10 dark:bg-white/10 rounded">{'{{now:month}}'}</code> (mois actuel), 
+                                      <code className="px-1 bg-black/10 dark:bg-white/10 rounded ml-1">{'{{now:year}}'}</code> (année actuelle), 
+                                      <code className="px-1 bg-black/10 dark:bg-white/10 rounded ml-1">{'{{now}}'}</code> (maintenant), ou un nombre pour la durée
+                                    </p>
+                                  </div>
                                 ) : type === 'relation' ? (
                                   <EditableProperty
                                     property={{

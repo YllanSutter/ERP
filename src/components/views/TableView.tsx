@@ -50,6 +50,8 @@ const TableView: React.FC<TableViewProps> = ({
   onSortStateChange,
   initialExpandedGroups,
   onExpandedGroupsChange,
+  totalFields = {},
+  onSetTotalField,
 }) => {
   // Guard: si pas de collection, ne rien afficher
   if (!collection) {
@@ -204,6 +206,155 @@ const TableView: React.FC<TableViewProps> = ({
   );
 
   const showSelectionColumn = canEdit && !hiddenFields.includes(ROW_SELECTION_FIELD_ID);
+  const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
+
+  // Fonction pour calculer le total d'un champ selon le type de total
+  const calculateTotal = useCallback((fieldId: string, itemsToSum: any[], totalType: string) => {
+    const property = visibleProperties.find(p => p.id === fieldId);
+    if (!property) return null;
+
+    // Totaux pour les nombres (vérifier en premier car ils ont des types spécifiques)
+    if (property.type === 'number') {
+      const numbers = itemsToSum
+        .map(item => {
+          const val = item[fieldId];
+          const num = Number(val);
+          return isNaN(num) ? null : num;
+        })
+        .filter((val): val is number => val !== null);
+      
+      if (numbers.length === 0) return 0;
+      
+      if (totalType === 'sum') {
+        return numbers.reduce((acc, val) => acc + val, 0);
+      }
+      if (totalType === 'avg') {
+        const sum = numbers.reduce((acc, val) => acc + val, 0);
+        return sum / numbers.length;
+      }
+      if (totalType === 'min') {
+        return Math.min(...numbers);
+      }
+      if (totalType === 'max') {
+        return Math.max(...numbers);
+      }
+      if (totalType === 'count') {
+        return itemsToSum.length;
+      }
+      if (totalType === 'unique') {
+        const uniqueNumbers = new Set(numbers.map(n => String(n)));
+        return uniqueNumbers.size;
+      }
+      // Si le type de total n'est pas reconnu, retourner la somme par défaut
+      return numbers.reduce((acc, val) => acc + val, 0);
+    }
+
+    // Totaux pour les checkboxes
+    if (property.type === 'checkbox') {
+      if (totalType === 'count-true') {
+        return itemsToSum.filter(item => item[fieldId] === true).length;
+      }
+      if (totalType === 'count-false') {
+        return itemsToSum.filter(item => item[fieldId] === false).length;
+      }
+      if (totalType === 'count') {
+        return itemsToSum.length;
+      }
+      if (totalType === 'unique') {
+        const uniqueValues = new Set(itemsToSum.map(item => String(item[fieldId])));
+        return uniqueValues.size;
+      }
+      return itemsToSum.filter(item => item[fieldId] === true).length;
+    }
+
+    // Totaux pour les relations
+    if (property.type === 'relation') {
+      if (totalType === 'count-linked') {
+        return itemsToSum.filter(item => {
+          const val = item[fieldId];
+          if (Array.isArray(val)) return val.length > 0;
+          return val != null;
+        }).length;
+      }
+      if (totalType === 'unique') {
+        const allIds = new Set<string>();
+        itemsToSum.forEach(item => {
+          const val = item[fieldId];
+          if (Array.isArray(val)) {
+            val.forEach(id => allIds.add(String(id)));
+          } else if (val != null) {
+            allIds.add(String(val));
+          }
+        });
+        return allIds.size;
+      }
+      if (totalType === 'count') {
+        return itemsToSum.length;
+      }
+      return itemsToSum.filter(item => {
+        const val = item[fieldId];
+        if (Array.isArray(val)) return val.length > 0;
+        return val != null;
+      }).length;
+    }
+
+    // Compte simple (nombre de lignes) - pour tous les autres types
+    if (totalType === 'count') {
+      return itemsToSum.length;
+    }
+
+    // Valeurs uniques - pour tous les autres types
+    if (totalType === 'unique') {
+      const allValues = new Set<string>();
+      itemsToSum.forEach(item => {
+        const val = item[fieldId];
+        if (val == null) return;
+        if (Array.isArray(val)) {
+          val.forEach(v => allValues.add(String(v)));
+        } else {
+          allValues.add(String(val));
+        }
+      });
+      return allValues.size;
+    }
+
+    return null;
+  }, [visibleProperties]);
+
+  // Formater l'affichage du total
+  const formatTotal = useCallback((fieldId: string, total: any, totalType: string) => {
+    const property = visibleProperties.find(p => p.id === fieldId);
+    if (!property || total === null) return '';
+
+    // Formater les nombres avec décimales si nécessaire
+    if (typeof total === 'number') {
+      if (totalType === 'avg') {
+        return total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+      if (property.type === 'number') {
+        return total.toLocaleString('fr-FR');
+      }
+    }
+
+    // Formatage selon le type de total
+    if (totalType === 'count') {
+      return `${total} ligne${total > 1 ? 's' : ''}`;
+    }
+    if (totalType === 'unique') {
+      return `${total} unique${total > 1 ? 's' : ''}`;
+    }
+    if (totalType === 'count-true') {
+      return `${total} coché${total > 1 ? 's' : ''}`;
+    }
+    if (totalType === 'count-false') {
+      return `${total} décoché${total > 1 ? 's' : ''}`;
+    }
+    if (totalType === 'count-linked') {
+      return `${total} lié${total > 1 ? 's' : ''}`;
+    }
+
+    return String(total);
+  }, [visibleProperties]);
 
   const bulkEditableProperties = useMemo(
     () => visibleProperties.filter((p: any) => !p.showContextMenu && canEditFieldFn(p.id)),
@@ -446,6 +597,8 @@ const TableView: React.FC<TableViewProps> = ({
               allSelected={allSelected}
               partiallySelected={partiallySelected}
               onToggleSelectAll={handleToggleSelectAll}
+              totalFields={totalFields}
+              onToggleTotalField={onSetTotalField}
             />
             <tbody className="divide-y divide-white/5">
               {groupedStructure ? (
@@ -481,6 +634,9 @@ const TableView: React.FC<TableViewProps> = ({
                     onRowDragEnter={handleRowDragEnter}
                     onRowDrop={handleRowDrop}
                     onRowDragEnd={handleRowDragEnd}
+                    totalFields={totalFields}
+                    calculateTotal={calculateTotal}
+                    formatTotal={formatTotal}
                   />
                 ))
               ) : (
@@ -518,6 +674,25 @@ const TableView: React.FC<TableViewProps> = ({
                 ))
               )}
             </tbody>
+            {Object.keys(totalFields).length > 0 && items.length > 0 && (
+              <tfoot className="bg-violet-50/50 dark:bg-violet-900/10 border-t-2 border-violet-200 dark:border-violet-800">
+                <tr>
+                  {showSelectionColumn && <td className="px-2 py-2"></td>}
+                  {displayProperties.map((prop: any) => {
+                    const totalType = totalFields[prop.id];
+                    if (!totalType) {
+                      return <td key={prop.id} className="px-3 py-2"></td>;
+                    }
+                    const total = calculateTotal(prop.id, items, totalType);
+                    return (
+                      <td key={prop.id} className="px-4 py-2 text-xs font-semibold text-violet-700 dark:text-violet-300">
+                        {formatTotal(prop.id, total, totalType)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
