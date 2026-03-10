@@ -43,6 +43,7 @@ interface UseErpSyncParams {
   favorites: Favorites;
   isLoaded: boolean;
   user: any;
+  organizationId: string | null;
   canEdit: boolean;
   setCollections: (c: Collection[]) => void;
   setViews: (v: ViewMap) => void;
@@ -66,6 +67,7 @@ export function useErpSync({
   favorites,
   isLoaded,
   user,
+  organizationId,
   canEdit,
   setCollections,
   setViews,
@@ -85,12 +87,21 @@ export function useErpSync({
   const lastLocalSaveRef = useRef(0);
   const lastSavedPayloadRef = useRef<string | null>(null);
 
+  useEffect(() => {
+    lastSavedPayloadRef.current = null;
+    lastReloadRef.current = 0;
+    lastLocalSaveRef.current = 0;
+  }, [organizationId]);
+
   // Fetch initial state when user is defined and component is mounted
   useEffect(() => {
-    if (!user) return;
+    if (!user || !organizationId) return;
     const fetchInitialState = async () => {
       try {
-        const res = await fetch(`${API_URL}/state`, { credentials: 'include' });
+        const res = await fetch(`${API_URL}/state`, {
+          credentials: 'include',
+          headers: { 'X-Organization-Id': organizationId },
+        });
         if (res.ok) {
           const data = await res.json();
           if (data) {
@@ -108,11 +119,11 @@ export function useErpSync({
       }
     };
     fetchInitialState();
-  }, [user, API_URL, setCollections, setViews, setDashboards, setDashboardSort, setDashboardFilters, setFavorites, setIsLoaded]);
+  }, [user, organizationId, API_URL, setCollections, setViews, setDashboards, setDashboardSort, setDashboardFilters, setFavorites, setIsLoaded]);
 
   // Quand on sauvegarde l'état, on ignore le prochain reload (car c'est nous qui avons modifié)
   useEffect(() => {
-    if (!isLoaded || !user || !canEdit) return;
+    if (!isLoaded || !user || !organizationId || !canEdit) return;
     // On note le timestamp de la dernière sauvegarde locale
     lastLocalSaveRef.current = Date.now();
   }, [
@@ -126,9 +137,12 @@ export function useErpSync({
     favorites.items.length
   ]);
   useEffect(() => {
-    if (!socket) return;
-    const reloadState = async (payload?: { userId?: string }) => {
+    if (!socket || !organizationId) return;
+    const reloadState = async (payload?: { userId?: string; organizationId?: string }) => {
       const now = Date.now();
+      if (payload?.organizationId && payload.organizationId !== organizationId) {
+        return;
+      }
       // Si l'event vient de nous-même, on ignore le reload
       if (payload && payload.userId && user && payload.userId === user.id) {
         // console.log('Ignoré: event stateUpdated vient de nous-même');
@@ -140,7 +154,10 @@ export function useErpSync({
       }
       lastReloadRef.current = now;
       try {
-        const res = await fetch(`${API_URL}/state`, { credentials: 'include' });
+        const res = await fetch(`${API_URL}/state`, {
+          credentials: 'include',
+          headers: { 'X-Organization-Id': organizationId },
+        });
         if (res.ok) {
           const data = await res.json();
           if (data?.collections && data?.views) {
@@ -161,12 +178,12 @@ export function useErpSync({
     return () => {
       socket.off('stateUpdated', reloadState);
     };
-  }, [socket, isLoaded, user, canEdit]);
+  }, [socket, isLoaded, user, canEdit, organizationId]);
 
   // Sauvegarde et synchro temps réel de l'état global à chaque changement, avec debounce
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
-    if (!isLoaded || !user || !canEdit) return;
+    if (!isLoaded || !user || !organizationId || !canEdit) return;
     if (debounceTimeout.current) {
       clearTimeout(debounceTimeout.current);
     }
@@ -189,7 +206,10 @@ export function useErpSync({
 
           const res = await fetch(`${API_URL}/state`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Organization-Id': organizationId,
+            },
             credentials: 'include',
             body: payloadString,
           });
@@ -217,6 +237,7 @@ export function useErpSync({
     JSON.stringify(favorites),
     isLoaded,
     user,
+    organizationId,
     canEdit
   ] : [
     collections.length,
@@ -229,6 +250,7 @@ export function useErpSync({
     favorites.items.length,
     isLoaded,
     user,
+    organizationId,
     canEdit
   ]);
 }

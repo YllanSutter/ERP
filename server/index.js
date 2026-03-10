@@ -23,6 +23,15 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 const TOKEN_EXPIRES = process.env.JWT_EXPIRES || '7d';
 const execFileAsync = promisify(execFile);
 
+const INITIAL_APP_STATE = {
+  collections: [],
+  views: {},
+  dashboards: [],
+  dashboardSort: 'created',
+  dashboardFilters: {},
+  favorites: { views: [], items: [] }
+};
+
 // PostgreSQL connection pool
 let pool;
 if (process.env.DATABASE_PUBLIC_URL) {
@@ -238,6 +247,23 @@ const bootstrap = async () => {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS organizations (
+      id UUID PRIMARY KEY,
+      name TEXT NOT NULL,
+      owner_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS organization_members (
+      organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      PRIMARY KEY (organization_id, user_id)
+    );
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS roles (
       id UUID PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
@@ -245,6 +271,26 @@ const bootstrap = async () => {
       is_system BOOLEAN DEFAULT FALSE
     );
   `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='roles' AND column_name='organization_id') THEN
+        ALTER TABLE roles ADD COLUMN organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+      END IF;
+    END$$;
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      ALTER TABLE roles DROP CONSTRAINT IF EXISTS roles_name_key;
+    EXCEPTION
+      WHEN undefined_object THEN NULL;
+    END $$;
+  `);
+
+  await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS roles_org_name_unique_idx ON roles (organization_id, name);');
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS user_roles (
@@ -255,9 +301,30 @@ const bootstrap = async () => {
   `);
 
   await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='user_roles' AND column_name='organization_id') THEN
+        ALTER TABLE user_roles ADD COLUMN organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+      END IF;
+    END$$;
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS user_roles_pkey;
+    EXCEPTION
+      WHEN undefined_object THEN NULL;
+    END $$;
+  `);
+
+  await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS user_roles_org_user_role_unique_idx ON user_roles (organization_id, user_id, role_id);');
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS permissions (
       id UUID PRIMARY KEY,
       role_id UUID REFERENCES roles(id) ON DELETE CASCADE,
+      organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
       collection_id TEXT,
       item_id TEXT,
       field_id TEXT,
@@ -268,6 +335,15 @@ const bootstrap = async () => {
       can_manage_views BOOLEAN DEFAULT FALSE,
       can_manage_permissions BOOLEAN DEFAULT FALSE
     );
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='permissions' AND column_name='organization_id') THEN
+        ALTER TABLE permissions ADD COLUMN organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+      END IF;
+    END$$;
   `);
 
   // Drop old constraint if exists
@@ -288,7 +364,8 @@ const bootstrap = async () => {
     DELETE FROM permissions p1
     WHERE EXISTS (
       SELECT 1 FROM permissions p2
-      WHERE p2.role_id = p1.role_id
+      WHERE COALESCE(p2.organization_id::text, '') = COALESCE(p1.organization_id::text, '')
+        AND p2.role_id = p1.role_id
         AND COALESCE(p2.collection_id, '') = COALESCE(p1.collection_id, '')
         AND COALESCE(p2.item_id, '') = COALESCE(p1.item_id, '')
         AND COALESCE(p2.field_id, '') = COALESCE(p1.field_id, '')
@@ -299,7 +376,7 @@ const bootstrap = async () => {
   // Create unique index with COALESCE
   await pool.query(`
     CREATE UNIQUE INDEX permissions_unique_idx 
-    ON permissions (role_id, COALESCE(collection_id, ''), COALESCE(item_id, ''), COALESCE(field_id, ''));
+    ON permissions (organization_id, role_id, COALESCE(collection_id, ''), COALESCE(item_id, ''), COALESCE(field_id, ''));
   `);
 
   await pool.query(`
@@ -323,33 +400,58 @@ const bootstrap = async () => {
     );
   `);
 
-  await ensureSystemRoles();
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS organizations (
+      id UUID PRIMARY KEY,
+      name TEXT NOT NULL,
+      owner_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
 
-  // État initial complet pour app_state
-  const initialState = {
-    collections: [],
-    views: {},
-    dashboards: [],
-    dashboardSort: 'created',
-    dashboardFilters: {},
-    favorites: { views: [], items: [] }
-  };
-  // Vérifier s'il existe déjà une entrée app_state
-  const stateExists = await pool.query('SELECT 1 FROM app_state LIMIT 1');
-    if (stateExists.rowCount === 0) {
-      // Insérer l'état seulement s'il existe au moins un utilisateur
-      const userRes = await pool.query('SELECT id FROM users LIMIT 1');
-      if (userRes.rowCount > 0) {
-        const userId = userRes.rows[0].id;
-        await pool.query(
-          'INSERT INTO app_state (user_id, data) VALUES ($1, $2)',
-          [userId, JSON.stringify(initialState)]
-        );
-      }
-    }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS organization_members (
+      organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      PRIMARY KEY (organization_id, user_id)
+    );
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='app_state' AND column_name='user_id') THEN
+        ALTER TABLE app_state ALTER COLUMN user_id DROP NOT NULL;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='app_state' AND column_name='organization_id') THEN
+        ALTER TABLE app_state ADD COLUMN organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+      END IF;
+    END$$;
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      ALTER TABLE app_state DROP CONSTRAINT IF EXISTS app_state_user_id_key;
+    EXCEPTION
+      WHEN undefined_object THEN NULL;
+    END $$;
+  `);
+
+  await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS app_state_organization_id_unique ON app_state (organization_id);');
+
+  const firstUser = await pool.query('SELECT id FROM users ORDER BY created_at ASC, id ASC LIMIT 1');
+  if (firstUser.rowCount > 0) {
+    await ensureDefaultOrganization(firstUser.rows[0].id);
+  }
 };
 
-const ensureSystemRoles = async () => {
+const getRoleByNameInOrganization = async (organizationId, roleName) => {
+  return pool.query('SELECT id FROM roles WHERE organization_id = $1 AND name = $2 LIMIT 1', [organizationId, roleName]);
+};
+
+const ensureSystemRolesForOrganization = async (organizationId) => {
+  if (!organizationId) return;
   const systemRoles = [
     { name: 'admin', description: 'Full access', is_system: true },
     { name: 'editor', description: 'Read/Write/Delete, manage fields/views', is_system: true },
@@ -357,19 +459,20 @@ const ensureSystemRoles = async () => {
   ];
 
   for (const role of systemRoles) {
-    const existing = await pool.query('SELECT id FROM roles WHERE name = $1', [role.name]);
+    const existing = await pool.query('SELECT id FROM roles WHERE organization_id = $1 AND name = $2', [organizationId, role.name]);
     if (existing.rowCount === 0) {
       await pool.query(
-        'INSERT INTO roles (id, name, description, is_system) VALUES ($1, $2, $3, $4)',
-        [uuidv4(), role.name, role.description, role.is_system]
+        'INSERT INTO roles (id, organization_id, name, description, is_system) VALUES ($1, $2, $3, $4, $5)',
+        [uuidv4(), organizationId, role.name, role.description, role.is_system]
       );
     }
   }
 
   // Ensure default permissions for system roles
-  const admin = await pool.query('SELECT id FROM roles WHERE name = $1', ['admin']);
+  const admin = await getRoleByNameInOrganization(organizationId, 'admin');
   if (admin.rowCount) {
     await upsertPermission({
+      organization_id: organizationId,
       role_id: admin.rows[0].id,
       collection_id: null,
       item_id: null,
@@ -383,9 +486,10 @@ const ensureSystemRoles = async () => {
     });
   }
 
-  const editor = await pool.query('SELECT id FROM roles WHERE name = $1', ['editor']);
+  const editor = await getRoleByNameInOrganization(organizationId, 'editor');
   if (editor.rowCount) {
     await upsertPermission({
+      organization_id: organizationId,
       role_id: editor.rows[0].id,
       collection_id: null,
       item_id: null,
@@ -399,9 +503,10 @@ const ensureSystemRoles = async () => {
     });
   }
 
-  const viewer = await pool.query('SELECT id FROM roles WHERE name = $1', ['viewer']);
+  const viewer = await getRoleByNameInOrganization(organizationId, 'viewer');
   if (viewer.rowCount) {
     await upsertPermission({
+      organization_id: organizationId,
       role_id: viewer.rows[0].id,
       collection_id: null,
       item_id: null,
@@ -416,11 +521,65 @@ const ensureSystemRoles = async () => {
   }
 };
 
+const ensureAppStateForOrganization = async (organizationId) => {
+  if (!organizationId) return;
+  const state = await pool.query('SELECT id FROM app_state WHERE organization_id = $1', [organizationId]);
+  if (!state.rowCount) {
+    await pool.query(
+      'INSERT INTO app_state (organization_id, data) VALUES ($1, $2)',
+      [organizationId, JSON.stringify(INITIAL_APP_STATE)]
+    );
+  }
+};
+
+const ensureDefaultOrganization = async (ownerUserId) => {
+  if (!ownerUserId) return null;
+
+  let orgRes = await pool.query('SELECT id, name FROM organizations ORDER BY created_at ASC, id ASC LIMIT 1');
+  if (!orgRes.rowCount) {
+    const orgId = uuidv4();
+    await pool.query(
+      'INSERT INTO organizations (id, name, owner_user_id) VALUES ($1, $2, $3)',
+      [orgId, 'Organisation principale', ownerUserId]
+    );
+    orgRes = { rowCount: 1, rows: [{ id: orgId, name: 'Organisation principale' }] };
+  }
+
+  const organizationId = orgRes.rows[0].id;
+  await pool.query(
+    'INSERT INTO organization_members (organization_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+    [organizationId, ownerUserId]
+  );
+
+  await pool.query(
+    'UPDATE app_state SET organization_id = $1 WHERE organization_id IS NULL',
+    [organizationId]
+  );
+
+  await pool.query(
+    'UPDATE roles SET organization_id = $1 WHERE organization_id IS NULL',
+    [organizationId]
+  );
+  await pool.query(
+    'UPDATE user_roles SET organization_id = $1 WHERE organization_id IS NULL',
+    [organizationId]
+  );
+  await pool.query(
+    'UPDATE permissions SET organization_id = $1 WHERE organization_id IS NULL',
+    [organizationId]
+  );
+
+  await ensureSystemRolesForOrganization(organizationId);
+
+  await ensureAppStateForOrganization(organizationId);
+  return organizationId;
+};
+
 const upsertPermission = async (perm) => {
   const result = await pool.query(
-    `INSERT INTO permissions (id, role_id, collection_id, item_id, field_id, can_read, can_write, can_delete, can_manage_fields, can_manage_views, can_manage_permissions)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-     ON CONFLICT (role_id, COALESCE(collection_id, ''), COALESCE(item_id, ''), COALESCE(field_id, ''))
+    `INSERT INTO permissions (id, organization_id, role_id, collection_id, item_id, field_id, can_read, can_write, can_delete, can_manage_fields, can_manage_views, can_manage_permissions)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+     ON CONFLICT (organization_id, role_id, COALESCE(collection_id, ''), COALESCE(item_id, ''), COALESCE(field_id, ''))
      DO UPDATE SET can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write, can_delete = EXCLUDED.can_delete,
                    can_manage_fields = EXCLUDED.can_manage_fields, can_manage_views = EXCLUDED.can_manage_views,
                    can_manage_permissions = EXCLUDED.can_manage_permissions
@@ -428,6 +587,7 @@ const upsertPermission = async (perm) => {
     `,
     [
       perm.id || uuidv4(),
+      perm.organization_id,
       perm.role_id,
       perm.collection_id || null,
       perm.item_id || null,
@@ -461,6 +621,43 @@ const clearAuthCookie = (res) => {
   res.clearCookie('access_token');
 };
 
+const getAdminRoleForOrganization = async (organizationId) => {
+  if (!organizationId) return null;
+  const adminRoleRes = await pool.query(
+    'SELECT id FROM roles WHERE organization_id = $1 AND name = $2 LIMIT 1',
+    [organizationId, 'admin']
+  );
+  if (!adminRoleRes.rowCount) return null;
+  return adminRoleRes.rows[0];
+};
+
+const countOrganizationAdmins = async (organizationId) => {
+  const adminRole = await getAdminRoleForOrganization(organizationId);
+  if (!adminRole?.id) return 0;
+  const countRes = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM user_roles WHERE organization_id = $1 AND role_id = $2',
+    [organizationId, adminRole.id]
+  );
+  return Number(countRes.rows[0]?.count || 0);
+};
+
+const isUserAdminInOrganization = async (organizationId, userId) => {
+  const adminRole = await getAdminRoleForOrganization(organizationId);
+  if (!adminRole?.id) return false;
+  const row = await pool.query(
+    'SELECT 1 FROM user_roles WHERE organization_id = $1 AND user_id = $2 AND role_id = $3 LIMIT 1',
+    [organizationId, userId, adminRole.id]
+  );
+  return row.rowCount > 0;
+};
+
+const wouldRemoveLastOrganizationAdmin = async (organizationId, userId) => {
+  const userIsAdmin = await isUserAdminInOrganization(organizationId, userId);
+  if (!userIsAdmin) return false;
+  const totalAdmins = await countOrganizationAdmins(organizationId);
+  return totalAdmins <= 1;
+};
+
 const createLocalUser = async ({ email, password, name }) => {
   const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
   if (existing.rowCount) {
@@ -475,45 +672,109 @@ const createLocalUser = async ({ email, password, name }) => {
 
   const totalUsers = await pool.query('SELECT COUNT(*) FROM users');
   if (Number(totalUsers.rows[0].count) === 1) {
-    // Premier utilisateur = admin
-    const admin = await pool.query('SELECT id FROM roles WHERE name = $1', ['admin']);
+    const defaultOrgId = await ensureDefaultOrganization(userId);
+    const admin = await getRoleByNameInOrganization(defaultOrgId, 'admin');
     if (admin.rowCount) {
-      await pool.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, admin.rows[0].id]);
-    }
-    // Création automatique de l'app_state pour le premier utilisateur
-    const stateExists = await pool.query('SELECT 1 FROM app_state LIMIT 1');
-    if (stateExists.rowCount === 0) {
-      const initialState = {
-        collections: [],
-        views: {},
-        dashboards: [],
-        dashboardSort: 'created',
-        dashboardFilters: {},
-        favorites: { views: [], items: [] }
-      };
       await pool.query(
-        'INSERT INTO app_state (user_id, data) VALUES ($1, $2)',
-        [userId, JSON.stringify(initialState)]
+        'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        [defaultOrgId, userId, admin.rows[0].id]
       );
     }
   } else {
-    // Utilisateurs suivants = viewer par défaut
-    const viewer = await pool.query('SELECT id FROM roles WHERE name = $1', ['viewer']);
-    if (viewer.rowCount) {
-      await pool.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, viewer.rows[0].id]);
+    const defaultOrg = await pool.query('SELECT id FROM organizations ORDER BY created_at ASC, id ASC LIMIT 1');
+    if (defaultOrg.rowCount) {
+      const defaultOrgId = defaultOrg.rows[0].id;
+      await ensureSystemRolesForOrganization(defaultOrgId);
+      await pool.query(
+        'INSERT INTO organization_members (organization_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [defaultOrgId, userId]
+      );
+      const viewer = await getRoleByNameInOrganization(defaultOrgId, 'viewer');
+      if (viewer.rowCount) {
+        await pool.query(
+          'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+          [defaultOrgId, userId, viewer.rows[0].id]
+        );
+      }
+    } else {
+      const defaultOrgId = await ensureDefaultOrganization(userId);
+      const viewer = await getRoleByNameInOrganization(defaultOrgId, 'viewer');
+      if (viewer.rowCount) {
+        await pool.query(
+          'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+          [defaultOrgId, userId, viewer.rows[0].id]
+        );
+      }
     }
   }
 
   return userId;
 };
 
+const getUserOrganizations = async (userId) => {
+  const orgsRes = await pool.query(
+    `SELECT o.id, o.name, o.created_at, o.owner_user_id
+     FROM organizations o
+     INNER JOIN organization_members om ON om.organization_id = o.id
+     WHERE om.user_id = $1
+     ORDER BY o.created_at ASC, o.name ASC`,
+    [userId]
+  );
+  return orgsRes.rows;
+};
+
+const resolveActiveOrganization = async (userId, requestedOrganizationId = null) => {
+  const organizations = await getUserOrganizations(userId);
+  if (!organizations.length) {
+    const fallbackOrgId = await ensureDefaultOrganization(userId);
+    const fallbackOrgs = await getUserOrganizations(userId);
+    return {
+      organizations: fallbackOrgs,
+      activeOrganization: fallbackOrgs.find((org) => org.id === fallbackOrgId) || fallbackOrgs[0] || null,
+    };
+  }
+
+  if (requestedOrganizationId) {
+    const requested = organizations.find((org) => org.id === requestedOrganizationId);
+    if (requested) {
+      return { organizations, activeOrganization: requested };
+    }
+  }
+
+  return { organizations, activeOrganization: organizations[0] };
+};
+
 // --- Middleware ---------------------------------------------------------
-const loadUserContext = async (userId, impersonateRoleId = null) => {
+const loadUserContext = async (userId, impersonateRoleId = null, requestedOrganizationId = null) => {
   const userRes = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [userId]);
   if (!userRes.rowCount) return null;
+
+  const orgContext = await resolveActiveOrganization(userId, requestedOrganizationId);
+  const activeOrganizationId = orgContext.activeOrganization?.id || null;
+  if (activeOrganizationId) {
+    await ensureAppStateForOrganization(activeOrganizationId);
+    await ensureSystemRolesForOrganization(activeOrganizationId);
+  }
+
+  if (!activeOrganizationId) {
+    return {
+      user: userRes.rows[0],
+      roles: [],
+      permissions: [],
+      impersonatedRoleId: null,
+      organizations: orgContext.organizations,
+      activeOrganization: null,
+    };
+  }
+
   const rolesRes = await pool.query(
-    'SELECT r.* FROM roles r JOIN user_roles ur ON ur.role_id = r.id WHERE ur.user_id = $1',
-    [userId]
+    `SELECT r.*
+     FROM roles r
+     JOIN user_roles ur ON ur.role_id = r.id
+     WHERE ur.user_id = $1
+       AND ur.organization_id = $2
+       AND r.organization_id = $2`,
+    [userId, activeOrganizationId]
   );
 
   // If impersonation is requested, restrict to that role for permissions/roles
@@ -521,16 +782,20 @@ const loadUserContext = async (userId, impersonateRoleId = null) => {
     ? [impersonateRoleId]
     : rolesRes.rows.map((r) => r.id);
 
-  const permsRes = await pool.query(
-    'SELECT * FROM permissions WHERE role_id = ANY($1)',
-    [roleIds]
-  );
+  const permsRes = roleIds.length
+    ? await pool.query(
+      'SELECT * FROM permissions WHERE organization_id = $1 AND role_id = ANY($2)',
+      [activeOrganizationId, roleIds]
+    )
+    : { rows: [] };
 
   return {
     user: userRes.rows[0],
     roles: impersonateRoleId ? rolesRes.rows.filter((r) => r.id === impersonateRoleId) : rolesRes.rows,
     permissions: permsRes.rows,
     impersonatedRoleId: impersonateRoleId,
+    organizations: orgContext.organizations,
+    activeOrganization: orgContext.activeOrganization,
   };
 };
 
@@ -546,7 +811,13 @@ const requireAuth = async (req, res, next) => {
     } catch (e) {
       return res.status(401).json({ error: 'Invalid token' });
     }
-    const baseCtx = await loadUserContext(decoded.sub);
+    const rawOrganizationId = req.headers['x-organization-id'] || req.cookies.active_organization_id || null;
+    const requestedOrganizationId = Array.isArray(rawOrganizationId)
+      ? rawOrganizationId[0]
+      : rawOrganizationId
+        ? String(rawOrganizationId)
+        : null;
+    const baseCtx = await loadUserContext(decoded.sub, null, requestedOrganizationId);
     if (!baseCtx) return res.status(401).json({ error: 'Invalid user' });
 
     const isAdmin = baseCtx.roles.some((r) => r.name === 'admin');
@@ -554,12 +825,15 @@ const requireAuth = async (req, res, next) => {
 
     if (impersonateRoleId && isAdmin) {
       // Vérifier que le rôle existe toujours
-      const roleCheck = await pool.query('SELECT id FROM roles WHERE id = $1', [impersonateRoleId]);
+      const roleCheck = await pool.query(
+        'SELECT id FROM roles WHERE id = $1 AND organization_id = $2',
+        [impersonateRoleId, baseCtx.activeOrganization?.id || null]
+      );
       if (roleCheck.rows.length === 0) {
         req.auth = { ...baseCtx, baseRoles: baseCtx.roles, baseIsAdmin: isAdmin };
         return next();
       }
-      const impCtx = await loadUserContext(decoded.sub, impersonateRoleId);
+      const impCtx = await loadUserContext(decoded.sub, impersonateRoleId, requestedOrganizationId);
       req.auth = {
         ...(impCtx || baseCtx),
         baseRoles: baseCtx.roles,
@@ -893,12 +1167,22 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.get('/api/auth/me', requireAuth, async (req, res) => {
+  if (req.auth.activeOrganization?.id) {
+    res.cookie('active_organization_id', req.auth.activeOrganization.id, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+  }
   res.json({
     user: req.auth.user,
     roles: req.auth.roles,
     baseRoles: req.auth.baseRoles || req.auth.roles,
     permissions: req.auth.permissions || [],
     impersonatedRoleId: req.auth.impersonatedRoleId || null,
+    organizations: req.auth.organizations || [],
+    activeOrganizationId: req.auth.activeOrganization?.id || null,
   });
 });
 
@@ -914,7 +1198,10 @@ app.post('/api/auth/impersonate', requireAuth, async (req, res) => {
     return res.json({ ok: true, impersonatedRoleId: null });
   }
 
-  const roleRes = await pool.query('SELECT id FROM roles WHERE id = $1', [roleId]);
+  const roleRes = await pool.query(
+    'SELECT id FROM roles WHERE id = $1 AND organization_id = $2',
+    [roleId, req.auth.activeOrganization?.id || null]
+  );
   if (!roleRes.rowCount) return res.status(404).json({ error: 'role not found' });
 
   res.cookie('impersonate_role_id', roleId, {
@@ -927,19 +1214,171 @@ app.post('/api/auth/impersonate', requireAuth, async (req, res) => {
   return res.json({ ok: true, impersonatedRoleId: roleId });
 });
 
+app.get('/api/organizations', requireAuth, async (req, res) => {
+  const organizations = req.auth.organizations || [];
+  return res.json({ organizations, activeOrganizationId: req.auth.activeOrganization?.id || null });
+});
+
+app.post('/api/organizations', requireAuth, async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'name required' });
+
+    const orgId = uuidv4();
+    await pool.query(
+      'INSERT INTO organizations (id, name, owner_user_id) VALUES ($1, $2, $3)',
+      [orgId, name, req.auth.user.id]
+    );
+    await pool.query(
+      'INSERT INTO organization_members (organization_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [orgId, req.auth.user.id]
+    );
+    await ensureSystemRolesForOrganization(orgId);
+    const adminRole = await getRoleByNameInOrganization(orgId, 'admin');
+    if (adminRole.rowCount) {
+      await pool.query(
+        'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        [orgId, req.auth.user.id, adminRole.rows[0].id]
+      );
+    }
+    await ensureAppStateForOrganization(orgId);
+    await logAudit(req.auth?.user?.id, 'organization.create', 'organization', orgId, { name });
+
+    res.cookie('active_organization_id', orgId, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    const organizations = await getUserOrganizations(req.auth.user.id);
+    return res.status(201).json({
+      ok: true,
+      organization: organizations.find((o) => o.id === orgId) || null,
+      organizations,
+      activeOrganizationId: orgId,
+    });
+  } catch (err) {
+    console.error('Create organization failed', err);
+    return res.status(500).json({ error: 'Create organization failed' });
+  }
+});
+
+app.post('/api/organizations/switch', requireAuth, async (req, res) => {
+  const organizationId = String(req.body?.organizationId || '').trim();
+  if (!organizationId) return res.status(400).json({ error: 'organizationId required' });
+
+  const allowed = (req.auth.organizations || []).some((org) => org.id === organizationId);
+  if (!allowed) return res.status(403).json({ error: 'Forbidden' });
+
+  res.cookie('active_organization_id', organizationId, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+  res.clearCookie('impersonate_role_id');
+
+  return res.json({ ok: true, activeOrganizationId: organizationId });
+});
+
 app.post('/api/auth/logout', (_req, res) => {
   clearAuthCookie(res);
   res.clearCookie('impersonate_role_id');
+  res.clearCookie('active_organization_id');
   res.json({ ok: true });
 });
 
 // --- Users / Roles / Permissions ---------------------------------------
-app.get('/api/users', requireAuth, requireBaseAdminOrPermission('can_manage_permissions'), async (_req, res) => {
-  const users = await pool.query(
-    `SELECT u.id, u.email, u.name, u.provider, COALESCE(json_agg(ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL), '[]') as role_ids
+app.get('/api/organization/members', requireAuth, requireBaseAdminOrPermission('can_manage_permissions'), async (req, res) => {
+  const organizationId = req.auth.activeOrganization?.id;
+  if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+
+  const members = await pool.query(
+    `SELECT u.id, u.email, u.name, u.provider,
+            COALESCE(json_agg(ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL), '[]') as role_ids
+     FROM organization_members om
+     INNER JOIN users u ON u.id = om.user_id
+     LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.organization_id = om.organization_id
+     WHERE om.organization_id = $1
+     GROUP BY u.id
+     ORDER BY u.email ASC`,
+    [organizationId]
+  );
+
+  return res.json(members.rows);
+});
+
+app.get('/api/organization/member-candidates', requireAuth, requireBaseAdminOrPermission('can_manage_permissions'), async (req, res) => {
+  const organizationId = req.auth.activeOrganization?.id;
+  if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+
+  const candidates = await pool.query(
+    `SELECT u.id, u.email, u.name, u.provider
      FROM users u
-     LEFT JOIN user_roles ur ON ur.user_id = u.id
-     GROUP BY u.id`
+     WHERE NOT EXISTS (
+       SELECT 1
+       FROM organization_members om
+       WHERE om.organization_id = $1
+         AND om.user_id = u.id
+     )
+     ORDER BY u.email ASC`,
+    [organizationId]
+  );
+
+  return res.json(candidates.rows);
+});
+
+app.post('/api/organization/members', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
+  const organizationId = req.auth.activeOrganization?.id;
+  if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+
+  const userId = String(req.body?.userId || '').trim();
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+
+  const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
+  if (!userCheck.rowCount) return res.status(404).json({ error: 'user not found' });
+
+  await pool.query(
+    'INSERT INTO organization_members (organization_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+    [organizationId, userId]
+  );
+  await logAudit(req.auth?.user?.id, 'organization_members.add', 'organization', organizationId, { userId });
+  return res.json({ ok: true });
+});
+
+app.delete('/api/organization/members/:userId', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
+  const organizationId = req.auth.activeOrganization?.id;
+  if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+
+  const userId = String(req.params.userId || '').trim();
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  if (req.auth?.user?.id === userId) return res.status(400).json({ error: 'cannot remove own membership' });
+
+  const removingLastAdmin = await wouldRemoveLastOrganizationAdmin(organizationId, userId);
+  if (removingLastAdmin) {
+    return res.status(400).json({ error: 'cannot remove last admin from organization' });
+  }
+
+  await pool.query('DELETE FROM user_roles WHERE organization_id = $1 AND user_id = $2', [organizationId, userId]);
+  const del = await pool.query('DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2', [organizationId, userId]);
+  if (!del.rowCount) return res.status(404).json({ error: 'member not found' });
+
+  await logAudit(req.auth?.user?.id, 'organization_members.remove', 'organization', organizationId, { userId });
+  return res.json({ ok: true });
+});
+
+app.get('/api/users', requireAuth, requireBaseAdminOrPermission('can_manage_permissions'), async (_req, res) => {
+  const organizationId = _req.auth.activeOrganization?.id;
+  if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+  const users = await pool.query(
+    `SELECT u.id, u.email, u.name, u.provider,
+            COALESCE(json_agg(ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL), '[]') as role_ids
+     FROM users u
+     INNER JOIN organization_members om ON om.user_id = u.id AND om.organization_id = $1
+     LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.organization_id = $1
+     GROUP BY u.id`,
+    [organizationId]
   );
   res.json(users.rows);
 });
@@ -971,9 +1410,17 @@ app.patch('/api/users/:id/password', requireAuth, requirePermission('can_manage_
 
 app.delete('/api/users/:id', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
   try {
+    const organizationId = req.auth.activeOrganization?.id;
+    if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+
     const userId = req.params.id;
     if (req.auth?.user?.id === userId) {
       return res.status(400).json({ error: 'cannot delete own account' });
+    }
+
+    const deletingLastAdmin = await wouldRemoveLastOrganizationAdmin(organizationId, userId);
+    if (deletingLastAdmin) {
+      return res.status(400).json({ error: 'cannot delete last admin from organization' });
     }
 
     const userRes = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
@@ -990,41 +1437,80 @@ app.delete('/api/users/:id', requireAuth, requirePermission('can_manage_permissi
 });
 
 app.get('/api/roles', requireAuth, requireBaseAdminOrPermission('can_manage_permissions'), async (_req, res) => {
-  const roles = await pool.query('SELECT * FROM roles');
+  const organizationId = _req.auth.activeOrganization?.id;
+  if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+  const roles = await pool.query('SELECT * FROM roles WHERE organization_id = $1', [organizationId]);
   res.json(roles.rows);
 });
 
 app.post('/api/roles', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
+  const organizationId = req.auth.activeOrganization?.id;
+  if (!organizationId) return res.status(400).json({ error: 'No active organization' });
   const { name, description } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const roleId = uuidv4();
-  await pool.query('INSERT INTO roles (id, name, description, is_system) VALUES ($1, $2, $3, false)', [roleId, name, description || null]);
+  await pool.query(
+    'INSERT INTO roles (id, organization_id, name, description, is_system) VALUES ($1, $2, $3, $4, false)',
+    [roleId, organizationId, name, description || null]
+  );
   await logAudit(req.auth?.user?.id, 'role.create', 'role', roleId, { name });
   res.json({ ok: true, id: roleId });
 });
 
 app.post('/api/user_roles', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
+  const organizationId = req.auth.activeOrganization?.id;
+  if (!organizationId) return res.status(400).json({ error: 'No active organization' });
   const { userId, roleId, action } = req.body;
   if (!userId || !roleId) return res.status(400).json({ error: 'userId and roleId required' });
+
+  const roleCheck = await pool.query('SELECT id FROM roles WHERE id = $1 AND organization_id = $2', [roleId, organizationId]);
+  if (!roleCheck.rowCount) return res.status(404).json({ error: 'role not found in active organization' });
+
   if (action === 'remove') {
-    await pool.query('DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2', [userId, roleId]);
+    const adminRole = await getAdminRoleForOrganization(organizationId);
+    if (adminRole?.id === roleId) {
+      const targetHasAdminRole = await pool.query(
+        'SELECT 1 FROM user_roles WHERE organization_id = $1 AND user_id = $2 AND role_id = $3 LIMIT 1',
+        [organizationId, userId, roleId]
+      );
+      if (targetHasAdminRole.rowCount) {
+        const adminCount = await countOrganizationAdmins(organizationId);
+        if (adminCount <= 1) {
+          return res.status(400).json({ error: 'cannot remove last admin from organization' });
+        }
+      }
+    }
+    await pool.query('DELETE FROM user_roles WHERE organization_id = $1 AND user_id = $2 AND role_id = $3', [organizationId, userId, roleId]);
     await logAudit(req.auth?.user?.id, 'user_roles.remove', 'user', userId, { roleId });
   } else {
-    await pool.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, roleId]);
+    await pool.query(
+      'INSERT INTO organization_members (organization_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [organizationId, userId]
+    );
+    await pool.query(
+      'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+      [organizationId, userId, roleId]
+    );
     await logAudit(req.auth?.user?.id, 'user_roles.add', 'user', userId, { roleId });
   }
   res.json({ ok: true });
 });
 
 app.get('/api/permissions', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
-  const perms = await pool.query('SELECT * FROM permissions');
+  const organizationId = _req.auth.activeOrganization?.id;
+  if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+  const perms = await pool.query('SELECT * FROM permissions WHERE organization_id = $1', [organizationId]);
   res.json(perms.rows);
 });
 
 app.post('/api/permissions', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
+  const organizationId = req.auth.activeOrganization?.id;
+  if (!organizationId) return res.status(400).json({ error: 'No active organization' });
   const perm = req.body || {};
   if (!perm.role_id) return res.status(400).json({ error: 'role_id required' });
-  const result = await upsertPermission(perm);
+  const roleCheck = await pool.query('SELECT id FROM roles WHERE id = $1 AND organization_id = $2', [perm.role_id, organizationId]);
+  if (!roleCheck.rowCount) return res.status(404).json({ error: 'role not found in active organization' });
+  const result = await upsertPermission({ ...perm, organization_id: organizationId });
   await logAudit(req.auth?.user?.id, 'permission.upsert', 'permission', perm.role_id, perm);
   res.json(result);
 });
@@ -1115,10 +1601,12 @@ app.get('/api/appstate', requireAuth, async (req, res) => {
   try {
     const users = (await pool.query('SELECT * FROM users ORDER BY id ASC')).rows;
     const app_state = (await pool.query('SELECT * FROM app_state ORDER BY id ASC')).rows;
+    const organizations = (await pool.query('SELECT * FROM organizations ORDER BY created_at ASC, id ASC')).rows;
+    const organization_members = (await pool.query('SELECT * FROM organization_members ORDER BY organization_id, user_id ASC')).rows;
     const roles = (await pool.query('SELECT * FROM roles ORDER BY id ASC')).rows;
     const permissions = (await pool.query('SELECT * FROM permissions ORDER BY id ASC')).rows;
     const user_roles = (await pool.query('SELECT * FROM user_roles ORDER BY user_id, role_id ASC')).rows;
-    res.json({ users, app_state, roles, permissions, user_roles });
+    res.json({ users, app_state, organizations, organization_members, roles, permissions, user_roles });
   } catch (err) {
     console.error('Failed to export global state', err);
     res.status(500).json({ error: 'Failed to export global state' });
@@ -1130,13 +1618,15 @@ app.post('/api/appstate', requireAuth, async (req, res) => {
   const isAdmin = req.auth.roles.some((r) => r.name === 'admin');
   if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
   try {
-    const { users, app_state, roles, permissions, user_roles } = req.body || {};
+    const { users, app_state, organizations, organization_members, roles, permissions, user_roles } = req.body || {};
     if (!Array.isArray(users) || !Array.isArray(app_state) || !Array.isArray(roles) || !Array.isArray(permissions) || !Array.isArray(user_roles)) {
       return res.status(400).json({ error: 'Invalid import format' });
     }
     // Désactiver les contraintes FK temporairement
     await pool.query('SET session_replication_role = replica;');
     // Vider toutes les tables dans l'ordre inverse des dépendances
+    await pool.query('DELETE FROM organization_members');
+    await pool.query('DELETE FROM organizations');
     await pool.query('DELETE FROM user_roles');
     await pool.query('DELETE FROM permissions');
     await pool.query('DELETE FROM roles');
@@ -1149,28 +1639,44 @@ app.post('/api/appstate', requireAuth, async (req, res) => {
         [user.id, user.email, user.name, user.provider, user.provider_id, user.password_hash, user.created_at, user.favorite_views || [], user.favorite_items || []]
       );
     }
+    if (Array.isArray(organizations)) {
+      for (const org of organizations) {
+        await pool.query(
+          'INSERT INTO organizations (id, name, owner_user_id, created_at) VALUES ($1,$2,$3,$4)',
+          [org.id, org.name, org.owner_user_id || null, org.created_at || new Date().toISOString()]
+        );
+      }
+    }
+    if (Array.isArray(organization_members)) {
+      for (const member of organization_members) {
+        await pool.query(
+          'INSERT INTO organization_members (organization_id, user_id) VALUES ($1, $2)',
+          [member.organization_id, member.user_id]
+        );
+      }
+    }
     for (const role of roles) {
       await pool.query(
-        'INSERT INTO roles (id, name, description, is_system) VALUES ($1,$2,$3,$4)',
-        [role.id, role.name, role.description, role.is_system]
+        'INSERT INTO roles (id, organization_id, name, description, is_system) VALUES ($1,$2,$3,$4,$5)',
+        [role.id, role.organization_id || null, role.name, role.description, role.is_system]
       );
     }
     for (const perm of permissions) {
       await pool.query(
-        'INSERT INTO permissions (id, role_id, collection_id, item_id, field_id, can_read, can_write, can_delete, can_manage_fields, can_manage_views, can_manage_permissions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
-        [perm.id, perm.role_id, perm.collection_id, perm.item_id, perm.field_id, perm.can_read, perm.can_write, perm.can_delete, perm.can_manage_fields, perm.can_manage_views, perm.can_manage_permissions]
+        'INSERT INTO permissions (id, organization_id, role_id, collection_id, item_id, field_id, can_read, can_write, can_delete, can_manage_fields, can_manage_views, can_manage_permissions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+        [perm.id, perm.organization_id || null, perm.role_id, perm.collection_id, perm.item_id, perm.field_id, perm.can_read, perm.can_write, perm.can_delete, perm.can_manage_fields, perm.can_manage_views, perm.can_manage_permissions]
       );
     }
     for (const row of app_state) {
       await pool.query(
-        'INSERT INTO app_state (id, user_id, data) VALUES ($1, $2, $3)',
-        [row.id, row.user_id, row.data]
+        'INSERT INTO app_state (id, user_id, organization_id, data) VALUES ($1, $2, $3, $4)',
+        [row.id, row.user_id || null, row.organization_id || null, row.data]
       );
     }
     for (const ur of user_roles) {
       await pool.query(
-        'INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)',
-        [ur.user_id, ur.role_id]
+        'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3)',
+        [ur.organization_id || null, ur.user_id, ur.role_id]
       );
     }
     // Réactiver les contraintes FK
@@ -1220,18 +1726,16 @@ const filterStateForUser = (data, ctx) => {
 
 app.get('/api/state', requireAuth, async (req, res) => {
   try {
-    const userId = req.auth.user.id;
-    // Récupérer l'état utilisateur (collections, views, etc.)
-    const userStateResult = await pool.query('SELECT data FROM app_state LIMIT 1');
-    const userData = userStateResult.rows.length > 0 ? JSON.parse(userStateResult.rows[0].data) : {};
-    // Récupérer les favoris de l'utilisateur
-    const userResult = await pool.query('SELECT favorite_views, favorite_items FROM users WHERE id = $1', [userId]);
-    const favorites = userResult.rows.length > 0 ? {
-      views: userResult.rows[0].favorite_views || [],
-      items: userResult.rows[0].favorite_items || []
-    } : { views: [], items: [] };
-    // Combiner l'état utilisateur et les favoris
-    const state = { ...userData, favorites };
+    const organizationId = req.auth.activeOrganization?.id;
+    if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+
+    const userStateResult = await pool.query('SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
+    const rawState = userStateResult.rows.length > 0 ? JSON.parse(userStateResult.rows[0].data) : INITIAL_APP_STATE;
+    const state = {
+      ...INITIAL_APP_STATE,
+      ...rawState,
+      favorites: rawState?.favorites || { views: [], items: [] }
+    };
     const filtered = filterStateForUser(state, req.auth);
     return res.json(filtered);
   } catch (err) {
@@ -1244,11 +1748,13 @@ app.post('/api/state', requireAuth, async (req, res) => {
   try {
     const payload = req.body ?? {};
     const userId = req.auth.user.id;
-    // Séparer les favoris du reste de l'état
-    const { favorites, ...stateData } = payload;
+    const organizationId = req.auth.activeOrganization?.id;
+    if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+
+    const { ...stateData } = payload;
     const collections = stateData.collections || [];
 
-    const prevStateResult = await pool.query('SELECT data FROM app_state LIMIT 1');
+    const prevStateResult = await pool.query('SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
     const prevState = prevStateResult.rows.length > 0 ? JSON.parse(prevStateResult.rows[0].data) : {};
     const prevCollections = Array.isArray(prevState.collections) ? prevState.collections : [];
     const prevCollectionsById = new Map(prevCollections.map((col) => [col.id, col]));
@@ -1288,29 +1794,30 @@ app.post('/api/state', requireAuth, async (req, res) => {
       }
     }
     
-    // Sauvegarder l'état utilisateur (avec segments recalculés) dans app_state
-    const stateDataWithSegments = { ...stateData, collections: processedCollections };
+    const nextFavorites = stateData.favorites || { views: [], items: [] };
+    const stateDataWithSegments = {
+      ...INITIAL_APP_STATE,
+      ...stateData,
+      collections: processedCollections,
+      favorites: {
+        views: Array.isArray(nextFavorites.views) ? nextFavorites.views : [],
+        items: Array.isArray(nextFavorites.items) ? nextFavorites.items : [],
+      },
+    };
     const stateStr = JSON.stringify(stateDataWithSegments);
     
     // Upsert : si la ligne existe, update, sinon insert
-    const updateRes = await pool.query('UPDATE app_state SET data = $1', [stateStr]);
+    const updateRes = await pool.query('UPDATE app_state SET data = $1 WHERE organization_id = $2', [stateStr, organizationId]);
     if (updateRes.rowCount === 0) {
-      await pool.query('INSERT INTO app_state (data) VALUES ($1)', [stateStr]);
+      await pool.query('INSERT INTO app_state (organization_id, data) VALUES ($1, $2)', [organizationId, stateStr]);
     }
-    
-    // Sauvegarder les favoris de l'utilisateur
-    const favoriteViews = favorites?.views || [];
-    const favoriteItems = favorites?.items || [];
-    await pool.query(
-      'UPDATE users SET favorite_views = $1, favorite_items = $2 WHERE id = $3',
-      [favoriteViews, favoriteItems, userId]
-    );
-    await logAudit(userId, 'state.save', 'app_state', userId, { collections: processedCollections.length });
+
+    await logAudit(userId, 'state.save', 'organization', organizationId, { collections: processedCollections.length });
     
     // Émettre l'événement socket.io pour le hot reload, avec l'id de l'utilisateur auteur
     if (global.io) {
       // console.log('[SOCKET] Emission de stateUpdated à tous les clients (userId: ' + userId + ')');
-      global.io.emit('stateUpdated', { userId });
+      global.io.emit('stateUpdated', { userId, organizationId });
     }
     
     return res.json({ ok: true });

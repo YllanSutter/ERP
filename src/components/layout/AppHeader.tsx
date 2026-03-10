@@ -9,20 +9,28 @@ import { io } from 'socket.io-client';
 interface AppHeaderProps {
   impersonatedRoleId: string | null;
   availableRoles: any[];
+  organizations: any[];
+  activeOrganizationId: string | null;
   activeCollectionName?: string | null;
   theme: 'light' | 'dark';
   setTheme: React.Dispatch<React.SetStateAction<'light' | 'dark'>>;
   onNewCollection: () => void;
   onImpersonate: (roleId: string | null) => void;
+  onSwitchOrganization: (organizationId: string) => Promise<void>;
+  onCreateOrganization: (name: string) => Promise<void>;
   onShowAccessManager: () => void;
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({
   impersonatedRoleId,
   availableRoles,
+  organizations,
+  activeOrganizationId,
   activeCollectionName,
   onNewCollection,
   onImpersonate,
+  onSwitchOrganization,
+  onCreateOrganization,
   theme,
   setTheme,
   onShowAccessManager
@@ -106,6 +114,44 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         </ShinyButton>
       </div>
       <div className="flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-2 text-xs text-neutral-400">
+          <span className="text-neutral-500">Orga :</span>
+          <select
+            className="bg-background dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs text-neutral-700 dark:text-white max-w-[180px]"
+            value={activeOrganizationId || ''}
+            onChange={async (e) => {
+              const val = e.target.value;
+              if (!val || val === activeOrganizationId) return;
+              try {
+                await onSwitchOrganization(val);
+              } catch (err: any) {
+                alert(err?.message || 'Impossible de changer d’organisation');
+              }
+            }}
+          >
+            {organizations.map((org) => (
+              <option key={org.id} value={org.id}>
+                {org.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="h-7 px-2 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-neutral-600 dark:text-neutral-300"
+            onClick={async () => {
+              const name = window.prompt('Nom de la nouvelle organisation ?')?.trim();
+              if (!name) return;
+              try {
+                await onCreateOrganization(name);
+              } catch (err: any) {
+                alert(err?.message || 'Impossible de créer l’organisation');
+              }
+            }}
+            title="Créer une organisation"
+          >
+            +
+          </button>
+        </div>
         {/* Affiche tous les utilisateurs connectés avec couleur et uppercase */}
         {connectedUsers.map((u: any) => (
           <div

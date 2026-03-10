@@ -29,10 +29,14 @@ const AccessManager = ({
   onImportCollections?: (collections: any[]) => void;
   onUpdateDashboards?: (dashboards: any[]) => void;
 }) => {
-  const { isAdminBase: isAdmin, refresh: refreshAuth, user } = useAuth();
+  const { isAdminBase: isAdmin, refresh: refreshAuth, user, organizations, activeOrganizationId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
+  const [memberCandidates, setMemberCandidates] = useState<any[]>([]);
+  const [selectedCandidateId, setSelectedCandidateId] = useState('');
+  const [membersBusy, setMembersBusy] = useState(false);
   const [permissions, setPermissions] = useState<any[]>([]);
   const [audit, setAudit] = useState<any[]>([]);
   const [backups, setBackups] = useState<any[]>([]);
@@ -50,19 +54,25 @@ const AccessManager = ({
   const loadAll = async () => {
     try {
       setLoading(true);
-      const [rRes, uRes, pRes, aRes] = await Promise.all([
+      const [rRes, uRes, mRes, cRes, pRes, aRes] = await Promise.all([
         fetch(`${API_URL}/roles`, { credentials: 'include' }),
         fetch(`${API_URL}/users`, { credentials: 'include' }),
+        fetch(`${API_URL}/organization/members`, { credentials: 'include' }),
+        fetch(`${API_URL}/organization/member-candidates`, { credentials: 'include' }),
         fetch(`${API_URL}/permissions`, { credentials: 'include' }),
         fetch(`${API_URL}/audit`, { credentials: 'include' }),
       ]);
-      if (!rRes.ok || !uRes.ok || !pRes.ok || !aRes.ok) throw new Error('Erreur de chargement');
+      if (!rRes.ok || !uRes.ok || !mRes.ok || !cRes.ok || !pRes.ok || !aRes.ok) throw new Error('Erreur de chargement');
       const rolesData = await rRes.json();
       const usersData = await uRes.json();
+      const membersData = await mRes.json();
+      const candidatesData = await cRes.json();
       const permsData = await pRes.json();
       const auditData = await aRes.json();
       setRoles(rolesData);
       setUsers(usersData);
+      setMembers(Array.isArray(membersData) ? membersData : []);
+      setMemberCandidates(Array.isArray(candidatesData) ? candidatesData : []);
       setPermissions(permsData);
       setAudit(auditData);
       try {
@@ -79,6 +89,49 @@ const AccessManager = ({
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const addMember = async () => {
+    if (!selectedCandidateId) return;
+    setMembersBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/organization/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId: selectedCandidateId }),
+      });
+      if (!res.ok) throw new Error('Add member failed');
+      setSelectedCandidateId('');
+      await loadAll();
+    } catch (err) {
+      console.error(err);
+      alert('Impossible d’ajouter ce membre à l’organisation.');
+    } finally {
+      setMembersBusy(false);
+    }
+  };
+
+  const removeMember = async (userId: string, email: string) => {
+    const ok = confirm(`Retirer ${email} de l'organisation active ?`);
+    if (!ok) return;
+    setMembersBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/organization/members/${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || 'Remove member failed');
+      }
+      await loadAll();
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || 'Impossible de retirer ce membre.');
+    } finally {
+      setMembersBusy(false);
     }
   };
 
@@ -413,7 +466,10 @@ const AccessManager = ({
         credentials: 'include',
         body: JSON.stringify({ userId, roleId, action }),
       });
-      if (!res.ok) throw new Error('Assign failed');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || 'Assign failed');
+      }
       await loadAll();
 
       // Refresh current user's auth if their assignment was modified
@@ -422,6 +478,7 @@ const AccessManager = ({
       }
     } catch (err) {
       console.error(err);
+      alert(err instanceof Error ? err.message : 'Impossible de modifier ce rôle.');
     } finally {
       setBusy(false);
     }
@@ -480,11 +537,14 @@ const AccessManager = ({
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error('Delete user failed');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || 'Delete user failed');
+      }
       await loadAll();
     } catch (err) {
       console.error(err);
-      alert('Impossible de supprimer le compte.');
+      alert(err instanceof Error ? err.message : 'Impossible de supprimer le compte.');
     } finally {
       setBusy(false);
     }
@@ -770,6 +830,61 @@ const AccessManager = ({
                     </motion.div>
                   )}
                 </AnimatePresence>
+              </div>
+
+              <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold">Membres de l’organisation</h4>
+                  <span className="text-xs text-neutral-500">
+                    {organizations.find((o: any) => o.id === activeOrganizationId)?.name || 'Organisation active'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 mb-3">
+                  <select
+                    className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-sm"
+                    value={selectedCandidateId}
+                    onChange={(e) => setSelectedCandidateId(e.target.value)}
+                    disabled={membersBusy}
+                  >
+                    <option value="">Inviter un utilisateur existant…</option>
+                    {memberCandidates.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {candidate.email}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="px-3 py-2 rounded bg-cyan-600 hover:bg-cyan-700 text-white text-xs shadow disabled:opacity-60"
+                    onClick={addMember}
+                    disabled={membersBusy || !selectedCandidateId}
+                  >
+                    Inviter
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-56 overflow-auto">
+                  {members.length === 0 && <p className="text-sm text-neutral-500">Aucun membre.</p>}
+                  {members.map((m) => {
+                    const isSelf = user?.id === m.id;
+                    return (
+                      <div key={m.id} className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3 flex items-center justify-between gap-2">
+                        <div>
+                          <div className="font-medium text-sm">{m.email}</div>
+                          <div className="text-xs text-neutral-500">{m.provider || 'local'}</div>
+                        </div>
+                        <button
+                          className="text-xs px-2 py-1 rounded bg-red-500/10 text-red-600 border border-red-500/20 hover:bg-red-500/20 disabled:opacity-50"
+                          onClick={() => removeMember(m.id, m.email)}
+                          disabled={membersBusy || isSelf}
+                          title={isSelf ? 'Vous ne pouvez pas vous retirer vous-même.' : 'Retirer de l’organisation'}
+                        >
+                          Retirer
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">

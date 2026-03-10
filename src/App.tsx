@@ -92,6 +92,10 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
   const {
     user,
     roles: userRoles,
+    organizations,
+    activeOrganizationId,
+    switchOrganization,
+    createOrganization,
     loading: authLoading,
     login,
     register,
@@ -113,7 +117,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     setActiveView,
     activeDashboard,
     setActiveDashboard
-  } = useErpState();
+  } = useErpState(activeOrganizationId);
   const [isLoaded, setIsLoaded] = useState(false);
 
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
@@ -309,6 +313,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     favorites,
     isLoaded,
     user,
+    organizationId: activeOrganizationId,
     canEdit,
     setCollections,
     setViews,
@@ -321,6 +326,16 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     cleanForSave,
     socket
   });
+
+  useEffect(() => {
+    setIsLoaded(false);
+    setCollections(defaultCollections);
+    setViews(defaultViews);
+    setDashboards(defaultDashboards);
+    setDashboardSort('created');
+    setDashboardFilters({});
+    setFavorites({ views: [], items: [] });
+  }, [activeOrganizationId]);
  useEffect(() => {
     // Hot reload sur événement 'stateUpdated' reçu du serveur
     // Pour éviter les reloads en boucle, on garde l'heure du dernier reload et un flag local
@@ -373,7 +388,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     // Si la vue active existe dans la collection courante, on la garde
     const found = visibleViews.find((v: any) => v.id === activeView);
     if (!found) {
-      const lastViewId = localStorage.getItem(`erp_lastView_${activeCollection}`);
+      const lastViewId = localStorage.getItem(`erp_lastView_${activeOrganizationId || 'default'}_${activeCollection}`);
       const lastViewExists = lastViewId && visibleViews.some((v: any) => v.id === lastViewId);
       setActiveView(lastViewExists ? lastViewId : visibleViews[0].id);
     }
@@ -387,8 +402,8 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
 
   useEffect(() => {
     if (!activeCollection || !activeView) return;
-    localStorage.setItem(`erp_lastView_${activeCollection}`, activeView);
-  }, [activeCollection, activeView]);
+    localStorage.setItem(`erp_lastView_${activeOrganizationId || 'default'}_${activeCollection}`, activeView);
+  }, [activeCollection, activeView, activeOrganizationId]);
 
   const handleNavigateToCollection = (collectionId: string, linkedIds?: string[]) => {
     setActiveDashboard(null);
@@ -541,7 +556,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
             setActiveDashboard(null);
             setActiveCollection(collectionId);
             setActiveView(viewId);
-            localStorage.setItem(`erp_lastView_${collectionId}`, viewId);
+            localStorage.setItem(`erp_lastView_${activeOrganizationId || 'default'}_${collectionId}`, viewId);
             setRelationFilter({ collectionId: null, ids: [] });
           }}
           onSelectItem={(collectionId: string, itemId: string) => {
@@ -569,9 +584,13 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
            <AppHeader
             impersonatedRoleId={impersonatedRoleId}
             availableRoles={availableRoles}
+              organizations={organizations}
+              activeOrganizationId={activeOrganizationId}
             activeCollectionName={currentCollection?.name || null}
             onNewCollection={() => setShowNewCollectionModal(true)}
             onImpersonate={impersonate}
+              onSwitchOrganization={switchOrganization}
+              onCreateOrganization={createOrganization}
             onShowAccessManager={() => setShowAccessManager(true)}
             theme={theme}
             setTheme={setTheme}

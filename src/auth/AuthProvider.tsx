@@ -7,8 +7,12 @@ type AuthContextShape = {
   roles: any[];
   baseRoles: any[];
   permissions: any[];
+  organizations: any[];
+  activeOrganizationId: string | null;
   loading: boolean;
   refresh: () => Promise<void>;
+  switchOrganization: (organizationId: string) => Promise<void>;
+  createOrganization: (name: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -27,6 +31,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [roles, setRoles] = useState<any[]>([]);
   const [baseRoles, setBaseRoles] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any[]>([]);
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [activeOrganizationId, setActiveOrganizationId] = useState<string | null>(null);
   const [impersonatedRoleId, setImpersonatedRoleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -51,6 +57,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setRoles(data.roles || []);
       setBaseRoles(data.baseRoles || data.roles || []);
       setPermissions(data.permissions || []);
+      setOrganizations(data.organizations || []);
+      setActiveOrganizationId(data.activeOrganizationId || null);
       setImpersonatedRoleId(data.impersonatedRoleId || null);
     } catch (err) {
       console.error('Auth refresh failed', err);
@@ -58,6 +66,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setRoles([]);
       setBaseRoles([]);
       setPermissions([]);
+      setOrganizations([]);
+      setActiveOrganizationId(null);
       setImpersonatedRoleId(null);
     } finally {
       setLoading(false);
@@ -79,6 +89,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setRoles([]);
       setBaseRoles([]);
       setPermissions([]);
+      setOrganizations([]);
+      setActiveOrganizationId(null);
       setImpersonatedRoleId(null);
     }
   };
@@ -93,8 +105,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     roles,
     baseRoles,
     permissions,
+    organizations,
+    activeOrganizationId,
     loading,
     refresh,
+    switchOrganization: async (organizationId: string) => {
+      const res = await fetch(`${API_URL}/organizations/switch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ organizationId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Impossible de changer d’organisation');
+      }
+      setActiveOrganizationId(organizationId);
+      await refresh();
+    },
+    createOrganization: async (name: string) => {
+      const res = await fetch(`${API_URL}/organizations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Impossible de créer l’organisation');
+      }
+      await refresh();
+    },
     login: async (email: string, password: string) => {
       setLoading(true);
       try {
