@@ -1499,7 +1499,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     ))}
                   </div>
                 ) : (
-                  <div className="absolute -top-3 left-3 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide z-10">
+                  <div className="absolute top-[30px] left-5 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide z-10">
                     {richTextTabs[0]?.label || 'Tâches'}
                   </div>
                 )}
