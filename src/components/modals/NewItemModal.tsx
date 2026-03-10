@@ -1042,7 +1042,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     }
 
     if (!isReallyEditing && !dataToSave.id) {
-      dataToSave.id = Date.now().toString();
+      dataToSave.id = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     }
 
     try {

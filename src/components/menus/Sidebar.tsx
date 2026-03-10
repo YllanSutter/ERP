@@ -44,6 +44,7 @@ interface SidebarProps {
   onSelectItem: (collectionId: string, itemId: string) => void;
   onSelectDashboard: (dashboardId: string) => void;
   onCreateDashboard: () => void;
+  onCreateCollection: () => void;
   onDeleteDashboard: (dashboardId: string) => void;
   onDuplicateDashboard: (dashboardId: string) => void;
 }
@@ -62,6 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSelectItem,
   onSelectDashboard,
   onCreateDashboard,
+  onCreateCollection,
   onDeleteDashboard,
   onDuplicateDashboard,
 }) => {
@@ -351,7 +353,15 @@ const Sidebar: React.FC<SidebarProps> = ({
             key: 'collections',
             label: 'Collections',
             className: '',
-            headerAction: null,
+            headerAction: (
+              <button
+                onClick={onCreateCollection}
+                className={sharedHeaderActionClass}
+                title="Nouvelle collection"
+              >
+                <Plus size={14} />
+              </button>
+            ),
             rows: visibleCollections.map((col: any) => {
               const IconComponent = (Icons as any)[col.icon] || Icons.Folder;
               return {

@@ -1,3 +1,19 @@
 node_modules
 .env
 .env.local
+
+# Build output
+dist/
+*.js.map
+*.css.map
+
+# Database backups
+backups/
+*.sql
+backup_local.sql
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

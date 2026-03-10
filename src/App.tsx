@@ -576,6 +576,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
             setRelationFilter({ collectionId: null, ids: [] });
           }}
           onCreateDashboard={handleCreateDashboard}
+          onCreateCollection={() => setShowNewCollectionModal(true)}
           onDeleteDashboard={handleDeleteDashboard}
           onDuplicateDashboard={handleDuplicateDashboard}
         />

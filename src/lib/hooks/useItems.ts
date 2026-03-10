@@ -100,28 +100,44 @@ export const useItems = (
   setCollections: (collections: any[]) => void,
   activeCollection: string | null
 ) => {
+  const generateItemId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  };
+
   // Ajout d'un paramètre optionnel collectionId pour cibler la bonne collection
   const saveItem = (item: any, editingItem: any, collectionId?: string) => {
     let newItem = { ...item };
-    // Toujours générer un id unique si absent
-    if (!newItem.id) {
-      newItem.id = Date.now().toString();
-    }
 
     // Détermination de la collection cible
     const targetCollectionId = collectionId || item.__collectionId || activeCollection;
+    const targetCollection = collections.find((col) => col.id === targetCollectionId);
+    const targetItems = targetCollection?.items || [];
+    const isEdition = Boolean(editingItem && editingItem.id);
+
+    // Générer un id robuste si absent
+    if (!newItem.id) {
+      newItem.id = generateItemId();
+    }
+
+    // En création, éviter absolument d'écraser un item existant en cas de collision d'id
+    if (!isEdition && targetItems.some((i: any) => i.id === newItem.id)) {
+      do {
+        newItem.id = generateItemId();
+      } while (targetItems.some((i: any) => i.id === newItem.id));
+    }
+
     let updatedCollections = collections.map((col) => {
       if (col.id === targetCollectionId) {
-        // Si editingItem existe ET possède un id, ou si un item avec le même id existe déjà, on remplace, sinon on ajoute
         const exists = col.items.some((i: any) => i.id === newItem.id);
-        const isEdition = editingItem && editingItem.id;
         if (isEdition || exists) {
           return {
             ...col,
             items: col.items.map((i: any) => (i.id === newItem.id ? newItem : i))
           };
         }
-        // Ajout d'un nouvel item (cas création ou editingItem sans id)
         return { ...col, items: [...col.items, newItem] };
       }
       return col;
