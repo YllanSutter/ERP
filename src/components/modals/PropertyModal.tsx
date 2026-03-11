@@ -8,6 +8,7 @@ import * as Icons from 'lucide-react';
 import { OptionType } from '@/components/inputs/LightSelect';
 import RichTextEditor from '@/components/fields/RichTextEditor';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 import { DATE_GRANULARITIES } from '@/lib/types';
 
 interface PropertyModalProps {
@@ -64,11 +65,23 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const [includeDuration, setIncludeDuration] = useState(property?.includeDuration !== false);
   const [numberPrefix, setNumberPrefix] = useState(property?.numberPrefix || '');
   const [numberSuffix, setNumberSuffix] = useState(property?.numberSuffix || '');
+  const [numberMode, setNumberMode] = useState<'classic' | 'calculated'>(
+    property?.numberMode === 'calculated' || property?.calculation ? 'calculated' : 'classic'
+  );
+  const [calculationOperation, setCalculationOperation] = useState(
+    property?.calculation?.operation || 'add'
+  );
+  const [calculationFieldIds, setCalculationFieldIds] = useState<string[]>(
+    Array.isArray(property?.calculation?.fieldIds) ? property.calculation.fieldIds : []
+  );
 
   const targetCollection = (collections || []).find((c: any) => c.id === relationTarget);
   const filterProp = targetCollection?.properties?.find((p: any) => p.id === relationFilterField);
   const currentCollection = (collections || []).find((c: any) => c.id === currentCollectionId);
   const templateSourceOptions = (currentCollection?.properties || []).filter((p: any) => p.id !== property?.id);
+  const availableNumberFields = (currentCollection?.properties || []).filter(
+    (p: any) => p.type === 'number' && p.id !== property?.id
+  );
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -104,9 +117,24 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
     if (type === 'number') {
       savedProperty.numberPrefix = numberPrefix;
       savedProperty.numberSuffix = numberSuffix;
+      savedProperty.numberMode = numberMode;
+      if (numberMode === 'calculated') {
+        if (!calculationFieldIds.length) {
+          alert('Choisissez au moins une colonne source pour le calcul.');
+          return;
+        }
+        savedProperty.calculation = {
+          operation: calculationOperation,
+          fieldIds: calculationFieldIds,
+        };
+      } else {
+        delete savedProperty.calculation;
+      }
     } else {
       delete savedProperty.numberPrefix;
       delete savedProperty.numberSuffix;
+      delete savedProperty.numberMode;
+      delete savedProperty.calculation;
     }
 
     if (type === 'relation') {
@@ -524,6 +552,49 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
 
           {type === 'number' && (
             <div className="space-y-4 border-t border-black/10 dark:border-white/10 pt-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Mode du champ nombre</label>
+                <select
+                  value={numberMode}
+                  onChange={(e) => setNumberMode(e.target.value as 'classic' | 'calculated')}
+                  className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+                >
+                  <option value="classic">Classique (saisie manuelle)</option>
+                  <option value="calculated">Calculé (formule)</option>
+                </select>
+              </div>
+
+              {numberMode === 'calculated' && (
+                <div className="space-y-3 rounded-lg border border-black/10 dark:border-white/10 p-3">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Opération</label>
+                    <select
+                      value={calculationOperation}
+                      onChange={(e) => setCalculationOperation(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+                    >
+                      <option value="add">Addition</option>
+                      <option value="subtract">Soustraction</option>
+                      <option value="multiply">Multiplication</option>
+                      <option value="divide">Division</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Colonnes sources</label>
+                    <LightMultiSelect
+                      options={availableNumberFields.map((p: any) => ({ value: p.id, label: p.name }))}
+                      values={calculationFieldIds}
+                      onChange={setCalculationFieldIds}
+                      placeholder="Sélectionner les colonnes nombres"
+                      maxVisible={3}
+                    />
+                    {availableNumberFields.length === 0 && (
+                      <p className="text-xs text-neutral-500 mt-2">Aucune autre colonne nombre disponible dans cette collection.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Préfixe</label>

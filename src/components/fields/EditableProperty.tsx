@@ -1237,13 +1237,14 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
   // Number
   if (property.type === 'number') {
+    const isCalculated = property.numberMode === 'calculated' || Boolean(property.calculation);
     return (
       <NumberInput
         value={value}
         onChange={onChange}
         sizeClasses={sizeClasses}
         className={className}
-        readOnly={readOnly}
+        readOnly={readOnly || isCalculated}
         prefix={property.numberPrefix}
         suffix={property.numberSuffix}
       />

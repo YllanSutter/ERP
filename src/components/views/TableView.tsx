@@ -10,6 +10,7 @@ import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { countItemsInGroup, getGroupLabel } from '@/lib/groupingUtils';
+import { isCalculatedNumberProperty } from '@/lib/calculatedFields';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -144,6 +145,9 @@ const TableView: React.FC<TableViewProps> = ({
   const canEdit = useCanEdit(collection?.id);
   const { isAdmin, isEditor, permissions } = useAuth();
   const canEditFieldFn = useCallback((fieldId: string) => {
+    const property = (collection?.properties || []).find((p: any) => p.id === fieldId);
+    if (isCalculatedNumberProperty(property)) return false;
+
     if (isAdmin || isEditor) return true;
     const perms = permissions || [];
     if (fieldId) {
@@ -170,7 +174,7 @@ const TableView: React.FC<TableViewProps> = ({
     );
     if (globalPerm) return Boolean(globalPerm.can_write);
     return false;
-  }, [isAdmin, isEditor, permissions, collection?.id]);
+  }, [isAdmin, isEditor, permissions, collection?.id, collection?.properties]);
 
   const canViewFieldFn = useCallback((fieldId: string) => {
     if (isAdmin || isEditor) return true;
@@ -399,7 +403,7 @@ const TableView: React.FC<TableViewProps> = ({
   }, [visibleProperties]);
 
   const bulkEditableProperties = useMemo(
-    () => visibleProperties.filter((p: any) => !p.showContextMenu && canEditFieldFn(p.id)),
+    () => visibleProperties.filter((p: any) => !p.showContextMenu && canEditFieldFn(p.id) && !isCalculatedNumberProperty(p)),
     [visibleProperties]
   );
 

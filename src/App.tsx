@@ -35,6 +35,7 @@ import { useItems } from '@/lib/hooks/useItems';
 import { useViews } from '@/lib/hooks/useViews';
 import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
 import { MonthlyDashboardConfig } from '@/lib/dashboardTypes';
+import { applyCalculatedFieldsToCollections, stripCalculatedNumberFieldsFromItem } from '@/lib/calculatedFields';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -169,7 +170,11 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
   const itemHooks = useItems(collections, setCollections, activeCollection);
 
   const viewHooks = useViews(views, setViews, activeCollection, activeView, setActiveView);
-  const currentCollection = collections.find((c) => c.id === activeCollection);
+  const collectionsWithCalculatedFields = useMemo(
+    () => applyCalculatedFieldsToCollections(collections),
+    [collections]
+  );
+  const currentCollection = collectionsWithCalculatedFields.find((c) => c.id === activeCollection);
   const { currentViews } = viewHooks;
   const activeDashboardConfig = dashboards.find((d) => d.id === activeDashboard) || null;
 
@@ -492,7 +497,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     activeViewConfig,
     relationFilter,
     activeCollection,
-    collections
+    collectionsWithCalculatedFields
   );
 
   if (authLoading) {
@@ -763,7 +768,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     }}
                     onBulkDelete={itemHooks.bulkDeleteItems}
                     onViewDetail={(item: any) => {
-                      const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
+                      const itemCollection = collectionsWithCalculatedFields.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
                       setEditingItem(item);
                       setModalCollection(itemCollection || null);
                       setShowNewItemModal(true);
@@ -771,9 +776,13 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     hiddenFields={activeViewConfig?.hiddenFields || []}
                     orderedProperties={orderedProperties}
                     onReorderItems={(nextItems: any[]) => {
+                      const sourceCollection = collections.find((col) => col.id === activeCollection);
+                      const sanitizedItems = sourceCollection
+                        ? nextItems.map((item) => stripCalculatedNumberFieldsFromItem(item, sourceCollection))
+                        : nextItems;
                       const updatedCollections = collections.map((col) => {
                         if (col.id === activeCollection) {
-                          return { ...col, items: nextItems };
+                          return { ...col, items: sanitizedItems };
                         }
                         return col;
                       });
@@ -785,7 +794,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                       setEditingProperty(prop);
                       setShowPropertyModal(true);
                     }}
-                    collections={collections}
+                    collections={collectionsWithCalculatedFields}
                     onRelationChange={(prop: any, item: any, val: any) => {
                       const updatedItem = { ...item, [prop.id]: val };
                       itemHooks.updateItem(updatedItem);
@@ -837,7 +846,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     onEdit={(item: any) => itemHooks.updateItem(item)}
                     onDelete={itemHooks.deleteItem}
                     onViewDetail={(item: any) => {
-                      const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
+                      const itemCollection = collectionsWithCalculatedFields.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
                       setEditingItem(item);
                       setModalCollection(itemCollection || null);
                       setShowNewItemModal(true);
@@ -854,7 +863,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                       updatedViews[activeCollection][viewIndex].groupBy = groupBy;
                       setViews(updatedViews);
                     }}
-                    collections={collections}
+                    collections={collectionsWithCalculatedFields}
                     onRelationChange={(prop: any, item: any, val: any) => {
                       const updatedItem = { ...item, [prop.id]: val };
                       itemHooks.updateItem(updatedItem);
@@ -875,7 +884,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     onEdit={(item: any) => itemHooks.updateItem(item)}
                     onDelete={itemHooks.deleteItem}
                     onViewDetail={(item: any) => {
-                      const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
+                      const itemCollection = collectionsWithCalculatedFields.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
                       setEditingItem(item);
                       setModalCollection(itemCollection || null);
                       setShowNewItemModal(true);
@@ -886,7 +895,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     }}
                     dateProperty={activeViewConfig?.dateProperty}
                     hiddenFields={activeViewConfig?.hiddenFields || []}
-                    collections={collections}
+                    collections={collectionsWithCalculatedFields}
                     viewConfig={activeViewConfig}
                     views={views}
                     relationFilter={relationFilter}
@@ -923,7 +932,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                   <LayoutView
                     viewConfig={activeViewConfig}
                     collection={currentCollection}
-                    collections={collections}
+                    collections={collectionsWithCalculatedFields}
                     views={views}
                     items={filteredItems}
                     orderedProperties={orderedProperties}
@@ -932,7 +941,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     onEdit={(item: any) => itemHooks.updateItem(item)}
                     onDelete={itemHooks.deleteItem}
                     onViewDetail={(item: any) => {
-                      const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
+                      const itemCollection = collectionsWithCalculatedFields.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
                       setEditingItem(item);
                       setModalCollection(itemCollection || null);
                       setShowNewItemModal(true);

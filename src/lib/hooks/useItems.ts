@@ -1,3 +1,5 @@
+import { stripCalculatedNumberFieldsFromItem } from '@/lib/calculatedFields';
+
 const applyRelationChangeInternal = (
   stateCollections: any[],
   sourceCollection: any,
@@ -148,6 +150,8 @@ export const useItems = (
       }
     }
 
+    newItem = stripCalculatedNumberFieldsFromItem(newItem, targetCollection);
+
     let updatedCollections = collections.map((col) => {
       if (col.id === targetCollectionId) {
         const exists = col.items.some((i: any) => i.id === newItem.id);
@@ -190,11 +194,12 @@ export const useItems = (
     setCollections((prevCollections: any[]) => {
       const sourceCollection = prevCollections.find((c: any) => c.id === targetCollectionId);
       if (!sourceCollection) return prevCollections;
-      const prevItem = sourceCollection.items.find((i: any) => i.id === item.id) || {};
+      const sanitizedItem = stripCalculatedNumberFieldsFromItem(item, sourceCollection);
+      const prevItem = sourceCollection.items.find((i: any) => i.id === sanitizedItem.id) || {};
 
       let updatedCollections = prevCollections.map((col: any) => {
         if (col.id === targetCollectionId) {
-          return { ...col, items: col.items.map((i: any) => (i.id === item.id ? item : i)) };
+          return { ...col, items: col.items.map((i: any) => (i.id === sanitizedItem.id ? sanitizedItem : i)) };
         }
         return col;
       });
@@ -204,12 +209,12 @@ export const useItems = (
       );
       relationProps.forEach((prop: any) => {
         const beforeVal = prevItem[prop.id];
-        const afterVal = item[prop.id];
+        const afterVal = sanitizedItem[prop.id];
         if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
           updatedCollections = applyRelationChangeInternal(
             updatedCollections,
             sourceCollection,
-            item,
+            sanitizedItem,
             prop,
             afterVal,
             beforeVal
