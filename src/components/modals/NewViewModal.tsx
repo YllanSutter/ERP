@@ -29,6 +29,9 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
   const [type, setType] = useState(view?.type || 'table');
   const [groupBy, setGroupBy] = useState(view?.groupBy || '');
   const [dateProperty, setDateProperty] = useState(view?.dateProperty || '');
+  const [kanbanShowFieldsOnHover, setKanbanShowFieldsOnHover] = useState<boolean>(
+    Boolean(view?.kanbanShowFieldsOnHover)
+  );
   const [groupDisplayMode, setGroupDisplayMode] = useState<TableGroupDisplayMode>(
     view?.groupDisplayMode || 'accordion'
   );
@@ -62,7 +65,10 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
       config.groupDisplayMode = groupDisplayMode;
       config.groupDisplayColumnCount = groupDisplayColumnCount;
     }
-    if (type === 'kanban' && groupBy) config.groupBy = groupBy;
+    if (type === 'kanban') {
+      if (groupBy) config.groupBy = groupBy;
+      config.kanbanShowFieldsOnHover = kanbanShowFieldsOnHover;
+    }
     if (type === 'calendar' && dateProperty) config.dateProperty = dateProperty;
     if (type === 'layout') config.layoutPanels = layoutPanels;
     if (mode === 'edit') {
@@ -136,6 +142,15 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
                   <option key={prop.id} value={prop.id}>{prop.name}</option>
                 ))}
               </select>
+              <label className="mt-3 flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                <input
+                  type="checkbox"
+                  checked={kanbanShowFieldsOnHover}
+                  onChange={(e) => setKanbanShowFieldsOnHover(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                Afficher les champs des cartes seulement au survol
+              </label>
             </div>
           )}
 

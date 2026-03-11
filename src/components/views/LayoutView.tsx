@@ -153,6 +153,9 @@ const LayoutView: React.FC<LayoutViewProps> = ({
                   onRelationChange={onRelationChange}
                   orderedProperties={panelOrderedProps}
                   filters={viewConfig.filters || []}
+                  columnSettings={viewConfig.kanbanColumnSettings || {}}
+                  showFieldsOnHover={Boolean(viewConfig.kanbanShowFieldsOnHover)}
+                  onUpdateViewConfig={(updates: Record<string, any>) => onUpdateViewConfig?.(viewConfig.id, updates)}
                 />
               )}
               {viewConfig.type === 'calendar' && (

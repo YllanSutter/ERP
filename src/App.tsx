@@ -851,6 +851,12 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                       itemHooks.updateItem(updatedItem);
                     }}
                     onNavigateToCollection={handleNavigateToCollection}
+                    columnSettings={activeViewConfig?.kanbanColumnSettings || {}}
+                    showFieldsOnHover={Boolean(activeViewConfig?.kanbanShowFieldsOnHover)}
+                    onUpdateViewConfig={(updates: Record<string, any>) => {
+                      if (!activeView) return;
+                      viewHooks.updateView(activeView, updates);
+                    }}
                   />
                 )}
                 {activeViewConfig?.type === 'calendar' && (

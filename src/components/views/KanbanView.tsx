@@ -1,11 +1,30 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { GripHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EditableProperty from '@/components/fields/EditableProperty';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
+import {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuLabel,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+
+type KanbanColumnSettings = {
+  visibleFieldIds?: string[];
+  sortFieldId?: string | null;
+  sortDirection?: 'asc' | 'desc';
+};
+
 interface KanbanViewProps {
   collection: any;
   items: any[];
@@ -20,11 +39,30 @@ interface KanbanViewProps {
   onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
   filters?: any[];
   orderedProperties?: any[];
+  columnSettings?: Record<string, Record<string, KanbanColumnSettings>>;
+  showFieldsOnHover?: boolean;
+  onUpdateViewConfig?: (updates: Record<string, any>) => void;
 }
 
-const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDelete, onViewDetail, groupBy, hiddenFields = [], onChangeGroupBy, collections = [], onRelationChange, onNavigateToCollection, filters = [], orderedProperties }) => {
+const KanbanView: React.FC<KanbanViewProps> = ({
+  collection,
+  items,
+  onEdit,
+  onDelete,
+  onViewDetail,
+  groupBy,
+  hiddenFields = [],
+  onChangeGroupBy,
+  collections = [],
+  onRelationChange,
+  onNavigateToCollection,
+  filters = [],
+  orderedProperties,
+  columnSettings = {},
+  showFieldsOnHover = false,
+  onUpdateViewConfig,
+}) => {
   const [draggedItem, setDraggedItem] = useState<any>(null);
-  console.log(hiddenFields);
   // Hooks de permissions
   const canEdit = useCanEdit(collection?.id);
   const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, collection?.id);
@@ -137,6 +175,78 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
 
   const columns = Object.keys(groupedItems).filter(col => shouldShowColumn(col));
 
+  const allDisplayableProps = useMemo(
+    () =>
+      (orderedProperties || collection.properties).filter(
+        (p: any) => !p.showContextMenu && canViewFieldFn(p.id)
+      ),
+    [orderedProperties, collection.properties, canViewFieldFn]
+  );
+
+  const defaultVisibleFieldIds = useMemo(
+    () =>
+      allDisplayableProps
+        .filter((p: any) => !hiddenFields.includes(p.id))
+        .map((p: any) => p.id),
+    [allDisplayableProps, hiddenFields]
+  );
+
+  const settingsGroupKey = groupByProp?.id || '__all__';
+  const columnSettingsForGroup = columnSettings?.[settingsGroupKey] || {};
+
+  const getColumnSettings = (columnName: string): KanbanColumnSettings =>
+    columnSettingsForGroup[columnName] || {};
+
+  const updateColumnSettings = (columnName: string, patch: Partial<KanbanColumnSettings>) => {
+    if (!onUpdateViewConfig) return;
+    const current = getColumnSettings(columnName);
+    const nextForGroup = {
+      ...columnSettingsForGroup,
+      [columnName]: {
+        ...current,
+        ...patch,
+      },
+    };
+    onUpdateViewConfig({
+      kanbanColumnSettings: {
+        ...(columnSettings || {}),
+        [settingsGroupKey]: nextForGroup,
+      },
+    });
+  };
+
+  const getSelectedFieldIdsForColumn = (columnName: string) => {
+    const preferred = getColumnSettings(columnName).visibleFieldIds;
+    const defaultIds = defaultVisibleFieldIds;
+    if (!Array.isArray(preferred) || preferred.length === 0) return defaultIds;
+    const allowed = new Set(allDisplayableProps.map((p: any) => p.id));
+    const filtered = preferred.filter((id) => allowed.has(id));
+    const uniqueFiltered = Array.from(new Set(filtered));
+    return uniqueFiltered.length > 0 ? uniqueFiltered : defaultIds;
+  };
+
+  const sortItemsForColumn = (columnItems: any[], columnName: string) => {
+    const { sortFieldId, sortDirection } = getColumnSettings(columnName);
+    if (!sortFieldId) return columnItems;
+    const dir = sortDirection === 'desc' ? -1 : 1;
+
+    const extractValue = (item: any) => {
+      if (sortFieldId === '__name') return getNameValue(item);
+      return item?.[sortFieldId];
+    };
+
+    return [...columnItems].sort((a, b) => {
+      const va = extractValue(a);
+      const vb = extractValue(b);
+      if (va === null || va === undefined || va === '') return 1;
+      if (vb === null || vb === undefined || vb === '') return -1;
+      if (typeof va === 'number' && typeof vb === 'number') {
+        return (va - vb) * dir;
+      }
+      return String(va).localeCompare(String(vb), 'fr', { numeric: true, sensitivity: 'base' }) * dir;
+    });
+  };
+
   const getNameValue = (item: any) => {
     const nameField = collection.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
     return nameField ? item[nameField.id] : item.name || 'Sans titre';
@@ -179,14 +289,23 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
 
       {/* Kanban Columns */}
       <div className="flex gap-6 overflow-x-auto pb-4">
-        {columns.map((column, colIdx) => (
-          <motion.div
-            key={column}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: colIdx * 0.1 }}
-            className="flex-shrink-0 w-80"
-          >
+        {columns.map((column, colIdx) => {
+          const selectedFieldIds = getSelectedFieldIdsForColumn(column);
+          const selectedProps = allDisplayableProps.filter((prop: any) => selectedFieldIds.includes(prop.id));
+          const cardProps = selectedProps;
+          const sortedColumnItems = sortItemsForColumn(groupedItems[column], column);
+          const columnSortField = getColumnSettings(column).sortFieldId || null;
+          const columnSortDirection = getColumnSettings(column).sortDirection || 'asc';
+
+          return (
+          <ContextMenu key={column}>
+            <ContextMenuTrigger asChild>
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: colIdx * 0.1 }}
+                className="flex-shrink-0 w-80"
+              >
             {/* Column Header */}
             <div 
               className="mb-4 rounded-lg border p-4"
@@ -210,12 +329,12 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
               onDragOver={handleDragOver}
               onDrop={() => handleDrop(column)}
             >
-              {groupedItems[column].length === 0 ? (
+              {sortedColumnItems.length === 0 ? (
                 <div className="flex items-center justify-center h-32 text-neutral-500 text-sm">
                   Aucun élément
                 </div>
               ) : (
-                groupedItems[column].map((item, idx) => (
+                sortedColumnItems.map((item, idx) => (
                   <ItemContextMenu
                     item={item}
                     onViewDetail={onViewDetail}
@@ -241,88 +360,51 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                         "group rounded-lg border border-black/10 dark:border-white/10 p-4 hover:border-white/20 transition-all space-y-3",
                         "bg-gradient-to-br from-white/80 to-neutral-100/80 dark:from-neutral-800/50 dark:to-neutral-900/50",
                         canEdit && "cursor-move",
+                        showFieldsOnHover && "space-y-2 p-3 pb-1",
                         draggedItem?.id === item.id ? 'opacity-50 border-violet-500/50' : ''
                       )}
                     >
                     {/* Title with Grip */}
                     <div className="flex gap-2 items-center">
                       {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}
-                      {(() => {
-                        const firstProp = (orderedProperties || collection.properties).find((p: any) => 
-                          !hiddenFields.includes(p.id) && !p.showContextMenu && canViewFieldFn(p.id)
-                        );
-                        if (!firstProp) return (
-                          <button
-                            onClick={() => onViewDetail(item)}
-                            className="font-medium text-cyan-400 hover:text-cyan-300 hover:underline text-sm flex-1 line-clamp-2 text-left"
-                          >
-                            {getNameValue(item)}
-                          </button>
-                        );
-                        return (
-                          <div className="flex-1 flex items-center gap-2">
-                            <span className="text-neutral-500 text-xs">{firstProp.name}:</span>
-                            <div className="flex-1 text-right">
-                              <EditableProperty
-                                property={firstProp}
-                                value={item[firstProp.id]}
-                                onChange={(val) => {
-                                  // Pas de recalcul côté client - le serveur le fera
-                                  const updated = { ...item, [firstProp.id]: val };
-                                  onEdit(updated);
-                                }}
-                                size="sm"
-                                collections={collections}
-                                currentItem={item}
-                                onRelationChange={onRelationChange}
-                                onNavigateToCollection={onNavigateToCollection}
-                                readOnly={!canEdit || !canEditFieldFn(firstProp.id)}
-                                maxVisible={firstProp.type === 'multi_select' ? 1 : undefined}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })()}
+                      <button
+                        onClick={() => onViewDetail(item)}
+                        className="font-medium dark:text-white hover:text-cyan-300 text-sm flex-1 line-clamp-2 text-left"
+                      >
+                        {getNameValue(item)}
+                      </button>
                     </div>
 
                     {/* Editable Properties */}
-                    <div className="space-y-2">
-                      {(() => {
-                        const allProps = orderedProperties || collection.properties;
-                        const firstVisibleProp = allProps.find((p: any) => 
-                          !hiddenFields.includes(p.id) && !p.showContextMenu && canViewFieldFn(p.id)
-                        );
-                        return allProps
-                          .filter((prop: any) => 
-                            prop.id !== firstVisibleProp?.id &&
-                            !hiddenFields.includes(prop.id) && 
-                            !prop.showContextMenu &&
-                            canViewFieldFn(prop.id)
-                          )
-                          .map((prop: any) => (
-                            <div key={prop.id} className="text-xs flex justify-between items-center">
-                              <span className="text-neutral-500 block mb-1 justify-between">{prop.name}:</span>
-                              <div className="text-right">
-                                <EditableProperty
-                                  property={prop}
-                                  value={item[prop.id]}
-                                  onChange={(val) => {
-                                    // Pas de recalcul côté client - le serveur le fera
-                                    const updated = { ...item, [prop.id]: val };
-                                    onEdit(updated);
-                                  }}
-                                  size="sm"
-                                  collections={collections}
-                                  currentItem={item}
-                                  onRelationChange={onRelationChange}
-                                  onNavigateToCollection={onNavigateToCollection}
-                                  readOnly={!canEdit || !canEditFieldFn(prop.id)}
-                                  maxVisible={prop.type === 'multi_select' ? 1 : undefined}
-                                />
-                              </div>
-                            </div>
-                          ));
-                      })()}
+                    <div
+                      className={cn(
+                        "space-y-2",
+                        showFieldsOnHover &&
+                          "max-h-0 opacity-0 overflow-hidden pointer-events-none transition-all duration-200 group-hover:max-h-[420px] group-hover:opacity-100 group-hover:pointer-events-auto"
+                      )}
+                    >
+                      {cardProps.map((prop: any) => (
+                        <div key={prop.id} className="text-xs flex justify-between items-center">
+                          <span className="text-neutral-500 block mb-1 justify-between">{prop.name}:</span>
+                          <div className="text-right">
+                            <EditableProperty
+                              property={prop}
+                              value={item[prop.id]}
+                              onChange={(val) => {
+                                const updated = { ...item, [prop.id]: val };
+                                onEdit(updated);
+                              }}
+                              size="sm"
+                              collections={collections}
+                              currentItem={item}
+                              onRelationChange={onRelationChange}
+                              onNavigateToCollection={onNavigateToCollection}
+                              readOnly={!canEdit || !canEditFieldFn(prop.id)}
+                              maxVisible={prop.type === 'multi_select' ? 1 : undefined}
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
 
                     {/* Action Buttons */}
@@ -347,8 +429,70 @@ const KanbanView: React.FC<KanbanViewProps> = ({ collection, items, onEdit, onDe
                 ))
               )}
             </div>
-          </motion.div>
-        ))}
+              </motion.div>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="min-w-[230px]">
+              <ContextMenuLabel>{column}</ContextMenuLabel>
+              <ContextMenuSeparator />
+
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>Champs affichés</ContextMenuSubTrigger>
+                <ContextMenuSubContent className="max-h-72 overflow-y-auto">
+                  {allDisplayableProps.map((prop: any) => {
+                    const isChecked = selectedFieldIds.includes(prop.id);
+                    return (
+                      <ContextMenuCheckboxItem
+                        key={prop.id}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          const shouldCheck = Boolean(checked);
+                          if (!shouldCheck && selectedFieldIds.length <= 1) return;
+                          const next = shouldCheck
+                            ? Array.from(new Set([...selectedFieldIds, prop.id]))
+                            : selectedFieldIds.filter((id: string) => id !== prop.id);
+                          updateColumnSettings(column, { visibleFieldIds: next });
+                        }}
+                      >
+                        {prop.name}
+                      </ContextMenuCheckboxItem>
+                    );
+                  })}
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>Trier par</ContextMenuSubTrigger>
+                <ContextMenuSubContent className="max-h-72 overflow-y-auto">
+                  <ContextMenuRadioGroup
+                    value={columnSortField || '__none'}
+                    onValueChange={(value) =>
+                      updateColumnSettings(column, { sortFieldId: value === '__none' ? null : value })
+                    }
+                  >
+                    <ContextMenuRadioItem value="__none">Aucun</ContextMenuRadioItem>
+                    <ContextMenuRadioItem value="__name">Nom</ContextMenuRadioItem>
+                    {allDisplayableProps.map((prop: any) => (
+                      <ContextMenuRadioItem key={prop.id} value={prop.id}>
+                        {prop.name}
+                      </ContextMenuRadioItem>
+                    ))}
+                  </ContextMenuRadioGroup>
+                  <ContextMenuSeparator />
+                  <ContextMenuLabel>Ordre</ContextMenuLabel>
+                  <ContextMenuRadioGroup
+                    value={columnSortDirection}
+                    onValueChange={(value) =>
+                      updateColumnSettings(column, { sortDirection: value === 'desc' ? 'desc' : 'asc' })
+                    }
+                  >
+                    <ContextMenuRadioItem value="asc">Croissant</ContextMenuRadioItem>
+                    <ContextMenuRadioItem value="desc">Décroissant</ContextMenuRadioItem>
+                  </ContextMenuRadioGroup>
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+            </ContextMenuContent>
+          </ContextMenu>
+        )})}
       </div>
     </div>
   );

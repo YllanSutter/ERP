@@ -21,6 +21,9 @@ export const useViews = (
       visibleToUsers: []
     };
     if (config?.groupBy) newView.groupBy = config.groupBy;
+    if (config?.kanbanShowFieldsOnHover !== undefined) {
+      newView.kanbanShowFieldsOnHover = Boolean(config.kanbanShowFieldsOnHover);
+    }
     if (config?.dateProperty) newView.dateProperty = config.dateProperty;
     if (config?.groupDisplayMode) newView.groupDisplayMode = config.groupDisplayMode;
     if (config?.groupDisplayColumnCount) newView.groupDisplayColumnCount = config.groupDisplayColumnCount;
