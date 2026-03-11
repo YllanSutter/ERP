@@ -62,6 +62,12 @@ interface NewItemModalProps {
   orderedProperties?: any[];
 }
 
+interface DraftPayloadState {
+  formData: any;
+  templateAutoFilled?: Record<string, boolean>;
+  baseData?: any;
+}
+
 
 const NewItemModal: React.FC<NewItemModalProps> = ({
   collection,
@@ -598,7 +604,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const formDataRef = useRef<any>(initialForm.data);
   const [hasLocalDraft, setHasLocalDraft] = useState(false);
   const [draftPromptOpen, setDraftPromptOpen] = useState(false);
-  const [draftPayload, setDraftPayload] = useState<{ formData: any; templateAutoFilled?: Record<string, boolean> } | null>(null);
+  const [draftPayload, setDraftPayload] = useState<DraftPayloadState | null>(null);
   const initialDataRef = useRef(initialForm.data);
   const draftAppliedRef = useRef(false);
   const draftReadyRef = useRef(true);
@@ -654,7 +660,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         return;
       }
       setHasLocalDraft(true);
-      setDraftPayload({ formData: parsed.formData, templateAutoFilled: parsed.templateAutoFilled });
+      setDraftPayload({
+        formData: parsed.formData,
+        templateAutoFilled: parsed.templateAutoFilled,
+        baseData: parsed.baseData,
+      });
       setDraftPromptOpen(true);
     } catch {
       // ignore stockage local indisponible
@@ -664,7 +674,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     } finally {
       draftReadyRef.current = true;
     }
-  }, [draftKey, selectedCollectionId, initialForm]);
+  }, [
+    draftKey,
+    selectedCollectionId,
+    editingItem?.id,
+    JSON.stringify(selectedCollection?.properties ?? []),
+    JSON.stringify(orderedProperties ?? []),
+  ]);
 
   const isDraftDirty = useMemo(
     () => !areValuesEqual(formData, initialDataRef.current),
@@ -673,14 +689,39 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   const applyDraftPayload = React.useCallback(() => {
     if (!draftPayload) return;
+    const draftBase = draftPayload.baseData && typeof draftPayload.baseData === 'object'
+      ? draftPayload.baseData
+      : initialForm.data;
+    const liveBase = initialForm.data && typeof initialForm.data === 'object'
+      ? initialForm.data
+      : {};
+    const draftFormData = draftPayload.formData && typeof draftPayload.formData === 'object'
+      ? draftPayload.formData
+      : {};
+    const mergedDraft = { ...liveBase };
+    const keys = new Set([
+      ...Object.keys(liveBase),
+      ...Object.keys(draftBase),
+      ...Object.keys(draftFormData),
+    ]);
+
+    keys.forEach((key) => {
+      const draftChanged = !areValuesEqual(draftFormData[key], draftBase[key]);
+      if (draftChanged) {
+        mergedDraft[key] = draftFormData[key];
+      }
+    });
+
     draftAppliedRef.current = true;
-    setFormDataRaw(draftPayload.formData);
+    initialDataRef.current = liveBase;
+    setFormDataRaw(mergedDraft);
     if (draftPayload.templateAutoFilled) {
       setTemplateAutoFilled(draftPayload.templateAutoFilled);
     }
-    initialDataRef.current = draftPayload.formData;
+    setHasLocalDraft(true);
+    setDraftPayload(null);
     setDraftPromptOpen(false);
-  }, [draftPayload]);
+  }, [draftPayload, initialForm]);
 
   const discardDraftPayload = React.useCallback(() => {
     setDraftPromptOpen(false);
@@ -711,6 +752,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       const payload = {
         formData,
         templateAutoFilled,
+        baseData: initialDataRef.current,
         selectedCollectionId,
         updatedAt: new Date().toISOString(),
       };
@@ -729,6 +771,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         const payload = {
           formData,
           templateAutoFilled,
+          baseData: initialDataRef.current,
           selectedCollectionId,
           updatedAt: new Date().toISOString(),
         };
@@ -771,7 +814,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       setFormDataRaw({ ...formData, _eventSegments: [] });
     }
     // eslint-disable-next-line
-  }, [selectedCollection]);
+  }, [selectedCollectionId, JSON.stringify(selectedCollection?.properties ?? [])]);
 
   const handleChange = (propId: string, value: any) => {
     if (!canWriteField(selectedCollection?.id, propId)) return;
@@ -908,7 +951,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     initialDataRef.current = next.data;
     setFormDataRaw(next.data);
     setTemplateAutoFilled(next.autoFilled);
-  }, [editingItem, selectedCollection]);
+  }, [editingItem, selectedCollectionId, JSON.stringify(selectedCollection?.properties ?? []), orderedProperties]);
 
   // Sync en temps réel : quand un autre utilisateur modifie l'item en cours d'édition,
   // on met à jour UNIQUEMENT les champs que l'utilisateur local n'a PAS encore touchés.
