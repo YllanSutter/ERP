@@ -129,6 +129,25 @@ export const useItems = (
       } while (targetItems.some((i: any) => i.id === newItem.id));
     }
 
+    // En édition : merge avec l'item courant dans collections (multi-utilisateur)
+    // Seuls les champs que l'utilisateur a réellement modifiés (vs editingItem baseline) remplacent
+    // les valeurs actuelles — les champs non touchés gardent la valeur live (modifiée par un autre user)
+    if (isEdition) {
+      const liveItem = targetItems.find((i: any) => i.id === newItem.id);
+      if (liveItem) {
+        const baseline = editingItem || {};
+        const merged: any = { ...liveItem };
+        for (const key of Object.keys(newItem)) {
+          const userModified =
+            JSON.stringify(newItem[key]) !== JSON.stringify(baseline[key]);
+          if (userModified) {
+            merged[key] = newItem[key];
+          }
+        }
+        newItem = merged;
+      }
+    }
+
     let updatedCollections = collections.map((col) => {
       if (col.id === targetCollectionId) {
         const exists = col.items.some((i: any) => i.id === newItem.id);

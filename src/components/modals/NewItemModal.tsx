@@ -890,6 +890,48 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     setTemplateAutoFilled(next.autoFilled);
   }, [editingItem, selectedCollection]);
 
+  // Sync en temps réel : quand un autre utilisateur modifie l'item en cours d'édition,
+  // on met à jour les champs que l'utilisateur local n'a PAS encore touchés.
+  React.useEffect(() => {
+    if (!isReallyEditing || !editingItem?.id) return;
+    const liveCollection = collections.find((c: any) => c.id === selectedCollectionId);
+    const liveItem = liveCollection?.items?.find((i: any) => i.id === editingItem.id);
+    if (!liveItem) return;
+
+    setFormDataRaw((prev: any) => {
+      const baseline = initialDataRef.current;
+      let changed = false;
+      const merged: any = { ...prev };
+      for (const key of Object.keys(liveItem)) {
+        if (key.startsWith('_')) continue;
+        // Si l'utilisateur local n'a pas modifié ce champ, on accepte la valeur distante
+        const userModified =
+          JSON.stringify(prev[key]) !== JSON.stringify(baseline[key]);
+        if (!userModified) {
+          const isAlreadyUpToDate =
+            JSON.stringify(merged[key]) === JSON.stringify(liveItem[key]);
+          if (!isAlreadyUpToDate) {
+            merged[key] = liveItem[key];
+            changed = true;
+          }
+        }
+      }
+      if (!changed) return prev;
+      // Mettre à jour la baseline pour les champs synchronisés (évite une re-application)
+      const newBaseline = { ...baseline };
+      for (const key of Object.keys(liveItem)) {
+        if (key.startsWith('_')) continue;
+        const userModified =
+          JSON.stringify(prev[key]) !== JSON.stringify(baseline[key]);
+        if (!userModified) {
+          newBaseline[key] = liveItem[key];
+        }
+      }
+      initialDataRef.current = newBaseline;
+      return merged;
+    });
+  }, [collections, editingItem?.id, selectedCollectionId, isReallyEditing]);
+
   React.useEffect(() => {
     if (!historyKey) {
       setHistoryData(null);
