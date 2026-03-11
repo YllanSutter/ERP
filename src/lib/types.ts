@@ -69,6 +69,7 @@ export interface TableViewProps {
   onReorderItems: (items: Item[]) => void;
   onToggleField: (fieldId: string) => void;
   onDeleteProperty: (propId: string) => void;
+  onDuplicateProperty?: (propId: string, options?: { copyValues?: boolean }) => void;
   onEditProperty: (prop: Property) => void;
   onViewDetail: (item: Item) => void;
   collections: Collection[];

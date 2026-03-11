@@ -90,15 +90,23 @@ function SimpleInput({
   );
 }
 
-const CheckboxInput = ({ value, onChange, readOnly }: { value: any; onChange: (value: boolean) => void; readOnly?: boolean }) => (
-  <input
-    type="checkbox"
-    checked={value || false}
-    onChange={(e) => onChange(e.target.checked)}
-    disabled={readOnly}
-    className="w-5 h-5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-  />
-);
+const CheckboxInput = ({ value, onChange, readOnly }: { value: any; onChange: (value: boolean) => void; readOnly?: boolean }) => {
+  const checked = Boolean(value);
+  return (
+    <label className={cn('inline-flex items-center justify-center', readOnly ? 'cursor-default' : 'cursor-pointer')}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        disabled={readOnly}
+        className="sr-only peer"
+      />
+      <span className="h-4 w-4 rounded-md border border-black/20 dark:border-white/20 bg-white/80 dark:bg-neutral-800 shadow-sm transition-colors peer-checked:bg-violet-500 peer-checked:border-violet-500 flex items-center justify-center disabled:opacity-50">
+        {checked ? <Icons.Check size={12} className="text-white" /> : null}
+      </span>
+    </label>
+  );
+};
 
 const UrlInput = ({ 
   value, 

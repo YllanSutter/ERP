@@ -155,6 +155,127 @@ export const useCollections = (
     setCollections(updatedCollections);
   };
 
+  const duplicateProperty = (propId: string, options?: { copyValues?: boolean }) => {
+    if (!activeCollection) return;
+
+    const sourceCollection = collections.find((c) => c.id === activeCollection);
+    if (!sourceCollection) return;
+
+    const sourceProp = (sourceCollection.properties || []).find((p: any) => p.id === propId);
+    if (!sourceProp) return;
+
+    if (sourceProp.type === PROPERTY_TYPES.RELATION) {
+      alert('La duplication directe d\'une colonne relation n\'est pas supportée.');
+      return;
+    }
+
+    const shouldCopyValues = options?.copyValues !== false;
+
+    const baseId = `${sourceProp.id}_copy`;
+    let nextId = baseId;
+    let idx = 2;
+    const existingIds = new Set((sourceCollection.properties || []).map((p: any) => p.id));
+    while (existingIds.has(nextId)) {
+      nextId = `${baseId}_${idx}`;
+      idx += 1;
+    }
+
+    const baseName = `${sourceProp.name} (copie)`;
+    let nextName = baseName;
+    let nameIdx = 2;
+    const existingNames = new Set((sourceCollection.properties || []).map((p: any) => p.name));
+    while (existingNames.has(nextName)) {
+      nextName = `${baseName} ${nameIdx}`;
+      nameIdx += 1;
+    }
+
+    const duplicatedProp = {
+      ...sourceProp,
+      id: nextId,
+      name: nextName,
+      showContextMenu: false,
+    };
+
+    const cloneValue = (value: any) => {
+      if (value === null || typeof value !== 'object') return value;
+      try {
+        return structuredClone(value);
+      } catch {
+        return JSON.parse(JSON.stringify(value));
+      }
+    };
+
+    const getEmptyValueForProperty = (prop: any) => {
+      if (!prop) return '';
+      if (prop.type === 'checkbox') return false;
+      if (prop.type === 'multi_select' || prop.type === 'multiselect') return [];
+      if (prop.type === 'number') return null;
+      if (prop.type === 'date' || prop.type === 'date_range') return null;
+      return '';
+    };
+
+    const updatedCollections = collections.map((col) => {
+      if (col.id !== activeCollection) return col;
+
+      const sourceIndex = col.properties.findIndex((p: any) => p.id === propId);
+      const nextProperties = [...col.properties];
+      nextProperties.splice(sourceIndex + 1, 0, duplicatedProp);
+
+      const nextItems = (col.items || []).map((item: any) => ({
+        ...item,
+        [nextId]: shouldCopyValues ? cloneValue(item?.[propId]) : getEmptyValueForProperty(sourceProp),
+      }));
+
+      const visible = Array.isArray(col.defaultVisibleFieldIds) ? [...col.defaultVisibleFieldIds] : [];
+      if (visible.length > 0 && visible.includes(propId) && !visible.includes(nextId)) {
+        const originVisibleIndex = visible.indexOf(propId);
+        visible.splice(originVisibleIndex + 1, 0, nextId);
+      }
+
+      return {
+        ...col,
+        properties: nextProperties,
+        items: nextItems,
+        defaultVisibleFieldIds: visible,
+      };
+    });
+
+    setCollections(updatedCollections);
+
+    const collectionViews = views[activeCollection] || [];
+    if (collectionViews.length > 0) {
+      const updatedCollectionViews = collectionViews.map((view: any) => {
+        let nextView = { ...view };
+
+        if (Array.isArray(view.fieldOrder)) {
+          const idx = view.fieldOrder.indexOf(propId);
+          if (idx >= 0) {
+            const nextFieldOrder = [...view.fieldOrder];
+            nextFieldOrder.splice(idx + 1, 0, nextId);
+            nextView = { ...nextView, fieldOrder: nextFieldOrder };
+          }
+        }
+
+        if (view.totalFields && view.totalFields[propId]) {
+          nextView = {
+            ...nextView,
+            totalFields: {
+              ...view.totalFields,
+              [nextId]: view.totalFields[propId],
+            },
+          };
+        }
+
+        return nextView;
+      });
+
+      setViews({
+        ...views,
+        [activeCollection]: updatedCollectionViews,
+      });
+    }
+  };
+
   const updateCollection = (updatedCollection: any) => {
     const updatedCollections = collections.map((col) => {
       if (col.id === updatedCollection.id) return updatedCollection;
@@ -189,6 +310,7 @@ export const useCollections = (
     deleteProperty,
     addProperty,
     updateProperty,
+    duplicateProperty,
     updateCollection,
     deleteCollection
   };

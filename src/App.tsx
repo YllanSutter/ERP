@@ -790,6 +790,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     }}
                     onToggleField={viewHooks.toggleFieldVisibility}
                     onDeleteProperty={collectionHooks.deleteProperty}
+                    onDuplicateProperty={collectionHooks.duplicateProperty}
                     onEditProperty={(prop: any) => {
                       setEditingProperty(prop);
                       setShowPropertyModal(true);

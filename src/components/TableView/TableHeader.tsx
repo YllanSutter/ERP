@@ -16,10 +16,12 @@ import {
 
 export interface TableHeaderProps {
   visibleProperties: Property[];
+  allProperties?: Property[];
   items: any[];
   onEditProperty: (prop: Property) => void;
   onToggleField: (fieldId: string) => void;
   onDeleteProperty: (propId: string) => void;
+  onDuplicateProperty?: (propId: string, options?: { copyValues?: boolean }) => void;
   collectionId?: string;
   sortState?: { column: string | null; direction: 'asc' | 'desc' };
   onSort?: (columnId: string) => void;
@@ -34,10 +36,12 @@ export interface TableHeaderProps {
 
 const TableHeader: React.FC<TableHeaderProps> = ({
   visibleProperties,
+  allProperties,
   items,
   onEditProperty,
   onToggleField,
   onDeleteProperty,
+  onDuplicateProperty,
   collectionId,
   sortState,
   onSort,
@@ -52,6 +56,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   const canEdit = useCanEdit(collectionId);
   // Exclure les propriétés en menu contextuel de l'affichage du header
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
+  const numberProperties = (allProperties || visibleProperties).filter((p: any) => p.type === 'number');
 
   // Types de totaux disponibles selon le type de champ
   const getTotalTypesForProperty = (prop: any) => {
@@ -237,6 +242,33 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                             )}
                           </ContextMenuItem>
                         ))}
+                        {prop.type === 'checkbox' && numberProperties.length > 0 && (
+                          <>
+                            <ContextMenuSeparator />
+                            <ContextMenuLabel className="text-xs">Montant payé / restant</ContextMenuLabel>
+                            {numberProperties.map((numProp: any) => {
+                              const linkedValue = `linked-progress:${numProp.id}`;
+                              return (
+                                <ContextMenuItem
+                                  key={linkedValue}
+                                  onClick={() => {
+                                    if (totalFields[prop.id] === linkedValue) {
+                                      onToggleTotalField(prop.id, null);
+                                    } else {
+                                      onToggleTotalField(prop.id, linkedValue);
+                                    }
+                                  }}
+                                  className="flex items-center justify-between gap-2 text-neutral-700 dark:text-neutral-200"
+                                >
+                                  <span>{numProp.name}</span>
+                                  {totalFields[prop.id] === linkedValue && (
+                                    <Icons.Check size={14} className="text-violet-500 dark:text-violet-400" />
+                                  )}
+                                </ContextMenuItem>
+                              );
+                            })}
+                          </>
+                        )}
                         {totalFields[prop.id] && (
                           <>
                             <ContextMenuSeparator />
@@ -270,6 +302,30 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                       <Icons.EyeOff size={14} />
                       <span>Masquer la colonne</span>
                     </ContextMenuItem>
+                    {prop.id !== 'name' && onDuplicateProperty && (
+                      <ContextMenuSub>
+                        <ContextMenuSubTrigger className="flex items-center gap-2 text-neutral-700 dark:text-neutral-200">
+                          <Icons.CopyPlus size={14} />
+                          <span>Dupliquer la colonne</span>
+                        </ContextMenuSubTrigger>
+                        <ContextMenuSubContent>
+                          <ContextMenuItem
+                            onClick={() => onDuplicateProperty(prop.id, { copyValues: true })}
+                            className="flex items-center gap-2"
+                          >
+                            <Icons.Copy size={14} />
+                            <span>Avec les valeurs</span>
+                          </ContextMenuItem>
+                          <ContextMenuItem
+                            onClick={() => onDuplicateProperty(prop.id, { copyValues: false })}
+                            className="flex items-center gap-2"
+                          >
+                            <Icons.Eraser size={14} />
+                            <span>Avec champs vides</span>
+                          </ContextMenuItem>
+                        </ContextMenuSubContent>
+                      </ContextMenuSub>
+                    )}
                     {prop.id !== 'name' && (
                       <>
                         <ContextMenuSeparator />

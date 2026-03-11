@@ -44,6 +44,7 @@ const TableView: React.FC<TableViewProps> = ({
   onReorderItems,
   onToggleField,
   onDeleteProperty,
+  onDuplicateProperty,
   onEditProperty,
   onViewDetail,
   collections,
@@ -251,6 +252,38 @@ const TableView: React.FC<TableViewProps> = ({
     const property = visibleProperties.find(p => p.id === fieldId);
     if (!property) return null;
 
+    if (property.type === 'checkbox' && typeof totalType === 'string' && totalType.startsWith('linked-progress:')) {
+      const linkedFieldId = totalType.slice('linked-progress:'.length);
+      if (!linkedFieldId) return null;
+
+      let paid = 0;
+      let remaining = 0;
+      let checkedCount = 0;
+      let uncheckedCount = 0;
+
+      itemsToSum.forEach((item) => {
+        const isChecked = Boolean(item[fieldId]);
+        const amount = Number(item[linkedFieldId]);
+        const numericAmount = Number.isFinite(amount) ? amount : 0;
+        if (isChecked) {
+          checkedCount += 1;
+          paid += numericAmount;
+        } else {
+          uncheckedCount += 1;
+          remaining += numericAmount;
+        }
+      });
+
+      return {
+        paid,
+        remaining,
+        total: paid + remaining,
+        checkedCount,
+        uncheckedCount,
+        linkedFieldId,
+      };
+    }
+
     // Totaux pour les nombres (vérifier en premier car ils ont des types spécifiques)
     if (property.type === 'number') {
       const numbers = itemsToSum
@@ -363,6 +396,15 @@ const TableView: React.FC<TableViewProps> = ({
   const formatTotal = useCallback((fieldId: string, total: any, totalType: string) => {
     const property = visibleProperties.find(p => p.id === fieldId);
     if (!property || total === null) return '';
+
+    if (property.type === 'checkbox' && typeof totalType === 'string' && totalType.startsWith('linked-progress:')) {
+      const linkedFieldId = totalType.slice('linked-progress:'.length);
+      const linkedProperty = collection.properties.find((p: any) => p.id === linkedFieldId);
+      const linkedPrefix = linkedProperty?.numberPrefix || '';
+      const linkedSuffix = linkedProperty?.numberSuffix || '';
+      const fmt = (n: number) => `${linkedPrefix}${Number(n || 0).toLocaleString('fr-FR')}${linkedSuffix}`;
+      return `Payé: ${fmt(total.paid)} · Reste: ${fmt(total.remaining)}`;
+    }
 
     const numberPrefix = property.numberPrefix || '';
     const numberSuffix = property.numberSuffix || '';
@@ -728,10 +770,12 @@ const TableView: React.FC<TableViewProps> = ({
               <table className="w-full">
                 <TableHeader
                   visibleProperties={visibleProperties}
+                  allProperties={collection.properties}
                   items={items}
                   onEditProperty={onEditProperty}
                   onToggleField={onToggleField}
                   onDeleteProperty={onDeleteProperty}
+                  onDuplicateProperty={onDuplicateProperty}
                   collectionId={collection?.id}
                   sortState={sortState}
                   onSort={handleSort}
