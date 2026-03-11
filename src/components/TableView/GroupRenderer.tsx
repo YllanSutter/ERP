@@ -15,8 +15,10 @@ interface GroupRendererProps {
   toggleGroup: (path: string) => void;
   itemsMap: Map<string, Item>;
   visibleProperties: Property[];
+  favoriteItemIds?: string[];
   onEdit: (item: Item) => void;
   onDelete: (id: string) => void;
+  onToggleFavoriteItem?: (itemId: string) => void;
   onViewDetail: (item: Item) => void;
   onRelationChange: (prop: Property, item: Item, value: any) => void;
   onNavigateToCollection: (collectionId: string, linkedIds?: string[]) => void;
@@ -51,8 +53,10 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   toggleGroup,
   itemsMap,
   visibleProperties,
+  favoriteItemIds,
   onEdit,
   onDelete,
+  onToggleFavoriteItem,
   onViewDetail,
   onRelationChange,
   onNavigateToCollection,
@@ -85,6 +89,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   if (!property) return null;
 
   const isExpanded = expandedGroups.has(groupPath);
+  const shouldRenderChildren = hideCurrentHeader || isExpanded;
   const label = getGroupLabel(
     property,
     groupValue === '(vide)' ? undefined : groupValue,
@@ -110,7 +115,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
         />
       )}
 
-      {isExpanded && (
+      {shouldRenderChildren && (
         <>
           {/* Sous-groupes d'abord */}
           {groupData.subGroups.map(subPath => (
@@ -126,8 +131,10 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               toggleGroup={toggleGroup}
               itemsMap={itemsMap}
               visibleProperties={visibleProperties}
+              favoriteItemIds={favoriteItemIds}
               onEdit={onEdit}
               onDelete={onDelete}
+              onToggleFavoriteItem={onToggleFavoriteItem}
               onViewDetail={onViewDetail}
               onRelationChange={onRelationChange}
               onNavigateToCollection={onNavigateToCollection}
@@ -158,9 +165,11 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
             <TableItemRow
               key={item.id}
               item={item}
+              isFavorite={favoriteItemIds?.includes(item.id) ?? false}
               visibleProperties={visibleProperties}
               onEdit={onEdit}
               onDelete={onDelete}
+              onToggleFavoriteItem={onToggleFavoriteItem}
               onViewDetail={onViewDetail}
               collections={collections}
               collection={collection}

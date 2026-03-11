@@ -213,9 +213,13 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
     const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, itemCollection?.id);
 
     // Détermine la propriété de titre (par convention: type 'title' ou nom 'Titre' ou 'Name')
-    const titleProp =
-      collectionProps.find((prop: any) => prop.type === 'title') ||
-      collectionProps.find((prop: any) => ['Titre', 'title', 'Name', 'name'].includes(prop.name));
+    const orderedVisibleProps = collectionProps.filter(
+      (prop: any) => visibleIds.includes(prop.id) && !hiddenFields.includes(prop.id) && canViewFieldFn(prop.id)
+    );
+    const headerProp = orderedVisibleProps[0] || null;
+    const bodyProps = headerProp
+      ? orderedVisibleProps.filter((prop: any) => prop.id !== headerProp.id)
+      : orderedVisibleProps;
 
     // Calcul du feedback visuel pendant le resize
     const previewEndTime = isResizing && resizePreviewEndTime !== null ? resizePreviewEndTime : endTime;
@@ -253,24 +257,23 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
           >
             <div className="flex gap-2 items-center">
               {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}
-              {titleProp ? (
+              {headerProp ? (
                 <div className="flex-1 flex items-center gap-2">
-                  <span className="text-neutral-500 text-[10px]">{titleProp.name}:</span>
-                  <div className="flex-1 text-right">
+                  <div className="flex-1">
                     <EditableProperty
-                      property={titleProp}
-                      value={item[titleProp.id]}
+                      property={headerProp}
+                      value={item[headerProp.id]}
                       onChange={(val) => {
                         if (typeof onEditField === 'function') {
-                          onEditField({ ...item, [titleProp.id]: val });
+                          onEditField({ ...item, [headerProp.id]: val });
                         }
                       }}
-                      size="sm"
+                      size="xs"
                       collections={collections}
                       currentItem={item}
                       onRelationChange={typeof onRelationChange === 'function' ? onRelationChange : undefined}
                       onNavigateToCollection={typeof onNavigateToCollection === 'function' ? onNavigateToCollection : undefined}
-                      readOnly={!canEdit || !canEditFieldFn(titleProp.id)}
+                      readOnly={!canEdit || !canEditFieldFn(headerProp.id)}
                     />
                   </div>
                 </div>
@@ -294,12 +297,11 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
             {/* {label && <div className="text-[9px] truncate">{label}</div>} */}
             {/* Champs éditables comme dans KanbanView */}
             <div className="space-y-1 w-full lg:opacity-100 opacity-0">
-              {collectionProps
-                .filter((prop: any) => visibleIds.includes(prop.id) && !hiddenFields.includes(prop.id) && canViewFieldFn(prop.id))
+              {bodyProps
                 .filter((_: any, idx: number) => !isMobile || idx === 0)
                 .map((prop: any) => (
-                  <div key={prop.id} className="flex items-center gap-1 text-[9px] truncate">
-                    <span className="text-neutral-500 block mb-1">{prop.name}:</span>
+                  <div key={prop.id} className="flex items-center gap-3 text-[9px] truncate">
+                    <span className="text-neutral-500 block">{prop.name}:</span>
                     <div className="flex-1 text-right">
                       <EditableProperty
                         property={prop}

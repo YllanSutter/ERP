@@ -157,6 +157,25 @@ const Sidebar: React.FC<SidebarProps> = ({
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
+  const getViewIcon = (view: any) => {
+    if (typeof view?.icon === 'string' && (Icons as any)[view.icon]) {
+      return (Icons as any)[view.icon];
+    }
+
+    switch (view?.type) {
+      case 'table':
+        return Icons.Table;
+      case 'kanban':
+        return Icons.Layout;
+      case 'calendar':
+        return Icons.Calendar;
+      case 'layout':
+        return Icons.Layers;
+      default:
+        return Icons.Folder;
+    }
+  };
+
   // console.log('Favorites state:', favorites);
   // console.log('Favorite views IDs:', favorites.views);
   // console.log('Favorite views list:', favoriteViewsList);
@@ -274,7 +293,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <SidebarGroupContent className="mt-2">
                 <SidebarMenu>
                   {favoriteViewsList.map(({ view, collectionId }: any) => {
-                    const IconComponent = (Icons as any)[view.icon] || Icons.Folder;
+                    const IconComponent = getViewIcon(view);
                     return (
                       <SidebarRow
                         key={view.id}

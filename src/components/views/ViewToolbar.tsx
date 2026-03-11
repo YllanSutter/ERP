@@ -159,7 +159,18 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
     is_empty: 'Est vide',
     is_not_empty: "N'est pas vide"
   };
+  const compactOperatorLabels: Record<string, string> = {
+    equals: '=',
+    not_equals: '≠',
+    contains: 'contient',
+    not_contains: 'exclut',
+    greater: '>',
+    less: '<',
+    is_empty: 'vide',
+    is_not_empty: 'non vide'
+  };
   const getOperatorLabel = (op: string) => operatorLabels[op] || op;
+  const getCompactOperatorLabel = (op: string) => compactOperatorLabels[op] || getOperatorLabel(op);
   const getFilterSource = (filter: any) => {
     const sourceCollection =
       collections.find((c: any) => c.properties?.some((p: any) => p.id === filter.property)) ||
@@ -701,45 +712,64 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             const showCollectionName =
               !previousSource?.sourceCollection?.id ||
               previousSource.sourceCollection.id !== sourceCollection?.id;
+            const hasValue = !['is_empty', 'is_not_empty'].includes(filter.operator);
+            const accentColor = sourceCollection?.color || '#8b5cf6';
 
             return (
             <React.Fragment key={idx}>
-              {idx > 0 && <span className="text-neutral-700 dark:text-neutral-300 text-sm">&</span>}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex relative items-center gap-2 px-3 py-1.5 pt-3 bg-violet-500/20 text-neutral-700 dark:text-neutral-300 rounded-lg text-xs border border-violet-500/30 lowercase"
+                className="flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs text-neutral-700 dark:text-neutral-200"
+                style={{
+                  backgroundColor: `${accentColor}22`,
+                  borderColor: `${accentColor}55`
+                }}
               >
-                <span className="absolute -top-2.5 left-3">
+                <span className="flex min-w-0 items-center gap-1.5">
                   {showCollectionName && sourceCollection?.name && (
-                    <span className="text-neutral-700 dark:text-neutral-300">{sourceCollection.name} · </span>
+                    <span className="max-w-[120px] truncate text-[11px] font-medium" style={{ color: accentColor }} title={sourceCollection.name}>{sourceCollection.name}</span>
                   )}
-                  {sourceProp?.name || 'Champ'}{' '}
-                  {getOperatorLabel(filter.operator)}{' '}
+                  <span className="max-w-[130px] truncate font-medium" title={sourceProp?.name || 'Champ'}>{sourceProp?.name || 'Champ'}</span>
+                  <span className="rounded-full bg-black/5 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600 dark:bg-white/10 dark:text-neutral-300">
+                    {getCompactOperatorLabel(filter.operator)}
+                  </span>
                 </span>
-                <div className="flex-shrink-0 min-w-0">
-                  <FilterValueDisplay
-                    filter={filter}
-                    property={sourceProp}
-                    collections={collections}
-                    currentCollection={currentCollection}
-                    canEdit={canEdit}
-                    onUpdateValue={(newValue) => onUpdateFilterValue(idx, newValue)}
-                  />
-                </div>
+                {hasValue && (
+                  <div className="min-w-0 flex-shrink overflow-hidden">
+                    <FilterValueDisplay
+                      filter={filter}
+                      property={sourceProp}
+                      collections={collections}
+                      currentCollection={currentCollection}
+                      canEdit={canEdit}
+                      compact
+                      onUpdateValue={(newValue) => onUpdateFilterValue(idx, newValue)}
+                    />
+                  </div>
+                )}
                 <button
                   onClick={() => {
                     if (!canEdit) return;
                     onEditFilter(idx);
                   }}
-                  className={cn('hover:bg-violet-500/30 rounded px-1.5 py-0.5 inline-flex items-center gap-1', !canEdit && 'opacity-60 pointer-events-none')}
+                  className={cn('ml-0.5 rounded-full p-1 inline-flex items-center gap-1', !canEdit && 'opacity-60 pointer-events-none')}
+                  style={{ backgroundColor: 'transparent' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${accentColor}33`; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                   title="Modifier la règle (champ/opérateur)"
                   aria-label="Modifier la règle"
                 >
-                  <Icons.SlidersHorizontal size={14} />
+                  <Icons.SlidersHorizontal size={13} />
                 </button>
-                <button onClick={() => onRemoveFilter(idx)} className="hover:bg-violet-500/30 rounded p-0.5">
-                  <X size={14} />
+                <button
+                  onClick={() => onRemoveFilter(idx)}
+                  className="rounded-full p-1"
+                  style={{ backgroundColor: 'transparent' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${accentColor}33`; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <X size={13} />
                 </button>
               </motion.div>
             </React.Fragment>
@@ -764,7 +794,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
               key={idx}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-neutral-700 dark:text-white rounded-lg lg:text-sm text-xs border border-cyan-500/30"
+              className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-neutral-700 dark:text-white rounded-lg text-xs border border-cyan-500/30"
             >
               <span>
                 Groupé par: {currentCollection?.properties.find((p: any) => p.id === group)?.name}

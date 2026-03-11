@@ -59,8 +59,10 @@ export type TableGroupColumnCount = 1 | 2 | 3;
 export interface TableViewProps {
   collection: Collection;
   items: Item[];
+  favoriteItemIds?: string[];
   onEdit: (item: Item) => void;
   onDelete: (id: string) => void;
+  onToggleFavoriteItem?: (itemId: string) => void;
   onBulkDelete?: (ids: string[], collectionId?: string) => void;
   hiddenFields: string[];
   orderedProperties: Property[];

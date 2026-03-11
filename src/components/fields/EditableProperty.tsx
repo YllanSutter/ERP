@@ -17,7 +17,7 @@ interface EditablePropertyProps {
   property: any;
   value: any;
   onChange: (value: any) => void;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' |'sm' | 'md' | 'lg' | 'xl';
   isNameField?: boolean;
   onViewDetail?: () => void;
   className?: string;
@@ -915,6 +915,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   maxVisible
 }) => {
   const sizeClasses = {
+    xs: 'text-[10px] h-7',
     sm: 'text-xs h-7',
     md: 'text-sm h-8',
     lg: 'text-base h-9',

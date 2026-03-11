@@ -33,8 +33,10 @@ const ROW_SELECTION_FIELD_ID = '__rowSelection';
 const TableView: React.FC<TableViewProps> = ({
   collection,
   items,
+  favoriteItemIds = [],
   onEdit,
   onDelete,
+  onToggleFavoriteItem,
   onBulkDelete,
   hiddenFields,
   orderedProperties,
@@ -650,8 +652,10 @@ const TableView: React.FC<TableViewProps> = ({
               toggleGroup={toggleGroup}
               itemsMap={itemsMap}
               visibleProperties={visibleProperties}
+              favoriteItemIds={favoriteItemIds}
               onEdit={onEdit}
               onDelete={onDelete}
+              onToggleFavoriteItem={onToggleFavoriteItem}
               onViewDetail={onViewDetail}
               onRelationChange={onRelationChange}
               onNavigateToCollection={onNavigateToCollection}
@@ -681,9 +685,11 @@ const TableView: React.FC<TableViewProps> = ({
               <TableItemRow
                 key={item.id}
                 item={item}
+                isFavorite={favoriteItemIds.includes(item.id)}
                 visibleProperties={visibleProperties}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onToggleFavoriteItem={onToggleFavoriteItem}
                 onViewDetail={onViewDetail}
                 collections={collections}
                 onRelationChange={onRelationChange}

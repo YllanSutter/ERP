@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Moon, Plus, Sun, LogOut, Shield } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/auth/AuthProvider';
 import { useCanEdit, useCanManagePermissions } from '@/lib/hooks/useCanEdit';
 import { io } from 'socket.io-client';
@@ -153,17 +154,25 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           </button>
         </div>
         {/* Affiche tous les utilisateurs connectés avec couleur et uppercase */}
-        {connectedUsers.map((u: any) => (
-          <div
-            key={u.id}
-            className="text-sm text-neutral-400 grid items-center justify-center size-[22px] rounded-full"
-            style={{ background: getUserColor(u.id) }}
-          >
-            <span className="text-white font-bold text-xs leading-none text-center" title={u.name}>
-              {(u.name?.charAt(0) || 'U').toUpperCase()}
-            </span>
-          </div>
-        ))}
+        <TooltipProvider>
+          {connectedUsers.map((u: any) => (
+            <Tooltip key={u.id}>
+              <TooltipTrigger asChild>
+                <div
+                  className="text-sm text-neutral-400 grid items-center justify-center size-[22px] rounded-full"
+                  style={{ background: getUserColor(u.id) }}
+                >
+                  <span className="text-white font-bold text-xs leading-none text-center">
+                    {(u.name?.charAt(0) || 'U').toUpperCase()}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="center">
+                <span>{u.name || 'Utilisateur'}</span>
+              </TooltipContent>
+            </Tooltip>
+          ))}
+        </TooltipProvider>
         {(isAdminBase || canManagePermissions || Boolean(impersonatedRoleId)) && (
           <div className="flex items-center gap-2 text-xs text-neutral-400">
             <span className="text-neutral-500 hidden md:inline">Rôle :</span>

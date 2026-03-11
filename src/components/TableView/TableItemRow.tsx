@@ -15,9 +15,11 @@ import { Item, Property, Collection } from '@/lib/types';
 
 export interface TableItemRowProps {
   item: Item;
+  isFavorite?: boolean;
   visibleProperties: Property[];
   onEdit: (item: Item) => void;
   onDelete: (id: string) => void;
+  onToggleFavoriteItem?: (itemId: string) => void;
   onViewDetail: (item: Item) => void;
   collections: Collection[];
   onRelationChange: (prop: Property, item: Item, value: any) => void;
@@ -48,9 +50,11 @@ export interface TableItemRowProps {
 
 const TableItemRow: React.FC<TableItemRowProps> = ({
   item,
+  isFavorite = false,
   visibleProperties,
   onEdit,
   onDelete,
+  onToggleFavoriteItem,
   onViewDetail,
   collections,
   onRelationChange,
@@ -203,7 +207,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
               <span>Détails</span>
             </div>
             {canEdit && (
-              <div className="px-6 py-4 whitespace-nowrap text-right text-sm">
+              <div className="px-6 py-2 whitespace-nowrap text-right text-sm">
                 <div className="flex items-center justify-end gap-3 text-neutral-500">
                   <button onClick={() => onDelete(item.id)} className="text-red-500 hover:text-red-400">
                     <Icons.Trash2 size={16} />
@@ -213,6 +217,12 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
             )}
           </div>
         </ContextMenuItem>
+        {onToggleFavoriteItem && (
+          <ContextMenuItem onClick={() => onToggleFavoriteItem(item.id)}>
+            <Icons.Star size={14} className={`mr-2 ${isFavorite ? 'text-yellow-500 fill-yellow-500' : ''}`} />
+            <span>{isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}</span>
+          </ContextMenuItem>
+        )}
         {contextMenuProperties.length > 0 && (
           <>
             <ContextMenuSeparator />

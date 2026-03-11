@@ -750,8 +750,17 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                   <TableView
                     collection={currentCollection}
                     items={filteredItems}
+                    favoriteItemIds={favorites.items}
                     onEdit={(item: any) => itemHooks.updateItem(item)}
                     onDelete={itemHooks.deleteItem}
+                    onToggleFavoriteItem={(itemId: string) => {
+                      setFavorites((prev) => ({
+                        ...prev,
+                        items: prev.items.includes(itemId)
+                          ? prev.items.filter((id) => id !== itemId)
+                          : [...prev.items, itemId],
+                      }));
+                    }}
                     onBulkDelete={itemHooks.bulkDeleteItems}
                     onViewDetail={(item: any) => {
                       const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));

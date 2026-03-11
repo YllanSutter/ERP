@@ -1,6 +1,7 @@
 import React from 'react';
 import { LightSelect } from '@/components/inputs/LightSelect';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { MONTH_NAMES } from '@/lib/calendarUtils';
 
 interface FilterValueDisplayProps {
@@ -24,27 +25,47 @@ const FilterValueDisplay: React.FC<FilterValueDisplayProps> = ({
 }) => {
   const isMultiValueOperator = ['equals', 'not_equals'].includes(filter.operator);
 
-  const renderValue = () => {
+  const getValueLabels = (): string[] => {
     if (property?.type === 'relation') {
       const targetCol = collections.find((c: any) => c.id === property.relation?.targetCollectionId);
-      if (!targetCol) return filter.value;
-      const nameField = targetCol.properties?.find((p: any) => p.name === 'Nom' || p.id === 'name') || targetCol.properties?.[0] || ({ id: 'name' } as any);
-      if (Array.isArray(filter.value)) {
-        return filter.value
-          .map((id: string) => {
-            const item = targetCol.items.find((i: any) => i.id === id);
-            return item ? item[nameField.id] || item.name || id : id;
-          })
-          .join(', ');
-      } else {
-        const item = targetCol.items.find((i: any) => i.id === filter.value);
-        return item ? item[nameField.id] || item.name || filter.value : filter.value;
+      if (!targetCol) {
+        return Array.isArray(filter.value)
+          ? filter.value.filter(Boolean).map(String)
+          : filter.value
+          ? [String(filter.value)]
+          : [];
       }
+      const nameField = targetCol.properties?.find((p: any) => p.name === 'Nom' || p.id === 'name') || targetCol.properties?.[0] || ({ id: 'name' } as any);
+      const values = Array.isArray(filter.value) ? filter.value : filter.value ? [filter.value] : [];
+      return values.map((id: string) => {
+        const item = targetCol.items.find((i: any) => i.id === id);
+        return item ? item[nameField.id] || item.name || id : id;
+      });
     }
+
     if (Array.isArray(filter.value)) {
-      return filter.value.join(', ');
+      return filter.value.filter(Boolean).map(String);
     }
-    return filter.value;
+
+    if (filter.value === null || filter.value === undefined || filter.value === '') {
+      return [];
+    }
+
+    return [String(filter.value)];
+  };
+
+  const getCompactSummary = () => {
+    const labels = getValueLabels();
+    if (labels.length === 0) return 'Aucune valeur';
+    if (labels.length === 1) return labels[0];
+    if (labels.length === 2) return `${labels[0]} + ${labels[1]}`;
+    return `${labels[0]} +${labels.length - 1}`;
+  };
+
+  const fullValueLabel = getValueLabels().join(', ');
+
+  const renderValue = () => {
+    return fullValueLabel;
   };
 
   const renderEditor = () => {
@@ -201,7 +222,35 @@ const FilterValueDisplay: React.FC<FilterValueDisplayProps> = ({
   };
 
   if (!canEdit) {
-    return <span className="truncate">{renderValue()}</span>;
+    return compact ? (
+      <span className="inline-flex max-w-[180px] truncate rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-medium text-neutral-700 dark:bg-white/10 dark:text-neutral-200" title={fullValueLabel || 'Aucune valeur'}>
+        {getCompactSummary()}
+      </span>
+    ) : (
+      <span className="truncate">{renderValue()}</span>
+    );
+  }
+
+  if (compact) {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex max-w-[180px] items-center rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-medium text-neutral-700 transition hover:bg-black/10 dark:bg-white/10 dark:text-neutral-100 dark:hover:bg-white/15"
+            title={fullValueLabel || 'Aucune valeur'}
+          >
+            <span className="truncate">{getCompactSummary()}</span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-[min(24rem,80vw)]">
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">Valeur du filtre</div>
+            {renderEditor()}
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
   }
 
   return <div className={compact ? 'min-w-[140px]' : 'min-w-[180px]'}>{renderEditor()}</div>;
