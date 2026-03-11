@@ -575,12 +575,27 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
 
 
+  // Stabiliser initialForm : ne re-calculer QUE si le schéma (properties) change,
+  // PAS quand les items de la collection changent (ex: update distant via socket).
+  // Sans ça, chaque patch distant recalcule initialForm → relance l'effet draftKey → prompt parasite.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const initialForm = useMemo(
     () => getInitialFormData(selectedCollection, editingItem),
-    [selectedCollection, editingItem, orderedProperties]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      selectedCollectionId,
+      // Schéma seulement (properties + méta sans items)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      JSON.stringify(selectedCollection?.properties ?? []),
+      JSON.stringify(orderedProperties ?? []),
+      editingItem,
+    ]
   );
   const [templateAutoFilled, setTemplateAutoFilled] = useState<Record<string, boolean>>(initialForm.autoFilled);
   const [formData, setFormDataRaw] = useState(initialForm.data);
+  // Ref miroir de formData : permet de lire la valeur courante dans un effect
+  // sans avoir à l'inclure dans ses deps (ce qui ferait tourner l'effect à chaque frappe).
+  const formDataRef = useRef<any>(initialForm.data);
   const [hasLocalDraft, setHasLocalDraft] = useState(false);
   const [draftPromptOpen, setDraftPromptOpen] = useState(false);
   const [draftPayload, setDraftPayload] = useState<{ formData: any; templateAutoFilled?: Record<string, boolean> } | null>(null);
@@ -723,6 +738,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       }
     };
   }, [formData, templateAutoFilled, selectedCollectionId, draftKey, isDraftDirty]);
+
+  // Garder formDataRef synchronisé avec formData
+  React.useEffect(() => {
+    formDataRef.current = formData;
+  });
 
   // NOUVEAU COMPORTEMENT: setFormData ne recalcule PLUS côté client
   // Tout recalcul se fait côté serveur via POST /api/state
@@ -891,45 +911,38 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   }, [editingItem, selectedCollection]);
 
   // Sync en temps réel : quand un autre utilisateur modifie l'item en cours d'édition,
-  // on met à jour les champs que l'utilisateur local n'a PAS encore touchés.
+  // on met à jour UNIQUEMENT les champs que l'utilisateur local n'a PAS encore touchés.
+  // On ne mute PAS initialDataRef dans le state updater (effet de bord interdit).
   React.useEffect(() => {
     if (!isReallyEditing || !editingItem?.id) return;
     const liveCollection = collections.find((c: any) => c.id === selectedCollectionId);
     const liveItem = liveCollection?.items?.find((i: any) => i.id === editingItem.id);
     if (!liveItem) return;
 
-    setFormDataRaw((prev: any) => {
-      const baseline = initialDataRef.current;
-      let changed = false;
-      const merged: any = { ...prev };
-      for (const key of Object.keys(liveItem)) {
-        if (key.startsWith('_')) continue;
-        // Si l'utilisateur local n'a pas modifié ce champ, on accepte la valeur distante
-        const userModified =
-          JSON.stringify(prev[key]) !== JSON.stringify(baseline[key]);
-        if (!userModified) {
-          const isAlreadyUpToDate =
-            JSON.stringify(merged[key]) === JSON.stringify(liveItem[key]);
-          if (!isAlreadyUpToDate) {
-            merged[key] = liveItem[key];
-            changed = true;
-          }
-        }
+    // Calculer en dehors du state updater (accès synchrone à la baseline courante)
+    const baseline = initialDataRef.current;
+    const updates: Record<string, any> = {};
+    const newBaseline: Record<string, any> = { ...baseline };
+
+    // Lire formData via ref pour éviter une dépendance qui ferait tourner l'effet à chaque frappe
+    // (formDataRef est tenu à jour via setFormData en dessous)
+    const currentFormData = formDataRef.current ?? {};
+
+    for (const key of Object.keys(liveItem)) {
+      if (key.startsWith('_')) continue;
+      const userModified =
+        JSON.stringify(currentFormData[key]) !== JSON.stringify(baseline[key]);
+      if (!userModified && JSON.stringify(liveItem[key]) !== JSON.stringify(currentFormData[key])) {
+        updates[key] = liveItem[key];
+        newBaseline[key] = liveItem[key]; // avance la baseline pour ce champ
       }
-      if (!changed) return prev;
-      // Mettre à jour la baseline pour les champs synchronisés (évite une re-application)
-      const newBaseline = { ...baseline };
-      for (const key of Object.keys(liveItem)) {
-        if (key.startsWith('_')) continue;
-        const userModified =
-          JSON.stringify(prev[key]) !== JSON.stringify(baseline[key]);
-        if (!userModified) {
-          newBaseline[key] = liveItem[key];
-        }
-      }
-      initialDataRef.current = newBaseline;
-      return merged;
-    });
+    }
+
+    if (Object.keys(updates).length === 0) return;
+
+    // Muter la baseline AVANT le setState (synchrone, pas dans un updater)
+    initialDataRef.current = newBaseline;
+    setFormDataRaw((prev: any) => ({ ...prev, ...updates }));
   }, [collections, editingItem?.id, selectedCollectionId, isReallyEditing]);
 
   React.useEffect(() => {
