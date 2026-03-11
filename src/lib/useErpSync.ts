@@ -1,39 +1,12 @@
 import { useEffect, useRef } from 'react';
 
-/**
- * Hook de synchronisation de l'état global ERP avec le serveur et socket.io
- * - Gère la sauvegarde automatique (POST /api/state)
- * - Gère le hot reload via socket.io (event 'stateUpdated')
- * - Gère l'initialisation de l'état (GET /api/state)
- *
- * @param {Object} params
- * @param {any[]} params.collections
- * @param {Record<string, any[]>} params.views
- * @param {any[]} params.dashboards
- * @param {string} params.dashboardSort
- * @param {Record<string, any[]>} params.dashboardFilters
- * @param {Object} params.favorites
- * @param {boolean} params.isLoaded
- * @param {any} params.user
- * @param {boolean} params.canEdit
- * @param {Function} params.setCollections
- * @param {Function} params.setViews
- * @param {Function} params.setDashboards
- * @param {Function} params.setDashboardSort
- * @param {Function} params.setDashboardFilters
- * @param {Function} params.setFavorites
- * @param {Function} params.setIsLoaded
- * @param {string} params.API_URL
- * @param {Function} params.cleanForSave
- * @param {any} params.socket
- */
 // Types minimalistes pour éviter les erreurs TS
 type Collection = { id: string; items?: any[]; [key: string]: any };
 type ViewMap = Record<string, any[]>;
-
 type DashboardSort = 'created' | 'name-asc' | 'name-desc';
 type Dashboard = any;
 type Favorites = { views: string[]; items: string[] };
+
 interface UseErpSyncParams {
   collections: Collection[];
   views: ViewMap;
@@ -45,7 +18,7 @@ interface UseErpSyncParams {
   user: any;
   organizationId: string | null;
   canEdit: boolean;
-  setCollections: (c: Collection[]) => void;
+  setCollections: (c: Collection[] | ((prev: Collection[]) => Collection[])) => void;
   setViews: (v: ViewMap) => void;
   setDashboards: (d: Dashboard[]) => void;
   setDashboardSort: React.Dispatch<React.SetStateAction<DashboardSort>>;
@@ -55,7 +28,68 @@ interface UseErpSyncParams {
   API_URL: string;
   cleanForSave: (obj: any) => any;
   socket: any;
-  useStringifyDeps?: boolean; // Ajout du flag optionnel
+}
+
+// Calcule un diff entre deux snapshots de collections :
+// Retourne la liste des { collectionId, itemId, fields } qui ont changé.
+function diffCollectionsItems(
+  prev: Collection[],
+  next: Collection[]
+): Array<{ collectionId: string; itemId: string; fields: Record<string, any> }> {
+  const patches: Array<{ collectionId: string; itemId: string; fields: Record<string, any> }> = [];
+  const prevMap = new Map(prev.map((c) => [c.id, c]));
+
+  for (const col of next) {
+    const prevCol = prevMap.get(col.id);
+    if (!prevCol) continue; // nouvelle collection -> POST complet
+    if (!col.items) continue;
+    const prevItemsMap = new Map((prevCol.items || []).map((i: any) => [i.id, i]));
+
+    for (const item of col.items) {
+      const prevItem = prevItemsMap.get(item.id);
+      if (!prevItem) continue; // nouvel item -> POST complet
+      const changedFields: Record<string, any> = {};
+      for (const key of Object.keys(item)) {
+        if (key.startsWith('_')) continue; // ignorer _eventSegments etc.
+        if (JSON.stringify(item[key]) !== JSON.stringify(prevItem[key])) {
+          changedFields[key] = item[key];
+        }
+      }
+      if (Object.keys(changedFields).length > 0) {
+        patches.push({ collectionId: col.id, itemId: item.id, fields: changedFields });
+      }
+    }
+  }
+  return patches;
+}
+
+// Verifie si des items ont ete ajoutes ou supprimes
+function hasItemCountChanged(prev: Collection[], next: Collection[]): boolean {
+  if (prev.length !== next.length) return true;
+  const prevMap = new Map(prev.map((c) => [c.id, (c.items || []).length]));
+  for (const col of next) {
+    if ((col.items || []).length !== (prevMap.get(col.id) ?? -1)) return true;
+  }
+  return false;
+}
+
+// Verifie si la structure (hors contenu des items) a change
+function buildStructureSnapshot(
+  views: ViewMap,
+  dashboards: Dashboard[],
+  dashboardSort: string,
+  dashboardFilters: any,
+  favorites: Favorites,
+  collections: Collection[]
+): string {
+  return JSON.stringify({
+    views,
+    dashboards,
+    dashboardSort,
+    dashboardFilters,
+    favorites,
+    collectionMetas: collections.map(({ items: _i, ...meta }) => meta),
+  });
 }
 
 export function useErpSync({
@@ -79,21 +113,20 @@ export function useErpSync({
   API_URL,
   cleanForSave,
   socket,
-  useStringifyDeps = true
 }: UseErpSyncParams) {
-  // Hot reload sur événement 'stateUpdated' reçu du serveur
   const lastReloadRef = useRef(0);
-  // On mémorise la dernière sauvegarde locale pour ignorer les reloads qui suivent
-  const lastLocalSaveRef = useRef(0);
   const lastSavedPayloadRef = useRef<string | null>(null);
+  const lastSavedCollectionsRef = useRef<Collection[]>([]);
+  const lastSavedStructureRef = useRef<string | null>(null);
 
   useEffect(() => {
     lastSavedPayloadRef.current = null;
     lastReloadRef.current = 0;
-    lastLocalSaveRef.current = 0;
+    lastSavedCollectionsRef.current = [];
+    lastSavedStructureRef.current = null;
   }, [organizationId]);
 
-  // Fetch initial state when user is defined and component is mounted
+  // --- Chargement initial -----------------------------------------------
   useEffect(() => {
     if (!user || !organizationId) return;
     const fetchInitialState = async () => {
@@ -111,48 +144,83 @@ export function useErpSync({
             setDashboardSort(data.dashboardSort || 'created');
             setDashboardFilters(data.dashboardFilters || {});
             setFavorites(data.favorites || { views: [], items: [] });
+            lastSavedCollectionsRef.current = data.collections || [];
+            lastSavedStructureRef.current = buildStructureSnapshot(
+              data.views || {},
+              data.dashboards || [],
+              data.dashboardSort || 'created',
+              data.dashboardFilters || {},
+              data.favorites || { views: [], items: [] },
+              data.collections || []
+            );
             setIsLoaded(true);
           }
         }
       } catch (err) {
-        console.error('Erreur lors du chargement initial de l’état ERP', err);
+        console.error("Erreur lors du chargement initial de l'etat ERP", err);
       }
     };
     fetchInitialState();
-  }, [user, organizationId, API_URL, setCollections, setViews, setDashboards, setDashboardSort, setDashboardFilters, setFavorites, setIsLoaded]);
+  }, [user, organizationId, API_URL]);
 
-  // Quand on sauvegarde l'état, on ignore le prochain reload (car c'est nous qui avons modifié)
-  useEffect(() => {
-    if (!isLoaded || !user || !organizationId || !canEdit) return;
-    // On note le timestamp de la dernière sauvegarde locale
-    lastLocalSaveRef.current = Date.now();
-  }, [
-    collections.length,
-    collections.map((col: Collection) => (Array.isArray(col.items) ? col.items.length : 0)).reduce((a: number, b: number) => a + b, 0),
-    Object.keys(views).length,
-    dashboards.length,
-    dashboardSort,
-    Object.keys(dashboardFilters).length,
-    favorites.views.length,
-    favorites.items.length
-  ]);
+  // --- Reception temps reel : item modifie (patch chirurgical) ----------
   useEffect(() => {
     if (!socket || !organizationId) return;
-    const reloadState = async (payload?: { userId?: string; organizationId?: string }) => {
+
+    const handleItemUpdated = (payload?: {
+      userId?: string;
+      organizationId?: string;
+      collectionId?: string;
+      itemId?: string;
+      item?: any;
+    }) => {
+      if (payload?.organizationId && payload.organizationId !== organizationId) return;
+      if (payload?.userId && user && payload.userId === user.id) return;
+      if (!payload?.collectionId || !payload?.itemId || !payload?.item) return;
+
+      const { collectionId, itemId, item } = payload;
+
+      // Mise a jour chirurgicale : on ne touche qu'a l'item concerne
+      setCollections((prev: Collection[]) =>
+        prev.map((col) => {
+          if (col.id !== collectionId) return col;
+          return {
+            ...col,
+            items: (col.items || []).map((it: any) =>
+              it.id === itemId ? { ...it, ...item } : it
+            ),
+          };
+        })
+      );
+
+      // Mettre a jour le snapshot pour eviter de re-sauvegarder ce changement
+      lastSavedCollectionsRef.current = lastSavedCollectionsRef.current.map((col) => {
+        if (col.id !== collectionId) return col;
+        return {
+          ...col,
+          items: (col.items || []).map((it: any) =>
+            it.id === itemId ? { ...it, ...item } : it
+          ),
+        };
+      });
+    };
+
+    socket.on('itemUpdated', handleItemUpdated);
+    return () => socket.off('itemUpdated', handleItemUpdated);
+  }, [socket, organizationId, user]);
+
+  // --- Reception temps reel : structure modifiee ------------------------
+  useEffect(() => {
+    if (!socket || !organizationId) return;
+
+    const handleStructureUpdated = async (payload?: { userId?: string; organizationId?: string }) => {
+      if (payload?.organizationId && payload.organizationId !== organizationId) return;
+      if (payload?.userId && user && payload.userId === user.id) return;
+
       const now = Date.now();
-      if (payload?.organizationId && payload.organizationId !== organizationId) {
-        return;
-      }
-      // Si l'event vient de nous-même, on ignore le reload
-      if (payload && payload.userId && user && payload.userId === user.id) {
-        // console.log('Ignoré: event stateUpdated vient de nous-même');
-        return;
-      }
-      // On garde aussi la protection temporelle (anti-spam)
-      if (now - lastReloadRef.current < 5000) {
-        return;
-      }
+      if (now - lastReloadRef.current < 2000) return;
       lastReloadRef.current = now;
+
       try {
         const res = await fetch(`${API_URL}/state`, {
           credentials: 'include',
@@ -160,75 +228,140 @@ export function useErpSync({
         });
         if (res.ok) {
           const data = await res.json();
-          if (data?.collections && data?.views) {
-            setCollections(data.collections);
-            setViews(data.views);
+          if (data) {
+            // Pour les collections : mettre a jour seulement la meta (proprietes, etc.)
+            // en preservant les items locaux pour ne pas ecraser une saisie en cours
+            setCollections((prev: Collection[]) => {
+              const prevMap = new Map(prev.map((c) => [c.id, c]));
+              return (data.collections || []).map((serverCol: Collection) => {
+                const localCol = prevMap.get(serverCol.id);
+                if (!localCol) return serverCol;
+                return { ...serverCol, items: localCol.items };
+              });
+            });
+            setViews(data.views || {});
             setDashboards(data.dashboards || []);
             setDashboardSort(data.dashboardSort || 'created');
-            setFavorites(data.favorites || { views: [], items: [] });
             setDashboardFilters(data.dashboardFilters || {});
-            setIsLoaded(true);
+            setFavorites(data.favorites || { views: [], items: [] });
+            lastSavedStructureRef.current = buildStructureSnapshot(
+              data.views || {},
+              data.dashboards || [],
+              data.dashboardSort || 'created',
+              data.dashboardFilters || {},
+              data.favorites || { views: [], items: [] },
+              data.collections || []
+            );
           }
         }
       } catch (err) {
-        console.error('Impossible de recharger les données', err);
+        console.error('Impossible de recharger la structure', err);
       }
     };
-    socket.on('stateUpdated', reloadState);
-    return () => {
-      socket.off('stateUpdated', reloadState);
-    };
-  }, [socket, isLoaded, user, canEdit, organizationId]);
 
-  // Sauvegarde et synchro temps réel de l'état global à chaque changement, avec debounce
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+    socket.on('structureUpdated', handleStructureUpdated);
+    // Compatibilite ascendante
+    socket.on('stateUpdated', handleStructureUpdated);
+    return () => {
+      socket.off('structureUpdated', handleStructureUpdated);
+      socket.off('stateUpdated', handleStructureUpdated);
+    };
+  }, [socket, organizationId, user, API_URL]);
+
+  // --- Sauvegarde avec debounce et diff intelligent ---------------------
+  const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (!isLoaded || !user || !organizationId || !canEdit) return;
-    if (debounceTimeout.current) {
-      clearTimeout(debounceTimeout.current);
-    }
-    debounceTimeout.current = setTimeout(() => {
-      const saveState = async () => {
-        try {
-          const payload = {
-            collections: cleanForSave(collections),
-            views: cleanForSave(views),
-            dashboards: cleanForSave(dashboards),
-            dashboardSort,
-            dashboardFilters: cleanForSave(dashboardFilters),
-            favorites: cleanForSave(favorites)
-          };
-          const payloadString = JSON.stringify(payload);
 
-          if (payloadString === lastSavedPayloadRef.current) {
-            return;
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+
+    debounceTimeout.current = setTimeout(async () => {
+      try {
+        const cleanedCollections = cleanForSave(collections);
+        const cleanedViews = cleanForSave(views);
+        const cleanedDashboards = cleanForSave(dashboards);
+        const cleanedFilters = cleanForSave(dashboardFilters);
+        const cleanedFavorites = cleanForSave(favorites);
+
+        const prevCollections = lastSavedCollectionsRef.current;
+        const countChanged = hasItemCountChanged(prevCollections, cleanedCollections);
+        const currentStructureStr = buildStructureSnapshot(
+          cleanedViews,
+          cleanedDashboards,
+          dashboardSort,
+          cleanedFilters,
+          cleanedFavorites,
+          cleanedCollections
+        );
+        const structureChanged = currentStructureStr !== lastSavedStructureRef.current;
+
+        let needsFullPost = structureChanged || countChanged;
+
+        // Patches d'items (PATCH /api/state/item) - evite de tout recharger chez les autres
+        if (!countChanged) {
+          const patches = diffCollectionsItems(prevCollections, cleanedCollections);
+          if (patches.length > 0) {
+            const results = await Promise.all(
+              patches.map((patch) =>
+                fetch(`${API_URL}/state/item`, {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Organization-Id': organizationId,
+                  },
+                  credentials: 'include',
+                  body: JSON.stringify(patch),
+                }).catch(() => null)
+              )
+            );
+            const allOk = results.every((r) => r && (r as Response).ok);
+            if (allOk) {
+              lastSavedCollectionsRef.current = cleanedCollections;
+              if (!needsFullPost) return; // tout est sauve via les patches
+            } else {
+              needsFullPost = true; // fallback POST complet si un patch a echoue
+            }
           }
-
-          const res = await fetch(`${API_URL}/state`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Organization-Id': organizationId,
-            },
-            credentials: 'include',
-            body: payloadString,
-          });
-
-          if (res.ok) {
-            lastSavedPayloadRef.current = payloadString;
-          }
-        } catch (err) {
-          console.error('Impossible de sauvegarder les données', err);
         }
-      };
-      saveState();
-    }, 500); // 500ms de délai après la dernière modif
-    return () => {
-      if (debounceTimeout.current) {
-        clearTimeout(debounceTimeout.current);
+
+        // POST complet (structure ou ajout/suppression d'items)
+        if (needsFullPost) {
+          const fullPayload = {
+            collections: cleanedCollections,
+            views: cleanedViews,
+            dashboards: cleanedDashboards,
+            dashboardSort,
+            dashboardFilters: cleanedFilters,
+            favorites: cleanedFavorites,
+          };
+          const fullPayloadStr = JSON.stringify(fullPayload);
+          if (fullPayloadStr !== lastSavedPayloadRef.current) {
+            const res = await fetch(`${API_URL}/state`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Organization-Id': organizationId,
+              },
+              credentials: 'include',
+              body: fullPayloadStr,
+            });
+            if (res.ok) {
+              lastSavedPayloadRef.current = fullPayloadStr;
+              lastSavedCollectionsRef.current = cleanedCollections;
+              lastSavedStructureRef.current = currentStructureStr;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Impossible de sauvegarder les donnees', err);
       }
+    }, 400);
+
+    return () => {
+      if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
     };
-  }, useStringifyDeps ? [
+  }, [
     JSON.stringify(collections),
     JSON.stringify(views),
     JSON.stringify(dashboards),
@@ -238,19 +371,6 @@ export function useErpSync({
     isLoaded,
     user,
     organizationId,
-    canEdit
-  ] : [
-    collections.length,
-    collections.map((col: Collection) => (Array.isArray(col.items) ? col.items.length : 0)).reduce((a: number, b: number) => a + b, 0),
-    Object.keys(views).length,
-    dashboards.length,
-    dashboardSort,
-    Object.keys(dashboardFilters).length,
-    favorites.views.length,
-    favorites.items.length,
-    isLoaded,
-    user,
-    organizationId,
-    canEdit
+    canEdit,
   ]);
 }

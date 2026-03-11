@@ -1895,6 +1895,161 @@ const filterStateForUser = (data, ctx) => {
   return { ...data, collections: filteredCollections };
 };
 
+// --- Mise à jour chirurgicale d'un seul item (multi-utilisateur temps réel) ---
+// PATCH /api/state/item  { collectionId, itemId, fields: { fieldId: value, ... } }
+// Merge au niveau du champ : seuls les champs envoyés écrasent la valeur existante
+app.patch('/api/state/item', requireAuth, async (req, res) => {
+  try {
+    const { collectionId, itemId, fields } = req.body ?? {};
+    const userId = req.auth.user.id;
+    const organizationId = req.auth.activeOrganization?.id;
+
+    if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+    if (!collectionId || !itemId || !fields || typeof fields !== 'object') {
+      return res.status(400).json({ error: 'collectionId, itemId and fields are required' });
+    }
+    if (!hasPermission(req.auth, { collection_id: collectionId }, 'can_write')) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const stateResult = await pool.query(
+      'SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1',
+      [organizationId]
+    );
+    if (stateResult.rows.length === 0) {
+      return res.status(404).json({ error: 'State not found' });
+    }
+
+    const state = JSON.parse(stateResult.rows[0].data);
+    const collections = Array.isArray(state.collections) ? state.collections : [];
+
+    const colIdx = collections.findIndex((c) => c.id === collectionId);
+    if (colIdx === -1) return res.status(404).json({ error: 'Collection not found' });
+
+    const col = collections[colIdx];
+    const items = Array.isArray(col.items) ? col.items : [];
+    const itemIdx = items.findIndex((i) => i.id === itemId);
+    if (itemIdx === -1) return res.status(404).json({ error: 'Item not found' });
+
+    // Merge champ par champ (ne touche pas aux champs non envoyés)
+    const prevItem = items[itemIdx];
+    const mergedItem = { ...prevItem, ...fields };
+
+    // Recalcul segments si nécessaire
+    const processedItem = shouldRecalculateSegments(prevItem, mergedItem, col, col)
+      ? calculateEventSegments(mergedItem, col)
+      : mergedItem;
+
+    const newItems = items.map((it, idx) => (idx === itemIdx ? processedItem : it));
+    const newCollections = collections.map((c, idx) =>
+      idx === colIdx ? { ...c, items: newItems } : c
+    );
+
+    const newState = { ...state, collections: newCollections };
+    const stateStr = JSON.stringify(newState);
+
+    const updateRes = await pool.query(
+      'UPDATE app_state SET data = $1 WHERE organization_id = $2',
+      [stateStr, organizationId]
+    );
+    if (updateRes.rowCount === 0) {
+      await pool.query(
+        'INSERT INTO app_state (organization_id, data) VALUES ($1, $2)',
+        [organizationId, stateStr]
+      );
+    }
+
+    // Émettre un event ciblé : seul l'item modifié sera rechargé chez les autres
+    if (global.io) {
+      global.io.emit('itemUpdated', {
+        userId,
+        organizationId,
+        collectionId,
+        itemId,
+        fields: Object.keys(fields),
+        item: processedItem,
+      });
+    }
+
+    return res.json({ ok: true, item: processedItem });
+  } catch (err) {
+    console.error('Failed to patch item', err);
+    return res.status(500).json({ error: 'Failed to patch item' });
+  }
+});
+
+// --- Mise à jour chirurgicale de la structure (views, collection meta, dashboards) ---
+// PATCH /api/state/structure  { type: 'view'|'collection'|'dashboard'|'views'|'dashboards', payload }
+app.patch('/api/state/structure', requireAuth, async (req, res) => {
+  try {
+    const { type, payload } = req.body ?? {};
+    const userId = req.auth.user.id;
+    const organizationId = req.auth.activeOrganization?.id;
+
+    if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+    if (!type || !payload) return res.status(400).json({ error: 'type and payload are required' });
+
+    const stateResult = await pool.query(
+      'SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1',
+      [organizationId]
+    );
+    const existingState = stateResult.rows.length > 0
+      ? JSON.parse(stateResult.rows[0].data)
+      : { ...INITIAL_APP_STATE };
+
+    let newState = { ...existingState };
+
+    if (type === 'views') {
+      newState = { ...newState, views: payload };
+    } else if (type === 'dashboards') {
+      newState = { ...newState, dashboards: payload };
+    } else if (type === 'dashboardSort') {
+      newState = { ...newState, dashboardSort: payload };
+    } else if (type === 'dashboardFilters') {
+      newState = { ...newState, dashboardFilters: payload };
+    } else if (type === 'favorites') {
+      newState = { ...newState, favorites: payload };
+    } else if (type === 'collectionMeta') {
+      // payload: { collectionId, patch }
+      const { collectionId, patch } = payload;
+      newState = {
+        ...newState,
+        collections: (newState.collections || []).map((c) =>
+          c.id === collectionId ? { ...c, ...patch, items: c.items } : c
+        ),
+      };
+    } else if (type === 'addCollection') {
+      newState = { ...newState, collections: [...(newState.collections || []), payload] };
+    } else if (type === 'deleteCollection') {
+      newState = {
+        ...newState,
+        collections: (newState.collections || []).filter((c) => c.id !== payload.collectionId),
+      };
+    }
+
+    const stateStr = JSON.stringify(newState);
+    const updateRes = await pool.query(
+      'UPDATE app_state SET data = $1 WHERE organization_id = $2',
+      [stateStr, organizationId]
+    );
+    if (updateRes.rowCount === 0) {
+      await pool.query(
+        'INSERT INTO app_state (organization_id, data) VALUES ($1, $2)',
+        [organizationId, stateStr]
+      );
+    }
+
+    if (global.io) {
+      global.io.emit('structureUpdated', { userId, organizationId, type });
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Failed to patch structure', err);
+    return res.status(500).json({ error: 'Failed to patch structure' });
+  }
+});
+
 app.get('/api/state', requireAuth, async (req, res) => {
   try {
     const organizationId = req.auth.activeOrganization?.id;
