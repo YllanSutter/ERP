@@ -1697,32 +1697,59 @@ app.post('/api/appstate', requireAuth, async (req, res) => {
       const organizationId = req.auth.activeOrganization?.id;
       if (!organizationId) return res.status(400).json({ error: 'No active organization' });
 
+      const userIdMap = new Map();
+      const roleIdMap = new Map();
+
       // Upsert users (nécessaire si un membre importé n'existe pas encore localement)
       for (const user of users) {
-        await pool.query(
-          `INSERT INTO users (id, email, name, provider, provider_id, password_hash, created_at, favorite_views, favorite_items)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-           ON CONFLICT (id) DO UPDATE SET
-             email = EXCLUDED.email,
-             name = EXCLUDED.name,
-             provider = EXCLUDED.provider,
-             provider_id = EXCLUDED.provider_id,
-             password_hash = EXCLUDED.password_hash,
-             created_at = EXCLUDED.created_at,
-             favorite_views = EXCLUDED.favorite_views,
-             favorite_items = EXCLUDED.favorite_items`,
-          [
-            user.id,
-            user.email,
-            user.name,
-            user.provider,
-            user.provider_id,
-            user.password_hash,
-            user.created_at,
-            user.favorite_views || [],
-            user.favorite_items || []
-          ]
+        const existingUserRes = await pool.query(
+          'SELECT id FROM users WHERE id = $1 OR email = $2 ORDER BY CASE WHEN id = $1 THEN 0 ELSE 1 END LIMIT 1',
+          [user.id, user.email]
         );
+
+        if (existingUserRes.rowCount > 0) {
+          const persistedUserId = existingUserRes.rows[0].id;
+          await pool.query(
+            `UPDATE users SET
+               email = $2,
+               name = $3,
+               provider = $4,
+               provider_id = $5,
+               password_hash = $6,
+               created_at = $7,
+               favorite_views = $8,
+               favorite_items = $9
+             WHERE id = $1`,
+            [
+              persistedUserId,
+              user.email,
+              user.name,
+              user.provider,
+              user.provider_id,
+              user.password_hash,
+              user.created_at,
+              user.favorite_views || [],
+              user.favorite_items || []
+            ]
+          );
+          userIdMap.set(user.id, persistedUserId);
+        } else {
+          await pool.query(
+            'INSERT INTO users (id, email, name, provider, provider_id, password_hash, created_at, favorite_views, favorite_items) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+            [
+              user.id,
+              user.email,
+              user.name,
+              user.provider,
+              user.provider_id,
+              user.password_hash,
+              user.created_at,
+              user.favorite_views || [],
+              user.favorite_items || []
+            ]
+          );
+          userIdMap.set(user.id, user.id);
+        }
       }
 
       // Nettoyage strict de l'organisation active uniquement
@@ -1735,7 +1762,7 @@ app.post('/api/appstate', requireAuth, async (req, res) => {
       // Membres : ceux importés + l'utilisateur courant (anti lock-out)
       const importedMemberIds = new Set(
         (Array.isArray(organization_members) ? organization_members : [])
-          .map((m) => m?.user_id)
+          .map((m) => userIdMap.get(m?.user_id) || m?.user_id)
           .filter(Boolean)
       );
       importedMemberIds.add(req.auth.user.id);
@@ -1748,30 +1775,50 @@ app.post('/api/appstate', requireAuth, async (req, res) => {
       }
 
       for (const role of roles) {
-        await pool.query(
-          'INSERT INTO roles (id, organization_id, name, description, is_system) VALUES ($1,$2,$3,$4,$5)',
+        const roleRes = await pool.query(
+          `INSERT INTO roles (id, organization_id, name, description, is_system)
+           VALUES ($1,$2,$3,$4,$5)
+           ON CONFLICT (organization_id, name) DO UPDATE SET
+             description = EXCLUDED.description,
+             is_system = EXCLUDED.is_system
+           RETURNING id`,
           [role.id, organizationId, role.name, role.description, role.is_system]
         );
+        roleIdMap.set(role.id, roleRes.rows[0].id);
       }
 
       for (const perm of permissions) {
-        await pool.query(
-          'INSERT INTO permissions (id, organization_id, role_id, collection_id, item_id, field_id, can_read, can_write, can_delete, can_manage_fields, can_manage_views, can_manage_permissions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
-          [perm.id, organizationId, perm.role_id, perm.collection_id, perm.item_id, perm.field_id, perm.can_read, perm.can_write, perm.can_delete, perm.can_manage_fields, perm.can_manage_views, perm.can_manage_permissions]
-        );
+        await upsertPermission({
+          id: perm.id,
+          organization_id: organizationId,
+          role_id: roleIdMap.get(perm.role_id) || perm.role_id,
+          collection_id: perm.collection_id,
+          item_id: perm.item_id,
+          field_id: perm.field_id,
+          can_read: perm.can_read,
+          can_write: perm.can_write,
+          can_delete: perm.can_delete,
+          can_manage_fields: perm.can_manage_fields,
+          can_manage_views: perm.can_manage_views,
+          can_manage_permissions: perm.can_manage_permissions,
+        });
       }
 
       for (const row of app_state) {
         await pool.query(
-          'INSERT INTO app_state (id, user_id, organization_id, data) VALUES ($1, $2, $3, $4)',
-          [row.id, row.user_id || null, organizationId, row.data]
+          `INSERT INTO app_state (id, user_id, organization_id, data)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (organization_id) DO UPDATE SET
+             user_id = EXCLUDED.user_id,
+             data = EXCLUDED.data`,
+          [row.id, userIdMap.get(row.user_id) || row.user_id || null, organizationId, row.data]
         );
       }
 
       for (const ur of user_roles) {
         await pool.query(
-          'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3)',
-          [organizationId, ur.user_id, ur.role_id]
+          'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+          [organizationId, userIdMap.get(ur.user_id) || ur.user_id, roleIdMap.get(ur.role_id) || ur.role_id]
         );
       }
 

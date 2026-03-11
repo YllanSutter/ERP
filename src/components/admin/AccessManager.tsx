@@ -697,18 +697,51 @@ const AccessManager = ({
                     try {
                       const text = await file.text();
                       const fullData = JSON.parse(text);  // Garde TOUT le JSON
-                      const res = await fetch(`${API_URL}/appstate?scope=organization`, {
+                      const appStateRows = Array.isArray(fullData?.app_state) ? fullData.app_state : [];
+                      const organizationIdsFromState = new Set(
+                        appStateRows
+                          .map((row: any) => row?.organization_id)
+                          .filter((value: any) => typeof value === 'string' && value.length > 0)
+                      );
+                      const organizationsInPayload = Array.isArray(fullData?.organizations)
+                        ? fullData.organizations.length
+                        : 0;
+
+                      const inferredScope: 'global' | 'organization' =
+                        fullData?.scope === 'global' ||
+                        /global/i.test(file.name) ||
+                        organizationsInPayload > 1 ||
+                        organizationIdsFromState.size > 1
+                          ? 'global'
+                          : 'organization';
+
+                      const res = await fetch(`${API_URL}/appstate?scope=${inferredScope}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',
                         body: JSON.stringify(fullData),  // ← Envoi TOUT (users + appstate + ...)
                       });
-                      if (!res.ok) throw new Error('Erreur import appstate');
-                      alert('✅ Import organisation réussi ! Seule l’organisation active a été remplacée.');
+                      const result = await res.json().catch(() => ({}));
+                      if (!res.ok) {
+                        throw new Error(result?.error || 'Erreur import appstate');
+                      }
+
+                      const appliedScope: 'global' | 'organization' =
+                        result?.scope === 'global' ? 'global' : inferredScope;
+
+                      if (appliedScope === 'global') {
+                        const orgCount =
+                          organizationsInPayload ||
+                          organizationIdsFromState.size ||
+                          1;
+                        alert(`✅ Import global réussi ! ${orgCount} organisation(s) remplacée(s).`);
+                      } else {
+                        alert('✅ Import organisation réussi ! Seule l’organisation active a été remplacée.');
+                      }
                       // Optionnel : reload tout
                       loadAll();
                     } catch (err) {
-                      alert(`❌ Erreur lors de l'import : ${err}`);
+                      alert(`❌ Erreur lors de l'import : ${err instanceof Error ? err.message : String(err)}`);
                     }
                   }}
 
