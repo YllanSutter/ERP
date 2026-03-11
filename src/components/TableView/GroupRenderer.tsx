@@ -36,6 +36,8 @@ interface GroupRendererProps {
   totalFields?: Record<string, string>;
   calculateTotal?: (fieldId: string, items: Item[], totalType: string) => any;
   formatTotal?: (fieldId: string, total: any, totalType: string) => string;
+  hideCurrentHeader?: boolean;
+  depthOffset?: number;
 }
 
 const GroupRenderer: React.FC<GroupRendererProps> = ({
@@ -70,6 +72,8 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   totalFields = {},
   calculateTotal,
   formatTotal,
+  hideCurrentHeader = false,
+  depthOffset = 0,
 }) => {
   const groupData = groupedStructure.structure[groupPath];
   if (!groupData) return null;
@@ -87,21 +91,24 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
     collections
   );
   const itemCount = countItemsInGroup(groupPath, groupedStructure.structure);
+  const displayDepth = Math.max(0, depth + depthOffset);
 
   const displayColumnCount = visibleProperties.filter((p: any) => !p.showContextMenu).length;
 
   return (
     <React.Fragment key={groupPath}>
-      <GroupHeader
-        groupPath={groupPath}
-        label={label}
-        propertyName={property.name}
-        itemCount={itemCount}
-        depth={depth}
-        isExpanded={isExpanded}
-        onToggle={() => toggleGroup(groupPath)}
-        colSpan={displayColumnCount + (draggableRows ? 1 : 0) + (enableSelection ? 1 : 0)}
-      />
+      {!hideCurrentHeader && (
+        <GroupHeader
+          groupPath={groupPath}
+          label={label}
+          propertyName={property.name}
+          itemCount={itemCount}
+          depth={displayDepth}
+          isExpanded={isExpanded}
+          onToggle={() => toggleGroup(groupPath)}
+          colSpan={displayColumnCount + (draggableRows ? 1 : 0) + (enableSelection ? 1 : 0)}
+        />
+      )}
 
       {isExpanded && (
         <>
@@ -140,6 +147,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               totalFields={totalFields}
               calculateTotal={calculateTotal}
               formatTotal={formatTotal}
+              depthOffset={depthOffset}
             />
           ))}
 
@@ -196,7 +204,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                     <td 
                       key={prop.id} 
                       className="px-3 py-1 text-[10px] text-neutral-400"
-                      style={index === 0 ? { paddingLeft: `${24 + (depth + 1) * 20}px` } : undefined}
+                      style={index === 0 ? { paddingLeft: `${24 + (displayDepth + 1) * 20}px` } : undefined}
                     >
                     </td>
                   );
@@ -207,7 +215,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                   <td 
                     key={prop.id} 
                     className="px-3 py-1 text-[10px] font-medium text-violet-600 dark:text-violet-400"
-                    style={index === 0 ? { paddingLeft: `${24 + (depth + 1) * 20}px` } : undefined}
+                    style={index === 0 ? { paddingLeft: `${24 + (displayDepth + 1) * 20}px` } : undefined}
                   >
                     {formatTotal(prop.id, total, totalType)}
                   </td>

@@ -22,6 +22,8 @@ export const useViews = (
     };
     if (config?.groupBy) newView.groupBy = config.groupBy;
     if (config?.dateProperty) newView.dateProperty = config.dateProperty;
+    if (config?.groupDisplayMode) newView.groupDisplayMode = config.groupDisplayMode;
+    if (config?.groupDisplayColumnCount) newView.groupDisplayColumnCount = config.groupDisplayColumnCount;
 
     if (activeCollection) {
       setViews({

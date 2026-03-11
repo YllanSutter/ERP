@@ -8,6 +8,8 @@ import TableHeader from '@/components/TableView/TableHeader';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { countItemsInGroup, getGroupLabel } from '@/lib/groupingUtils';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -51,9 +53,22 @@ const TableView: React.FC<TableViewProps> = ({
   onSortStateChange,
   initialExpandedGroups,
   onExpandedGroupsChange,
+  groupDisplayMode = 'accordion',
+  groupDisplayColumnCount = 3,
   totalFields = {},
   onSetTotalField,
 }) => {
+    const normalizedGroupDisplayColumnCount =
+      groupDisplayColumnCount === 1 || groupDisplayColumnCount === 2 || groupDisplayColumnCount === 3
+        ? groupDisplayColumnCount
+        : 3;
+
+    const groupColumnsClassName = useMemo(() => {
+      if (normalizedGroupDisplayColumnCount === 1) return 'grid-cols-1';
+      if (normalizedGroupDisplayColumnCount === 2) return 'grid-cols-1 lg:grid-cols-2';
+      return 'grid-cols-1 md:grid-cols-2 2xl:grid-cols-3';
+    }, [normalizedGroupDisplayColumnCount]);
+
   // Guard: si pas de collection, ne rien afficher
   if (!collection) {
     return (
@@ -208,6 +223,22 @@ const TableView: React.FC<TableViewProps> = ({
 
   const showSelectionColumn = canEdit && !hiddenFields.includes(ROW_SELECTION_FIELD_ID);
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
+  const rootGroups = groupedStructure?.rootGroups || [];
+  const rootGroupProperty = useMemo(
+    () => (groups.length > 0 ? collection.properties.find((p: any) => p.id === groups[0]) || null : null),
+    [collection.properties, groups]
+  );
+  const [activeGroupTab, setActiveGroupTab] = useState('');
+
+  useEffect(() => {
+    if (groupDisplayMode !== 'tabs' || rootGroups.length === 0) {
+      setActiveGroupTab('');
+      return;
+    }
+    if (!rootGroups.includes(activeGroupTab)) {
+      setActiveGroupTab(rootGroups[0]);
+    }
+  }, [groupDisplayMode, rootGroups, activeGroupTab]);
 
   // Fonction pour calculer le total d'un champ selon le type de total
   const calculateTotal = useCallback((fieldId: string, itemsToSum: any[], totalType: string) => {
@@ -605,125 +636,205 @@ const TableView: React.FC<TableViewProps> = ({
             )}
           </div>
         )}
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <TableHeader
+        {(() => {
+          const renderRootGroupRows = (rootGroup: string, hideCurrentHeader = false) => (
+            <GroupRenderer
+              key={rootGroup}
+              groupPath={rootGroup}
+              depth={0}
+              groups={groups}
+              groupedStructure={groupedStructure!}
+              collection={collection}
+              collections={collections}
+              expandedGroups={expandedGroups}
+              toggleGroup={toggleGroup}
+              itemsMap={itemsMap}
               visibleProperties={visibleProperties}
-              items={items}
-              onEditProperty={onEditProperty}
-              onToggleField={onToggleField}
-              onDeleteProperty={onDeleteProperty}
-              collectionId={collection?.id}
-              sortState={sortState}
-              onSort={handleSort}
-              enableDragReorder={canReorderRows}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onViewDetail={onViewDetail}
+              onRelationChange={onRelationChange}
+              onNavigateToCollection={onNavigateToCollection}
+              canEdit={canEdit}
+              canEditField={canEditFieldFn}
+              sortItems={sortItems}
               enableSelection={showSelectionColumn}
-              allSelected={allSelected}
-              partiallySelected={partiallySelected}
-              onToggleSelectAll={handleToggleSelectAll}
+              selectedItemIds={selectedItemIds}
+              onSelectionChange={handleSelectionChange}
+              draggableRows={canReorderRows}
+              dragItemId={dragItemId}
+              dragOverItemId={dragOverItemId}
+              onRowDragStart={handleRowDragStart}
+              onRowDragEnter={handleRowDragEnter}
+              onRowDrop={handleRowDrop}
+              onRowDragEnd={handleRowDragEnd}
               totalFields={totalFields}
-              onToggleTotalField={onSetTotalField}
+              calculateTotal={calculateTotal}
+              formatTotal={formatTotal}
+              hideCurrentHeader={hideCurrentHeader}
+              depthOffset={hideCurrentHeader ? -1 : 0}
             />
-            <tbody className="divide-y divide-white/5">
-              {groupedStructure ? (
-                // Rendu des groupes avec la nouvelle logique
-                groupedStructure.rootGroups.map(rootGroup => (
-                  <GroupRenderer
-                    key={rootGroup}
-                    groupPath={rootGroup}
-                    depth={0}
-                    groups={groups}
-                    groupedStructure={groupedStructure}
-                    collection={collection}
-                    collections={collections}
-                    expandedGroups={expandedGroups}
-                    toggleGroup={toggleGroup}
-                    itemsMap={itemsMap}
-                    visibleProperties={visibleProperties}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                    onViewDetail={onViewDetail}
-                    onRelationChange={onRelationChange}
-                    onNavigateToCollection={onNavigateToCollection}
-                    canEdit={canEdit}
-                    canEditField={canEditFieldFn}
-                    sortItems={sortItems}
-                    enableSelection={showSelectionColumn}
-                    selectedItemIds={selectedItemIds}
-                    onSelectionChange={handleSelectionChange}
-                    draggableRows={canReorderRows}
-                    dragItemId={dragItemId}
-                    dragOverItemId={dragOverItemId}
-                    onRowDragStart={handleRowDragStart}
-                    onRowDragEnter={handleRowDragEnter}
-                    onRowDrop={handleRowDrop}
-                    onRowDragEnd={handleRowDragEnd}
-                    totalFields={totalFields}
-                    calculateTotal={calculateTotal}
-                    formatTotal={formatTotal}
-                  />
-                ))
-              ) : (
-                // Sans groupes : affichage normal
-                sortItems(items).map(item => (
-                  <TableItemRow
-                    key={item.id}
-                    item={item}
-                    visibleProperties={visibleProperties}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                    onViewDetail={onViewDetail}
-                    collections={collections}
-                    onRelationChange={onRelationChange}
-                    onNavigateToCollection={onNavigateToCollection}
-                    canEdit={canEdit}
-                    canEditField={canEditFieldFn}
-                    animate={false}
-                    collection = {collection}
-                    enableSelection={showSelectionColumn}
-                    isSelected={selectedItemIds.has(item.id)}
-                    onSelectionChange={handleSelectionChange}
-                    enableDragReorder={canReorderRows}
-                    isDragging={dragItemId === item.id}
-                    isDragOver={dragOverItemId === item.id && dragItemId !== item.id}
-                    onDragStart={(itemId, e) => {
-                      e.dataTransfer!.effectAllowed = 'move';
-                      handleRowDragStart(itemId);
-                    }}
-                    onDragEnter={handleRowDragEnter}
-                    onDragOver={(e) => {
-                      if (!canReorderRows) return;
-                      e.preventDefault();
-                      e.dataTransfer!.dropEffect = 'move';
-                    }}
-                    onDrop={handleRowDrop}
-                    onDragEnd={handleRowDragEnd}
-                  />
-                ))
-              )}
-            </tbody>
-            {Object.keys(totalFields).length > 0 && items.length > 0 && (
-              <tfoot className="bg-violet-50/50 dark:bg-violet-900/10 border-t-2 border-violet-200 dark:border-violet-800">
-                <tr>
-                  {canReorderRows && <td className="px-1 py-2 w-8"></td>}
-                  {showSelectionColumn && <td className="px-2 py-2"></td>}
-                  {displayProperties.map((prop: any) => {
-                    const totalType = totalFields[prop.id];
-                    if (!totalType) {
-                      return <td key={prop.id} className="px-3 py-2"></td>;
-                    }
-                    const total = calculateTotal(prop.id, items, totalType);
-                    return (
-                      <td key={prop.id} className="px-4 py-2 text-xs font-semibold text-violet-700 dark:text-violet-300">
-                        {formatTotal(prop.id, total, totalType)}
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
+          );
+
+          const renderFlatRows = () =>
+            sortItems(items).map(item => (
+              <TableItemRow
+                key={item.id}
+                item={item}
+                visibleProperties={visibleProperties}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onViewDetail={onViewDetail}
+                collections={collections}
+                onRelationChange={onRelationChange}
+                onNavigateToCollection={onNavigateToCollection}
+                canEdit={canEdit}
+                canEditField={canEditFieldFn}
+                animate={false}
+                collection = {collection}
+                enableSelection={showSelectionColumn}
+                isSelected={selectedItemIds.has(item.id)}
+                onSelectionChange={handleSelectionChange}
+                enableDragReorder={canReorderRows}
+                isDragging={dragItemId === item.id}
+                isDragOver={dragOverItemId === item.id && dragItemId !== item.id}
+                onDragStart={(itemId, e) => {
+                  e.dataTransfer!.effectAllowed = 'move';
+                  handleRowDragStart(itemId);
+                }}
+                onDragEnter={handleRowDragEnter}
+                onDragOver={(e) => {
+                  if (!canReorderRows) return;
+                  e.preventDefault();
+                  e.dataTransfer!.dropEffect = 'move';
+                }}
+                onDrop={handleRowDrop}
+                onDragEnd={handleRowDragEnd}
+              />
+            ));
+
+          const renderTableShell = (body: React.ReactNode, footerItems?: any[]) => (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <TableHeader
+                  visibleProperties={visibleProperties}
+                  items={items}
+                  onEditProperty={onEditProperty}
+                  onToggleField={onToggleField}
+                  onDeleteProperty={onDeleteProperty}
+                  collectionId={collection?.id}
+                  sortState={sortState}
+                  onSort={handleSort}
+                  enableDragReorder={canReorderRows}
+                  enableSelection={showSelectionColumn}
+                  allSelected={allSelected}
+                  partiallySelected={partiallySelected}
+                  onToggleSelectAll={handleToggleSelectAll}
+                  totalFields={totalFields}
+                  onToggleTotalField={onSetTotalField}
+                />
+                <tbody className="divide-y divide-white/5">{body}</tbody>
+                {Object.keys(totalFields).length > 0 && (footerItems || items).length > 0 && (
+                  <tfoot className="bg-violet-50/50 dark:bg-violet-900/10 border-t-2 border-violet-200 dark:border-violet-800">
+                    <tr>
+                      {canReorderRows && <td className="px-1 py-2 w-8"></td>}
+                      {showSelectionColumn && <td className="px-2 py-2"></td>}
+                      {displayProperties.map((prop: any) => {
+                        const totalType = totalFields[prop.id];
+                        if (!totalType) {
+                          return <td key={prop.id} className="px-3 py-2"></td>;
+                        }
+                        const total = calculateTotal(prop.id, footerItems || items, totalType);
+                        return (
+                          <td key={prop.id} className="px-4 py-2 text-xs font-semibold text-violet-700 dark:text-violet-300">
+                            {formatTotal(prop.id, total, totalType)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          );
+
+          const rootGroupCards = rootGroups.map((rootGroup) => {
+            const rootValue = rootGroup.split('/').pop() || rootGroup;
+            const label = rootGroupProperty
+              ? getGroupLabel(rootGroupProperty, rootValue === '(vide)' ? undefined : rootValue, collections)
+              : rootValue;
+            const itemCount = groupedStructure
+              ? countItemsInGroup(rootGroup, groupedStructure.structure)
+              : 0;
+
+            return {
+              id: rootGroup,
+              label,
+              itemCount,
+            };
+          });
+
+          if (!groupedStructure) {
+            return renderTableShell(renderFlatRows());
+          }
+
+          if (groupDisplayMode === 'columns' && rootGroups.length > 0) {
+            return (
+              <div
+                className={`grid gap-4 overflow-x-auto p-5 ${groupColumnsClassName}`}
+              >
+                {rootGroupCards.map((group) => (
+                  <div
+                    key={group.id}
+                    className="min-w-0 rounded-xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-neutral-900/30 p-3"
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-neutral-800 dark:text-white truncate">
+                          {group.label}
+                        </div>
+                        {rootGroupProperty && (
+                          <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                            {rootGroupProperty.name}
+                          </div>
+                        )}
+                      </div>
+                      <span className="shrink-0 rounded-full bg-black/5 dark:bg-white/10 px-2 py-1 text-xs text-neutral-600 dark:text-neutral-300">
+                        {group.itemCount}
+                      </span>
+                    </div>
+                    {renderTableShell(renderRootGroupRows(group.id, true))}
+                  </div>
+                ))}
+              </div>
+            );
+          }
+
+          if (groupDisplayMode === 'tabs' && rootGroups.length > 0) {
+            return (
+              <Tabs value={activeGroupTab} onValueChange={setActiveGroupTab} className="w-full">
+                <TabsList className="mb-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+                  {rootGroupCards.map((group) => (
+                    <TabsTrigger
+                      key={group.id}
+                      value={group.id}
+                      className="rounded-full border border-black/10 dark:border-white/10 bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
+                    >
+                      {group.label} ({group.itemCount})
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                {rootGroupCards.map((group) => (
+                  <TabsContent key={group.id} value={group.id} className="mt-0 border-0 p-0">
+                    {renderTableShell(renderRootGroupRows(group.id, true))}
+                  </TabsContent>
+                ))}
+              </Tabs>
+            );
+          }
+
+          return renderTableShell(rootGroups.map((rootGroup) => renderRootGroupRows(rootGroup)));
+        })()}
       </div>
 
       <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>

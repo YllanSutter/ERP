@@ -136,6 +136,8 @@ const LayoutView: React.FC<LayoutViewProps> = ({
                   onRelationChange={onRelationChange || (() => {})}
                   onNavigateToCollection={() => {}}
                   groups={viewConfig.groups || []}
+                  groupDisplayMode={viewConfig.groupDisplayMode || 'accordion'}
+                  groupDisplayColumnCount={viewConfig.groupDisplayColumnCount || 3}
                 />
               )}
               {viewConfig.type === 'kanban' && (

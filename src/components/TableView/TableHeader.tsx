@@ -139,7 +139,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
     }
   };
   return (
-    <thead className="bg-gray-300 dark:bg-black/30 border-b border-black/5 dark:border-white/5">
+    <thead className="bg-gray-100 dark:bg-black/30 border-b border-black/5 dark:border-white/5">
       <tr>
         {enableDragReorder && (
           <th className="w-8 px-1 py-2 text-center border-b border-r border-[#ffffff10]"></th>

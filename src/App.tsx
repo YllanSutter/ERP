@@ -793,6 +793,8 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     }}
                     onNavigateToCollection={handleNavigateToCollection}
                     groups={activeViewConfig?.groups || []}
+                    groupDisplayMode={activeViewConfig?.groupDisplayMode || 'accordion'}
+                    groupDisplayColumnCount={activeViewConfig?.groupDisplayColumnCount || 3}
                     onShowNewItemModal={() => setShowNewItemModal(true)}
                     onQuickCreateItem={handleQuickCreateItem}
                     initialSortState={activeViewConfig?.tableSortState || { column: null, direction: 'asc' }}

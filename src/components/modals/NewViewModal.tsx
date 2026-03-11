@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import ShinyButton from '@/components/ui/ShinyButton';
+import { TableGroupColumnCount, TableGroupDisplayMode } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface NewViewModalProps {
@@ -28,6 +29,14 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
   const [type, setType] = useState(view?.type || 'table');
   const [groupBy, setGroupBy] = useState(view?.groupBy || '');
   const [dateProperty, setDateProperty] = useState(view?.dateProperty || '');
+  const [groupDisplayMode, setGroupDisplayMode] = useState<TableGroupDisplayMode>(
+    view?.groupDisplayMode || 'accordion'
+  );
+  const [groupDisplayColumnCount, setGroupDisplayColumnCount] = useState<TableGroupColumnCount>(
+    view?.groupDisplayColumnCount === 1 || view?.groupDisplayColumnCount === 2 || view?.groupDisplayColumnCount === 3
+      ? view.groupDisplayColumnCount
+      : 3
+  );
   const [layoutPanels, setLayoutPanels] = useState<any[]>(() => Array.isArray(view?.layoutPanels) ? view.layoutPanels : []);
   
   const viewTypes = [
@@ -49,6 +58,10 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
     const defaultHiddenFields = props.filter((p: any) => !defaultVisibleFieldIds.includes(p.id)).map((p: any) => p.id);
     const config: any = { name, type };
     if (mode === 'create') config.hiddenFields = defaultHiddenFields;
+    if (type === 'table') {
+      config.groupDisplayMode = groupDisplayMode;
+      config.groupDisplayColumnCount = groupDisplayColumnCount;
+    }
     if (type === 'kanban' && groupBy) config.groupBy = groupBy;
     if (type === 'calendar' && dateProperty) config.dateProperty = dateProperty;
     if (type === 'layout') config.layoutPanels = layoutPanels;
@@ -76,6 +89,43 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
               </button>
             ))}
           </div>
+
+          {type === 'table' && (
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                Affichage du groupage
+              </label>
+              <select
+                value={groupDisplayMode}
+                onChange={(e) => setGroupDisplayMode(e.target.value as TableGroupDisplayMode)}
+                className="w-full px-4 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+              >
+                <option value="accordion">Chevrons</option>
+                <option value="columns">Colonnes</option>
+                <option value="tabs">Onglets</option>
+              </select>
+              <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                S’applique quand la vue tableau utilise au moins un groupage.
+              </p>
+
+              {groupDisplayMode === 'columns' && (
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                    Nombre de colonnes
+                  </label>
+                  <select
+                    value={groupDisplayColumnCount}
+                    onChange={(e) => setGroupDisplayColumnCount(Number(e.target.value) as TableGroupColumnCount)}
+                    className="w-full px-4 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+                  >
+                    <option value={1}>1 colonne</option>
+                    <option value={2}>2 colonnes</option>
+                    <option value={3}>3 colonnes</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
 
           {type === 'kanban' && selectProps.length > 0 && (
             <div>

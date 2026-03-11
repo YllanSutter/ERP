@@ -53,6 +53,9 @@ export interface Item {
   [key: string]: any;
 }
 
+export type TableGroupDisplayMode = 'accordion' | 'columns' | 'tabs';
+export type TableGroupColumnCount = 1 | 2 | 3;
+
 export interface TableViewProps {
   collection: Collection;
   items: Item[];
@@ -76,6 +79,8 @@ export interface TableViewProps {
   onSortStateChange?: (state: { column: string | null; direction: 'asc' | 'desc' }) => void;
   initialExpandedGroups?: string[];
   onExpandedGroupsChange?: (groupPaths: string[]) => void;
+  groupDisplayMode?: TableGroupDisplayMode;
+  groupDisplayColumnCount?: TableGroupColumnCount;
   totalFields?: Record<string, string>; // fieldId -> totalType (sum, count, unique, avg, min, max)
   onSetTotalField?: (fieldId: string, totalType: string | null) => void;
 }
