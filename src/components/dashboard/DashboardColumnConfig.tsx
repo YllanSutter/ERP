@@ -15,7 +15,7 @@ const DashboardColumnConfig = ({ dashboard, collections, onUpdate }: any) => {
         'border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 mb-2 bg-white/70 dark:bg-neutral-900/40 shadow-sm',
       label: 'text-[11px] text-neutral-500 mb-1',
       input:
-        'w-full border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none',
+        'w-full border border-black/10 dark:border-white/10 bg-background dark:bg-neutral-900 rounded-lg px-2 py-1 text-xs focus:border-indigo-500 focus:outline-none',
       inputWide:
         'flex-1 border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 text-sm bg-white/80 dark:bg-neutral-950/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/20',
       select:

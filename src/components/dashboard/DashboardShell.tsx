@@ -22,6 +22,18 @@ import {
 } from '@/components/ui/context-menu';
 import { useAuth } from '@/auth/AuthProvider';
 
+type DashboardViewType = NonNullable<MonthlyDashboardConfig['viewType']>;
+
+function getDashboardViewStorageKey(dashboardId: string, organizationId?: string | null) {
+  return `erp_dashboardView_${organizationId || 'default'}_${dashboardId}`;
+}
+
+function getStoredDashboardViewType(storageKey: string, fallback: DashboardViewType = 'recap'): DashboardViewType {
+  if (typeof window === 'undefined') return fallback;
+  const stored = window.localStorage.getItem(storageKey);
+  return stored === 'table' || stored === 'recap' ? stored : fallback;
+}
+
 interface DashboardShellProps {
   dashboard: MonthlyDashboardConfig | null;
   collections: any[];
@@ -87,7 +99,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         );
       }
       const [showFilterModal, setShowFilterModal] = useState(false);
-      const viewType = dashboard.viewType || 'recap';
       const periodScope = dashboard.periodScope || 'month';
       const activeRecapMetrics = (dashboard.recapMetrics && dashboard.recapMetrics.length > 0)
         ? dashboard.recapMetrics.filter((m) => m === 'count' || m === 'duration')
@@ -110,7 +121,29 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
         }));
       };
 
-  const { isAdmin, isEditor, permissions, user, roles } = useAuth();
+  const { isAdmin, isEditor, permissions, user, roles, activeOrganizationId } = useAuth();
+
+  const dashboardViewStorageKey = useMemo(
+    () => getDashboardViewStorageKey(dashboard.id, activeOrganizationId),
+    [dashboard.id, activeOrganizationId]
+  );
+
+  const [viewType, setViewType] = useState<DashboardViewType>(() =>
+    getStoredDashboardViewType(
+      getDashboardViewStorageKey(dashboard.id, activeOrganizationId),
+      dashboard.viewType || 'recap'
+    )
+  );
+
+  useEffect(() => {
+    setViewType(getStoredDashboardViewType(dashboardViewStorageKey, dashboard.viewType || 'recap'));
+  }, [dashboardViewStorageKey, dashboard.viewType]);
+
+  const handleViewTypeChange = (nextViewType: DashboardViewType) => {
+    setViewType(nextViewType);
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(dashboardViewStorageKey, nextViewType);
+  };
 
   // Vérifier si l'utilisateur peut voir ce dashboard
   const canSeeDashboard = React.useMemo(() => {
@@ -1701,7 +1734,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
               <button
                 key={option.key}
                 type="button"
-                onClick={() => onUpdate({ viewType: option.key })}
+                onClick={() => handleViewTypeChange(option.key)}
                 className={
                   'px-3 py-1 text-xs rounded-full transition-all ' +
                   (viewType === option.key
