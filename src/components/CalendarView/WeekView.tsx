@@ -11,7 +11,7 @@ import {
   workDayStart,
   workDayEnd
 } from '@/lib/calendarUtils';
-import { addManualSegmentToItem, removeSegmentFromItem } from '@/lib/segmentManager';
+import { addManualSegmentToItem, removeSegmentFromItem, updateSegmentInItem } from '@/lib/segmentManager';
 import { Search } from 'lucide-react';
 
 interface WeekViewProps {
@@ -629,6 +629,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                     const colors = getItemColor(item.id);
                     // console.log(collections);
                     const itemCollection = collectionsForProps.find(c => c.id === item.__collectionId);
+                    const dateField = getDateFieldForItem ? getDateFieldForItem(item) : undefined;
                     const visibleIds = Array.isArray(itemCollection?.defaultVisibleFieldIds)
                       ? itemCollection.defaultVisibleFieldIds
                       : undefined;
@@ -664,7 +665,11 @@ const WeekView: React.FC<WeekViewProps> = ({
                         onRelationChange={onRelationChange}
                         onReduceDuration={(_item, action) => {
                           if (action.type === 'delete') {
-                            const updatedItem = removeSegmentFromItem(item, action.index);
+                            const updatedItem = removeSegmentFromItem(item, action.index, {
+                              collection: itemCollection,
+                              dateFieldId: dateField?.id,
+                              label: segment.label || dateField?.name,
+                            });
                             if (onEdit) onEdit(updatedItem);
                             return;
                           }
@@ -675,13 +680,14 @@ const WeekView: React.FC<WeekViewProps> = ({
                           
                           const start = new Date(seg.start || seg.__eventStart);
                           const end = new Date(start.getTime() + (newDuration * 60 * 60 * 1000));
-                          
-                          const updatedItem = { ...item, _eventSegments: (item._eventSegments || []).map((s: any, idx: number) => {
-                            if (idx === multiDayIndex) {
-                              return { ...s, end: end.toISOString() };
-                            }
-                            return s;
-                          }) };
+
+                          const updatedItem = updateSegmentInItem(item, multiDayIndex, {
+                            end: end.toISOString(),
+                          }, {
+                            collection: itemCollection,
+                            dateFieldId: dateField?.id,
+                            label: segment.label || dateField?.name,
+                          });
                           if (onEdit) onEdit(updatedItem);
                         }}
                         canViewField={canViewField}

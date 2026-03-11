@@ -150,10 +150,14 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
       const segStart = new Date(newDate);
       segStart.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
       const segEnd = new Date(segStart.getTime() + duration);
-      
+
       const updatedItem = updateSegmentInItem(item, options.segmentIndex, {
         start: segStart.toISOString(),
         end: segEnd.toISOString()
+      }, {
+        collection: col,
+        dateFieldId: dateField.id,
+        label: item._eventSegments?.[options.segmentIndex]?.label || dateField.name,
       });
       onEdit(updatedItem);
     } else {

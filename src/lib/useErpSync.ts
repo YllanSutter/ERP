@@ -7,6 +7,8 @@ type DashboardSort = 'created' | 'name-asc' | 'name-desc';
 type Dashboard = any;
 type Favorites = { views: string[]; items: string[] };
 
+const SYNCABLE_INTERNAL_ITEM_FIELDS = new Set(['_eventSegments', '_preserveEventSegments']);
+
 interface UseErpSyncParams {
   collections: Collection[];
   views: ViewMap;
@@ -50,7 +52,7 @@ function diffCollectionsItems(
       if (!prevItem) continue; // nouvel item -> POST complet
       const changedFields: Record<string, any> = {};
       for (const key of Object.keys(item)) {
-        if (key.startsWith('_')) continue; // ignorer _eventSegments etc.
+        if (key.startsWith('_') && !SYNCABLE_INTERNAL_ITEM_FIELDS.has(key)) continue;
         if (JSON.stringify(item[key]) !== JSON.stringify(prevItem[key])) {
           changedFields[key] = item[key];
         }

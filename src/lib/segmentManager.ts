@@ -16,6 +16,61 @@ export interface EventSegment {
   label?: string;
 }
 
+function getSegmentDurationHours(segment: Partial<EventSegment>): number {
+  const start = new Date(segment.start || '');
+  const end = new Date(segment.end || '');
+  const diffMs = end.getTime() - start.getTime();
+  if (!Number.isFinite(diffMs) || diffMs <= 0) return 0;
+  return diffMs / (1000 * 60 * 60);
+}
+
+function syncItemDateFieldFromSegments(
+  item: any,
+  segments: EventSegment[],
+  options?: { collection?: any; dateFieldId?: string; label?: string }
+) {
+  const nextItem = { ...item, _eventSegments: segments, _preserveEventSegments: true };
+  const dateFieldId = options?.dateFieldId;
+  const collection = options?.collection;
+  if (!dateFieldId || !collection) {
+    return nextItem;
+  }
+
+  const dateProp = (collection.properties || []).find((prop: any) => prop.id === dateFieldId);
+  if (!dateProp) {
+    return nextItem;
+  }
+
+  const targetLabel = options?.label || dateProp.name;
+  const matchingSegments = (segments || [])
+    .filter((segment) => !targetLabel || segment.label === targetLabel)
+    .sort(
+      (a, b) =>
+        new Date(a.start || '').getTime() - new Date(b.start || '').getTime()
+    );
+
+  const durationKey = `${dateFieldId}_duration`;
+  if (matchingSegments.length === 0) {
+    return {
+      ...nextItem,
+      [dateFieldId]: null,
+      [durationKey]: 0,
+    };
+  }
+
+  const firstStart = matchingSegments[0]?.start || matchingSegments[0]?.end || item[dateFieldId] || null;
+  const totalDuration = matchingSegments.reduce(
+    (sum, segment) => sum + getSegmentDurationHours(segment),
+    0
+  );
+
+  return {
+    ...nextItem,
+    [dateFieldId]: firstStart,
+    [durationKey]: Number(totalDuration.toFixed(2)),
+  };
+}
+
 /**
  * Ajoute un nouveau segment manuel à un item
  * Le segment sera sauvegardé lors du prochain saveState()
@@ -36,7 +91,8 @@ export function addManualSegmentToItem(
 export function updateSegmentInItem(
   item: any,
   segmentIndex: number,
-  updates: Partial<EventSegment>
+  updates: Partial<EventSegment>,
+  options?: { collection?: any; dateFieldId?: string; label?: string }
 ): any {
   if (!Array.isArray(item._eventSegments) || segmentIndex < 0 || segmentIndex >= item._eventSegments.length) {
     return item;
@@ -44,7 +100,7 @@ export function updateSegmentInItem(
   
   const segments = [...item._eventSegments];
   segments[segmentIndex] = { ...segments[segmentIndex], ...updates };
-  return { ...item, _eventSegments: segments, _preserveEventSegments: true };
+  return syncItemDateFieldFromSegments(item, segments, options);
 }
 
 /**
@@ -53,14 +109,15 @@ export function updateSegmentInItem(
  */
 export function removeSegmentFromItem(
   item: any,
-  segmentIndex: number
+  segmentIndex: number,
+  options?: { collection?: any; dateFieldId?: string; label?: string }
 ): any {
   if (!Array.isArray(item._eventSegments) || segmentIndex < 0 || segmentIndex >= item._eventSegments.length) {
     return item;
   }
   
   const segments = item._eventSegments.filter((_: any, idx: number) => idx !== segmentIndex);
-  return { ...item, _eventSegments: segments, _preserveEventSegments: true };
+  return syncItemDateFieldFromSegments(item, segments, options);
 }
 
 /**

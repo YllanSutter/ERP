@@ -969,12 +969,11 @@ const shouldRecalculateSegments = (prevItem, nextItem, collection, prevCollectio
   if (!Array.isArray(nextItem._eventSegments) || nextItem._eventSegments.length === 0) return true;
   if (!prevItem) return true;
 
-  if (hasDateOrDurationChange(prevItem, nextItem, collection, prevCollection)) return true;
-
   if (nextItem?._preserveEventSegments) {
-    if (areAllSegmentsModified(prevItem, nextItem)) return true;
     return false;
   }
+
+  if (hasDateOrDurationChange(prevItem, nextItem, collection, prevCollection)) return true;
 
   return false;
 };
