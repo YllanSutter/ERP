@@ -951,7 +951,12 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     initialDataRef.current = next.data;
     setFormDataRaw(next.data);
     setTemplateAutoFilled(next.autoFilled);
-  }, [editingItem, selectedCollectionId, JSON.stringify(selectedCollection?.properties ?? []), orderedProperties]);
+  }, [
+    editingItem,
+    selectedCollectionId,
+    JSON.stringify(selectedCollection?.properties ?? []),
+    JSON.stringify(orderedProperties ?? []),
+  ]);
 
   // Sync en temps réel : quand un autre utilisateur modifie l'item en cours d'édition,
   // on met à jour UNIQUEMENT les champs que l'utilisateur local n'a PAS encore touchés.
