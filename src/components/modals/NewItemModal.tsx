@@ -1330,7 +1330,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           {relationPropsForDisplay.length > 0 && (
             <div className="pb-10 border-b border-black/10 dark:border-white/10">
               <div className="border-t border-black/10 dark:border-white/10 pt-8 relative">
-                <h4 className="absolute -top-3 left-0 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-700 dark:text-neutral-400 mb-4 uppercase tracking-wide">Relations</h4>
+                <h4 className="absolute -top-[15px] left-0 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-background  dark:bg-neutral-900 border border-white/10 transition cursor-pointer group">Relations</h4>
               </div>
               <div className="flex gap-4 items-center flex-wrap pl-4">
                 {relationPropsForDisplay.map((prop: any) => (
@@ -1365,7 +1365,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           {(detailsPropsForDisplay.length > 0 || !isReallyEditing) && (
           <div className="min-w-[0]">
             {detailsPropsForDisplay.length > 0 && (
-              <h4 className="absolute -top-[35px] left-0 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-4 uppercase tracking-wide">Détails</h4>
+              <h4 className="absolute -top-[35px] left-0 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-background  dark:bg-neutral-900 border border-white/10 transition cursor-pointer group">Détails</h4>
             )}
 
             {/* Grande barre verticale à droite des labels */}
@@ -1465,7 +1465,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           {datePropsForDisplay.length > 0 && (
           <div className="min-w-[0] relative">
             <div className="mb-4">
-              <h4 className="absolute -top-[35px] -left-2 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-4 uppercase tracking-wide">Horaires</h4>
+              <h4 className="absolute -top-[35px] left-0 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-background  dark:bg-neutral-900 border border-white/10 transition cursor-pointer group">Horaires</h4>
             </div>
             <div className="space-y-6">
               {datePropsForDisplay.map((dateProp: any) => {
@@ -1591,7 +1591,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                         key={tab.id}
                         onClick={() => setActiveRichTextTab(tab.id)}
                         className={
-                          "px-4 py-1 rounded-full text-xs font-semibold uppercase tracking-wide transition-all duration-200 " +
+                          "px-2 py-1 rounded-full text-xs font-medium bg-background  dark:bg-neutral-900/10 border border-white/10  cursor-pointer group transition-all duration-200 " +
                           (activeRichTextTab === tab.id
                             ? "bg-neutral-800 text-white"
                             : "bg-background dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 border border-black/10 dark:border-white/10 hover:text-neutral-900 dark:hover:text-neutral-200")
@@ -1602,7 +1602,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     ))}
                   </div>
                 ) : (
-                  <div className="absolute top-[30px] left-5 px-4 py-1 rounded-full inline-block bg-background dark:bg-neutral-900 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide z-10">
+                  <div className="absolute top-[30px] z-[20] left-5 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-background  dark:bg-neutral-900 border border-white/10 transition cursor-pointer group">
                     {richTextTabs[0]?.label || 'Tâches'}
                   </div>
                 )}
