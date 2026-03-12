@@ -219,16 +219,60 @@ const DashboardMonthlyTable: React.FC<{
   const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, section.collection?.id);
 
   const visibleProperties = useMemo(
-    () => section.orderedProperties.filter((p: any) => !hiddenFields.includes(p.id) && canViewFieldFn(p.id)),
+    () => section.orderedProperties.filter((p: any) => {
+      const permissionFieldId = p?.isRelationLinkedColumn && p?.sourceRelationPropertyId
+        ? p.sourceRelationPropertyId
+        : p.id;
+      const isSourceRelationAutoHidden =
+        p?.type === 'relation' &&
+        !p?.isRelationLinkedColumn &&
+        Array.isArray(p?.relation?.displayFieldIds) &&
+        p.relation.displayFieldIds.length > 0 &&
+        p?.relation?.autoHideSource !== false;
+      return !isSourceRelationAutoHidden && !hiddenFields.includes(p.id) && canViewFieldFn(permissionFieldId);
+    }),
     [section.orderedProperties, hiddenFields, canViewFieldFn]
   );
+
+  const resolveProjectedValue = useCallback((row: any, prop: any) => {
+    if (!prop?.isRelationLinkedColumn || !prop?.sourceRelationPropertyId || !prop?.sourceDisplayFieldId) {
+      return row?.[prop?.id];
+    }
+
+    const sourceRelationValue = row?.[prop.sourceRelationPropertyId];
+    const relatedIds = Array.isArray(sourceRelationValue)
+      ? sourceRelationValue
+      : sourceRelationValue
+        ? [sourceRelationValue]
+        : [];
+    if (!relatedIds.length) return null;
+
+    const sourceRelationProp = (section.collection?.properties || []).find((p: any) => p.id === prop.sourceRelationPropertyId);
+    const targetCollection = collections.find((c: any) => c.id === prop.sourceTargetCollectionId)
+      || collections.find((c: any) => c.id === sourceRelationProp?.relation?.targetCollectionId);
+    const targetItems = targetCollection?.items || [];
+
+    const values = relatedIds
+      .map((id: string) => targetItems.find((it: any) => it.id === id)?.[prop.sourceDisplayFieldId])
+      .filter((v: any) => v !== undefined && v !== null && v !== '');
+
+    if (!values.length) return null;
+    if (prop.type === 'multi_select') {
+      return values.flatMap((v: any) => Array.isArray(v) ? v : [v]).join(', ');
+    }
+    if (prop.type === 'checkbox') {
+      return values.some(Boolean);
+    }
+    return values[0];
+  }, [section.collection?.properties, collections]);
 
   const sortItems = useCallback((arr: any[]) => {
     if (!sortState.column) return arr;
     const col = sortState.column;
+    const sortProp = section.orderedProperties.find((p: any) => p.id === col);
     return [...arr].sort((a, b) => {
-      const aVal = a && col in a ? a[col] : undefined;
-      const bVal = b && col in b ? b[col] : undefined;
+      const aVal = sortProp ? resolveProjectedValue(a, sortProp) : (a && col in a ? a[col] : undefined);
+      const bVal = sortProp ? resolveProjectedValue(b, sortProp) : (b && col in b ? b[col] : undefined);
       if (aVal === undefined || aVal === null) return 1;
       if (bVal === undefined || bVal === null) return -1;
       if (typeof aVal === 'number' && typeof bVal === 'number') {
@@ -238,7 +282,7 @@ const DashboardMonthlyTable: React.FC<{
         ? String(aVal).localeCompare(String(bVal), 'fr', { numeric: true })
         : String(bVal).localeCompare(String(aVal), 'fr', { numeric: true });
     });
-  }, [sortState]);
+  }, [sortState, section.orderedProperties, resolveProjectedValue]);
 
   const handleSort = useCallback((columnId: string) => {
     setSortState((prev) => {

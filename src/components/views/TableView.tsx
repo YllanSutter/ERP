@@ -58,6 +58,7 @@ const TableView: React.FC<TableViewProps> = ({
   initialExpandedGroups,
   onExpandedGroupsChange,
   groupDisplayMode = 'accordion',
+  groupDisplayModes = {},
   groupDisplayColumnCount = 3,
   totalFields = {},
   onSetTotalField,
@@ -92,7 +93,8 @@ const TableView: React.FC<TableViewProps> = ({
   const { itemsMap, groupedStructure, expandedGroups, toggleGroup } = useGrouping(
     items,
     groups,
-    collection.properties,
+    orderedProperties,
+    collections,
     initialExpandedGroups,
     onExpandedGroupsChange
   );
@@ -124,13 +126,46 @@ const TableView: React.FC<TableViewProps> = ({
     });
   }, []);
 
+  const resolveProjectedValue = useCallback((row: any, prop: any) => {
+    if (!prop?.isRelationLinkedColumn || !prop?.sourceRelationPropertyId || !prop?.sourceDisplayFieldId) {
+      return row?.[prop?.id];
+    }
+
+    const sourceRelationValue = row?.[prop.sourceRelationPropertyId];
+    const relatedIds = Array.isArray(sourceRelationValue)
+      ? sourceRelationValue
+      : sourceRelationValue
+        ? [sourceRelationValue]
+        : [];
+    if (!relatedIds.length) return null;
+
+    const sourceRelationProp = (collection?.properties || []).find((p: any) => p.id === prop.sourceRelationPropertyId);
+    const targetCollection = collections.find((c: any) => c.id === prop.sourceTargetCollectionId)
+      || collections.find((c: any) => c.id === sourceRelationProp?.relation?.targetCollectionId);
+    const targetItems = targetCollection?.items || [];
+
+    const values = relatedIds
+      .map((id: string) => targetItems.find((it: any) => it.id === id)?.[prop.sourceDisplayFieldId])
+      .filter((v: any) => v !== undefined && v !== null && v !== '');
+
+    if (!values.length) return null;
+    if (prop.type === 'multi_select') {
+      return values.flatMap((v: any) => Array.isArray(v) ? v : [v]).join(', ');
+    }
+    if (prop.type === 'checkbox') {
+      return values.some(Boolean);
+    }
+    return values[0];
+  }, [collection?.properties, collections]);
+
   // Fonction de tri générique
   const sortItems = useCallback((arr: any[]) => {
     if (!sortState.column) return arr;
     const col = sortState.column;
+    const sortProp = orderedProperties.find((p: any) => p.id === col);
     return [...arr].sort((a, b) => {
-      const aVal = a && col in a ? a[col] : undefined;
-      const bVal = b && col in b ? b[col] : undefined;
+      const aVal = sortProp ? resolveProjectedValue(a, sortProp) : (a && col in a ? a[col] : undefined);
+      const bVal = sortProp ? resolveProjectedValue(b, sortProp) : (b && col in b ? b[col] : undefined);
       if (aVal === undefined || aVal === null) return 1;
       if (bVal === undefined || bVal === null) return -1;
       if (typeof aVal === 'number' && typeof bVal === 'number') {
@@ -140,7 +175,7 @@ const TableView: React.FC<TableViewProps> = ({
         ? String(aVal).localeCompare(String(bVal), 'fr', { numeric: true })
         : String(bVal).localeCompare(String(aVal), 'fr', { numeric: true });
     });
-  }, [sortState]);
+  }, [sortState, orderedProperties, resolveProjectedValue]);
   
   // Hooks de permissions
   const canEdit = useCanEdit(collection?.id);
@@ -224,16 +259,25 @@ const TableView: React.FC<TableViewProps> = ({
   }
 
   // Filtrer les propriétés selon les permissions de vue
-  const visibleProperties = orderedProperties.filter(p => 
-    !hiddenFields.includes(p.id) && canViewFieldFn(p.id)
-  );
+  const visibleProperties = orderedProperties.filter((p: any) => {
+    const permissionFieldId = p?.isRelationLinkedColumn && p?.sourceRelationPropertyId
+      ? p.sourceRelationPropertyId
+      : p.id;
+    const isSourceRelationAutoHidden =
+      p?.type === 'relation' &&
+      !p?.isRelationLinkedColumn &&
+      Array.isArray(p?.relation?.displayFieldIds) &&
+      p.relation.displayFieldIds.length > 0 &&
+      p?.relation?.autoHideSource !== false;
+    return !isSourceRelationAutoHidden && !hiddenFields.includes(p.id) && canViewFieldFn(permissionFieldId);
+  });
 
   const showSelectionColumn = canEdit && !hiddenFields.includes(ROW_SELECTION_FIELD_ID);
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
   const rootGroups = groupedStructure?.rootGroups || [];
   const rootGroupProperty = useMemo(
-    () => (groups.length > 0 ? collection.properties.find((p: any) => p.id === groups[0]) || null : null),
-    [collection.properties, groups]
+    () => (groups.length > 0 ? orderedProperties.find((p: any) => p.id === groups[0]) || null : null),
+    [orderedProperties, groups]
   );
   const [activeGroupTab, setActiveGroupTab] = useState('');
 
@@ -694,6 +738,9 @@ const TableView: React.FC<TableViewProps> = ({
               groupPath={rootGroup}
               depth={0}
               groups={groups}
+              groupProperties={orderedProperties}
+              groupDisplayModes={groupDisplayModes}
+              defaultGroupDisplayMode={groupDisplayMode}
               groupedStructure={groupedStructure!}
               collection={collection}
               collections={collections}
@@ -837,6 +884,14 @@ const TableView: React.FC<TableViewProps> = ({
             );
           };
 
+          const renderBodyOnlyShell = (body: React.ReactNode) => (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <tbody className="divide-y divide-white/5">{body}</tbody>
+              </table>
+            </div>
+          );
+
           const rootGroupCards = rootGroups.map((rootGroup) => {
             const rootValue = rootGroup.split('/').pop() || rootGroup;
             const label = rootGroupProperty
@@ -853,11 +908,15 @@ const TableView: React.FC<TableViewProps> = ({
             };
           });
 
+          const rootGroupMode: 'accordion' | 'columns' | 'tabs' =
+            (groups[0] && (groupDisplayModes as any)?.[groups[0]]) || groupDisplayMode || 'accordion';
+
           if (!groupedStructure) {
             return renderTableShell(renderFlatRows());
           }
 
-          if (groupDisplayMode === 'columns' && rootGroups.length > 0) {
+          if (rootGroupMode === 'columns' && rootGroups.length > 0) {
+            const hasNestedGroups = groups.length > 1;
             return (
               <div
                 className={`grid gap-4 overflow-x-auto p-5 ${groupColumnsClassName}`}
@@ -882,21 +941,24 @@ const TableView: React.FC<TableViewProps> = ({
                         {group.itemCount}
                       </span>
                     </div>
-                    {renderTableShell(
-                      renderRootGroupRows(group.id, true),
-                      undefined,
-                      getItemsForGroupPath(group.id)
-                    )}
+                    {hasNestedGroups
+                      ? renderBodyOnlyShell(renderRootGroupRows(group.id, true))
+                      : renderTableShell(
+                          renderRootGroupRows(group.id, true),
+                          undefined,
+                          getItemsForGroupPath(group.id)
+                        )}
                   </div>
                 ))}
               </div>
             );
           }
 
-          if (groupDisplayMode === 'tabs' && rootGroups.length > 0) {
+          if (rootGroupMode === 'tabs' && rootGroups.length > 0) {
+            const hasNestedGroups = groups.length > 1;
             return (
               <Tabs value={activeGroupTab} onValueChange={setActiveGroupTab} className="w-full">
-                <TabsList className="mb-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+                <TabsList className="m-2 h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
                   {rootGroupCards.map((group) => (
                     <TabsTrigger
                       key={group.id}
@@ -909,11 +971,13 @@ const TableView: React.FC<TableViewProps> = ({
                 </TabsList>
                 {rootGroupCards.map((group) => (
                   <TabsContent key={group.id} value={group.id} className="mt-0 border-0 p-0">
-                    {renderTableShell(
-                      renderRootGroupRows(group.id, true),
-                      undefined,
-                      getItemsForGroupPath(group.id)
-                    )}
+                    {hasNestedGroups
+                      ? renderBodyOnlyShell(renderRootGroupRows(group.id, true))
+                      : renderTableShell(
+                          renderRootGroupRows(group.id, true),
+                          undefined,
+                          getItemsForGroupPath(group.id)
+                        )}
                   </TabsContent>
                 ))}
               </Tabs>

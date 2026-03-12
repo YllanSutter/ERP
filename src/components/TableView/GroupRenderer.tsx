@@ -1,13 +1,17 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { getGroupLabel, countItemsInGroup, GroupedItems } from '@/lib/groupingUtils';
 import { Collection, Property, Item } from '@/lib/types';
 import GroupHeader from './GroupHeader';
 import TableItemRow from './TableItemRow';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface GroupRendererProps {
   groupPath: string;
   depth: number;
   groups: string[];
+  groupProperties: Property[];
+  groupDisplayModes?: Record<string, 'accordion' | 'columns' | 'tabs'>;
+  defaultGroupDisplayMode?: 'accordion' | 'columns' | 'tabs';
   groupedStructure: { structure: GroupedItems; rootGroups: string[] };
   collection: Collection;
   collections: Collection[];
@@ -46,6 +50,9 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   groupPath,
   depth,
   groups,
+  groupProperties,
+  groupDisplayModes = {},
+  defaultGroupDisplayMode = 'accordion',
   groupedStructure,
   collection,
   collections,
@@ -85,10 +92,14 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   const pathParts = groupPath.split('/');
   const groupValue = pathParts[pathParts.length - 1];
   const groupId = groups[depth];
-  const property = collection.properties.find((p: Property) => p.id === groupId);
+  const property = groupProperties.find((p: Property) => p.id === groupId);
   if (!property) return null;
 
-  const isExpanded = expandedGroups.has(groupPath);
+  const currentLevelMode: 'accordion' | 'columns' | 'tabs' =
+    (groupId && groupDisplayModes[groupId])
+      || (depth === 0 ? (defaultGroupDisplayMode || 'accordion') : 'accordion');
+  const canCollapse = currentLevelMode === 'accordion';
+  const isExpanded = canCollapse ? expandedGroups.has(groupPath) : true;
   const shouldRenderChildren = hideCurrentHeader || isExpanded;
   const label = getGroupLabel(
     property,
@@ -97,8 +108,99 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   );
   const itemCount = countItemsInGroup(groupPath, groupedStructure.structure);
   const displayDepth = Math.max(0, depth + depthOffset);
+  const nextGroupId = groups[depth + 1];
+  const nextLevelMode: 'accordion' | 'columns' | 'tabs' =
+    (nextGroupId && groupDisplayModes[nextGroupId]) || 'accordion';
 
   const displayColumnCount = visibleProperties.filter((p: any) => !p.showContextMenu).length;
+  const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
+  const subGroupCards = useMemo(() => {
+    const nextProperty = nextGroupId
+      ? groupProperties.find((p: Property) => p.id === nextGroupId)
+      : undefined;
+    return groupData.subGroups.map((subPath) => {
+      const rawValue = subPath.split('/').pop() || subPath;
+      const labelValue = rawValue === '(vide)' ? undefined : rawValue;
+      const label = nextProperty ? getGroupLabel(nextProperty, labelValue, collections) : rawValue;
+      const itemCount = countItemsInGroup(subPath, groupedStructure.structure);
+      return { id: subPath, label, itemCount, propertyName: nextProperty?.name || '' };
+    });
+  }, [collections, groupData.subGroups, groupProperties, groupedStructure.structure, nextGroupId]);
+
+  const [activeSubGroupTab, setActiveSubGroupTab] = useState<string | null>(subGroupCards[0]?.id || null);
+
+  useEffect(() => {
+    if (!subGroupCards.length) {
+      setActiveSubGroupTab(null);
+      return;
+    }
+    if (!activeSubGroupTab || !subGroupCards.some((card) => card.id === activeSubGroupTab)) {
+      setActiveSubGroupTab(subGroupCards[0].id);
+    }
+  }, [activeSubGroupTab, subGroupCards]);
+
+  const renderNestedTable = (subPath: string) => (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-black/10 dark:border-white/10 bg-white/40 dark:bg-neutral-900/40">
+            {draggableRows && <th className="px-1 py-2 w-8" />}
+            {enableSelection && <th className="px-2 py-2 w-10" />}
+            {displayProperties.map((prop: any) => (
+              <th
+                key={prop.id}
+                className="px-4 py-2 text-left text-xs font-semibold text-neutral-600 dark:text-neutral-300"
+              >
+                {prop.name}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/5">
+          <GroupRenderer
+            groupPath={subPath}
+            depth={depth + 1}
+            groups={groups}
+            groupProperties={groupProperties}
+            groupDisplayModes={groupDisplayModes}
+            defaultGroupDisplayMode={defaultGroupDisplayMode}
+            groupedStructure={groupedStructure}
+            collection={collection}
+            collections={collections}
+            expandedGroups={expandedGroups}
+            toggleGroup={toggleGroup}
+            itemsMap={itemsMap}
+            visibleProperties={visibleProperties}
+            favoriteItemIds={favoriteItemIds}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onToggleFavoriteItem={onToggleFavoriteItem}
+            onViewDetail={onViewDetail}
+            onRelationChange={onRelationChange}
+            onNavigateToCollection={onNavigateToCollection}
+            canEdit={canEdit}
+            canEditField={canEditField}
+            sortItems={sortItems}
+            enableSelection={enableSelection}
+            selectedItemIds={selectedItemIds}
+            onSelectionChange={onSelectionChange}
+            draggableRows={draggableRows}
+            dragItemId={dragItemId}
+            dragOverItemId={dragOverItemId}
+            onRowDragStart={onRowDragStart}
+            onRowDragEnter={onRowDragEnter}
+            onRowDrop={onRowDrop}
+            onRowDragEnd={onRowDragEnd}
+            totalFields={totalFields}
+            calculateTotal={calculateTotal}
+            formatTotal={formatTotal}
+            hideCurrentHeader
+            depthOffset={depthOffset}
+          />
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <React.Fragment key={groupPath}>
@@ -110,53 +212,109 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
           itemCount={itemCount}
           depth={displayDepth}
           isExpanded={isExpanded}
-          onToggle={() => toggleGroup(groupPath)}
+          onToggle={() => {
+            if (!canCollapse) return;
+            toggleGroup(groupPath);
+          }}
           colSpan={displayColumnCount + (draggableRows ? 1 : 0) + (enableSelection ? 1 : 0)}
+          showChevron={canCollapse}
         />
       )}
 
       {shouldRenderChildren && (
         <>
-          {/* Sous-groupes d'abord */}
-          {groupData.subGroups.map(subPath => (
-            <GroupRenderer
-              key={subPath}
-              groupPath={subPath}
-              depth={depth + 1}
-              groups={groups}
-              groupedStructure={groupedStructure}
-              collection={collection}
-              collections={collections}
-              expandedGroups={expandedGroups}
-              toggleGroup={toggleGroup}
-              itemsMap={itemsMap}
-              visibleProperties={visibleProperties}
-              favoriteItemIds={favoriteItemIds}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onToggleFavoriteItem={onToggleFavoriteItem}
-              onViewDetail={onViewDetail}
-              onRelationChange={onRelationChange}
-              onNavigateToCollection={onNavigateToCollection}
-              canEdit={canEdit}
-              canEditField={canEditField}
-              sortItems={sortItems}
-              enableSelection={enableSelection}
-              selectedItemIds={selectedItemIds}
-              onSelectionChange={onSelectionChange}
-              draggableRows={draggableRows}
-              dragItemId={dragItemId}
-              dragOverItemId={dragOverItemId}
-              onRowDragStart={onRowDragStart}
-              onRowDragEnter={onRowDragEnter}
-              onRowDrop={onRowDrop}
-              onRowDragEnd={onRowDragEnd}
-              totalFields={totalFields}
-              calculateTotal={calculateTotal}
-              formatTotal={formatTotal}
-              depthOffset={depthOffset}
-            />
-          ))}
+          {/* Sous-groupes en tableaux dédiés (onglets/colonnes), sinon rendu accordéon classique */}
+          {groupData.subGroups.length > 0 && (nextLevelMode === 'tabs' || nextLevelMode === 'columns') ? (
+            <tr>
+              <td colSpan={displayColumnCount + (draggableRows ? 1 : 0) + (enableSelection ? 1 : 0)} className="px-2 py-2">
+                {nextLevelMode === 'tabs' ? (
+                  <Tabs value={activeSubGroupTab || undefined} onValueChange={setActiveSubGroupTab} className="w-full">
+                    <TabsList className="mb-2 h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+                      {subGroupCards.map((group) => (
+                        <TabsTrigger
+                          key={group.id}
+                          value={group.id}
+                          className="rounded-full border border-black/10 dark:border-white/10 bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
+                        >
+                          {group.label} ({group.itemCount})
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                    {subGroupCards.map((group) => (
+                      <TabsContent key={group.id} value={group.id} className="mt-0">
+                        {renderNestedTable(group.id)}
+                      </TabsContent>
+                    ))}
+                  </Tabs>
+                ) : (
+                  <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
+                    {subGroupCards.map((group) => (
+                      <div
+                        key={group.id}
+                        className="min-w-0 rounded-xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-neutral-900/30 p-3"
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-neutral-800 dark:text-white">{group.label}</div>
+                            {group.propertyName && (
+                              <div className="text-xs text-neutral-500 dark:text-neutral-400">{group.propertyName}</div>
+                            )}
+                          </div>
+                          <span className="shrink-0 rounded-full bg-black/5 dark:bg-white/10 px-2 py-1 text-xs text-neutral-600 dark:text-neutral-300">
+                            {group.itemCount}
+                          </span>
+                        </div>
+                        {renderNestedTable(group.id)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </td>
+            </tr>
+          ) : (
+            groupData.subGroups.map(subPath => (
+              <GroupRenderer
+                key={subPath}
+                groupPath={subPath}
+                depth={depth + 1}
+                groups={groups}
+                groupProperties={groupProperties}
+                groupDisplayModes={groupDisplayModes}
+                defaultGroupDisplayMode={defaultGroupDisplayMode}
+                groupedStructure={groupedStructure}
+                collection={collection}
+                collections={collections}
+                expandedGroups={expandedGroups}
+                toggleGroup={toggleGroup}
+                itemsMap={itemsMap}
+                visibleProperties={visibleProperties}
+                favoriteItemIds={favoriteItemIds}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onToggleFavoriteItem={onToggleFavoriteItem}
+                onViewDetail={onViewDetail}
+                onRelationChange={onRelationChange}
+                onNavigateToCollection={onNavigateToCollection}
+                canEdit={canEdit}
+                canEditField={canEditField}
+                sortItems={sortItems}
+                enableSelection={enableSelection}
+                selectedItemIds={selectedItemIds}
+                onSelectionChange={onSelectionChange}
+                draggableRows={draggableRows}
+                dragItemId={dragItemId}
+                dragOverItemId={dragOverItemId}
+                onRowDragStart={onRowDragStart}
+                onRowDragEnter={onRowDragEnter}
+                onRowDrop={onRowDrop}
+                onRowDragEnd={onRowDragEnd}
+                totalFields={totalFields}
+                calculateTotal={calculateTotal}
+                formatTotal={formatTotal}
+                depthOffset={depthOffset}
+              />
+            ))
+          )}
 
           {(() => {
             const groupItems = groupData.itemIds.map(itemId => itemsMap.get(itemId)).filter(Boolean);

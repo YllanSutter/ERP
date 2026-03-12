@@ -17,12 +17,13 @@ const GroupModal: React.FC<GroupModalProps> = ({ properties, onClose, onAdd }) =
         <select value={property} onChange={(e) => setProperty(e.target.value)} className="w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none mb-6">
           <option value="">Sélectionner...</option>
           {properties.filter((p: any) => {
-            // Inclure select, multi_select, relation, checkbox, text, et tous les champs date
-            if (['select', 'multi_select', 'relation', 'checkbox', 'text'].includes(p.type)) return true;
-            if (p.type === 'date') return true;
+            // Inclure la majorité des types groupables, y compris colonnes auto-créées
+            if (['select', 'multi_select', 'relation', 'checkbox', 'text', 'number', 'date', 'date_range'].includes(p.type)) return true;
             return false;
           }).map((prop: any) => (
-            <option key={prop.id} value={prop.id}>{prop.name}</option>
+            <option key={prop.id} value={prop.id}>
+              {prop.name}{prop.isRelationLinkedColumn ? ' (lié)' : ''}
+            </option>
           ))}
           </select>
         <div className="flex gap-3">

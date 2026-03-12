@@ -3,20 +3,22 @@ import { motion } from 'framer-motion';
 import ShinyButton from '@/components/ui/ShinyButton';
 import { LightSelect } from '@/components/inputs/LightSelect';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MONTH_NAMES } from '@/lib/calendarUtils';
+import { getOrderedProperties } from '@/lib/filterUtils';
 
 interface FilterModalProps {
   properties: any[];
   collections: any[];
   onClose: () => void;
-  onAdd: (property: string, operator: string, value: any) => void;
-  initialFilter?: { property: string; operator: string; value: any } | null;
+  onAdd: (property: string, operator: string, value: any, sourceCollectionId?: string, filterMeta?: any) => void;
+  initialFilter?: { property: string; operator: string; value: any; sourceCollectionId?: string } | null;
 }
 
 const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onClose, onAdd, initialFilter }) => {
   // Onglet sélectionné : index de la collection
-  const defaultTab = collections.findIndex(c => c.properties === properties) || 0;
+  const defaultTabCandidate = collections.findIndex(c => c.properties === properties);
+  const defaultTab = defaultTabCandidate >= 0 ? defaultTabCandidate : 0;
   const [selectedTab, setSelectedTab] = useState(defaultTab);
   const [property, setProperty] = useState('');
   const [operator, setOperator] = useState('equals');
@@ -42,10 +44,28 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
   };
   const selectedCollection = collections[selectedTab] || null;
   const accentColor = selectedCollection?.color || '#8b5cf6';
-  // Propriétés de la collection sélectionnée
-  const currentProperties = selectedCollection?.properties || [];
+  // Propriétés de la collection sélectionnée (inclut colonnes liées auto-générées)
+  const currentProperties = React.useMemo(() => {
+    if (!selectedCollection) return [];
+    return getOrderedProperties(selectedCollection, null, collections).filter((p: any) => !!p?.id);
+  }, [selectedCollection, collections]);
   const isEditing = Boolean(initialFilter);
   const selectedProp = currentProperties.find((p: any) => p.id === property);
+  const nativeProperties = React.useMemo(
+    () => currentProperties.filter((p: any) => !p?.isRelationLinkedColumn),
+    [currentProperties]
+  );
+  const linkedPropertiesByRelation = React.useMemo(() => {
+    const groups = new Map<string, any[]>();
+    currentProperties
+      .filter((p: any) => p?.isRelationLinkedColumn && p?.sourceRelationPropertyId)
+      .forEach((p: any) => {
+        const key = p.sourceRelationPropertyId;
+        const prev = groups.get(key) || [];
+        groups.set(key, [...prev, p]);
+      });
+    return groups;
+  }, [currentProperties]);
   // Reset property si on change d'onglet
   React.useEffect(() => {
     if (initialFilter) {
@@ -61,9 +81,11 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
 
   React.useEffect(() => {
     if (!initialFilter) return;
-    const targetTab = collections.findIndex((c: any) =>
-      (c.properties || []).some((p: any) => p.id === initialFilter.property)
-    );
+    const targetTab = initialFilter.sourceCollectionId
+      ? collections.findIndex((c: any) => c.id === initialFilter.sourceCollectionId)
+      : collections.findIndex((c: any) =>
+          (c.properties || []).some((p: any) => p.id === initialFilter.property)
+        );
     if (targetTab >= 0 && targetTab !== selectedTab) {
       setSelectedTab(targetTab);
     }
@@ -122,17 +144,105 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
     onChange: (nextValue: string) => void,
     options: Array<{ value: string; label: string }>,
     placeholder = 'Sélectionner...'
-  ) => (
-    <Select value={currentValue || undefined} onValueChange={onChange}>
+  ) => {
+    const normalizedOptions = options.map((option, index) => {
+      const rawValue = option?.value == null ? '' : String(option.value);
+      const uiValue = rawValue === '' ? `__empty_option__${index}` : rawValue;
+      return {
+        label: option?.label ?? rawValue,
+        rawValue,
+        uiValue,
+      };
+    });
+
+    const normalizedCurrentValue = currentValue == null ? '' : String(currentValue);
+    const currentOption = normalizedOptions.find((opt) => opt.rawValue === normalizedCurrentValue);
+    const selectValue = normalizedCurrentValue === '' ? undefined : (currentOption?.uiValue || normalizedCurrentValue);
+
+    return (
+      <Select
+        value={selectValue}
+        onValueChange={(nextUiValue) => {
+          const match = normalizedOptions.find((opt) => opt.uiValue === nextUiValue);
+          onChange(match ? match.rawValue : nextUiValue);
+        }}
+      >
+        <SelectTrigger className="w-full rounded-xl border-black/10 bg-gray-300 text-neutral-700 focus:ring-1 focus:ring-violet-500 dark:border-white/10 dark:bg-neutral-800/50 dark:text-white">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent className="border-black/10 bg-gray-200 dark:border-white/10 dark:bg-neutral-900/95">
+          {normalizedOptions.map((option) => (
+            <SelectItem key={option.uiValue} value={option.uiValue}>
+              {option.label || '—'}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  };
+
+  const renderPropertySelect = () => (
+    <Select value={property || undefined} onValueChange={(nextValue) => setProperty(nextValue)}>
       <SelectTrigger className="w-full rounded-xl border-black/10 bg-gray-300 text-neutral-700 focus:ring-1 focus:ring-violet-500 dark:border-white/10 dark:bg-neutral-800/50 dark:text-white">
-        <SelectValue placeholder={placeholder} />
+        <SelectValue placeholder="Sélectionner un champ..." />
       </SelectTrigger>
       <SelectContent className="border-black/10 bg-gray-200 dark:border-white/10 dark:bg-neutral-900/95">
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
+        {nativeProperties.length > 0 && (
+          <SelectGroup>
+            <SelectLabel className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+              Champs de {selectedCollection?.name || 'la collection'}
+            </SelectLabel>
+            {nativeProperties.map((prop: any) => (
+              <SelectItem key={prop.id} value={prop.id}>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block h-2 w-2 rounded-full bg-neutral-400 dark:bg-neutral-500" />
+                  <span>{prop.name}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        )}
+
+        {linkedPropertiesByRelation.size > 0 && (
+          <>
+            <SelectSeparator />
+            <SelectGroup>
+              <SelectLabel className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                Champs liés (via relation)
+              </SelectLabel>
+            </SelectGroup>
+            {Array.from(linkedPropertiesByRelation.entries()).map(([relationPropId, props], groupIndex) => {
+              const relationProp = (selectedCollection?.properties || []).find((p: any) => p.id === relationPropId);
+              const relationColor = relationProp?.color || '#8b5cf6';
+
+              return (
+                <SelectGroup key={relationPropId}>
+                  {groupIndex > 0 && <SelectSeparator />}
+                  <SelectLabel
+                    className="mx-2 mb-1 rounded px-2 py-1 text-[11px] font-medium"
+                    style={{
+                      backgroundColor: `${relationColor}1f`,
+                      color: relationColor,
+                    }}
+                  >
+                    Via {relationProp?.name || 'Relation'}
+                  </SelectLabel>
+                  {props.map((prop: any) => (
+                    <SelectItem key={prop.id} value={prop.id} className="ml-2 rounded-md">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-2 w-2 rounded-full"
+                          style={{ backgroundColor: relationColor }}
+                        />
+                        <span>{prop.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              );
+            })}
+          </>
+        )}
       </SelectContent>
     </Select>
   );
@@ -334,11 +444,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
               <div className="text-sm font-semibold">Champ</div>
               <div className="text-xs text-neutral-500 dark:text-neutral-400">Choisis la propriété à filtrer.</div>
             </div>
-            {renderShadcnSelect(
-              property,
-              (nextValue) => setProperty(nextValue),
-              currentProperties.map((prop: any) => ({ value: prop.id, label: prop.name }))
-            )}
+            {renderPropertySelect()}
           </div>
 
           <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/40 dark:bg-white/5 p-4 space-y-3">
@@ -367,7 +473,23 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
         <div className="flex gap-3 mt-8">
           <button onClick={onClose} className="flex-1 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg">Annuler</button>
           <ShinyButton
-            onClick={() => property && onAdd(property, operator, prepareFilterValue())}
+            onClick={() =>
+              property &&
+              onAdd(
+                property,
+                operator,
+                prepareFilterValue(),
+                selectedCollection?.id,
+                selectedProp
+                  ? {
+                      isRelationLinkedColumn: Boolean(selectedProp.isRelationLinkedColumn),
+                      sourceRelationPropertyId: selectedProp.sourceRelationPropertyId,
+                      sourceDisplayFieldId: selectedProp.sourceDisplayFieldId,
+                      sourceTargetCollectionId: selectedProp.sourceTargetCollectionId,
+                    }
+                  : undefined
+              )
+            }
             className="flex-1"
           >
             {isEditing ? 'Enregistrer' : 'Ajouter'}

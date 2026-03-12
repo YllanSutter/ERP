@@ -496,7 +496,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     return base;
   }, [dashboards, dashboardSort]);
 
-  const orderedProperties = getOrderedProperties(currentCollection, activeViewConfig);
+  const orderedProperties = getOrderedProperties(currentCollection, activeViewConfig, collectionsWithCalculatedFields);
 
   const filteredItems = getFilteredItems(
     currentCollection,
@@ -715,6 +715,18 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                 }}
                 onClearRelationFilter={clearRelationFilter}
                 onRemoveGroup={viewHooks.removeGroup}
+                onSetGroupDisplayMode={(groupId, mode) => {
+                  if (!activeView) return;
+                  const currentModes = activeViewConfig?.groupDisplayModes || {};
+                  const isRootGroup = (activeViewConfig?.groups || [])[0] === groupId;
+                  viewHooks.updateView(activeView, {
+                    groupDisplayModes: {
+                      ...currentModes,
+                      [groupId]: mode,
+                    },
+                    ...(isRootGroup ? { groupDisplayMode: mode } : {}),
+                  });
+                }}
                 onToggleFavoriteView={(viewId: string) => {
                   setFavorites((prev) => ({
                     ...prev,
@@ -819,6 +831,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     onNavigateToCollection={handleNavigateToCollection}
                     groups={activeViewConfig?.groups || []}
                     groupDisplayMode={activeViewConfig?.groupDisplayMode || 'accordion'}
+                    groupDisplayModes={activeViewConfig?.groupDisplayModes || {}}
                     groupDisplayColumnCount={activeViewConfig?.groupDisplayColumnCount || 3}
                     onShowNewItemModal={() => setShowNewItemModal(true)}
                     onQuickCreateItem={handleQuickCreateItem}
@@ -1140,11 +1153,11 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
             setShowFilterModal(false);
             setEditingFilterIndex(null);
           }}
-          onAdd={(property, operator, value) => {
+          onAdd={(property, operator, value, sourceCollectionId, filterMeta) => {
             if (editingFilterIndex !== null) {
-              viewHooks.updateFilter(editingFilterIndex, property, operator, value);
+              viewHooks.updateFilter(editingFilterIndex, property, operator, value, sourceCollectionId, filterMeta);
             } else {
-              viewHooks.addFilter(property, operator, value);
+              viewHooks.addFilter(property, operator, value, sourceCollectionId, filterMeta);
             }
             setShowFilterModal(false);
             setEditingFilterIndex(null);
@@ -1153,7 +1166,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
       )}
       {showGroupModal && (
         <GroupModal
-          properties={currentCollection?.properties || []}
+          properties={orderedProperties || []}
           onClose={() => setShowGroupModal(false)}
           onAdd={(property) => {
             viewHooks.addGroup(property);

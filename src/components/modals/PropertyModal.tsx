@@ -55,6 +55,12 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const [relationMaxVisible, setRelationMaxVisible] = useState(
     property?.relation?.maxVisible != null ? String(property.relation.maxVisible) : ''
   );
+  const [relationDisplayFieldIds, setRelationDisplayFieldIds] = useState<string[]>(
+    Array.isArray(property?.relation?.displayFieldIds) ? property.relation.displayFieldIds : []
+  );
+  const [relationAutoHideSource, setRelationAutoHideSource] = useState(
+    property?.relation?.autoHideSource !== false
+  );
   const [relationFilterField, setRelationFilterField] = useState(property?.relation?.filter?.fieldId || '');
   const [relationFilterValue, setRelationFilterValue] = useState(property?.relation?.filter?.value || '');
   const [showContextMenu, setShowContextMenu] = useState(property?.showContextMenu || false);
@@ -149,6 +155,10 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
           relation.maxVisible = Math.floor(parsedMax);
         }
       }
+      if (relationDisplayFieldIds.length > 0) {
+        relation.displayFieldIds = relationDisplayFieldIds;
+      }
+      relation.autoHideSource = relationAutoHideSource;
       if (relationFilterField && relationFilterValue) {
         relation.filter = { fieldId: relationFilterField, value: relationFilterValue };
       }
@@ -363,6 +373,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                             relation: relationTarget ? {
                               targetCollectionId: relationTarget,
                               type: relationType,
+                              displayFieldIds: relationDisplayFieldIds,
                               filter: relationFilterField && relationFilterValue ? { fieldId: relationFilterField, value: relationFilterValue } : undefined
                             } : undefined
                           }}
@@ -448,7 +459,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Collection liée</label>
                 <select 
                   value={relationTarget}
-                  onChange={(e) => { setRelationTarget(e.target.value); setRelationFilterField(''); setRelationFilterValue(''); }}
+                  onChange={(e) => { setRelationTarget(e.target.value); setRelationDisplayFieldIds([]); setRelationAutoHideSource(true); setRelationFilterField(''); setRelationFilterValue(''); }}
                   className="w-full px-4 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
                 >
                   <option value="">Sélectionner...</option>
@@ -481,6 +492,41 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                   className="w-full px-4 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
                 />
               </div>
+              {relationTarget && (
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Colonnes liées affichées dans la cellule</label>
+                  <LightMultiSelect
+                    options={(collections.find((c: any) => c.id === relationTarget)?.properties || [])
+                      .filter((p: any) => p.type !== 'relation')
+                      .map((p: any) => ({ value: p.id, label: p.name }))}
+                    values={relationDisplayFieldIds}
+                    onChange={setRelationDisplayFieldIds}
+                    placeholder="Par défaut: nom de l'élément lié"
+                    maxVisible={3}
+                  />
+                  <p className="text-xs text-neutral-500 mt-2">
+                    Sélectionnez les champs à concaténer (ex: Nom, Date). Si vide, on affiche le nom.
+                  </p>
+                </div>
+              )}
+              {relationTarget && relationDisplayFieldIds.length > 0 && (
+                <div>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={relationAutoHideSource}
+                      onChange={(e) => setRelationAutoHideSource(e.target.checked)}
+                      className="w-4 h-4 rounded border-white/10"
+                    />
+                    <span className="text-sm font-medium text-neutral-600 dark:text-neutral-300">
+                      Masquer automatiquement la colonne relation source
+                    </span>
+                  </label>
+                  <p className="text-xs text-neutral-500 mt-2 ml-7">
+                    Si activé, la colonne parent est cachée quand des colonnes liées sont affichées.
+                  </p>
+                </div>
+              )}
               {relationTarget && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>

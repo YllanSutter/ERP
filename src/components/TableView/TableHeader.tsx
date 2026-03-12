@@ -288,13 +288,15 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                 {canEdit && (
                   <>
                     <ContextMenuSeparator />
-                    <ContextMenuItem
-                      onClick={() => onEditProperty(prop)}
-                      className="flex items-center gap-2"
-                    >
-                      <Icons.Edit2 size={14} />
-                      <span>Modifier</span>
-                    </ContextMenuItem>
+                    {!prop.isRelationLinkedColumn && (
+                      <ContextMenuItem
+                        onClick={() => onEditProperty(prop)}
+                        className="flex items-center gap-2"
+                      >
+                        <Icons.Edit2 size={14} />
+                        <span>Modifier</span>
+                      </ContextMenuItem>
+                    )}
                     <ContextMenuItem
                       onClick={() => onToggleField(prop.id)}
                       className="flex items-center gap-2"
@@ -302,7 +304,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                       <Icons.EyeOff size={14} />
                       <span>Masquer la colonne</span>
                     </ContextMenuItem>
-                    {prop.id !== 'name' && onDuplicateProperty && (
+                    {prop.id !== 'name' && onDuplicateProperty && !prop.isRelationLinkedColumn && (
                       <ContextMenuSub>
                         <ContextMenuSubTrigger className="flex items-center gap-2 text-neutral-700 dark:text-neutral-200">
                           <Icons.CopyPlus size={14} />
@@ -326,7 +328,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                         </ContextMenuSubContent>
                       </ContextMenuSub>
                     )}
-                    {prop.id !== 'name' && (
+                    {prop.id !== 'name' && !prop.isRelationLinkedColumn && (
                       <>
                         <ContextMenuSeparator />
                         <ContextMenuItem

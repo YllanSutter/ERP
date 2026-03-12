@@ -109,7 +109,7 @@ const LayoutView: React.FC<LayoutViewProps> = ({
           collections
         );
 
-        const panelOrderedProps = getOrderedProperties(targetCollection, viewConfig);
+        const panelOrderedProps = getOrderedProperties(targetCollection, viewConfig, collections);
 
         return (
           <div
@@ -137,6 +137,7 @@ const LayoutView: React.FC<LayoutViewProps> = ({
                   onNavigateToCollection={() => {}}
                   groups={viewConfig.groups || []}
                   groupDisplayMode={viewConfig.groupDisplayMode || 'accordion'}
+                  groupDisplayModes={viewConfig.groupDisplayModes || {}}
                   groupDisplayColumnCount={viewConfig.groupDisplayColumnCount || 3}
                 />
               )}

@@ -36,6 +36,13 @@ export type PropertyType =
 export interface RelationConfig {
   targetCollectionId: string;
   type?: 'one-to-one' | 'one-to-many' | 'many-to-many';
+  maxVisible?: number;
+  displayFieldIds?: string[];
+  autoHideSource?: boolean;
+  filter?: {
+    fieldId: string;
+    value: any;
+  };
 }
 
 // Granularités de date disponibles
@@ -83,6 +90,7 @@ export interface TableViewProps {
   initialExpandedGroups?: string[];
   onExpandedGroupsChange?: (groupPaths: string[]) => void;
   groupDisplayMode?: TableGroupDisplayMode;
+  groupDisplayModes?: Record<string, TableGroupDisplayMode>;
   groupDisplayColumnCount?: TableGroupColumnCount;
   totalFields?: Record<string, string>; // fieldId -> totalType (sum, count, unique, avg, min, max)
   onSetTotalField?: (fieldId: string, totalType: string | null) => void;

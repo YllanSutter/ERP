@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { buildGroupStructure } from '@/lib/groupingUtils';
-import { Item, Property } from '@/lib/types';
+import { Item, Property, Collection } from '@/lib/types';
 
 /**
  * Hook personnalisé pour gérer la logique de groupage des items
@@ -9,6 +9,7 @@ export function useGrouping(
   items: Item[],
   groups: string[],
   properties: Property[],
+  collections: Collection[],
   initialExpandedGroupPaths?: string[],
   onExpandedGroupsChange?: (groupPaths: string[]) => void
 ) {
@@ -28,8 +29,8 @@ export function useGrouping(
 
   // Nouvelle logique de groupage : structure plate avec IDs uniquement
   const groupedStructure = useMemo(
-    () => buildGroupStructure(items, groups, properties),
-    [items, groups, properties]
+    () => buildGroupStructure(items, groups, properties, collections),
+    [items, groups, properties, collections]
   );
 
   const allGroupPaths = useMemo(

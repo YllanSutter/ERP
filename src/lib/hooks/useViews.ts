@@ -37,22 +37,22 @@ export const useViews = (
     setActiveView(newView.id);
   };
 
-  const addFilter = (property: string, operator: string, value: any) => {
+  const addFilter = (property: string, operator: string, value: any, sourceCollectionId?: string, filterMeta?: any) => {
     if (!activeCollection) return;
     const updatedViews = { ...views } as Record<string, any[]>;
     const viewIndex = updatedViews[activeCollection].findIndex((v: any) => v.id === activeView);
-    updatedViews[activeCollection][viewIndex].filters.push({ property, operator, value });
+    updatedViews[activeCollection][viewIndex].filters.push({ property, operator, value, sourceCollectionId, ...(filterMeta || {}) });
     setViews(updatedViews);
   };
 
-  const updateFilter = (index: number, property: string, operator: string, value: any) => {
+  const updateFilter = (index: number, property: string, operator: string, value: any, sourceCollectionId?: string, filterMeta?: any) => {
     if (!activeCollection) return;
     const updatedViews = { ...views } as Record<string, any[]>;
     const viewIndex = updatedViews[activeCollection].findIndex((v: any) => v.id === activeView);
     if (viewIndex === -1) return;
     const filters = updatedViews[activeCollection][viewIndex].filters || [];
     if (!filters[index]) return;
-    filters[index] = { property, operator, value };
+    filters[index] = { property, operator, value, sourceCollectionId, ...(filterMeta || {}) };
     updatedViews[activeCollection][viewIndex].filters = filters;
     setViews(updatedViews);
   };

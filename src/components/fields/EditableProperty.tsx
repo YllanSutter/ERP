@@ -364,6 +364,7 @@ const RelationEditor = ({
   targetCollection,
   targetItems,
   getItemName,
+  getItemLabel,
   onRelationChange,
   readOnly,
   className,
@@ -378,6 +379,7 @@ const RelationEditor = ({
   targetCollection: any;
   targetItems: any[];
   getItemName: (item: any) => string;
+  getItemLabel: (item: any) => string;
   onRelationChange: (property: any, item: any, value: any) => void;
   readOnly?: boolean;
   className?: string;
@@ -411,8 +413,12 @@ const RelationEditor = ({
   const [isCreating, setIsCreating] = useState(false);
 
   const filteredItems = useMemo(() => 
-    targetItems.filter((ti: any) => getItemName(ti).toLowerCase().includes(searchQuery.toLowerCase())),
-  [targetItems, getItemName, searchQuery]);
+    targetItems.filter((ti: any) => {
+      const byName = getItemName(ti).toLowerCase().includes(searchQuery.toLowerCase());
+      const byLabel = getItemLabel(ti).toLowerCase().includes(searchQuery.toLowerCase());
+      return byName || byLabel;
+    }),
+  [targetItems, getItemName, getItemLabel, searchQuery]);
 
   // Récupérer les templates de champs qui ont des conditions
   const availableTemplates = useMemo(() => {
@@ -663,7 +669,7 @@ const RelationEditor = ({
       <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
         {filteredItems.map((ti: any) => {
           const checked = selectedIds.includes(ti.id);
-          const label = getItemName(ti);
+          const label = getItemLabel(ti);
           return (
             <button
               key={ti.id}
@@ -719,7 +725,7 @@ const RelationEditor = ({
                 close();
               }}
             >
-              {getItemName(ti)}
+              {getItemLabel(ti)}
             </button>
           );
         })}
@@ -734,7 +740,7 @@ const RelationEditor = ({
       <div className="flex gap-1 flex-1 min-w-0 justify-end flex-wrap max-w-[200px] overflow-hidden max-h-[100px] overflow-y-auto">
         {visibleSelectedIds.map((id: string) => {
           const it = targetItems.find((ti: any) => ti.id === id);
-          const label = it ? getItemName(it) : id;
+          const label = it ? getItemLabel(it) : id;
           const baseColor = property.color || '#8b5cf6';
           
           const shiftColor = (hex: string, shift: number) => {
@@ -1184,6 +1190,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       const nameField = targetCollection?.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
       return nameField ? it[nameField.id] || 'Sans titre' : it.name || 'Sans titre';
     }, [targetCollection]);
+    const getItemLabel = useCallback((it: any) => getItemName(it), [getItemName]);
 
     if (!collections || !currentItem ) {
       return (
@@ -1212,6 +1219,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
         targetCollection={targetCollection}
         targetItems={targetItems}
         getItemName={getItemName}
+        getItemLabel={getItemLabel}
         onRelationChange={onRelationChange ?? (() => {})}
         readOnly={readOnly}
         className={className}

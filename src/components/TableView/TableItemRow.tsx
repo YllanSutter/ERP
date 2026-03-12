@@ -124,8 +124,44 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
       }
     : {};
 
+  const resolveDisplayValueForLinkedColumn = (prop: any) => {
+    if (!prop?.isRelationLinkedColumn || !prop?.sourceRelationPropertyId || !prop?.sourceDisplayFieldId) {
+      return item[prop.id];
+    }
+
+    const sourceRelationValue = item[prop.sourceRelationPropertyId];
+    const relatedIds = Array.isArray(sourceRelationValue)
+      ? sourceRelationValue
+      : sourceRelationValue
+        ? [sourceRelationValue]
+        : [];
+
+    if (!relatedIds.length) return null;
+
+    const targetCollection = collections.find((c: any) => c.id === prop.sourceTargetCollectionId)
+      || collections.find((c: any) => c.id === (collection?.properties || []).find((p: any) => p.id === prop.sourceRelationPropertyId)?.relation?.targetCollectionId);
+    const targetItems = targetCollection?.items || [];
+
+    const rawValues = relatedIds
+      .map((id: string) => targetItems.find((it: any) => it.id === id)?.[prop.sourceDisplayFieldId])
+      .filter((v: any) => v !== undefined && v !== null && v !== '');
+
+    if (!rawValues.length) return null;
+
+    if (prop.type === 'multi_select') {
+      const flattened = rawValues.flatMap((v: any) => Array.isArray(v) ? v : [v]);
+      return Array.from(new Set(flattened));
+    }
+
+    if (prop.type === 'checkbox') {
+      return rawValues.some(Boolean);
+    }
+
+    return rawValues[0];
+  };
+
   // Propriétés à afficher dans le menu contextuel
-  const contextMenuProperties = visibleProperties.filter((p: any) => p.showContextMenu && canEditField(p.id));
+  const contextMenuProperties = visibleProperties.filter((p: any) => !p.isRelationLinkedColumn && p.showContextMenu && canEditField(p.id));
 
   // Propriétés à afficher dans la vue (excluant celles du menu contextuel)
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
@@ -169,33 +205,42 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
               </label>
             </td>
           )}
-          {displayProperties.map((prop: any, index: number) => (
+          {displayProperties.map((prop: any) => {
+            const isLinkedRelationColumn = Boolean(prop?.isRelationLinkedColumn && prop?.sourceRelationPropertyId);
+            const effectiveProperty = prop;
+            const effectiveValue = resolveDisplayValueForLinkedColumn(prop);
+            const permissionFieldId = isLinkedRelationColumn ? prop.sourceRelationPropertyId : effectiveProperty.id;
+            const canEditEffectiveField = canEditField(permissionFieldId);
+
+            return (
             <td
               key={prop.id}
               className="px-4 py-1 whitespace-nowrap text-xs text-neutral-700 dark:text-neutral-300 relative user-select-auto"
               onMouseDown={(e) => e.stopPropagation()}
             >
               <EditableProperty
-                property={prop}
-                value={item[prop.id]}
+                property={effectiveProperty}
+                value={effectiveValue}
                 onChange={(val) => {
+                  if (isLinkedRelationColumn) return;
                   // Pas de recalcul côté client - le serveur le fera
-                  const updated = { ...item, [prop.id]: val };
+                  const updated = { ...item, [effectiveProperty.id]: val };
                   onEdit(updated);
                 }}
                 size="md"
-                isNameField={prop.id === 'name' || prop.name === 'Nom'}
-                onViewDetail={prop.id === 'name' || prop.name === 'Nom' ? () => onViewDetail(item) : undefined}
+                isNameField={effectiveProperty.id === 'name' || effectiveProperty.name === 'Nom'}
+                onViewDetail={effectiveProperty.id === 'name' || effectiveProperty.name === 'Nom' ? () => onViewDetail(item) : undefined}
                 disableNameLink={true}
                 collections={collections}
                 currentItem={item}
                 onRelationChange={onRelationChange}
                 onNavigateToCollection={onNavigateToCollection}
-                readOnly={!canEdit || !canEditField(prop.id)}
+                readOnly={isLinkedRelationColumn || !canEdit || !canEditEffectiveField}
                 collection={collection}
               />
             </td>
-          ))}
+            );
+          })}
          
         </RowComponent>
       </ContextMenuTrigger>
@@ -228,31 +273,34 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
             <ContextMenuSeparator />
             <ContextMenuLabel className="text-xs">Édition rapide</ContextMenuLabel>
             <ContextMenuSeparator />
-            {contextMenuProperties.map((prop: any) => (
-              <ContextMenuItem key={prop.id} className="flex items-center justify-between gap-4 cursor-default" onSelect={(e) => e.preventDefault()}>
-                <span className="text-xs text-neutral-400">{prop.name}:</span>
-                <div className="flex-1 max-w-[200px]" onClick={(e) => e.stopPropagation()}>
-                  <EditableProperty
-                    property={prop}
-                    value={item[prop.id]}
-                    onChange={(val) => {
-                      // Pas de recalcul côté client - le serveur le fera
-                      const updated = { ...item, [prop.id]: val };
-                      onEdit(updated);
-                    }}
-                    size="sm"
-                    collections={collections}
-                    currentItem={item}
-                    onRelationChange={onRelationChange}
-                    onNavigateToCollection={onNavigateToCollection}
-                    readOnly={false}
-                    collection={collection}
-                  />
-                </div>
-                
-              </ContextMenuItem>
-              
-            ))}
+            {contextMenuProperties.map((prop: any) => {
+              const effectiveProperty = prop;
+              const effectiveValue = item[prop.id];
+
+              return (
+                <ContextMenuItem key={prop.id} className="flex items-center justify-between gap-4 cursor-default" onSelect={(e) => e.preventDefault()}>
+                  <span className="text-xs text-neutral-400">{prop.name}:</span>
+                  <div className="flex-1 max-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                    <EditableProperty
+                      property={effectiveProperty}
+                      value={effectiveValue}
+                      onChange={(val) => {
+                        // Pas de recalcul côté client - le serveur le fera
+                        const updated = { ...item, [effectiveProperty.id]: val };
+                        onEdit(updated);
+                      }}
+                      size="sm"
+                      collections={collections}
+                      currentItem={item}
+                      onRelationChange={onRelationChange}
+                      onNavigateToCollection={onNavigateToCollection}
+                      readOnly={false}
+                      collection={collection}
+                    />
+                  </div>
+                </ContextMenuItem>
+              );
+            })}
             
           </>
         )}

@@ -21,7 +21,8 @@ export interface GroupStructure {
 export function buildGroupStructure(
   items: Item[],
   groups: string[],
-  properties: Property[]
+  properties: Property[],
+  collections: Collection[] = []
 ): GroupStructure | null {
   if (!groups || groups.length === 0) return null;
 
@@ -37,7 +38,38 @@ export function buildGroupStructure(
       const prop = properties.find((p: any) => p.id === groupId);
       if (!prop) continue;
 
-      const rawValue = item[groupId];
+      const rawValue = (() => {
+        const linkedProp: any = prop as any;
+        if (!linkedProp?.isRelationLinkedColumn || !linkedProp?.sourceRelationPropertyId || !linkedProp?.sourceDisplayFieldId) {
+          return item[groupId];
+        }
+
+        const relationValue = (item as any)[linkedProp.sourceRelationPropertyId];
+        const relatedIds = Array.isArray(relationValue)
+          ? relationValue
+          : relationValue
+            ? [relationValue]
+            : [];
+        if (!relatedIds.length) return null;
+
+        const sourceRelationProp: any = properties.find((p: any) => p.id === linkedProp.sourceRelationPropertyId);
+        const targetCollection = collections.find((c: any) => c.id === linkedProp.sourceTargetCollectionId)
+          || collections.find((c: any) => c.id === sourceRelationProp?.relation?.targetCollectionId);
+        const targetItems = targetCollection?.items || [];
+
+        const values = relatedIds
+          .map((id: string) => (targetItems as any[]).find((it: any) => it.id === id)?.[linkedProp.sourceDisplayFieldId])
+          .filter((v: any) => v !== undefined && v !== null && v !== '');
+
+        if (!values.length) return null;
+        if (linkedProp.type === 'multi_select') {
+          return values.flatMap((v: any) => Array.isArray(v) ? v : [v]);
+        }
+        if (linkedProp.type === 'checkbox') {
+          return values.some(Boolean);
+        }
+        return values[0];
+      })();
       let groupValue: string;
       
       // Formater la valeur selon le type

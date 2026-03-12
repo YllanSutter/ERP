@@ -11,6 +11,7 @@ export interface GroupHeaderProps {
   isExpanded: boolean;
   onToggle: () => void;
   colSpan: number;
+  showChevron?: boolean;
 }
 
 const GroupHeader: React.FC<GroupHeaderProps> = ({
@@ -22,6 +23,7 @@ const GroupHeader: React.FC<GroupHeaderProps> = ({
   isExpanded,
   onToggle,
   colSpan,
+  showChevron = true,
 }) => {
   return (
     <tr className="bg-gray-200 dark:bg-neutral-800/40 hover:bg-gray-300/60  dark:hover:bg-neutral-800/60 border-b border-black/10 dark:border-white/5">
@@ -30,12 +32,16 @@ const GroupHeader: React.FC<GroupHeaderProps> = ({
           onClick={onToggle}
           className="flex items-center gap-2 text-sm font-semibold text-neutral-600 dark:text-white transition-colors"
         >
-          <motion.div
-            animate={{ rotate: isExpanded ? 90 : 0 }}
-            className="flex items-center justify-center"
-          >
-            <Icons.ChevronRight size={18} />
-          </motion.div>
+          {showChevron ? (
+            <motion.div
+              animate={{ rotate: isExpanded ? 90 : 0 }}
+              className="flex items-center justify-center"
+            >
+              <Icons.ChevronRight size={18} />
+            </motion.div>
+          ) : (
+            <span className="inline-block h-2 w-2 rounded-full bg-cyan-500/70" />
+          )}
           <span style={{ marginLeft: `${depth * 20}px` }}>
             {propertyName}: <span className="text-neutral-500 dark:text-white">{label}</span>
           </span>

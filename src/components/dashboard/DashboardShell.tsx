@@ -1359,7 +1359,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           : baseItems;
         const periodItems = filterItemsByPeriod(rootFilteredItems, dateField);
         if (!periodItems.length) return null;
-        const orderedProperties = getOrderedProperties(targetCollection, null);
+        const orderedProperties = getOrderedProperties(targetCollection, null, readableCollections);
         const titleParts = [targetCollection.name || 'Sans nom'];
         if (rootNode?.label) titleParts.push(rootNode.label);
         const baseTitle = titleParts.join(' · ');

@@ -22,7 +22,10 @@ import { useAuth } from '@/auth/AuthProvider';
 import {
   ContextMenu,
   ContextMenuContent,
+  ContextMenuLabel,
   ContextMenuItem,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@/components/ui/context-menu';
@@ -58,6 +61,7 @@ interface ViewToolbarProps {
   onRemoveFilter: (index: number) => void;
   onClearRelationFilter: () => void;
   onRemoveGroup: (property: string) => void;
+  onSetGroupDisplayMode: (groupId: string, mode: 'accordion' | 'columns' | 'tabs') => void;
   onToggleFavoriteView: (viewId: string) => void;
   onManageViewVisibility: (viewId: string) => void;
   onEditView: (viewId: string) => void;
@@ -95,6 +99,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onRemoveFilter,
   onClearRelationFilter,
   onRemoveGroup,
+  onSetGroupDisplayMode,
   onToggleFavoriteView,
   onManageViewVisibility,
   onEditView,
@@ -173,6 +178,9 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   const getCompactOperatorLabel = (op: string) => compactOperatorLabels[op] || getOperatorLabel(op);
   const getFilterSource = (filter: any) => {
     const sourceCollection =
+      (filter?.sourceCollectionId
+        ? collections.find((c: any) => c.id === filter.sourceCollectionId)
+        : null) ||
       collections.find((c: any) => c.properties?.some((p: any) => p.id === filter.property)) ||
       currentCollection;
     const sourceProp = sourceCollection?.properties?.find((p: any) => p.id === filter.property);
@@ -207,6 +215,14 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
 
   const activeSearchCollectionId =
     searchCollectionId || (activeCollections.length > 1 ? 'all' : activeCollections[0]?.id || null);
+  const getGroupDisplayMode = (groupId: string, groupIndex: number): 'accordion' | 'columns' | 'tabs' => {
+    const specific = currentViewConfig?.groupDisplayModes?.[groupId];
+    if (specific === 'columns' || specific === 'tabs' || specific === 'accordion') return specific;
+    if (groupIndex > 0) return 'accordion';
+    const legacy = currentViewConfig?.groupDisplayMode;
+    if (legacy === 'columns' || legacy === 'tabs' || legacy === 'accordion') return legacy;
+    return 'accordion';
+  };
 
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -790,19 +806,44 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
           )}
 
           {currentViewConfig?.groups.map((group: string, idx: number) => (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-neutral-700 dark:text-white rounded-lg text-xs border border-cyan-500/30"
-            >
-              <span>
-                Groupé par: {currentCollection?.properties.find((p: any) => p.id === group)?.name}
-              </span>
-              <button onClick={() => onRemoveGroup(group)} className="hover:bg-cyan-500/30 rounded p-0.5">
-                <X size={14} />
-              </button>
-            </motion.div>
+            <ContextMenu key={idx}>
+              <ContextMenuTrigger asChild>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-neutral-700 dark:text-white rounded-lg text-xs border border-cyan-500/30"
+                >
+                  <span>
+                    Groupé par: {orderedProperties.find((p: any) => p.id === group)?.name || currentCollection?.properties.find((p: any) => p.id === group)?.name || group}
+                  </span>
+                  <button
+                    onClick={() => onRemoveGroup(group)}
+                    className="hover:bg-cyan-500/30 rounded p-0.5"
+                    title="Retirer ce groupage"
+                  >
+                    <X size={14} />
+                  </button>
+                </motion.div>
+              </ContextMenuTrigger>
+              <ContextMenuContent className="min-w-[220px]">
+                <ContextMenuLabel>Affichage des groupes</ContextMenuLabel>
+                <ContextMenuRadioGroup
+                  value={getGroupDisplayMode(group, idx)}
+                  onValueChange={(value) => {
+                    const nextMode = value === 'columns' || value === 'tabs' ? value : 'accordion';
+                    onSetGroupDisplayMode(group, nextMode);
+                  }}
+                >
+                  <ContextMenuRadioItem value="accordion">Chevron (accordéon)</ContextMenuRadioItem>
+                  <ContextMenuRadioItem value="columns">Colonnes</ContextMenuRadioItem>
+                  <ContextMenuRadioItem value="tabs">Onglets</ContextMenuRadioItem>
+                </ContextMenuRadioGroup>
+                <ContextMenuSeparator />
+                <ContextMenuItem onSelect={() => onRemoveGroup(group)} className="text-red-600 dark:text-red-400">
+                  Retirer ce groupage
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           ))}
         </div>
       )}
