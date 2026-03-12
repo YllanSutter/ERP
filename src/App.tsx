@@ -833,6 +833,8 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     groupDisplayMode={activeViewConfig?.groupDisplayMode || 'accordion'}
                     groupDisplayModes={activeViewConfig?.groupDisplayModes || {}}
                     groupDisplayColumnCount={activeViewConfig?.groupDisplayColumnCount || 3}
+                    groupDisplayColumnCounts={activeViewConfig?.groupDisplayColumnCounts || {}}
+                    groupTotalsByGroupId={activeViewConfig?.groupTotalsByGroupId || {}}
                     onShowNewItemModal={() => setShowNewItemModal(true)}
                     onQuickCreateItem={handleQuickCreateItem}
                     initialSortState={activeViewConfig?.tableSortState || { column: null, direction: 'asc' }}
@@ -1167,9 +1169,23 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
       {showGroupModal && (
         <GroupModal
           properties={orderedProperties || []}
+          currentGroups={activeViewConfig?.groups || []}
+          initialGroupTotalsByGroupId={activeViewConfig?.groupTotalsByGroupId || {}}
+          initialGroupDisplayModes={activeViewConfig?.groupDisplayModes || {}}
+          initialGroupDisplayColumnCounts={activeViewConfig?.groupDisplayColumnCounts || {}}
+          initialDefaultGroupDisplayMode={activeViewConfig?.groupDisplayMode || 'accordion'}
+          initialDefaultGroupDisplayColumnCount={activeViewConfig?.groupDisplayColumnCount || 3}
           onClose={() => setShowGroupModal(false)}
-          onAdd={(property) => {
-            viewHooks.addGroup(property);
+          onSave={(groups, groupTotalsByGroupId, groupDisplayModes, groupDisplayColumnCounts) => {
+            if (!activeView) return;
+            viewHooks.updateView(activeView, {
+              groups,
+              groupTotalsByGroupId,
+              groupDisplayModes,
+              groupDisplayColumnCounts,
+              groupDisplayMode: groups[0] ? (groupDisplayModes[groups[0]] || 'accordion') : 'accordion',
+              groupDisplayColumnCount: groups[0] ? (groupDisplayColumnCounts[groups[0]] || 3) : 3,
+            });
             setShowGroupModal(false);
           }}
         />

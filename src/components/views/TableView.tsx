@@ -60,19 +60,20 @@ const TableView: React.FC<TableViewProps> = ({
   groupDisplayMode = 'accordion',
   groupDisplayModes = {},
   groupDisplayColumnCount = 3,
+  groupDisplayColumnCounts = {},
+  groupTotalsByGroupId = {},
   totalFields = {},
   onSetTotalField,
 }) => {
-    const normalizedGroupDisplayColumnCount =
-      groupDisplayColumnCount === 1 || groupDisplayColumnCount === 2 || groupDisplayColumnCount === 3
-        ? groupDisplayColumnCount
-        : 3;
+    const normalizeGroupColumnCount = useCallback((count: any): 1 | 2 | 3 => {
+      return count === 1 || count === 2 || count === 3 ? count : 3;
+    }, []);
 
-    const groupColumnsClassName = useMemo(() => {
-      if (normalizedGroupDisplayColumnCount === 1) return 'grid-cols-1';
-      if (normalizedGroupDisplayColumnCount === 2) return 'grid-cols-1 lg:grid-cols-2';
+    const getGroupColumnsClassName = useCallback((count: 1 | 2 | 3) => {
+      if (count === 1) return 'grid-cols-1';
+      if (count === 2) return 'grid-cols-1 lg:grid-cols-2';
       return 'grid-cols-1 md:grid-cols-2 2xl:grid-cols-3';
-    }, [normalizedGroupDisplayColumnCount]);
+    }, []);
 
   // Guard: si pas de collection, ne rien afficher
   if (!collection) {
@@ -732,7 +733,11 @@ const TableView: React.FC<TableViewProps> = ({
           </div>
         )}
         {(() => {
-          const renderRootGroupRows = (rootGroup: string, hideCurrentHeader = false) => (
+          const renderRootGroupRows = (
+            rootGroup: string,
+            hideCurrentHeader = false,
+            topTotalRenderMode: 'normal' | 'only' | 'skip' = 'normal'
+          ) => (
             <GroupRenderer
               key={rootGroup}
               groupPath={rootGroup}
@@ -741,6 +746,9 @@ const TableView: React.FC<TableViewProps> = ({
               groupProperties={orderedProperties}
               groupDisplayModes={groupDisplayModes}
               defaultGroupDisplayMode={groupDisplayMode}
+              groupDisplayColumnCounts={groupDisplayColumnCounts}
+              defaultGroupDisplayColumnCount={normalizeGroupColumnCount(groupDisplayColumnCount)}
+              groupTotalsByGroupId={groupTotalsByGroupId}
               groupedStructure={groupedStructure!}
               collection={collection}
               collections={collections}
@@ -773,6 +781,7 @@ const TableView: React.FC<TableViewProps> = ({
               formatTotal={formatTotal}
               hideCurrentHeader={hideCurrentHeader}
               depthOffset={hideCurrentHeader ? -1 : 0}
+              topTotalRenderMode={topTotalRenderMode}
             />
           );
 
@@ -910,6 +919,10 @@ const TableView: React.FC<TableViewProps> = ({
 
           const rootGroupMode: 'accordion' | 'columns' | 'tabs' =
             (groups[0] && (groupDisplayModes as any)?.[groups[0]]) || groupDisplayMode || 'accordion';
+          const rootGroupColumnCount = normalizeGroupColumnCount(
+            (groups[0] && (groupDisplayColumnCounts as any)?.[groups[0]]) || groupDisplayColumnCount
+          );
+          const rootGroupColumnsClassName = getGroupColumnsClassName(rootGroupColumnCount);
 
           if (!groupedStructure) {
             return renderTableShell(renderFlatRows());
@@ -919,7 +932,7 @@ const TableView: React.FC<TableViewProps> = ({
             const hasNestedGroups = groups.length > 1;
             return (
               <div
-                className={`grid gap-4 overflow-x-auto p-5 ${groupColumnsClassName}`}
+                className={`grid gap-4 overflow-x-auto p-5 ${rootGroupColumnsClassName}`}
               >
                 {rootGroupCards.map((group) => (
                   <div
@@ -956,31 +969,45 @@ const TableView: React.FC<TableViewProps> = ({
 
           if (rootGroupMode === 'tabs' && rootGroups.length > 0) {
             const hasNestedGroups = groups.length > 1;
+            const activeRootGroupId = rootGroups.includes(activeGroupTab) ? activeGroupTab : rootGroups[0];
             return (
-              <Tabs value={activeGroupTab} onValueChange={setActiveGroupTab} className="w-full">
-                <TabsList className="m-2 h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+              <>
+                {activeRootGroupId && (
+                  hasNestedGroups
+                    ? renderBodyOnlyShell(renderRootGroupRows(activeRootGroupId, true, 'only'))
+                    : renderTableShell(
+                        renderRootGroupRows(activeRootGroupId, true, 'only'),
+                        undefined,
+                        getItemsForGroupPath(activeRootGroupId)
+                      )
+                )}
+
+                <Tabs value={activeGroupTab} onValueChange={setActiveGroupTab} className="w-full">
+                  <TabsList className="m-2 mt-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+                    {rootGroupCards.map((group) => (
+                      <TabsTrigger
+                        key={group.id}
+                        value={group.id}
+                        className="rounded-full border border-black/10 dark:border-white/10 bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
+                      >
+                        {group.label} ({group.itemCount})
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+
                   {rootGroupCards.map((group) => (
-                    <TabsTrigger
-                      key={group.id}
-                      value={group.id}
-                      className="rounded-full border border-black/10 dark:border-white/10 bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
-                    >
-                      {group.label} ({group.itemCount})
-                    </TabsTrigger>
+                    <TabsContent key={group.id} value={group.id} className="mt-0 border-0 p-0">
+                      {hasNestedGroups
+                        ? renderBodyOnlyShell(renderRootGroupRows(group.id, true, 'skip'))
+                        : renderTableShell(
+                            renderRootGroupRows(group.id, true, 'skip'),
+                            undefined,
+                            getItemsForGroupPath(group.id)
+                          )}
+                    </TabsContent>
                   ))}
-                </TabsList>
-                {rootGroupCards.map((group) => (
-                  <TabsContent key={group.id} value={group.id} className="mt-0 border-0 p-0">
-                    {hasNestedGroups
-                      ? renderBodyOnlyShell(renderRootGroupRows(group.id, true))
-                      : renderTableShell(
-                          renderRootGroupRows(group.id, true),
-                          undefined,
-                          getItemsForGroupPath(group.id)
-                        )}
-                  </TabsContent>
-                ))}
-              </Tabs>
+                </Tabs>
+              </>
             );
           }
 

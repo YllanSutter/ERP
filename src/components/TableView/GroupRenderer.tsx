@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getGroupLabel, countItemsInGroup, GroupedItems } from '@/lib/groupingUtils';
-import { Collection, Property, Item } from '@/lib/types';
+import { Collection, Property, Item, GroupTotalConfig } from '@/lib/types';
 import GroupHeader from './GroupHeader';
 import TableItemRow from './TableItemRow';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,6 +12,9 @@ interface GroupRendererProps {
   groupProperties: Property[];
   groupDisplayModes?: Record<string, 'accordion' | 'columns' | 'tabs'>;
   defaultGroupDisplayMode?: 'accordion' | 'columns' | 'tabs';
+  groupDisplayColumnCounts?: Record<string, 1 | 2 | 3>;
+  defaultGroupDisplayColumnCount?: 1 | 2 | 3;
+  groupTotalsByGroupId?: Record<string, GroupTotalConfig>;
   groupedStructure: { structure: GroupedItems; rootGroups: string[] };
   collection: Collection;
   collections: Collection[];
@@ -44,6 +47,8 @@ interface GroupRendererProps {
   formatTotal?: (fieldId: string, total: any, totalType: string) => string;
   hideCurrentHeader?: boolean;
   depthOffset?: number;
+  suppressTopTotalHeader?: boolean;
+  topTotalRenderMode?: 'normal' | 'only' | 'skip';
 }
 
 const GroupRenderer: React.FC<GroupRendererProps> = ({
@@ -53,6 +58,9 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   groupProperties,
   groupDisplayModes = {},
   defaultGroupDisplayMode = 'accordion',
+  groupDisplayColumnCounts = {},
+  defaultGroupDisplayColumnCount = 3,
+  groupTotalsByGroupId = {},
   groupedStructure,
   collection,
   collections,
@@ -85,6 +93,8 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   formatTotal,
   hideCurrentHeader = false,
   depthOffset = 0,
+  suppressTopTotalHeader = false,
+  topTotalRenderMode = 'normal',
 }) => {
   const groupData = groupedStructure.structure[groupPath];
   if (!groupData) return null;
@@ -111,9 +121,44 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   const nextGroupId = groups[depth + 1];
   const nextLevelMode: 'accordion' | 'columns' | 'tabs' =
     (nextGroupId && groupDisplayModes[nextGroupId]) || 'accordion';
+  const normalizeColumnCount = (count: any): 1 | 2 | 3 => (count === 1 || count === 2 || count === 3 ? count : 3);
+  const getColumnsClassName = (count: 1 | 2 | 3) => {
+    if (count === 1) return 'grid-cols-1';
+    if (count === 2) return 'grid-cols-1 lg:grid-cols-2';
+    return 'grid-cols-1 md:grid-cols-2 2xl:grid-cols-3';
+  };
+  const nextLevelColumnCount = normalizeColumnCount(
+    (nextGroupId && groupDisplayColumnCounts[nextGroupId]) || defaultGroupDisplayColumnCount
+  );
+  const nextLevelColumnsClassName = getColumnsClassName(nextLevelColumnCount);
 
   const displayColumnCount = visibleProperties.filter((p: any) => !p.showContextMenu).length;
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
+  const currentGroupTotalConfig = (groupId && groupTotalsByGroupId[groupId]) || {};
+  const showGroupTotal = currentGroupTotalConfig.enabled !== false;
+  const groupTotalPosition: 'top' | 'bottom' = currentGroupTotalConfig.position === 'top' ? 'top' : 'bottom';
+  const groupItemsForTotal = useMemo(() => {
+    const visited = new Set<string>();
+    const collect = (path: string): Item[] => {
+      if (visited.has(path)) return [];
+      visited.add(path);
+
+      const node = groupedStructure.structure[path];
+      if (!node) return [];
+
+      const directItems = (node.itemIds || [])
+        .map((itemId) => itemsMap.get(itemId))
+        .filter((item): item is Item => Boolean(item));
+
+      const nestedItems = (node.subGroups || []).flatMap((subPath) => collect(subPath));
+      return [...directItems, ...nestedItems];
+    };
+
+    const all = collect(groupPath);
+    const dedup = new Map<string, Item>();
+    all.forEach((it) => dedup.set(it.id, it));
+    return Array.from(dedup.values());
+  }, [groupPath, groupedStructure.structure, itemsMap]);
   const subGroupCards = useMemo(() => {
     const nextProperty = nextGroupId
       ? groupProperties.find((p: Property) => p.id === nextGroupId)
@@ -139,11 +184,14 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
     }
   }, [activeSubGroupTab, subGroupCards]);
 
-  const renderNestedTable = (subPath: string) => (
+  const renderNestedTable = (
+    subPath: string,
+    topTotalMode: 'normal' | 'only' | 'skip' = 'normal'
+  ) => (
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead>
-          <tr className="border-b border-black/10 dark:border-white/10 bg-white/40 dark:bg-neutral-900/40">
+          <tr className="border-b border-black/10 dark:border-white/10 bg-white/50 dark:bg-neutral-900/40">
             {draggableRows && <th className="px-1 py-2 w-8" />}
             {enableSelection && <th className="px-2 py-2 w-10" />}
             {displayProperties.map((prop: any) => (
@@ -164,6 +212,9 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
             groupProperties={groupProperties}
             groupDisplayModes={groupDisplayModes}
             defaultGroupDisplayMode={defaultGroupDisplayMode}
+            groupDisplayColumnCounts={groupDisplayColumnCounts}
+            defaultGroupDisplayColumnCount={defaultGroupDisplayColumnCount}
+            groupTotalsByGroupId={groupTotalsByGroupId}
             groupedStructure={groupedStructure}
             collection={collection}
             collections={collections}
@@ -196,15 +247,120 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
             formatTotal={formatTotal}
             hideCurrentHeader
             depthOffset={depthOffset}
+            suppressTopTotalHeader
+            topTotalRenderMode={topTotalMode}
           />
         </tbody>
       </table>
     </div>
   );
 
+  const totalColSpan = displayColumnCount + (draggableRows ? 1 : 0) + (enableSelection ? 1 : 0);
+
+  const renderGroupTotalRow = (position: 'top' | 'bottom') => {
+    if (!showGroupTotal || Object.keys(totalFields).length === 0 || groupItemsForTotal.length === 0 || !calculateTotal || !formatTotal) {
+      return null;
+    }
+
+    const showTopTotalHeaderRow = position === 'top' && !suppressTopTotalHeader;
+
+    if (position === 'bottom') {
+      return (
+        <>
+          <tr className="bg-white/70 dark:bg-neutral-900/35 border-t border-black/10 dark:border-white/10">
+            {draggableRows && <td className="px-1 py-1 w-8"></td>}
+            {enableSelection && <td className="px-2 py-1"></td>}
+            {displayProperties.map((prop: any, index: number) => {
+              const totalType = totalFields[prop.id];
+              if (!totalType) {
+                return (
+                  <td
+                    key={prop.id}
+                    className="px-3 py-1 text-[10px] text-neutral-400"
+                    style={index === 0 ? { paddingLeft: `${24 + (displayDepth + 1) * 20}px` } : undefined}
+                  >
+                  </td>
+                );
+              }
+              const total = calculateTotal(prop.id, groupItemsForTotal, totalType);
+              return (
+                <td
+                  key={prop.id}
+                  className="px-3 py-1 text-[10px] font-semibold text-neutral-700 dark:text-neutral-200"
+                  style={index === 0 ? { paddingLeft: `${24 + (displayDepth + 1) * 20}px` } : undefined}
+                >
+                  <span className="inline-block max-w-[180px] truncate align-bottom">{formatTotal(prop.id, total, totalType)}</span>
+                </td>
+              );
+            })}
+          </tr>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <tr>
+          <td colSpan={totalColSpan} className="px-0 pt-3 pb-3">
+            <div className="mx-auto w-full max-w-[1200px] px-2">
+              <table className="w-full">
+                <tbody>
+                  {showTopTotalHeaderRow && (
+                    <tr className="bg-neutral-100 dark:bg-neutral-800/70 border-y border-black/10 dark:border-white/10">
+                      {draggableRows && <td className="px-1 py-2.5 w-8"></td>}
+                      {enableSelection && <td className="px-2 py-2.5"></td>}
+                      {displayProperties.map((prop: any) => (
+                        <td
+                          key={`total-header-${prop.id}`}
+                          className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide text-neutral-700 dark:text-neutral-100"
+                        >
+                          <div className="max-w-[180px] truncate">{prop.name}</div>
+                        </td>
+                      ))}
+                    </tr>
+                  )}
+
+                  <tr className="bg-white/70 dark:bg-neutral-900/35 border-y border-black/10 dark:border-white/10">
+                    {draggableRows && <td className={`px-1 ${showTopTotalHeaderRow ? 'py-2' : 'py-1'} w-8`}></td>}
+                    {enableSelection && <td className={`px-2 ${showTopTotalHeaderRow ? 'py-2' : 'py-1'}`}></td>}
+                    {displayProperties.map((prop: any, index: number) => {
+                      const totalType = totalFields[prop.id];
+                      if (!totalType) {
+                        return (
+                          <td
+                            key={prop.id}
+                            className={`px-3 ${showTopTotalHeaderRow ? 'py-2' : 'py-1'} text-[10px] text-neutral-400`}
+                            style={index === 0 ? { paddingLeft: `${24 + (displayDepth + 1) * 20}px` } : undefined}
+                          >
+                          </td>
+                        );
+                      }
+                      const total = calculateTotal(prop.id, groupItemsForTotal, totalType);
+                      return (
+                        <td
+                          key={prop.id}
+                          className={`px-3 ${showTopTotalHeaderRow ? 'py-2' : 'py-1'} text-[10px] font-semibold text-neutral-700 dark:text-neutral-200`}
+                          style={index === 0 ? { paddingLeft: `${24 + (displayDepth + 1) * 20}px` } : undefined}
+                        >
+                          <span className="inline-block max-w-[180px] truncate align-bottom">{formatTotal(prop.id, total, totalType)}</span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+      </>
+    );
+  };
+
   return (
     <React.Fragment key={groupPath}>
-      {!hideCurrentHeader && (
+      {shouldRenderChildren && topTotalRenderMode !== 'skip' && groupTotalPosition === 'top' && renderGroupTotalRow('top')}
+
+      {topTotalRenderMode !== 'only' && !hideCurrentHeader && (
         <GroupHeader
           groupPath={groupPath}
           label={label}
@@ -221,33 +377,42 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
         />
       )}
 
-      {shouldRenderChildren && (
+      {topTotalRenderMode !== 'only' && shouldRenderChildren && (
         <>
           {/* Sous-groupes en tableaux dédiés (onglets/colonnes), sinon rendu accordéon classique */}
           {groupData.subGroups.length > 0 && (nextLevelMode === 'tabs' || nextLevelMode === 'columns') ? (
             <tr>
               <td colSpan={displayColumnCount + (draggableRows ? 1 : 0) + (enableSelection ? 1 : 0)} className="px-2 py-2">
                 {nextLevelMode === 'tabs' ? (
-                  <Tabs value={activeSubGroupTab || undefined} onValueChange={setActiveSubGroupTab} className="w-full">
-                    <TabsList className="mb-2 h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+                  <>
+                    {(() => {
+                      const activeSubGroupId =
+                        subGroupCards.find((g) => g.id === activeSubGroupTab)?.id || subGroupCards[0]?.id;
+                      if (!activeSubGroupId) return null;
+                      return renderNestedTable(activeSubGroupId, 'only');
+                    })()}
+
+                    <Tabs value={activeSubGroupTab || undefined} onValueChange={setActiveSubGroupTab} className="w-full">
+                      <TabsList className="mt-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+                        {subGroupCards.map((group) => (
+                          <TabsTrigger
+                            key={group.id}
+                            value={group.id}
+                            className="rounded-full border border-black/10 dark:border-white/10 bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
+                          >
+                            {group.label} ({group.itemCount})
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
                       {subGroupCards.map((group) => (
-                        <TabsTrigger
-                          key={group.id}
-                          value={group.id}
-                          className="rounded-full border border-black/10 dark:border-white/10 bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
-                        >
-                          {group.label} ({group.itemCount})
-                        </TabsTrigger>
+                        <TabsContent key={group.id} value={group.id} className="mt-0">
+                          {renderNestedTable(group.id, 'skip')}
+                        </TabsContent>
                       ))}
-                    </TabsList>
-                    {subGroupCards.map((group) => (
-                      <TabsContent key={group.id} value={group.id} className="mt-0">
-                        {renderNestedTable(group.id)}
-                      </TabsContent>
-                    ))}
-                  </Tabs>
+                    </Tabs>
+                  </>
                 ) : (
-                  <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
+                  <div className={`grid gap-3 ${nextLevelColumnsClassName}`}>
                     {subGroupCards.map((group) => (
                       <div
                         key={group.id}
@@ -281,6 +446,9 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                 groupProperties={groupProperties}
                 groupDisplayModes={groupDisplayModes}
                 defaultGroupDisplayMode={defaultGroupDisplayMode}
+                groupDisplayColumnCounts={groupDisplayColumnCounts}
+                defaultGroupDisplayColumnCount={defaultGroupDisplayColumnCount}
+                groupTotalsByGroupId={groupTotalsByGroupId}
                 groupedStructure={groupedStructure}
                 collection={collection}
                 collections={collections}
@@ -312,6 +480,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                 calculateTotal={calculateTotal}
                 formatTotal={formatTotal}
                 depthOffset={depthOffset}
+                suppressTopTotalHeader={suppressTopTotalHeader}
               />
             ))
           )}
@@ -359,37 +528,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
             ));
           })()}
 
-          {/* Ligne de total pour ce groupe */}
-          {Object.keys(totalFields).length > 0 && groupData.itemIds.length > 0 && calculateTotal && formatTotal && (
-            <tr className="bg-violet-50/30 dark:bg-neutral-800/15 border-t border-violet-200/50 dark:border-violet-800/30">
-              {draggableRows && <td className="px-1 py-1 w-8"></td>}
-              {enableSelection && <td className="px-2 py-1"></td>}
-              {visibleProperties.filter((p: any) => !p.showContextMenu).map((prop: any, index: number) => {
-                const totalType = totalFields[prop.id];
-                if (!totalType) {
-                  return (
-                    <td 
-                      key={prop.id} 
-                      className="px-3 py-1 text-[10px] text-neutral-400"
-                      style={index === 0 ? { paddingLeft: `${24 + (displayDepth + 1) * 20}px` } : undefined}
-                    >
-                    </td>
-                  );
-                }
-                const groupItems = groupData.itemIds.map(itemId => itemsMap.get(itemId)).filter((item): item is Item => Boolean(item));
-                const total = calculateTotal(prop.id, groupItems, totalType);
-                return (
-                  <td 
-                    key={prop.id} 
-                    className="px-3 py-1 text-[10px] font-medium text-violet-600 dark:text-violet-400"
-                    style={index === 0 ? { paddingLeft: `${24 + (displayDepth + 1) * 20}px` } : undefined}
-                  >
-                    {formatTotal(prop.id, total, totalType)}
-                  </td>
-                );
-              })}
-            </tr>
-          )}
+          {groupTotalPosition === 'bottom' && renderGroupTotalRow('bottom')}
         </>
       )}
     </React.Fragment>

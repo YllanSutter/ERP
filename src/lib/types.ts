@@ -62,6 +62,12 @@ export interface Item {
 
 export type TableGroupDisplayMode = 'accordion' | 'columns' | 'tabs';
 export type TableGroupColumnCount = 1 | 2 | 3;
+export type GroupTotalPosition = 'top' | 'bottom';
+
+export interface GroupTotalConfig {
+  enabled?: boolean;
+  position?: GroupTotalPosition;
+}
 
 export interface TableViewProps {
   collection: Collection;
@@ -92,6 +98,8 @@ export interface TableViewProps {
   groupDisplayMode?: TableGroupDisplayMode;
   groupDisplayModes?: Record<string, TableGroupDisplayMode>;
   groupDisplayColumnCount?: TableGroupColumnCount;
+  groupDisplayColumnCounts?: Record<string, TableGroupColumnCount>;
+  groupTotalsByGroupId?: Record<string, GroupTotalConfig>;
   totalFields?: Record<string, string>; // fieldId -> totalType (sum, count, unique, avg, min, max)
   onSetTotalField?: (fieldId: string, totalType: string | null) => void;
 }

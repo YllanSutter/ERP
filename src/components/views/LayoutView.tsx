@@ -139,6 +139,8 @@ const LayoutView: React.FC<LayoutViewProps> = ({
                   groupDisplayMode={viewConfig.groupDisplayMode || 'accordion'}
                   groupDisplayModes={viewConfig.groupDisplayModes || {}}
                   groupDisplayColumnCount={viewConfig.groupDisplayColumnCount || 3}
+                  groupDisplayColumnCounts={viewConfig.groupDisplayColumnCounts || {}}
+                  groupTotalsByGroupId={viewConfig.groupTotalsByGroupId || {}}
                 />
               )}
               {viewConfig.type === 'kanban' && (
