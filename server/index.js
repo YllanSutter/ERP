@@ -243,6 +243,9 @@ const bootstrap = async () => {
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='favorite_items') THEN
         ALTER TABLE users ADD COLUMN favorite_items TEXT[] DEFAULT ARRAY[]::TEXT[];
       END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='user_preferences') THEN
+        ALTER TABLE users ADD COLUMN user_preferences JSONB DEFAULT '{}'::jsonb;
+      END IF;
     END$$;
   `);
 
@@ -746,7 +749,7 @@ const resolveActiveOrganization = async (userId, requestedOrganizationId = null)
 
 // --- Middleware ---------------------------------------------------------
 const loadUserContext = async (userId, impersonateRoleId = null, requestedOrganizationId = null) => {
-  const userRes = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [userId]);
+  const userRes = await pool.query('SELECT id, email, name, user_preferences FROM users WHERE id = $1', [userId]);
   if (!userRes.rowCount) return null;
 
   const orgContext = await resolveActiveOrganization(userId, requestedOrganizationId);
@@ -901,10 +904,79 @@ const requireBaseAdminOrPermission = (action, scopeBuilder = () => ({})) => {
 };
 
 // --- Segment calculation function (shared logic) ---
-const breakStart = 12;
-const breakEnd = 13;
-const workDayStart = 9;
-const workDayEnd = 17;
+const DEFAULT_CALENDAR_CONFIG = {
+  breakStart: 12.5,
+  breakEnd: 13.5,
+  workDayStart: 9,
+  workDayEnd: 18,
+};
+
+const clampHour = (value, min = 0, max = 24) => {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, value));
+};
+
+const parseTimeToDecimalHour = (value, fallback) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return clampHour(value);
+  if (typeof value !== 'string') return clampHour(fallback);
+  const [hRaw, mRaw] = value.split(':');
+  const h = Number(hRaw);
+  const m = Number(mRaw);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return clampHour(fallback);
+  return clampHour(h + m / 60);
+};
+
+const decimalHourToHM = (value) => {
+  const clamped = clampHour(value);
+  let hour = Math.floor(clamped);
+  let minute = Math.round((clamped - hour) * 60);
+  if (minute >= 60) {
+    hour += 1;
+    minute = 0;
+  }
+  if (hour >= 24) {
+    hour = 23;
+    minute = 59;
+  }
+  return { hour, minute };
+};
+
+const setDateToDecimalHour = (date, value) => {
+  const { hour, minute } = decimalHourToHM(value);
+  date.setHours(hour, minute, 0, 0);
+};
+
+const getCalendarConfigForUser = (user) => {
+  let prefs = user?.user_preferences;
+  if (typeof prefs === 'string') {
+    try {
+      prefs = JSON.parse(prefs);
+    } catch {
+      prefs = {};
+    }
+  }
+  if (!prefs || typeof prefs !== 'object') prefs = {};
+
+  const nextStart = parseTimeToDecimalHour(prefs.workStart, DEFAULT_CALENDAR_CONFIG.workDayStart);
+  const nextEndRaw = parseTimeToDecimalHour(prefs.workEnd, DEFAULT_CALENDAR_CONFIG.workDayEnd);
+  const nextEnd = Math.max(nextStart + 0.25, nextEndRaw);
+
+  let nextBreakStart = parseTimeToDecimalHour(prefs.breakStart, DEFAULT_CALENDAR_CONFIG.breakStart);
+  let nextBreakEnd = parseTimeToDecimalHour(prefs.breakEnd, DEFAULT_CALENDAR_CONFIG.breakEnd);
+
+  nextBreakStart = clampHour(nextBreakStart, nextStart, nextEnd);
+  nextBreakEnd = clampHour(nextBreakEnd, nextStart, nextEnd);
+  if (nextBreakEnd < nextBreakStart) {
+    [nextBreakStart, nextBreakEnd] = [nextBreakEnd, nextBreakStart];
+  }
+
+  return {
+    workDayStart: nextStart,
+    workDayEnd: nextEnd,
+    breakStart: nextBreakStart,
+    breakEnd: nextBreakEnd,
+  };
+};
 
 const normalizeComparableValue = (value) => {
   if (value === undefined || value === null) return null;
@@ -981,7 +1053,7 @@ const shouldRecalculateSegments = (prevItem, nextItem, collection, prevCollectio
 /**
  * Calcule les segments de temps pour un item sur une période de jours de travail
  */
-function calculateEventSegments(item, collection) {
+function calculateEventSegments(item, collection, calendarConfig = DEFAULT_CALENDAR_CONFIG) {
   if (!collection || !collection.properties) return item;
   
   const segments = [];
@@ -1019,7 +1091,12 @@ function calculateEventSegments(item, collection) {
       // Appelle la fonction de découpe
       const segs = splitEventByWorkdaysServer(
         { startDate, durationHours: duration },
-        { startCal: workDayStart, endCal: workDayEnd, breakStart, breakEnd }
+        {
+          startCal: calendarConfig.workDayStart,
+          endCal: calendarConfig.workDayEnd,
+          breakStart: calendarConfig.breakStart,
+          breakEnd: calendarConfig.breakEnd,
+        }
       );
       
       segs.forEach(seg => {
@@ -1059,21 +1136,21 @@ function splitEventByWorkdaysServer(item, opts) {
     // Saute les weekends
     while (current.getDay() === 0 || current.getDay() === 6) {
       current.setDate(current.getDate() + 1);
-      current.setHours(startCal, 0, 0, 0);
+      setDateToDecimalHour(current, startCal);
     }
     
     // Définit les bornes de la journée
     let dayStart = new Date(current);
     let dayEnd = new Date(current);
-    dayStart.setHours(startCal, 0, 0, 0);
-    dayEnd.setHours(endCal, 0, 0, 0);
+    setDateToDecimalHour(dayStart, startCal);
+    setDateToDecimalHour(dayEnd, endCal);
     
     let segmentStart = new Date(Math.max(dayStart.getTime(), current.getTime()));
     
     let pauseStart = new Date(current);
-    pauseStart.setHours(breakStart, 0, 0, 0);
+    setDateToDecimalHour(pauseStart, breakStart);
     let pauseEnd = new Date(current);
-    pauseEnd.setHours(breakEnd, 0, 0, 0);
+    setDateToDecimalHour(pauseEnd, breakEnd);
     
     // Matin (avant pause)
     if (segmentStart < pauseStart && segmentStart < dayEnd && remainingMs > 0) {
@@ -1105,7 +1182,7 @@ function splitEventByWorkdaysServer(item, opts) {
     
     // Passe au jour suivant
     current.setDate(current.getDate() + 1);
-    current.setHours(startCal, 0, 0, 0);
+    setDateToDecimalHour(current, startCal);
   }
   
   return events;
@@ -1372,6 +1449,7 @@ app.get('/api/users', requireAuth, requireBaseAdminOrPermission('can_manage_perm
   if (!organizationId) return res.status(400).json({ error: 'No active organization' });
   const users = await pool.query(
     `SELECT u.id, u.email, u.name, u.provider,
+            COALESCE(u.user_preferences, '{}'::jsonb) AS user_preferences,
             COALESCE(json_agg(ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL), '[]') as role_ids
      FROM users u
      INNER JOIN organization_members om ON om.user_id = u.id AND om.organization_id = $1
@@ -1380,6 +1458,56 @@ app.get('/api/users', requireAuth, requireBaseAdminOrPermission('can_manage_perm
     [organizationId]
   );
   res.json(users.rows);
+});
+
+app.patch('/api/users/:id/preferences', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
+  try {
+    const organizationId = req.auth.activeOrganization?.id;
+    if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+
+    const userId = String(req.params.id || '').trim();
+    if (!userId) return res.status(400).json({ error: 'user id required' });
+
+    const membership = await pool.query(
+      'SELECT 1 FROM organization_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1',
+      [organizationId, userId]
+    );
+    if (!membership.rowCount) {
+      return res.status(404).json({ error: 'user not found in active organization' });
+    }
+
+    const payload = req.body?.preferences;
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return res.status(400).json({ error: 'preferences object required' });
+    }
+
+    const normalized = {
+      accentColor: typeof payload.accentColor === 'string' ? payload.accentColor : '#06b6d4',
+      workStart: typeof payload.workStart === 'string' ? payload.workStart : '09:00',
+      workEnd: typeof payload.workEnd === 'string' ? payload.workEnd : '18:00',
+      breakStart: typeof payload.breakStart === 'string' ? payload.breakStart : '12:30',
+      breakEnd: typeof payload.breakEnd === 'string' ? payload.breakEnd : '13:30',
+      timezone: typeof payload.timezone === 'string' ? payload.timezone : 'Europe/Paris',
+      weekStartsOn: payload.weekStartsOn === 'sunday' ? 'sunday' : 'monday',
+      density: ['compact', 'comfortable', 'spacious'].includes(payload.density) ? payload.density : 'comfortable',
+      notificationsEnabled: Boolean(payload.notificationsEnabled),
+    };
+
+    const updated = await pool.query(
+      `UPDATE users
+       SET user_preferences = $1::jsonb
+       WHERE id = $2
+       RETURNING id, COALESCE(user_preferences, '{}'::jsonb) AS user_preferences`,
+      [JSON.stringify(normalized), userId]
+    );
+    if (!updated.rowCount) return res.status(404).json({ error: 'user not found' });
+
+    await logAudit(req.auth?.user?.id, 'user.preferences.update', 'user', userId, { userId });
+    return res.json({ ok: true, user: updated.rows[0] });
+  } catch (err) {
+    console.error('Update user preferences failed', err);
+    return res.status(500).json({ error: 'Update user preferences failed' });
+  }
 });
 
 app.patch('/api/users/:id/password', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
@@ -1718,7 +1846,8 @@ app.post('/api/appstate', requireAuth, async (req, res) => {
                password_hash = $6,
                created_at = $7,
                favorite_views = $8,
-               favorite_items = $9
+               favorite_items = $9,
+               user_preferences = $10
              WHERE id = $1`,
             [
               persistedUserId,
@@ -1729,13 +1858,14 @@ app.post('/api/appstate', requireAuth, async (req, res) => {
               user.password_hash,
               user.created_at,
               user.favorite_views || [],
-              user.favorite_items || []
+              user.favorite_items || [],
+              user.user_preferences || {}
             ]
           );
           userIdMap.set(user.id, persistedUserId);
         } else {
           await pool.query(
-            'INSERT INTO users (id, email, name, provider, provider_id, password_hash, created_at, favorite_views, favorite_items) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+            'INSERT INTO users (id, email, name, provider, provider_id, password_hash, created_at, favorite_views, favorite_items, user_preferences) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
             [
               user.id,
               user.email,
@@ -1745,7 +1875,8 @@ app.post('/api/appstate', requireAuth, async (req, res) => {
               user.password_hash,
               user.created_at,
               user.favorite_views || [],
-              user.favorite_items || []
+              user.favorite_items || [],
+              user.user_preferences || {}
             ]
           );
           userIdMap.set(user.id, user.id);
@@ -1852,8 +1983,8 @@ app.post('/api/appstate', requireAuth, async (req, res) => {
     // Réinsérer dans l'ordre des dépendances
     for (const user of users) {
       await pool.query(
-        'INSERT INTO users (id, email, name, provider, provider_id, password_hash, created_at, favorite_views, favorite_items) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-        [user.id, user.email, user.name, user.provider, user.provider_id, user.password_hash, user.created_at, user.favorite_views || [], user.favorite_items || []]
+        'INSERT INTO users (id, email, name, provider, provider_id, password_hash, created_at, favorite_views, favorite_items, user_preferences) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+        [user.id, user.email, user.name, user.provider, user.provider_id, user.password_hash, user.created_at, user.favorite_views || [], user.favorite_items || [], user.user_preferences || {}]
       );
     }
     if (Array.isArray(organizations)) {
@@ -1949,6 +2080,7 @@ app.patch('/api/state/item', requireAuth, async (req, res) => {
     const { collectionId, itemId, fields } = req.body ?? {};
     const userId = req.auth.user.id;
     const organizationId = req.auth.activeOrganization?.id;
+    const calendarConfig = getCalendarConfigForUser(req.auth.user);
 
     if (!organizationId) return res.status(400).json({ error: 'No active organization' });
     if (!collectionId || !itemId || !fields || typeof fields !== 'object') {
@@ -1983,7 +2115,7 @@ app.patch('/api/state/item', requireAuth, async (req, res) => {
 
     // Recalcul segments si nécessaire
     const processedItem = shouldRecalculateSegments(prevItem, mergedItem, col, col)
-      ? calculateEventSegments(mergedItem, col)
+      ? calculateEventSegments(mergedItem, col, calendarConfig)
       : mergedItem;
 
     const newItems = items.map((it, idx) => (idx === itemIdx ? processedItem : it));
@@ -2121,6 +2253,7 @@ app.post('/api/state', requireAuth, async (req, res) => {
     const payload = req.body ?? {};
     const userId = req.auth.user.id;
     const organizationId = req.auth.activeOrganization?.id;
+    const calendarConfig = getCalendarConfigForUser(req.auth.user);
     if (!organizationId) return res.status(400).json({ error: 'No active organization' });
 
     const { ...stateData } = payload;
@@ -2153,7 +2286,7 @@ app.post('/api/state', requireAuth, async (req, res) => {
         }
 
         // Recalcule _eventSegments basé sur les champs date/durée de la collection
-        return calculateEventSegments(item, col);
+        return calculateEventSegments(item, col, calendarConfig);
       });
       
       return { ...col, items: processedItems };

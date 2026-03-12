@@ -36,6 +36,7 @@ import { useViews } from '@/lib/hooks/useViews';
 import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
 import { MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 import { applyCalculatedFieldsToCollections, stripCalculatedNumberFieldsFromItem } from '@/lib/calculatedFields';
+import { applyUserCalendarPreferences } from '@/lib/calendarUtils';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -104,6 +105,11 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     impersonatedRoleId,
     isAdminBase
   } = useAuth();
+
+  useEffect(() => {
+    applyUserCalendarPreferences(user?.user_preferences || {});
+  }, [user?.user_preferences]);
+
   const [collections, setCollections] = useState<any[]>(defaultCollections);
   // console.log(collections);
   const [views, setViews] = useState<Record<string, any[]>>(defaultViews);

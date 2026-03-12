@@ -3,6 +3,7 @@ import { getNameValue as getNameValueLib, MONTH_NAMES } from '@/lib/calendarUtil
 import { motion } from 'framer-motion';
 import { getFilteredItems } from '@/lib/filterUtils';
 import CalendarCollectionsManager from '../calendar/CalendarCollectionsManager';
+import { useAuth } from '@/auth/AuthProvider';
 
 interface CalendarViewProps {
   collection: any;
@@ -51,6 +52,38 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   viewModeStorageKey,
   showCollectionsSelector = true,
 }) => {
+  const { user } = useAuth();
+
+  const parseTimeToDecimal = (value: any, fallback: number) => {
+    if (typeof value !== 'string') return fallback;
+    const [hRaw, mRaw] = value.split(':');
+    const h = Number(hRaw);
+    const m = Number(mRaw);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return fallback;
+    return Math.max(0, Math.min(24, h + m / 60));
+  };
+
+  const userWorkRange = useMemo(() => {
+    const prefs = user?.user_preferences && typeof user.user_preferences === 'object'
+      ? user.user_preferences
+      : {};
+    const workStartHour = parseTimeToDecimal(prefs.workStart, 9);
+    const workEndHourRaw = parseTimeToDecimal(prefs.workEnd, 18);
+    const workEndHour = Math.max(workStartHour + 0.25, workEndHourRaw);
+    const displayStartHour = Math.max(0, Math.floor(workStartHour - 2));
+    const displayEndHour = Math.min(24, Math.ceil(workEndHour + 2));
+
+    return {
+      workStartHour,
+      workEndHour,
+      displayStartHour,
+      displayEndHour: Math.max(displayStartHour + 1, displayEndHour),
+    };
+  }, [user?.user_preferences]);
+
+  const resolvedStartHour = userWorkRange.displayStartHour ?? startHour;
+  const resolvedEndHour = userWorkRange.displayEndHour ?? endHour;
+
   // Sélection multiple de collections
   const getInitialSelectedCollections = () => {
     const fromConfig = viewConfig?.calendarCollectionIds;
@@ -352,8 +385,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       <CalendarCollectionsManager
         collections={collectionsWithOverrides}
         defaultDuration={defaultDuration}
-        startHour={startHour}
-        endHour={endHour}
+        startHour={resolvedStartHour}
+        endHour={resolvedEndHour}
+        workStartHour={userWorkRange.workStartHour}
+        workEndHour={userWorkRange.workEndHour}
         showCollectionsSelector={showCollectionsSelector}
         hiddenFields={hiddenFields}
         onViewDetail={onViewDetail}

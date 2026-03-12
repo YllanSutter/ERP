@@ -28,6 +28,8 @@ interface WeekViewProps {
   getItemsForDate: (date: Date) => any[];
   startHour?: number;
   endHour?: number;
+  workStartHour?: number;
+  workEndHour?: number;
   startCal?: number;
   endCal?: number;
   defaultDuration?: number; // in hours
@@ -54,6 +56,8 @@ const WeekView: React.FC<WeekViewProps> = ({
   getItemsForDate,
   startHour = 8,
   endHour = 20,
+  workStartHour = workDayStart,
+  workEndHour = workDayEnd,
   defaultDuration = 1,
   onEventDrop,
   canViewField = () => true,
@@ -117,8 +121,16 @@ const WeekView: React.FC<WeekViewProps> = ({
     let minutes = Math.round(percent * minutesInSlot);
     minutes = Math.round(minutes / 15) * 15;
     if (minutes === 60) minutes = 45;
+
+    const workStartMinutes = Math.round(workStartHour * 60);
+    const workEndMinutes = Math.round(workEndHour * 60);
+    const minAllowed = workStartMinutes;
+    const maxAllowed = Math.max(minAllowed, workEndMinutes - 15);
+    const slotMinutesRaw = hour * 60 + minutes;
+    const clampedMinutes = Math.max(minAllowed, Math.min(maxAllowed, slotMinutesRaw));
+
     const slotDate = new Date(date);
-    slotDate.setHours(hour, minutes, 0, 0);
+    slotDate.setHours(Math.floor(clampedMinutes / 60), clampedMinutes % 60, 0, 0);
     return slotDate;
   };
 
@@ -430,7 +442,15 @@ const WeekView: React.FC<WeekViewProps> = ({
               const dropY = e.clientY - rect.top;
               const dragStartOffsetY = data.__dragStartOffsetY || 0;
               const adjustedDropY = Math.max(0, dropY - dragStartOffsetY);
-              const { hour, minutes } = calculateDropTime({ dropY: adjustedDropY, containerHeight: rect.height, startHour, endHour });
+              const dropped = calculateDropTime({ dropY: adjustedDropY, containerHeight: rect.height, startHour, endHour });
+              const workStartMinutes = Math.round(workStartHour * 60);
+              const workEndMinutes = Math.round(workEndHour * 60);
+              const minAllowed = workStartMinutes;
+              const maxAllowed = Math.max(minAllowed, workEndMinutes - 15);
+              const droppedMinutes = dropped.hour * 60 + dropped.minutes;
+              const clamped = Math.max(minAllowed, Math.min(maxAllowed, droppedMinutes));
+              const hour = Math.floor(clamped / 60);
+              const minutes = clamped % 60;
               if (onEventDrop) {
                 console.log('[DND] handleDayDrop: onEventDrop est défini, appel avec', { item, date, hour, minutes, multiDayIndex });
                 onEventDrop(
@@ -561,8 +581,14 @@ const WeekView: React.FC<WeekViewProps> = ({
                       // Arrondi à 15min
                       minutes = Math.round(minutes / 15) * 15;
                       if (minutes === 60) { minutes = 45; }
+                      const workStartMinutes = Math.round(workStartHour * 60);
+                      const workEndMinutes = Math.round(workEndHour * 60);
+                      const minAllowed = workStartMinutes;
+                      const maxAllowed = Math.max(minAllowed, workEndMinutes - 15);
+                      const slotMinutesRaw = hour * 60 + minutes;
+                      const clampedMinutes = Math.max(minAllowed, Math.min(maxAllowed, slotMinutesRaw));
                       const slotDate = new Date(date);
-                      slotDate.setHours(hour, minutes, 0, 0);
+                      slotDate.setHours(Math.floor(clampedMinutes / 60), clampedMinutes % 60, 0, 0);
                       // Préremplit l'item avec toutes les clés de type date de toutes les collections
                       const newItem: any = {};
                       const prefillCollections = col && !collections.some((c) => c.id === col.id)
@@ -655,6 +681,8 @@ const WeekView: React.FC<WeekViewProps> = ({
                         colors={colors}
                         startHour={startHour}
                         endHour={endHour}
+                        workStartHour={workStartHour}
+                        workEndHour={workEndHour}
                         hoursLength={hours.length}
                         visibleMetaFields={visibleMetaFields}
                         collections={collectionsForProps}

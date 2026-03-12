@@ -2,11 +2,98 @@
  * Découpe un événement sur plusieurs jours ouvrés, en tenant compte des horaires et de la pause
  * Retourne un tableau d'objets { ...item, __eventStart, __eventEnd }
  */
-export const breakStart = 12;
-export const breakEnd = 13;
-export const workHoursPerDay = 7;
-export const workDayStart = 9; // Heure de début de journée de travail fixe
-export const workDayEnd = 17;
+export let breakStart = 12.5;
+export let breakEnd = 13.5;
+export let workDayStart = 9;
+export let workDayEnd = 18;
+export let workHoursPerDay = 8;
+
+const clampHour = (value: number, min = 0, max = 24) => {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, value));
+};
+
+const parseTimeToDecimalHour = (value: string | number | null | undefined, fallback: number): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return clampHour(value);
+  if (typeof value !== 'string') return clampHour(fallback);
+  const [hRaw, mRaw] = value.split(':');
+  const h = Number(hRaw);
+  const m = Number(mRaw);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return clampHour(fallback);
+  return clampHour(h + m / 60);
+};
+
+const decimalHourToHM = (value: number) => {
+  const clamped = clampHour(value);
+  let hour = Math.floor(clamped);
+  let minute = Math.round((clamped - hour) * 60);
+  if (minute >= 60) {
+    hour += 1;
+    minute = 0;
+  }
+  if (hour >= 24) {
+    hour = 23;
+    minute = 59;
+  }
+  return { hour, minute };
+};
+
+const setDateToDecimalHour = (date: Date, value: number) => {
+  const { hour, minute } = decimalHourToHM(value);
+  date.setHours(hour, minute, 0, 0);
+};
+
+const recomputeWorkHoursPerDay = () => {
+  const breakDuration = Math.max(0, breakEnd - breakStart);
+  workHoursPerDay = Math.max(0.25, Number((workDayEnd - workDayStart - breakDuration).toFixed(2)));
+};
+
+export const setCalendarWorkingHours = (config: {
+  workStart?: string | number;
+  workEnd?: string | number;
+  breakStart?: string | number;
+  breakEnd?: string | number;
+}) => {
+  const nextWorkStart = parseTimeToDecimalHour(config.workStart, workDayStart);
+  const nextWorkEndRaw = parseTimeToDecimalHour(config.workEnd, workDayEnd);
+  const minEnd = nextWorkStart + 0.25;
+  const nextWorkEnd = Math.max(minEnd, nextWorkEndRaw);
+
+  let nextBreakStart = parseTimeToDecimalHour(config.breakStart, breakStart);
+  let nextBreakEnd = parseTimeToDecimalHour(config.breakEnd, breakEnd);
+
+  // Clamp pause dans la fenêtre de travail
+  nextBreakStart = clampHour(nextBreakStart, nextWorkStart, nextWorkEnd);
+  nextBreakEnd = clampHour(nextBreakEnd, nextWorkStart, nextWorkEnd);
+  if (nextBreakEnd < nextBreakStart) {
+    [nextBreakStart, nextBreakEnd] = [nextBreakEnd, nextBreakStart];
+  }
+
+  workDayStart = nextWorkStart;
+  workDayEnd = nextWorkEnd;
+  breakStart = nextBreakStart;
+  breakEnd = nextBreakEnd;
+  recomputeWorkHoursPerDay();
+};
+
+export const applyUserCalendarPreferences = (preferences: any) => {
+  const src = preferences && typeof preferences === 'object' ? preferences : {};
+  setCalendarWorkingHours({
+    workStart: src.workStart ?? '09:00',
+    workEnd: src.workEnd ?? '18:00',
+    breakStart: src.breakStart ?? '12:30',
+    breakEnd: src.breakEnd ?? '13:30',
+  });
+};
+
+export const getCalendarDisplayRange = (paddingHours = 2) => {
+  const startHour = Math.max(0, Math.floor(workDayStart - paddingHours));
+  const endHour = Math.min(24, Math.ceil(workDayEnd + paddingHours));
+  return {
+    startHour,
+    endHour: Math.max(startHour + 1, endHour),
+  };
+};
 
 export function splitEventByWorkdays(item: any, opts: { startCal: number; endCal: number; breakStart: number; breakEnd: number }) {
   const { startCal, endCal, breakStart, breakEnd } = opts;
@@ -35,22 +122,22 @@ export function splitEventByWorkdays(item: any, opts: { startCal: number; endCal
     // Si samedi (6) ou dimanche (0), passe au lundi suivant
     while (current.getDay() === 0 || current.getDay() === 6) {
       current.setDate(current.getDate() + 1);
-      current.setHours(startHour, 0, 0, 0);
+      setDateToDecimalHour(current, startHour);
     }
 
     // Définir les bornes de la journée
     let dayStart = new Date(current);
     let dayEnd = new Date(current);
-    dayStart.setHours(startHour, 0, 0, 0);
-    dayEnd.setHours(endHour, 0, 0, 0);
+    setDateToDecimalHour(dayStart, startHour);
+    setDateToDecimalHour(dayEnd, endHour);
 
     // Premier segment : commence à l'heure réelle si premier jour
     let segmentStart = new Date(Math.max(dayStart.getTime(), current.getTime()));
     // Pause
     let pauseStart = new Date(current);
-    pauseStart.setHours(breakStart, 0, 0, 0);
+    setDateToDecimalHour(pauseStart, breakStart);
     let pauseEnd = new Date(current);
-    pauseEnd.setHours(breakEnd, 0, 0, 0);
+    setDateToDecimalHour(pauseEnd, breakEnd);
 
     // 1. Matin (avant pause)
     if (segmentStart < pauseStart && segmentStart < dayEnd && remainingMs > 0) {
@@ -94,7 +181,7 @@ export function splitEventByWorkdays(item: any, opts: { startCal: number; endCal
 
     // Passer au jour suivant si durée restante
     current.setDate(current.getDate() + 1);
-    current.setHours(startHour, 0, 0, 0);
+    setDateToDecimalHour(current, startHour);
   }
   // console.log('splitEventByWorkdays result:', events);
   return events;

@@ -1121,8 +1121,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   const timeOptions = useMemo(() => {
     const options: string[] = [];
-    const minHour = Math.max(0, workDayStart - 1);
-    const maxHour = Math.min(23, workDayEnd + 1);
+    const minHour = Math.max(0, Math.floor(workDayStart - 1));
+    const maxHour = Math.min(23, Math.ceil(workDayEnd + 1));
     for (let h = minHour; h <= maxHour; h++) {
       for (let m = 0; m < 60; m += 15) {
         if (h === maxHour && m > 0) continue;

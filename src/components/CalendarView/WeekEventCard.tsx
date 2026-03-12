@@ -43,6 +43,8 @@ interface WeekEventCardProps {
   totalColumns: number;
   colors: ColorSet;
   startHour: number;
+  workStartHour?: number;
+  workEndHour?: number;
   hiddenFields: string[];
   canViewField?: (fieldId: string) => boolean;
   endHour: number;
@@ -70,6 +72,8 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
   totalColumns,
   colors,
   startHour,
+  workStartHour = startHour,
+  workEndHour = endHour,
   endHour,
   hiddenFields,
   hoursLength,
@@ -172,6 +176,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
         // 1h = 96px (voir calculateEventPosition)
         const hoursDelta = deltaY / (hoursLength * 96) * (endHour - startHour);
         let newEndTime = Math.max(startTime + 0.25, initialEndTime.current + hoursDelta); // min 15min
+        newEndTime = Math.min(newEndTime, workEndHour);
         // Arrondi à 15min
         newEndTime = Math.round(newEndTime * 4) / 4;
         setResizePreviewEndTime(newEndTime);
@@ -181,6 +186,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
         const deltaY = e.clientY - resizeStartY.current;
         const hoursDelta = deltaY / (hoursLength * 96) * (endHour - startHour);
         let newEndTime = Math.max(startTime + 0.25, initialEndTime.current + hoursDelta);
+        newEndTime = Math.min(newEndTime, workEndHour);
         newEndTime = Math.round(newEndTime * 4) / 4;
         setIsResizing(false);
         setResizePreviewEndTime(null);
@@ -201,7 +207,7 @@ const WeekEventCard: React.FC<WeekEventCardProps> = ({
         window.removeEventListener('mouseup', handleMouseUp);
         document.body.style.cursor = '';
       };
-    }, [isResizing, startTime, endTime, duration, hoursLength, endHour, startHour, onReduceDuration, item]);
+    }, [isResizing, startTime, endTime, duration, hoursLength, endHour, startHour, workEndHour, onReduceDuration, item]);
     // Trouver la collection de l'item
     const itemCollection = collections.find((col: any) => col.items?.some((it: any) => it.id === item.id)) || collections[0];
     const collectionProps = itemCollection?.properties || [];

@@ -1,11 +1,62 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, RefreshCw, Shield, UserPlus, Plus, Download, Trash2, Database, RotateCcw } from 'lucide-react';
+import { X, RefreshCw, Shield, UserPlus, Plus, Download, Trash2, Database, RotateCcw, Search, Palette, Clock3, BellRing, Save, CheckCircle2 } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/auth/AuthProvider';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+type UserPreferenceDraft = {
+  accentColor: string;
+  workStart: string;
+  workEnd: string;
+  breakStart: string;
+  breakEnd: string;
+  timezone: string;
+  weekStartsOn: string;
+  density: string;
+  notificationsEnabled: boolean;
+};
+
+const createDefaultUserPreferences = (): UserPreferenceDraft => ({
+  accentColor: '#06b6d4',
+  workStart: '09:00',
+  workEnd: '18:00',
+  breakStart: '12:30',
+  breakEnd: '13:30',
+  timezone: 'Europe/Paris',
+  weekStartsOn: 'monday',
+  density: 'comfortable',
+  notificationsEnabled: true,
+});
+
+const normalizeUserPreferences = (value: any): UserPreferenceDraft => {
+  const base = createDefaultUserPreferences();
+  const src = typeof value === 'string'
+    ? (() => {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return {};
+      }
+    })()
+    : value && typeof value === 'object'
+      ? value
+      : {};
+
+  return {
+    accentColor: typeof src.accentColor === 'string' ? src.accentColor : base.accentColor,
+    workStart: typeof src.workStart === 'string' ? src.workStart : base.workStart,
+    workEnd: typeof src.workEnd === 'string' ? src.workEnd : base.workEnd,
+    breakStart: typeof src.breakStart === 'string' ? src.breakStart : base.breakStart,
+    breakEnd: typeof src.breakEnd === 'string' ? src.breakEnd : base.breakEnd,
+    timezone: typeof src.timezone === 'string' ? src.timezone : base.timezone,
+    weekStartsOn: src.weekStartsOn === 'sunday' ? 'sunday' : 'monday',
+    density: ['compact', 'comfortable', 'spacious'].includes(src.density) ? src.density : base.density,
+    notificationsEnabled: Boolean(src.notificationsEnabled),
+  };
+};
 
 const flags = [
   { key: 'can_read', label: 'Voir', hint: 'Consulter les collections et leurs items' },
@@ -33,12 +84,10 @@ const AccessManager = ({
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [members, setMembers] = useState<any[]>([]);
   const [memberCandidates, setMemberCandidates] = useState<any[]>([]);
-  const [selectedCandidateId, setSelectedCandidateId] = useState('');
+  const [members, setMembers] = useState<any[]>([]);
   const [membersBusy, setMembersBusy] = useState(false);
   const [permissions, setPermissions] = useState<any[]>([]);
-  const [audit, setAudit] = useState<any[]>([]);
   const [backups, setBackups] = useState<any[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [creatingRole, setCreatingRole] = useState(false);
@@ -48,33 +97,34 @@ const AccessManager = ({
   const [passwordInputs, setPasswordInputs] = useState<Record<string, string>>({});
   const [backupLabel, setBackupLabel] = useState('');
   const [backupBusy, setBackupBusy] = useState(false);
-  const [selectedBackupDay, setSelectedBackupDay] = useState('');
   const [permissionsTab, setPermissionsTab] = useState<'global' | 'collections' | 'dashboards'>('global');
+  const [userQuery, setUserQuery] = useState('');
+  const [selectedPreferencesUserId, setSelectedPreferencesUserId] = useState<string>('');
+  const [userPreferenceDrafts, setUserPreferenceDrafts] = useState<Record<string, UserPreferenceDraft>>({});
+  const [preferencesBusyByUser, setPreferencesBusyByUser] = useState<Record<string, boolean>>({});
+  const [preferencesSavedAtByUser, setPreferencesSavedAtByUser] = useState<Record<string, number>>({});
 
   const loadAll = async () => {
     try {
       setLoading(true);
-      const [rRes, uRes, mRes, cRes, pRes, aRes] = await Promise.all([
+      const [rRes, uRes, mRes, pRes, cRes] = await Promise.all([
         fetch(`${API_URL}/roles`, { credentials: 'include' }),
         fetch(`${API_URL}/users`, { credentials: 'include' }),
         fetch(`${API_URL}/organization/members`, { credentials: 'include' }),
-        fetch(`${API_URL}/organization/member-candidates`, { credentials: 'include' }),
         fetch(`${API_URL}/permissions`, { credentials: 'include' }),
-        fetch(`${API_URL}/audit`, { credentials: 'include' }),
+        fetch(`${API_URL}/organization/member-candidates`, { credentials: 'include' }),
       ]);
-      if (!rRes.ok || !uRes.ok || !mRes.ok || !cRes.ok || !pRes.ok || !aRes.ok) throw new Error('Erreur de chargement');
+      if (!rRes.ok || !uRes.ok || !mRes.ok || !pRes.ok || !cRes.ok) throw new Error('Erreur de chargement');
       const rolesData = await rRes.json();
       const usersData = await uRes.json();
       const membersData = await mRes.json();
-      const candidatesData = await cRes.json();
       const permsData = await pRes.json();
-      const auditData = await aRes.json();
+      const candidatesData = await cRes.json();
       setRoles(rolesData);
       setUsers(usersData);
       setMembers(Array.isArray(membersData) ? membersData : []);
-      setMemberCandidates(Array.isArray(candidatesData) ? candidatesData : []);
       setPermissions(permsData);
-      setAudit(auditData);
+      setMemberCandidates(Array.isArray(candidatesData) ? candidatesData : []);
       try {
         const bRes = await fetch(`${API_URL}/db/backups`, { credentials: 'include' });
         if (bRes.ok) {
@@ -92,22 +142,21 @@ const AccessManager = ({
     }
   };
 
-  const addMember = async () => {
-    if (!selectedCandidateId) return;
+  const addMember = async (userId: string, email: string) => {
+    if (!userId) return;
     setMembersBusy(true);
     try {
       const res = await fetch(`${API_URL}/organization/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ userId: selectedCandidateId }),
+        body: JSON.stringify({ userId }),
       });
       if (!res.ok) throw new Error('Add member failed');
-      setSelectedCandidateId('');
       await loadAll();
     } catch (err) {
       console.error(err);
-      alert('Impossible d’ajouter ce membre à l’organisation.');
+      alert(`Impossible d’ajouter ${email} à l’organisation.`);
     } finally {
       setMembersBusy(false);
     }
@@ -148,30 +197,12 @@ const AccessManager = ({
     return `${size.toFixed(1)} ${unit}`;
   };
 
-  const toDayKey = (value: string | Date) => {
-    const d = new Date(value);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const dayLabel = (dayKey: string) => {
-    const [y, m, d] = dayKey.split('-').map(Number);
-    const date = new Date(y, m - 1, d);
-    return date.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  };
-
   const reloadBackups = async () => {
     try {
       const res = await fetch(`${API_URL}/db/backups`, { credentials: 'include' });
       if (!res.ok) throw new Error('Load backups failed');
       const data = await res.json();
       setBackups(Array.isArray(data) ? data : []);
-      if (!selectedBackupDay) {
-        const todayKey = toDayKey(new Date());
-        setSelectedBackupDay(todayKey);
-      }
     } catch (err) {
       console.error(err);
     }
@@ -266,15 +297,38 @@ const AccessManager = ({
   const sortedBackups = [...backups].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
-  const todayKey = toDayKey(new Date());
-  const dayOptions = Array.from(new Set([todayKey, ...sortedBackups.map((b) => toDayKey(b.createdAt))]));
-  const dayFiltered = sortedBackups.filter((b) => toDayKey(b.createdAt) === (selectedBackupDay || todayKey));
-  const visibleBackups = dayFiltered.slice(0, 10);
+  const visibleBackups = sortedBackups.slice(0, 10);
 
   useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const mergedUsers = [...users, ...memberCandidates.filter((c) => !users.some((u) => u.id === c.id))];
+    if (!mergedUsers.length) {
+      setSelectedPreferencesUserId('');
+      return;
+    }
+
+    setSelectedPreferencesUserId((prev) => {
+      if (prev && mergedUsers.some((u) => u.id === prev)) return prev;
+      return mergedUsers[0].id;
+    });
+
+    setUserPreferenceDrafts((prev) => {
+      let changed = false;
+      const next: Record<string, UserPreferenceDraft> = {};
+      mergedUsers.forEach((u) => {
+        const merged = normalizeUserPreferences(u.user_preferences);
+        next[u.id] = merged;
+        if (JSON.stringify(prev[u.id]) !== JSON.stringify(merged)) {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [users, memberCandidates]);
 
   const collectionsWithProps = useMemo(() => {
     return collections.map((col: any) => ({
@@ -283,6 +337,108 @@ const AccessManager = ({
       properties: col.properties || [],
     }));
   }, [collections]);
+
+  const parseRoleIds = (value: any) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const roleById = useMemo(() => {
+    return new Map(roles.map((r) => [r.id, r]));
+  }, [roles]);
+
+  const memberIds = useMemo(() => {
+    return new Set((members || []).map((m) => m.id));
+  }, [members]);
+
+  const selectableUsers = useMemo(() => {
+    const byId = new Map<string, any>();
+    users.forEach((u) => byId.set(u.id, u));
+    memberCandidates.forEach((u) => {
+      if (!byId.has(u.id)) {
+        byId.set(u.id, {
+          ...u,
+          role_ids: [],
+          user_preferences: createDefaultUserPreferences(),
+        });
+      }
+    });
+    return Array.from(byId.values());
+  }, [users, memberCandidates]);
+
+  const filteredUsers = useMemo(() => {
+    const query = userQuery.trim().toLowerCase();
+    if (!query) return selectableUsers;
+
+    return selectableUsers.filter((u) => {
+      const roleIds = parseRoleIds(u.role_ids);
+      const roleNames = roleIds
+        .map((id: string) => roleById.get(id)?.name || '')
+        .join(' ')
+        .toLowerCase();
+      const provider = String(u.provider || 'local').toLowerCase();
+      const email = String(u.email || '').toLowerCase();
+      return email.includes(query) || provider.includes(query) || roleNames.includes(query);
+    });
+  }, [selectableUsers, userQuery, roleById]);
+
+  const updateUserPreferencesDraft = (userId: string, patch: Partial<UserPreferenceDraft>) => {
+    if (!userId) return;
+    setUserPreferenceDrafts((prev) => {
+      const current = prev[userId] || createDefaultUserPreferences();
+      return {
+        ...prev,
+        [userId]: {
+          ...current,
+          ...patch,
+        },
+      };
+    });
+  };
+
+  const saveUserPreferences = async (userId: string) => {
+    if (!userId) return;
+    const payload = userPreferenceDrafts[userId] || createDefaultUserPreferences();
+
+    setPreferencesBusyByUser((prev) => ({ ...prev, [userId]: true }));
+    try {
+      const res = await fetch(`${API_URL}/users/${encodeURIComponent(userId)}/preferences`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ preferences: payload }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || 'Sauvegarde impossible');
+      }
+
+      const data = await res.json().catch(() => ({}));
+      const saved = normalizeUserPreferences(data?.user?.user_preferences || payload);
+
+      setUserPreferenceDrafts((prev) => ({ ...prev, [userId]: saved }));
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, user_preferences: saved } : u)));
+      setPreferencesSavedAtByUser((prev) => ({ ...prev, [userId]: Date.now() }));
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || 'Impossible de sauvegarder les préférences utilisateur.');
+    } finally {
+      setPreferencesBusyByUser((prev) => ({ ...prev, [userId]: false }));
+    }
+  };
+
+  const selectedPreferencesUser = selectableUsers.find((u) => u.id === selectedPreferencesUserId) || null;
+  const selectedPreferencesDraft = selectedPreferencesUserId
+    ? userPreferenceDrafts[selectedPreferencesUserId] || createDefaultUserPreferences()
+    : createDefaultUserPreferences();
 
   const findPermission = (roleId: string, scope: any) => {
     const collId = scope.collectionId || null;
@@ -441,10 +597,6 @@ const AccessManager = ({
       }
 
       applyLocalUpdates(roleId, updates as any);
-
-      // Refresh audit log (lightweight)
-      const aRes = await fetch(`${API_URL}/audit`, { credentials: 'include' });
-      if (aRes.ok) setAudit(await aRes.json());
 
       // Refresh current user's auth if their role was modified
       if (user && user.role_ids && user.role_ids.includes(roleId)) {
@@ -768,9 +920,6 @@ const AccessManager = ({
                     <RefreshCw size={16} />
                   </button>
                 </div>
-                <p className="text-xs text-neutral-500 mb-3">
-                  Les sauvegardes BDD sont globales (toutes les organisations), pas limitées à l’organisation active.
-                </p>
                 <div className="flex items-center gap-2 mb-3">
                   <input
                     className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
@@ -785,18 +934,15 @@ const AccessManager = ({
                   >
                     Créer
                   </button>
-                </div>
-                <div className="flex items-center gap-2 mb-3">
-                  <label className="text-xs text-neutral-500">Jour</label>
-                  <input
-                    type="date"
-                    className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
-                    value={selectedBackupDay || todayKey}
-                    onChange={(e) => setSelectedBackupDay(e.target.value)}
-                  />
+                  <button
+                    onClick={reloadBackups}
+                    className="px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-xs"
+                  >
+                    Reload
+                  </button>
                 </div>
                 <div className="space-y-2 max-h-60 overflow-auto">
-                  {visibleBackups.length === 0 && <p className="text-sm text-neutral-500">Aucune sauvegarde pour ce jour.</p>}
+                  {visibleBackups.length === 0 && <p className="text-sm text-neutral-500">Aucune sauvegarde.</p>}
                   {visibleBackups.map((b) => (
                     <div key={b.name} className="flex items-center justify-between gap-2 rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-2">
                       <div className="min-w-0">
@@ -831,38 +977,40 @@ const AccessManager = ({
                       </div>
                     </div>
                   ))}
-                  {dayFiltered.length > 10 && (
+                  {sortedBackups.length > 10 && (
                     <div className="text-xs text-neutral-500">
-                      Affichage limité aux 10 dernières de la journée.
+                      Affichage limité aux 10 dernières sauvegardes.
                     </div>
                   )}
                 </div>
               </div>
 
+            </div>
+
+            <div className="lg:col-span-2 space-y-4">
               <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold">Rôles</h4>
+                  <h4 className="font-semibold">Permissions</h4>
+                  {loading && <span className="text-xs text-neutral-500">Chargement…</span>}
+                </div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs text-neutral-500">Rôles</div>
                   <button onClick={() => setCreatingRole(!creatingRole)} className="text-sm text-cyan-400 flex items-center gap-1">
                     <Plus size={14} /> Nouveau
                   </button>
                 </div>
-                <div className="space-y-2 max-h-64 overflow-auto">
+                <div className="flex flex-wrap gap-2 mb-3">
                   {roles.map((r) => (
                     <button
                       key={r.id}
-                      className={`w-full text-left px-3 py-2 rounded-lg transition ${
+                      className={`px-3 py-1.5 rounded-lg text-sm transition ${
                         selectedRoleId === r.id ? 'bg-cyan-500/20 text-black dark:text-white border border-cyan-500/40' : 'bg-white/5 text-neutral-500 dark:text-white'
                       }`}
                       onClick={() => setSelectedRoleId(r.id)}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{r.name}</span>
-                        {r.is_system && <span className="text-xs text-neutral-600 dark:text-white">système</span>}
-                      </div>
-                      {r.description && <p className="text-xs text-neutral-500 mt-1">{r.description}</p>}
+                      {r.name}
                     </button>
                   ))}
-                  {roles.length === 0 && <p className="text-sm text-neutral-500">Aucun rôle.</p>}
                 </div>
                 <AnimatePresence>
                   {creatingRole && (
@@ -870,16 +1018,16 @@ const AccessManager = ({
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 6 }}
-                      className="mt-3 space-y-2"
+                      className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-2"
                     >
                       <input
-                        className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
+                        className="bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
                         placeholder="Nom du rôle"
                         value={newRoleName}
                         onChange={(e) => setNewRoleName(e.target.value)}
                       />
                       <input
-                        className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
+                        className="bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-3 py-2 text-sm"
                         placeholder="Description (optionnel)"
                         value={newRoleDesc}
                         onChange={(e) => setNewRoleDesc(e.target.value)}
@@ -890,152 +1038,6 @@ const AccessManager = ({
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </div>
-
-              <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold">Membres de l’organisation</h4>
-                  <span className="text-xs text-neutral-500">
-                    {organizations.find((o: any) => o.id === activeOrganizationId)?.name || 'Organisation active'}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 mb-3">
-                  <select
-                    className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-sm"
-                    value={selectedCandidateId}
-                    onChange={(e) => setSelectedCandidateId(e.target.value)}
-                    disabled={membersBusy}
-                  >
-                    <option value="">Inviter un utilisateur existant…</option>
-                    {memberCandidates.map((candidate) => (
-                      <option key={candidate.id} value={candidate.id}>
-                        {candidate.email}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="px-3 py-2 rounded bg-cyan-600 hover:bg-cyan-700 text-white text-xs shadow disabled:opacity-60"
-                    onClick={addMember}
-                    disabled={membersBusy || !selectedCandidateId}
-                  >
-                    Inviter
-                  </button>
-                </div>
-
-                <div className="space-y-2 max-h-56 overflow-auto">
-                  {members.length === 0 && <p className="text-sm text-neutral-500">Aucun membre.</p>}
-                  {members.map((m) => {
-                    const isSelf = user?.id === m.id;
-                    return (
-                      <div key={m.id} className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3 flex items-center justify-between gap-2">
-                        <div>
-                          <div className="font-medium text-sm">{m.email}</div>
-                          <div className="text-xs text-neutral-500">{m.provider || 'local'}</div>
-                        </div>
-                        <button
-                          className="text-xs px-2 py-1 rounded bg-red-500/10 text-red-600 border border-red-500/20 hover:bg-red-500/20 disabled:opacity-50"
-                          onClick={() => removeMember(m.id, m.email)}
-                          disabled={membersBusy || isSelf}
-                          title={isSelf ? 'Vous ne pouvez pas vous retirer vous-même.' : 'Retirer de l’organisation'}
-                        >
-                          Retirer
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold">Utilisateurs</h4>
-                </div>
-                <div className="space-y-3 max-h-80 overflow-auto">
-                  {users.map((u) => {
-                    const roleIds = Array.isArray(u.role_ids) ? u.role_ids : (typeof u.role_ids === 'string' ? JSON.parse(u.role_ids) : []);
-                    const userRoles = roles.filter((r) => roleIds.includes(r.id));
-                    const isLocal = !u.provider || u.provider === 'local';
-                    const isSelf = user?.id === u.id;
-                    return (
-                      <div key={u.id} className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="font-medium">{u.email}</div>
-                            <div className="text-xs text-neutral-500">{u.provider || 'local'}</div>
-                          </div>
-                          <button
-                            className="text-xs px-2 py-1 rounded bg-red-500/10 text-red-600 border border-red-500/20 hover:bg-red-500/20"
-                            onClick={() => deleteUser(u.id, u.email)}
-                            disabled={busy || isSelf}
-                            title={isSelf ? 'Impossible de supprimer votre propre compte.' : 'Supprimer le compte'}
-                          >
-                            Supprimer
-                          </button>
-                        </div>
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          {userRoles.length === 0 && <span className="text-xs text-neutral-500">Aucun rôle</span>}
-                          {userRoles.map((r) => (
-                            <button
-                              key={r.id}
-                              className="px-2 py-1 text-xs rounded bg-cyan-500/20 text-black dark:text-white border border-cyan-500/40"
-                              onClick={() => assignRole(u.id, r.id, 'remove')}
-                            >
-                              {r.name} ✕
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <select
-                            className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
-                            onChange={(e) => assignRole(u.id, e.target.value, 'add')}
-                            defaultValue=""
-                          >
-                            <option value="" disabled>
-                              Ajouter un rôle
-                            </option>
-                            {roles
-                              .filter((r) => !userRoles.some((ur) => ur.id === r.id))
-                              .map((r) => (
-                                <option key={r.id} value={r.id}>
-                                  {r.name}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                        <div className="mt-3 flex items-center gap-2">
-                          <input
-                            type="password"
-                            className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-1 text-sm"
-                            placeholder={isLocal ? 'Nouveau mot de passe' : 'Mdp non disponible (SSO)'}
-                            value={passwordInputs[u.id] || ''}
-                            onChange={(e) =>
-                              setPasswordInputs((prev) => ({ ...prev, [u.id]: e.target.value }))
-                            }
-                            disabled={!isLocal || busy}
-                          />
-                          <button
-                            className="text-xs px-3 py-1 rounded bg-cyan-500/20 text-black dark:text-white border border-cyan-500/40"
-                            onClick={() => updateUserPassword(u.id)}
-                            disabled={!isLocal || busy || !(passwordInputs[u.id] || '').trim()}
-                          >
-                            Modifier mdp
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {users.length === 0 && <p className="text-sm text-neutral-500">Aucun utilisateur.</p>}
-                </div>
-              </div>
-            </div>
-
-            <div className="lg:col-span-2 space-y-4">
-              <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold">Permissions</h4>
-                  {loading && <span className="text-xs text-neutral-500">Chargement…</span>}
-                </div>
                 {selectedRoleId ? (
                   <Tabs value={permissionsTab} onValueChange={(v) => setPermissionsTab(v as any)} className="w-full">
                     <TabsList className="mb-3 w-full justify-start gap-2 bg-transparent p-0">
@@ -1214,22 +1216,371 @@ const AccessManager = ({
                   <p className="text-sm text-neutral-500">Sélectionnez un rôle pour éditer ses permissions.</p>
                 )}
               </div>
+            </div>
 
-              <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-semibold">Audit</h4>
+            <div className="lg:col-span-3 bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
+              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
+                <div>
+                  <h4 className="font-semibold">Utilisateurs</h4>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Tout est ici : membres de l’organisation, rôles, mot de passe et préférences.
+                  </p>
                 </div>
-                <div className="space-y-2 max-h-64 overflow-auto pr-1 text-sm text-neutral-500 dark:text-white">
-                  {audit.map((a) => (
-                    <div key={a.id} className="flex items-center justify-between border-b border-black/10 dark:border-white/5 pb-1">
-                      <div>
-                        <div className="font-medium">{a.action}</div>
-                        <div className="text-xs text-neutral-500">{a.target_type} / {a.target_id}</div>
-                      </div>
-                      <div className="text-xs text-neutral-500">{new Date(a.created_at).toLocaleString()}</div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="px-2 py-1 rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
+                    {selectableUsers.length} utilisateur(s)
+                  </span>
+                  <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                    {members.length} membre(s) orga
+                  </span>
+                  <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                    {Math.max(selectableUsers.length - members.length, 0)} hors orga
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid xl:grid-cols-2 gap-2 mt-3">
+                <div className="rounded-lg xl:col-span-2 bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-neutral-500 mb-1">Utilisateur ciblé</label>
+                      <select
+                        className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
+                        value={selectedPreferencesUserId}
+                        onChange={(e) => setSelectedPreferencesUserId(e.target.value)}
+                      >
+                        {filteredUsers.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.email}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  ))}
-                  {audit.length === 0 && <p className="text-sm text-neutral-500">Pas encore d’audit.</p>}
+                    <div>
+                      <label className="block text-xs text-neutral-500 mb-1">Recherche utilisateur</label>
+                      <div className="relative">
+                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                        <input
+                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm"
+                          placeholder="Rechercher par email, provider ou rôle…"
+                          value={userQuery}
+                          onChange={(e) => setUserQuery(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                  
+                  </div>
+
+                  {selectableUsers.length > 0 && filteredUsers.length === 0 && (
+                    <p className="text-xs text-neutral-500 mt-2">Aucun résultat pour cette recherche.</p>
+                  )}
+                </div>
+
+                {selectableUsers.length === 0 && <p className="text-sm text-neutral-500">Aucun utilisateur.</p>}
+
+                {selectedPreferencesUser && (() => {
+                  const roleIds = parseRoleIds(selectedPreferencesUser.role_ids);
+                  const userRoles = roles.filter((r) => roleIds.includes(r.id));
+                  const availableRoles = roles.filter((r) => !userRoles.some((ur) => ur.id === r.id));
+                  const isLocal = !selectedPreferencesUser.provider || selectedPreferencesUser.provider === 'local';
+                  const isSelf = user?.id === selectedPreferencesUser.id;
+                  const isMember = memberIds.has(selectedPreferencesUser.id);
+
+                  return (
+                    <div className="grid grid-cols-1 xl:grid-cols-1 gap-3">
+                      <div className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                          <div>
+                            <div className="font-medium break-all">{selectedPreferencesUser.email}</div>
+                            <div className="text-xs text-neutral-500 mt-0.5">{selectedPreferencesUser.provider || 'local'}</div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`px-2 py-0.5 text-xs rounded-full border ${isMember ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-neutral-500/10 text-neutral-700 dark:text-neutral-300 border-neutral-500/30'}`}>
+                              {isMember ? 'Membre orga' : 'Hors orga'}
+                            </span>
+                            {isSelf && (
+                              <span className="px-2 py-0.5 text-xs rounded-full border bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30">
+                                Vous
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg border border-black/10 dark:border-white/10 bg-white/50 dark:bg-neutral-900 p-3 mb-3">
+                          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-2">Rôles actuels</div>
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {!isMember && <span className="text-xs text-neutral-500">Ajoutez d’abord à l’organisation</span>}
+                            {isMember && userRoles.length === 0 && <span className="text-xs text-neutral-500">Aucun rôle</span>}
+                            {userRoles.map((r) => (
+                              <button
+                                key={r.id}
+                                className="px-2 py-1 text-xs rounded-full bg-cyan-500/20 text-black dark:text-white border border-cyan-500/40 hover:bg-cyan-500/30 disabled:opacity-50"
+                                onClick={() => assignRole(selectedPreferencesUser.id, r.id, 'remove')}
+                                disabled={!isMember}
+                              >
+                                {r.name} ✕
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-2">Ajouter un rôle</div>
+                          <div className="flex flex-wrap gap-2">
+                            {isMember && availableRoles.length === 0 && <span className="text-xs text-neutral-500">Tous les rôles sont déjà attribués</span>}
+                            {availableRoles.map((r) => (
+                              <button
+                                key={r.id}
+                                className="px-2 py-1 text-xs rounded-full bg-white dark:bg-neutral-800 border border-black/10 dark:border-white/10 hover:bg-cyan-500/10 disabled:opacity-50"
+                                onClick={() => assignRole(selectedPreferencesUser.id, r.id, 'add')}
+                                disabled={!isMember}
+                              >
+                                + {r.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {isMember ? (
+                            <button
+                              className="text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-white border border-red-500/20 hover:bg-red-500/20 disabled:opacity-50"
+                              onClick={() => removeMember(selectedPreferencesUser.id, selectedPreferencesUser.email)}
+                              disabled={membersBusy || isSelf}
+                              title={isSelf ? 'Vous ne pouvez pas vous retirer vous-même.' : 'Retirer de l’organisation'}
+                            >
+                              Retirer de l’organisation
+                            </button>
+                          ) : (
+                            <button
+                              className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20 disabled:opacity-50"
+                              onClick={() => addMember(selectedPreferencesUser.id, selectedPreferencesUser.email)}
+                              disabled={membersBusy}
+                            >
+                              Ajouter à l’organisation
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
+                        <div className="text-sm font-semibold mb-2">Sécurité du compte</div>
+                        <div className="text-xs text-neutral-500 mb-2">Mot de passe et suppression du compte.</div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <input
+                            type="password"
+                            className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-sm"
+                            placeholder={isLocal ? 'Nouveau mot de passe' : 'Mdp non disponible (SSO)'}
+                            value={passwordInputs[selectedPreferencesUser.id] || ''}
+                            onChange={(e) =>
+                              setPasswordInputs((prev) => ({ ...prev, [selectedPreferencesUser.id]: e.target.value }))
+                            }
+                            disabled={!isLocal || busy}
+                          />
+                          <button
+                            className="text-xs px-3 py-2 rounded-lg bg-cyan-500/20 text-black dark:text-white border border-cyan-500/40 whitespace-nowrap"
+                            onClick={() => updateUserPassword(selectedPreferencesUser.id)}
+                            disabled={!isLocal || busy || !(passwordInputs[selectedPreferencesUser.id] || '').trim()}
+                          >
+                            Modifier
+                          </button>
+                        </div>
+
+                        <button
+                          className="text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-white border border-red-500/20 hover:bg-red-500/20 disabled:opacity-50"
+                          onClick={() => deleteUser(selectedPreferencesUser.id, selectedPreferencesUser.email)}
+                          disabled={busy || isSelf}
+                          title={isSelf ? 'Impossible de supprimer votre propre compte.' : 'Supprimer le compte'}
+                        >
+                          Supprimer le compte
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Palette size={15} className="text-fuchsia-500" />
+                      <h5 className="text-sm font-semibold">Options UI utilisateur</h5>
+                    </div>
+                    <p className="text-xs text-neutral-500 mb-3">Chaque utilisateur a ses propres options, persistées côté serveur.</p>
+
+                    {selectedPreferencesUser && (
+                      <div className="text-xs text-neutral-500 mb-3">
+                        Configuration de <span className="font-medium text-black dark:text-white">{selectedPreferencesUser.email}</span>
+                      </div>
+                    )}
+
+                    {selectedPreferencesUser && !memberIds.has(selectedPreferencesUser.id) && (
+                      <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
+                        Ajoutez cet utilisateur à l’organisation pour modifier ses options.
+                      </p>
+                    )}
+
+                    <button
+                      className="w-full mb-3 px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-xs disabled:opacity-60 flex items-center justify-center gap-2"
+                      onClick={() => saveUserPreferences(selectedPreferencesUserId)}
+                      disabled={!selectedPreferencesUserId || !!preferencesBusyByUser[selectedPreferencesUserId] || !selectedPreferencesUser || !memberIds.has(selectedPreferencesUser.id)}
+                    >
+                      {preferencesBusyByUser[selectedPreferencesUserId] ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" /> Sauvegarde…
+                        </>
+                      ) : (
+                        <>
+                          <Save size={14} /> Sauvegarder les options UI
+                        </>
+                      )}
+                    </button>
+
+                    {selectedPreferencesUserId && !!preferencesSavedAtByUser[selectedPreferencesUserId] && (
+                      <div className="text-[11px] text-emerald-600 dark:text-emerald-300 mb-3 flex items-center gap-1">
+                        <CheckCircle2 size={13} />
+                        Dernière sauvegarde à {new Date(preferencesSavedAtByUser[selectedPreferencesUserId]).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    )}
+
+                    <label className="block text-xs text-neutral-500 mb-1">Couleur d’accent</label>
+                    <div className="flex items-center gap-2 mb-3">
+                      <input
+                        type="color"
+                        value={selectedPreferencesDraft.accentColor}
+                        onChange={(e) => updateUserPreferencesDraft(selectedPreferencesUserId, { accentColor: e.target.value })}
+                        className="h-9 w-12 rounded border border-white/10 bg-transparent"
+                        disabled={!selectedPreferencesUserId || !selectedPreferencesUser || !memberIds.has(selectedPreferencesUser.id)}
+                      />
+                      <input
+                        value={selectedPreferencesDraft.accentColor}
+                        onChange={(e) => updateUserPreferencesDraft(selectedPreferencesUserId, { accentColor: e.target.value })}
+                        className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
+                        disabled={!selectedPreferencesUserId || !selectedPreferencesUser || !memberIds.has(selectedPreferencesUser.id)}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div>
+                        <label className="block text-xs text-neutral-500 mb-1">Densité</label>
+                        <select
+                          value={selectedPreferencesDraft.density}
+                          onChange={(e) => updateUserPreferencesDraft(selectedPreferencesUserId, { density: e.target.value })}
+                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
+                          disabled={!selectedPreferencesUserId || !selectedPreferencesUser || !memberIds.has(selectedPreferencesUser.id)}
+                        >
+                          <option value="compact">Compacte</option>
+                          <option value="comfortable">Confort</option>
+                          <option value="spacious">Aérée</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-neutral-500 mb-1">Début de semaine</label>
+                        <select
+                          value={selectedPreferencesDraft.weekStartsOn}
+                          onChange={(e) => updateUserPreferencesDraft(selectedPreferencesUserId, { weekStartsOn: e.target.value })}
+                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
+                          disabled={!selectedPreferencesUserId || !selectedPreferencesUser || !memberIds.has(selectedPreferencesUser.id)}
+                        >
+                          <option value="monday">Lundi</option>
+                          <option value="sunday">Dimanche</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <label className="block text-xs text-neutral-500 mb-1">Fuseau horaire</label>
+                    <input
+                      value={selectedPreferencesDraft.timezone}
+                      onChange={(e) => updateUserPreferencesDraft(selectedPreferencesUserId, { timezone: e.target.value })}
+                      className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs mb-3"
+                      placeholder="Europe/Paris"
+                      disabled={!selectedPreferencesUserId || !selectedPreferencesUser || !memberIds.has(selectedPreferencesUser.id)}
+                    />
+
+                    <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={selectedPreferencesDraft.notificationsEnabled}
+                        onChange={(e) => updateUserPreferencesDraft(selectedPreferencesUserId, { notificationsEnabled: e.target.checked })}
+                        disabled={!selectedPreferencesUserId || !selectedPreferencesUser || !memberIds.has(selectedPreferencesUser.id)}
+                      />
+                      <BellRing size={14} className="text-cyan-500" /> Notifications par défaut
+                    </label>
+                  </div>
+
+                  <div className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock3 size={15} className="text-amber-500" />
+                      <h5 className="text-sm font-semibold">Horaires de travail utilisateur</h5>
+                    </div>
+                    <p className="text-xs text-neutral-500 mb-3">Préconfiguration utile pour le calendrier, les rappels et la charge.</p>
+
+                    {selectedPreferencesUser && !memberIds.has(selectedPreferencesUser.id) && (
+                      <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
+                        Ajoutez cet utilisateur à l’organisation pour modifier ses horaires.
+                      </p>
+                    )}
+
+                    <button
+                      className="w-full mb-3 px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs disabled:opacity-60 flex items-center justify-center gap-2"
+                      onClick={() => saveUserPreferences(selectedPreferencesUserId)}
+                      disabled={!selectedPreferencesUserId || !!preferencesBusyByUser[selectedPreferencesUserId] || !selectedPreferencesUser || !memberIds.has(selectedPreferencesUser.id)}
+                    >
+                      {preferencesBusyByUser[selectedPreferencesUserId] ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" /> Sauvegarde…
+                        </>
+                      ) : (
+                        <>
+                          <Save size={14} /> Sauvegarder les horaires
+                        </>
+                      )}
+                    </button>
+
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <div>
+                        <label className="block text-xs text-neutral-500 mb-1">Début</label>
+                        <input
+                          type="time"
+                          value={selectedPreferencesDraft.workStart}
+                          onChange={(e) => updateUserPreferencesDraft(selectedPreferencesUserId, { workStart: e.target.value })}
+                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
+                          disabled={!selectedPreferencesUserId || !selectedPreferencesUser || !memberIds.has(selectedPreferencesUser.id)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-neutral-500 mb-1">Fin</label>
+                        <input
+                          type="time"
+                          value={selectedPreferencesDraft.workEnd}
+                          onChange={(e) => updateUserPreferencesDraft(selectedPreferencesUserId, { workEnd: e.target.value })}
+                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
+                          disabled={!selectedPreferencesUserId || !selectedPreferencesUser || !memberIds.has(selectedPreferencesUser.id)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-neutral-500 mb-1">Pause début</label>
+                        <input
+                          type="time"
+                          value={selectedPreferencesDraft.breakStart}
+                          onChange={(e) => updateUserPreferencesDraft(selectedPreferencesUserId, { breakStart: e.target.value })}
+                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
+                          disabled={!selectedPreferencesUserId || !selectedPreferencesUser || !memberIds.has(selectedPreferencesUser.id)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-neutral-500 mb-1">Pause fin</label>
+                        <input
+                          type="time"
+                          value={selectedPreferencesDraft.breakEnd}
+                          onChange={(e) => updateUserPreferencesDraft(selectedPreferencesUserId, { breakEnd: e.target.value })}
+                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
+                          disabled={!selectedPreferencesUserId || !selectedPreferencesUser || !memberIds.has(selectedPreferencesUser.id)}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

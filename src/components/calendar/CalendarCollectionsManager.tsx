@@ -15,6 +15,8 @@ interface CalendarCollectionsManagerProps {
   defaultDuration?: number;
   startHour?: number;
   endHour?: number;
+  workStartHour?: number;
+  workEndHour?: number;
   showCollectionsSelector?: boolean;
   onViewDetail?: (item: any) => void;
   onEdit?: (item: any) => void;
@@ -37,6 +39,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   defaultDuration = 1,
   startHour = 8,
   endHour = 20,
+  workStartHour = 9,
+  workEndHour = 18,
   showCollectionsSelector = true,
   hiddenFields,
   onViewDetail = () => {},
@@ -114,7 +118,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
       if (!movedSeg) return;
       const oldStart = new Date(movedSeg.start || movedSeg.__eventStart);
       const newStart = new Date(newDate);
-      newStart.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
+      newStart.setHours(newHours ?? Math.floor(workStartHour), newMinutes ?? 0, 0, 0);
       const deltaMs = newStart.getTime() - oldStart.getTime();
       if (!Number.isFinite(deltaMs)) return;
 
@@ -148,7 +152,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                        new Date(item._eventSegments[options.segmentIndex].start).getTime();
       
       const segStart = new Date(newDate);
-      segStart.setHours(newHours ?? 9, newMinutes ?? 0, 0, 0);
+      segStart.setHours(newHours ?? Math.floor(workStartHour), newMinutes ?? 0, 0, 0);
       const segEnd = new Date(segStart.getTime() + duration);
 
       const updatedItem = updateSegmentInItem(item, options.segmentIndex, {
@@ -461,6 +465,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               defaultDuration={defaultDuration}
               startHour={startHour}
               endHour={endHour}
+              workStartHour={workStartHour}
+              workEndHour={workEndHour}
               onShowNewItemModalForCollection={onShowNewItemModalForCollection}
               onEventDrop={onEventDrop}
             />
@@ -495,6 +501,8 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           defaultDuration={defaultDuration}
           startHour={startHour}
           endHour={endHour}
+          workStartHour={workStartHour}
+          workEndHour={workEndHour}
           onShowNewItemModalForCollection={onShowNewItemModalForCollection}
           onEventDrop={onEventDrop}
           singleDay

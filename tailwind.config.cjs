@@ -39,6 +39,19 @@ module.exports = {
   				DEFAULT: 'hsl(var(--accent))',
   				foreground: 'hsl(var(--accent-foreground))'
   			},
+			vcolor: {
+				"50":  "rgb(var(--vcolor-50)  / <alpha-value>)",
+				"100": "rgb(var(--vcolor-100) / <alpha-value>)",
+				"200": "rgb(var(--vcolor-200) / <alpha-value>)",
+				"300": "rgb(var(--vcolor-300) / <alpha-value>)",
+				"400": "rgb(var(--vcolor-400) / <alpha-value>)",
+				"500": "rgb(var(--vcolor-500) / <alpha-value>)",
+				"600": "rgb(var(--vcolor-600) / <alpha-value>)",
+				"700": "rgb(var(--vcolor-700) / <alpha-value>)",
+				"800": "rgb(var(--vcolor-800) / <alpha-value>)",
+				"900": "rgb(var(--vcolor-900) / <alpha-value>)",
+				"950": "rgb(var(--vcolor-950) / <alpha-value>)",
+			},
   			destructive: {
   				DEFAULT: 'hsl(var(--destructive))',
   				foreground: 'hsl(var(--destructive-foreground))'
