@@ -483,10 +483,6 @@ const TableView: React.FC<TableViewProps> = ({
     });
   }, [items]);
 
-  const selectableItems = canEdit ? items : [];
-  const allSelected = selectableItems.length > 0 && selectableItems.every((item) => selectedItemIds.has(item.id));
-  const partiallySelected = !allSelected && selectedItemIds.size > 0;
-
   useEffect(() => {
     if (showSelectionColumn) return;
     setSelectedItemIds(new Set());
@@ -528,14 +524,6 @@ const TableView: React.FC<TableViewProps> = ({
     setDragOverItemId(null);
   }, []);
 
-  const handleToggleSelectAll = useCallback((checked: boolean) => {
-    if (!checked) {
-      setSelectedItemIds(new Set());
-      return;
-    }
-    setSelectedItemIds(new Set(selectableItems.map((item) => item.id)));
-  }, [selectableItems]);
-
   const handleSelectionChange = useCallback((itemId: string, checked: boolean) => {
     setSelectedItemIds((prev) => {
       const next = new Set(prev);
@@ -544,6 +532,26 @@ const TableView: React.FC<TableViewProps> = ({
       return next;
     });
   }, []);
+
+  const getItemsForGroupPath = useCallback((groupPath: string) => {
+    if (!groupedStructure) return [] as any[];
+
+    const itemIds = new Set<string>();
+
+    const collectIds = (path: string) => {
+      const groupData = groupedStructure.structure[path];
+      if (!groupData) return;
+
+      groupData.itemIds.forEach((id) => itemIds.add(id));
+      groupData.subGroups.forEach((subPath) => collectIds(subPath));
+    };
+
+    collectIds(groupPath);
+
+    return Array.from(itemIds)
+      .map((id) => itemsMap.get(id))
+      .filter((item): item is any => Boolean(item));
+  }, [groupedStructure, itemsMap]);
 
   const selectedCount = selectedItemIds.size;
 
@@ -677,11 +685,6 @@ const TableView: React.FC<TableViewProps> = ({
             >
               Supprimer la sélection
             </button>
-            {canReorderRows && (
-              <span className="text-[11px] text-neutral-500 dark:text-neutral-400 ml-auto">
-                Astuce : glisser-déposer une ligne pour réordonner
-              </span>
-            )}
           </div>
         )}
         {(() => {
@@ -765,13 +768,34 @@ const TableView: React.FC<TableViewProps> = ({
               />
             ));
 
-          const renderTableShell = (body: React.ReactNode, footerItems?: any[]) => (
+          const renderTableShell = (body: React.ReactNode, footerItems?: any[], selectionScopeItems?: any[]) => {
+            const scopedItems = selectionScopeItems || items;
+            const scopedSelectableItems = canEdit ? scopedItems : [];
+            const scopedAllSelected =
+              scopedSelectableItems.length > 0 &&
+              scopedSelectableItems.every((item) => selectedItemIds.has(item.id));
+            const scopedPartiallySelected =
+              !scopedAllSelected &&
+              scopedSelectableItems.some((item) => selectedItemIds.has(item.id));
+
+            const handleScopedToggleSelectAll = (checked: boolean) => {
+              setSelectedItemIds((prev) => {
+                const next = new Set(prev);
+                scopedSelectableItems.forEach((item) => {
+                  if (checked) next.add(item.id);
+                  else next.delete(item.id);
+                });
+                return next;
+              });
+            };
+
+            return (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <TableHeader
                   visibleProperties={visibleProperties}
                   allProperties={collection.properties}
-                  items={items}
+                  items={scopedItems}
                   onEditProperty={onEditProperty}
                   onToggleField={onToggleField}
                   onDeleteProperty={onDeleteProperty}
@@ -781,9 +805,9 @@ const TableView: React.FC<TableViewProps> = ({
                   onSort={handleSort}
                   enableDragReorder={canReorderRows}
                   enableSelection={showSelectionColumn}
-                  allSelected={allSelected}
-                  partiallySelected={partiallySelected}
-                  onToggleSelectAll={handleToggleSelectAll}
+                  allSelected={scopedAllSelected}
+                  partiallySelected={scopedPartiallySelected}
+                  onToggleSelectAll={handleScopedToggleSelectAll}
                   totalFields={totalFields}
                   onToggleTotalField={onSetTotalField}
                 />
@@ -810,7 +834,8 @@ const TableView: React.FC<TableViewProps> = ({
                 )}
               </table>
             </div>
-          );
+            );
+          };
 
           const rootGroupCards = rootGroups.map((rootGroup) => {
             const rootValue = rootGroup.split('/').pop() || rootGroup;
@@ -857,7 +882,11 @@ const TableView: React.FC<TableViewProps> = ({
                         {group.itemCount}
                       </span>
                     </div>
-                    {renderTableShell(renderRootGroupRows(group.id, true))}
+                    {renderTableShell(
+                      renderRootGroupRows(group.id, true),
+                      undefined,
+                      getItemsForGroupPath(group.id)
+                    )}
                   </div>
                 ))}
               </div>
@@ -880,7 +909,11 @@ const TableView: React.FC<TableViewProps> = ({
                 </TabsList>
                 {rootGroupCards.map((group) => (
                   <TabsContent key={group.id} value={group.id} className="mt-0 border-0 p-0">
-                    {renderTableShell(renderRootGroupRows(group.id, true))}
+                    {renderTableShell(
+                      renderRootGroupRows(group.id, true),
+                      undefined,
+                      getItemsForGroupPath(group.id)
+                    )}
                   </TabsContent>
                 ))}
               </Tabs>
