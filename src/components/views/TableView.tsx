@@ -5,6 +5,7 @@ import { TableViewProps } from '@/lib/types';
 import GroupRenderer from '@/components/TableView/GroupRenderer';
 import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
+import TotalsBar from '@/components/TableView/TotalsBar';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
@@ -661,6 +662,60 @@ const TableView: React.FC<TableViewProps> = ({
 
   const content = (
     <>
+      {/* ─── Section totaux (globaux + par groupe) ────────────────────────── */}
+      {Object.keys(totalFields).length > 0 && items.length > 0 && (() => {
+        const rootGroupId = groups[0];
+        const rootGroupTotalConfig = rootGroupId ? (groupTotalsByGroupId[rootGroupId] ?? {}) : {};
+        const shouldShowTopTotalsSection =
+          groups.length === 0
+            ? true
+            : rootGroupTotalConfig.enabled !== false && rootGroupTotalConfig.position !== 'bottom';
+
+        if (!shouldShowTopTotalsSection) return null;
+
+        // Traverser récursivement tous les niveaux de groupes
+        const buildGroupedSections = () => {
+          if (!groupedStructure || groups.length === 0) return undefined;
+
+          const sections: Array<{ label: string; items: any[]; depth: number; propertyName: string }> = [];
+
+          const traverse = (path: string, depth: number) => {
+            const node = groupedStructure.structure[path];
+            if (!node) return;
+            const groupPropertyId = groups[depth];
+            const groupProp = orderedProperties.find((p: any) => p.id === groupPropertyId);
+            const groupTotalConfig = groupPropertyId ? (groupTotalsByGroupId[groupPropertyId] ?? {}) : {};
+            const shouldShowThisLevelInTop =
+              groupTotalConfig.enabled !== false && groupTotalConfig.position !== 'bottom';
+            const rawValue = path.split('/').pop() || path;
+            const label = groupProp
+              ? String(getGroupLabel(groupProp, rawValue === '(vide)' ? undefined : rawValue, collections))
+              : rawValue;
+            const groupItems = getItemsForGroupPath(path);
+            if (groupItems.length > 0 && shouldShowThisLevelInTop) {
+              sections.push({ label, items: groupItems, depth, propertyName: groupProp?.name ?? '' });
+            }
+            node.subGroups.forEach((subPath: string) => traverse(subPath, depth + 1));
+          };
+
+          groupedStructure.rootGroups.forEach((rootGroup: string) => traverse(rootGroup, 0));
+          return sections.length > 0 ? sections : undefined;
+        };
+
+        return (
+          <TotalsBar
+            displayProperties={displayProperties}
+            items={items}
+            totalFields={totalFields}
+            calculateTotal={calculateTotal}
+            formatTotal={formatTotal}
+            variant="section"
+            groupedSections={buildGroupedSections()}
+            persistKey={`table-view:${collection?.id || 'unknown'}`}
+          />
+        );
+      })()}
+
       <div className=" border border-black/10 dark:border-white/5 rounded-lg overflow-hidden backdrop-blur">
         {showSelectionColumn && (
           <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20">
@@ -763,6 +818,11 @@ const TableView: React.FC<TableViewProps> = ({
               onViewDetail={onViewDetail}
               onRelationChange={onRelationChange}
               onNavigateToCollection={onNavigateToCollection}
+              onEditProperty={onEditProperty}
+              onToggleField={onToggleField}
+              onDeleteProperty={onDeleteProperty}
+              onDuplicateProperty={onDuplicateProperty}
+              onToggleTotalField={onSetTotalField}
               canEdit={canEdit}
               canEditField={canEditFieldFn}
               sortItems={sortItems}
@@ -868,26 +928,6 @@ const TableView: React.FC<TableViewProps> = ({
                   onToggleTotalField={onSetTotalField}
                 />
                 <tbody className="divide-y divide-white/5">{body}</tbody>
-                {Object.keys(totalFields).length > 0 && (footerItems || items).length > 0 && (
-                  <tfoot className="bg-violet-50/50 dark:bg-violet-900/10 border-t-2 border-violet-200 dark:border-violet-800">
-                    <tr>
-                      {canReorderRows && <td className="px-1 py-2 w-8"></td>}
-                      {showSelectionColumn && <td className="px-2 py-2"></td>}
-                      {displayProperties.map((prop: any) => {
-                        const totalType = totalFields[prop.id];
-                        if (!totalType) {
-                          return <td key={prop.id} className="px-3 py-2"></td>;
-                        }
-                        const total = calculateTotal(prop.id, footerItems || items, totalType);
-                        return (
-                          <td key={prop.id} className="px-4 py-2 text-xs font-semibold text-violet-700 dark:text-violet-300">
-                            {formatTotal(prop.id, total, totalType)}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  </tfoot>
-                )}
               </table>
             </div>
             );
@@ -969,19 +1009,8 @@ const TableView: React.FC<TableViewProps> = ({
 
           if (rootGroupMode === 'tabs' && rootGroups.length > 0) {
             const hasNestedGroups = groups.length > 1;
-            const activeRootGroupId = rootGroups.includes(activeGroupTab) ? activeGroupTab : rootGroups[0];
             return (
               <>
-                {activeRootGroupId && (
-                  hasNestedGroups
-                    ? renderBodyOnlyShell(renderRootGroupRows(activeRootGroupId, true, 'only'))
-                    : renderTableShell(
-                        renderRootGroupRows(activeRootGroupId, true, 'only'),
-                        undefined,
-                        getItemsForGroupPath(activeRootGroupId)
-                      )
-                )}
-
                 <Tabs value={activeGroupTab} onValueChange={setActiveGroupTab} className="w-full">
                   <TabsList className="m-2 mt-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
                     {rootGroupCards.map((group) => (
