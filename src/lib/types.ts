@@ -62,7 +62,7 @@ export interface Item {
 
 export type TableGroupDisplayMode = 'accordion' | 'columns' | 'tabs';
 export type TableGroupColumnCount = 1 | 2 | 3;
-export type GroupTotalPosition = 'top' | 'bottom';
+export type GroupTotalPosition = 'top' | 'bottom' | 'both';
 
 export interface GroupTotalConfig {
   enabled?: boolean;

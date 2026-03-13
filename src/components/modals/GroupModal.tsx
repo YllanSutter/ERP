@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import ShinyButton from '@/components/ui/ShinyButton';
 import { TableGroupDisplayMode, TableGroupColumnCount } from '@/lib/types';
 
-type GroupTotalPosition = 'top' | 'bottom';
+type GroupTotalPosition = 'top' | 'bottom' | 'both';
 
 interface GroupTotalConfig {
   enabled?: boolean;
@@ -99,7 +99,12 @@ const GroupModal: React.FC<GroupModalProps> = ({
       ...prev,
       [groupId]: {
         enabled: prev[groupId]?.enabled ?? true,
-        position: prev[groupId]?.position === 'top' ? 'top' : 'bottom',
+        position:
+          prev[groupId]?.position === 'top'
+            ? 'top'
+            : prev[groupId]?.position === 'both'
+              ? 'both'
+              : 'bottom',
         ...patch,
       },
     }));
@@ -160,7 +165,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
       const cfg = groupTotalsByGroupId[groupId] || {};
       nextTotalsByGroupId[groupId] = {
         enabled: cfg.enabled !== false,
-        position: cfg.position === 'top' ? 'top' : 'bottom',
+        position: cfg.position === 'top' ? 'top' : cfg.position === 'both' ? 'both' : 'bottom',
       };
 
       const index = uniqueGroups.indexOf(groupId);
@@ -278,11 +283,16 @@ const GroupModal: React.FC<GroupModalProps> = ({
                   </label>
 
                   <select
-                    value={cfg.position === 'top' ? 'top' : 'bottom'}
+                    value={cfg.position === 'top' ? 'top' : cfg.position === 'both' ? 'both' : 'bottom'}
                     onChange={(e) => {
                       if (!groupId) return;
                       updateGroupTotalConfig(groupId, {
-                        position: e.target.value === 'top' ? 'top' : 'bottom',
+                        position:
+                          e.target.value === 'top'
+                            ? 'top'
+                            : e.target.value === 'both'
+                              ? 'both'
+                              : 'bottom',
                       });
                     }}
                     disabled={!groupId || cfg.enabled === false}
@@ -290,6 +300,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
                   >
                     <option value="bottom">Total en bas</option>
                     <option value="top">Total en haut</option>
+                    <option value="both">Total en haut et en bas</option>
                   </select>
                 </div>
 

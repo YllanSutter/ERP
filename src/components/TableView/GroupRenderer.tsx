@@ -5,7 +5,6 @@ import GroupHeader from './GroupHeader';
 import TableItemRow from './TableItemRow';
 import TableHeader from './TableHeader';
 import TotalsBar from './TotalsBar';
-import TotalsRow from './TotalsRow';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface GroupRendererProps {
@@ -149,7 +148,12 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
   const currentGroupTotalConfig = (groupId && groupTotalsByGroupId[groupId]) || {};
   const showGroupTotal = currentGroupTotalConfig.enabled !== false;
-  const groupTotalPosition: 'top' | 'bottom' = currentGroupTotalConfig.position === 'top' ? 'top' : 'bottom';
+  const groupTotalPosition: 'top' | 'bottom' | 'both' =
+    currentGroupTotalConfig.position === 'top'
+      ? 'top'
+      : currentGroupTotalConfig.position === 'both'
+        ? 'both'
+        : 'bottom';
   const groupItemsForTotal = useMemo(() => {
     const visited = new Set<string>();
     const collect = (path: string): Item[] => {
@@ -333,17 +337,28 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
     ) return null;
 
     return (
-      <TotalsRow
-        displayProperties={displayProperties}
-        items={groupItemsForTotal}
-        totalFields={totalFields}
-        calculateTotal={calculateTotal}
-        formatTotal={formatTotal}
-        enableDragReorder={draggableRows}
-        enableSelection={enableSelection}
-        paddingLeft={24 + (displayDepth + 1) * 20}
-        variant="group"
-      />
+      <tr>
+        {draggableRows && <td className="px-1 py-2 w-8" />}
+        {enableSelection && <td className="px-2 py-2 w-10" />}
+        {displayProperties.map((prop: any) => {
+          const totalType = totalFields[prop.id];
+          if (!totalType) return <td key={prop.id} className="px-2 py-2" />;
+
+          return (
+            <td key={prop.id} className="px-2 py-2 align-top">
+              <TotalsBar
+                displayProperties={[prop]}
+                items={groupItemsForTotal}
+                totalFields={{ [prop.id]: totalType }}
+                calculateTotal={calculateTotal}
+                formatTotal={formatTotal}
+                variant="inline"
+                inlineMode="plain"
+              />
+            </td>
+          );
+        })}
+      </tr>
     );
   };
 
@@ -515,7 +530,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
             ));
           })()}
 
-          {groupTotalPosition === 'bottom' && renderBottomTotals()}
+          {(groupTotalPosition === 'bottom' || groupTotalPosition === 'both') && renderBottomTotals()}
         </>
       )}
     </React.Fragment>

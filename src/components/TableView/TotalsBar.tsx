@@ -147,6 +147,8 @@ export interface TotalsBarProps {
   groupedSections?: Array<{ label: string; items: any[]; depth: number; propertyName: string }>;
   /** Clé de persistance pour mémoriser l'état ouvert/fermé */
   persistKey?: string;
+  /** Mode visuel pour le rendu inline */
+  inlineMode?: 'default' | 'plain';
   /** Classes CSS supplémentaires sur le wrapper */
   className?: string;
 }
@@ -163,6 +165,7 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
   variant = 'inline',
   groupedSections,
   persistKey,
+  inlineMode = 'default',
   className = '',
 }) => {
   const activeTotals = displayProperties.filter((p: any) => totalFields[p.id]);
@@ -439,48 +442,27 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
   }
 
   // ─── Mode INLINE : barre compacte (usage dans GroupRenderer) ─────────────
+  const inlineContainerClass = inlineMode === 'plain'
+    ? 'flex flex-wrap items-center gap-2 px-2 py-1.5 bg-transparent border-0'
+    : 'flex flex-wrap items-center gap-2 px-4 py-2.5 bg-neutral-50/80 dark:bg-neutral-900/50 border-b border-black/6 dark:border-white/6';
+
+  if (inlineMode === 'plain') {
+    return (
+      <div className={`${inlineContainerClass} ${className}`}>
+        {renderCards(items)}
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`flex flex-wrap items-center gap-2 px-4 py-2.5 bg-neutral-50/80 dark:bg-neutral-900/50 border-b border-black/6 dark:border-white/6 ${className}`}
+      className={`${inlineContainerClass} ${className}`}
     >
       <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 dark:text-neutral-600 mr-1 select-none">
         Totaux
       </span>
 
-      {activeTotals.map((prop: any) => {
-        const totalType = totalFields[prop.id];
-        const isLinkedProgress =
-          typeof totalType === 'string' && totalType.startsWith('linked-progress:');
-
-        const meta = isLinkedProgress
-          ? LINKED_PROGRESS_META
-          : (TOTAL_META[totalType] ?? DEFAULT_META);
-
-        const { Icon, label, iconColorClass, borderClass, valueColorClass } = meta;
-
-        const total = calculateTotal(prop.id, items, totalType);
-        const formatted = formatTotal(prop.id, total, totalType);
-
-        return (
-          <div
-            key={prop.id}
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white dark:bg-neutral-900 border border-l-2 border-black/8 dark:border-white/8 ${borderClass} shadow-sm transition-colors duration-150 min-w-0`}
-          >
-            <Icon size={13} className={`shrink-0 ${iconColorClass}`} />
-            <div className="flex flex-col min-w-0">
-              <span className="text-[10px] leading-none text-neutral-400 dark:text-neutral-500 mb-[3px] truncate max-w-[120px]">
-                {prop.name}
-              </span>
-              <span className={`text-[12px] font-bold leading-none truncate max-w-[180px] ${valueColorClass}`}>
-                {formatted || '—'}
-              </span>
-            </div>
-            <span className={`text-[9px] font-semibold leading-none ${iconColorClass} opacity-75 shrink-0 ml-0.5`}>
-              {label}
-            </span>
-          </div>
-        );
-      })}
+      {renderCards(items)}
     </div>
   );
 };

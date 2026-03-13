@@ -905,6 +905,8 @@ const TableView: React.FC<TableViewProps> = ({
               });
             };
 
+            const showBottomTotalsByDefault = groups.length === 0;
+
             return (
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -928,6 +930,32 @@ const TableView: React.FC<TableViewProps> = ({
                   onToggleTotalField={onSetTotalField}
                 />
                 <tbody className="divide-y divide-white/5">{body}</tbody>
+                {showBottomTotalsByDefault && Object.keys(totalFields).length > 0 && (footerItems || items).length > 0 && (
+                  <tfoot>
+                    <tr>
+                      {canReorderRows && <td className="px-1 py-2 w-8" />}
+                      {showSelectionColumn && <td className="px-2 py-2 w-10" />}
+                      {displayProperties.map((prop: any) => {
+                        const totalType = totalFields[prop.id];
+                        if (!totalType) return <td key={prop.id} className="px-2 py-2" />;
+
+                        return (
+                          <td key={prop.id} className="px-2 py-2 align-top">
+                            <TotalsBar
+                              displayProperties={[prop]}
+                              items={footerItems || items}
+                              totalFields={{ [prop.id]: totalType }}
+                              calculateTotal={calculateTotal}
+                              formatTotal={formatTotal}
+                              variant="inline"
+                              inlineMode="plain"
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
             );
