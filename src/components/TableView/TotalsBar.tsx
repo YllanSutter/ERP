@@ -144,7 +144,15 @@ export interface TotalsBarProps {
    * Sous-sections par groupe (variant 'section' uniquement).
    * Chaque entrée donne un label + les items du groupe.
    */
-  groupedSections?: Array<{ label: string; items: any[]; depth: number; propertyName: string }>;
+  groupedSections?: Array<{ path?: string; label: string; items: any[]; depth: number; propertyName: string }>;
+  /** Chemin de groupe racine actif (lié à l’onglet de la vue du bas) */
+  activeRootPath?: string;
+  /** Chemin de sous-groupe actif (lié au sous-onglet imbriqué de la vue du bas) */
+  activeSubPath?: string;
+  /** Masquer les sélecteurs d’onglets en haut et suivre la vue du bas */
+  hideGroupSelectors?: boolean;
+  /** Autoriser l'utilisateur à afficher/masquer les onglets en haut */
+  allowGroupSelectorToggle?: boolean;
   /** Clé de persistance pour mémoriser l'état ouvert/fermé */
   persistKey?: string;
   /** Mode visuel pour le rendu inline */
@@ -164,23 +172,35 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
   formatTotal,
   variant = 'inline',
   groupedSections,
+  activeRootPath,
+  activeSubPath,
+  hideGroupSelectors = false,
+  allowGroupSelectorToggle = false,
   persistKey,
   inlineMode = 'default',
   className = '',
 }) => {
   const activeTotals = displayProperties.filter((p: any) => totalFields[p.id]);
 
+  const normalizeTotalTypeForMeta = React.useCallback((rawType: string) => {
+    if (typeof rawType !== 'string') return rawType;
+    if (!rawType.startsWith('number-filter:')) return rawType;
+    const parts = rawType.split(':');
+    return parts[1] || rawType;
+  }, []);
+
   if (activeTotals.length === 0 || items.length === 0) return null;
 
   const renderCards = (sourceItems: any[]) => (
     activeTotals.map((prop: any) => {
       const totalType = totalFields[prop.id];
+      const resolvedTotalType = normalizeTotalTypeForMeta(totalType);
       const isLinkedProgress =
         typeof totalType === 'string' && totalType.startsWith('linked-progress:');
 
       const meta = isLinkedProgress
         ? LINKED_PROGRESS_META
-        : (TOTAL_META[totalType] ?? DEFAULT_META);
+        : (TOTAL_META[resolvedTotalType] ?? DEFAULT_META);
 
       const { Icon, label, iconColorClass, bgClass, borderClass, valueColorClass } = meta;
 
@@ -225,7 +245,7 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
 
     raw.forEach((section, index) => {
       const node: Node = {
-        id: `section-${index}`,
+        id: section.path || `section-${index}`,
         label: section.label,
         items: section.items,
         depth: section.depth,
@@ -248,6 +268,7 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
   const [activeRootId, setActiveRootId] = React.useState<string>('');
   const [activeSubId, setActiveSubId] = React.useState<string>('');
   const [isSectionExpanded, setIsSectionExpanded] = React.useState(true);
+  const [showGroupSelectors, setShowGroupSelectors] = React.useState(!hideGroupSelectors);
 
   React.useEffect(() => {
     if (!persistKey) return;
@@ -255,19 +276,36 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
       const raw = localStorage.getItem(`totalsbar:${persistKey}:expanded`);
       if (raw === '0') setIsSectionExpanded(false);
       if (raw === '1') setIsSectionExpanded(true);
+
+      if (allowGroupSelectorToggle) {
+        const showSelectorsRaw = localStorage.getItem(`totalsbar:${persistKey}:show-group-selectors`);
+        if (showSelectorsRaw === '0') setShowGroupSelectors(false);
+        if (showSelectorsRaw === '1') setShowGroupSelectors(true);
+      }
     } catch {
       // no-op
     }
-  }, [persistKey]);
+  }, [persistKey, allowGroupSelectorToggle]);
 
   React.useEffect(() => {
     if (!persistKey) return;
     try {
       localStorage.setItem(`totalsbar:${persistKey}:expanded`, isSectionExpanded ? '1' : '0');
+
+      if (allowGroupSelectorToggle) {
+        localStorage.setItem(`totalsbar:${persistKey}:show-group-selectors`, showGroupSelectors ? '1' : '0');
+      }
     } catch {
       // no-op
     }
-  }, [persistKey, isSectionExpanded]);
+  }, [persistKey, isSectionExpanded, allowGroupSelectorToggle, showGroupSelectors]);
+
+  React.useEffect(() => {
+    if (allowGroupSelectorToggle) return;
+    setShowGroupSelectors(!hideGroupSelectors);
+  }, [allowGroupSelectorToggle, hideGroupSelectors]);
+
+  const effectiveHideGroupSelectors = allowGroupSelectorToggle ? !showGroupSelectors : hideGroupSelectors;
 
   React.useEffect(() => {
     const firstRoot = groupedTree[0];
@@ -277,10 +315,15 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
       return;
     }
 
+    if (activeRootPath && groupedTree.some((r) => r.id === activeRootPath)) {
+      if (activeRootId !== activeRootPath) setActiveRootId(activeRootPath);
+      return;
+    }
+
     if (!groupedTree.some((r) => r.id === activeRootId)) {
       setActiveRootId(firstRoot.id);
     }
-  }, [groupedTree, activeRootId]);
+  }, [groupedTree, activeRootId, activeRootPath]);
 
   const activeRoot = React.useMemo(
     () => groupedTree.find((r) => r.id === activeRootId) || groupedTree[0],
@@ -299,10 +342,15 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
       return;
     }
 
+    if (activeSubPath && activeRoot.children.some((s) => s.id === activeSubPath)) {
+      if (activeSubId !== activeSubPath) setActiveSubId(activeSubPath);
+      return;
+    }
+
     if (!activeRoot.children.some((s) => s.id === activeSubId)) {
       setActiveSubId(firstSub?.id || '');
     }
-  }, [activeRoot, activeSubId]);
+  }, [activeRoot, activeSubId, activeSubPath]);
 
   const collectLeafNodes = React.useCallback((node: any): any[] => {
     if (!node?.children?.length) return node ? [node] : [];
@@ -340,6 +388,17 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
               className={`text-neutral-500 dark:text-neutral-300 transition-transform duration-200 ${isSectionExpanded ? 'rotate-0' : '-rotate-90'}`}
             />
           </button>
+          {hasGroupedSections && allowGroupSelectorToggle && (
+            <button
+              type="button"
+              onClick={() => setShowGroupSelectors((v) => !v)}
+              className="inline-flex items-center ml-2 px-2 h-6 rounded-md border border-black/10 dark:border-white/10 bg-white/70 dark:bg-neutral-900/70 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors text-[10px] font-semibold text-neutral-600 dark:text-neutral-300"
+              aria-label={showGroupSelectors ? 'Masquer les onglets des groupes en haut' : 'Afficher les onglets des groupes en haut'}
+              title={showGroupSelectors ? 'Masquer les onglets des groupes en haut' : 'Afficher les onglets des groupes en haut'}
+            >
+              Onglets haut {showGroupSelectors ? 'ON' : 'OFF'}
+            </button>
+          )}
         </div>
 
         {isSectionExpanded && (
@@ -358,21 +417,23 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
           {hasGroupedSections && (
             <div className="px-3 py-3">
               <Tabs value={activeRoot?.id} onValueChange={setActiveRootId} className="w-full">
-                <TabsList className="h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
-                  {groupedTree.map((root) => (
-                    <TabsTrigger
-                      key={root.id}
-                      value={root.id}
-                      className="rounded-full border border-black/10 dark:border-white/10 bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
-                    >
-                      {root.label} ({root.items.length})
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
+                {!effectiveHideGroupSelectors && (
+                  <TabsList className="h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+                    {groupedTree.map((root) => (
+                      <TabsTrigger
+                        key={root.id}
+                        value={root.id}
+                        className="rounded-full border border-black/10 dark:border-white/10 bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
+                      >
+                        {root.label} ({root.items.length})
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                )}
 
                 {groupedTree.map((root) => (
                   <TabsContent key={root.id} value={root.id} className="mt-3 border-0 p-0">
-                    {root.children.length > 0 && (
+                    {root.children.length > 0 && !effectiveHideGroupSelectors && (
                       <Tabs value={activeSubId} onValueChange={setActiveSubId} className="w-full">
                         <TabsList className="h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
                           {root.children.map((sub) => (
@@ -386,6 +447,25 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
                           ))}
                         </TabsList>
                       </Tabs>
+                    )}
+
+                    {root.id === activeRoot?.id && (
+                      <div className="mt-3 rounded-xl border border-black/8 dark:border-white/8 bg-white/60 dark:bg-neutral-900/40 p-3">
+                        <div className="mb-2 flex items-center gap-1.5">
+                          {root.propertyName && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                              {root.propertyName}
+                            </span>
+                          )}
+                          <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 truncate">
+                            {root.label}
+                          </span>
+                          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">({root.items.length})</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {renderCards(root.items)}
+                        </div>
+                      </div>
                     )}
 
                     {root.id === activeRoot?.id && activeSub && activeSub.children.length > 0 && (
@@ -407,7 +487,7 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
                       </div>
                     )}
 
-                    <div className="mt-3 grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="mt-3 grid gap-3 grid-cols-1">
                       {(root.id === activeRoot?.id ? lastLevelColumns : collectLeafNodes(root)).map((leaf) => (
                         <div
                           key={leaf.id}

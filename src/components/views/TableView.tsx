@@ -254,6 +254,7 @@ const TableView: React.FC<TableViewProps> = ({
   const [performanceMode, setPerformanceMode] = useState<boolean>(items.length >= 600);
   const [rowsPerPage, setRowsPerPage] = useState<number>(50);
   const [page, setPage] = useState<number>(1);
+  const [activeSubGroupPathByRoot, setActiveSubGroupPathByRoot] = useState<Record<string, string>>({});
 
   if (!collection) {
     return (
@@ -324,6 +325,21 @@ const TableView: React.FC<TableViewProps> = ({
     const property = visibleProperties.find(p => p.id === fieldId);
     if (!property) return null;
 
+    const parseNumberFilteredTotalType = (rawType: string) => {
+      if (typeof rawType !== 'string' || !rawType.startsWith('number-filter:')) return null;
+      const parts = rawType.split(':');
+      if (parts.length < 4) return null;
+      const baseType = parts[1];
+      const filterFieldId = parts[2];
+      const encodedValue = parts.slice(3).join(':');
+      if (!['sum', 'avg', 'min', 'max', 'count', 'unique'].includes(baseType)) return null;
+      try {
+        return { baseType, filterFieldId, filterValue: decodeURIComponent(encodedValue) };
+      } catch {
+        return { baseType, filterFieldId, filterValue: encodedValue };
+      }
+    };
+
     if (property.type === 'checkbox' && typeof totalType === 'string' && totalType.startsWith('linked-progress:')) {
       const linkedFieldId = totalType.slice('linked-progress:'.length);
       if (!linkedFieldId) return null;
@@ -358,7 +374,29 @@ const TableView: React.FC<TableViewProps> = ({
 
     // Totaux pour les nombres (vérifier en premier car ils ont des types spécifiques)
     if (property.type === 'number') {
-      const numbers = itemsToSum
+      const parsedNumberFilter = parseNumberFilteredTotalType(totalType);
+      const resolvedTotalType = parsedNumberFilter?.baseType || totalType;
+
+      const filteredItems = parsedNumberFilter
+        ? itemsToSum.filter((item) => {
+            const raw = item?.[parsedNumberFilter.filterFieldId];
+            if (Array.isArray(raw)) {
+              return !raw.some((entry) => String(entry) === parsedNumberFilter.filterValue);
+            }
+            if (raw && typeof raw === 'object') {
+              if (raw.value !== undefined && raw.value !== null) {
+                return String(raw.value) !== parsedNumberFilter.filterValue;
+              }
+              if (raw.url !== undefined && raw.url !== null) {
+                return String(raw.url) !== parsedNumberFilter.filterValue;
+              }
+              return JSON.stringify(raw) !== parsedNumberFilter.filterValue;
+            }
+            return String(raw) !== parsedNumberFilter.filterValue;
+          })
+        : itemsToSum;
+
+      const numbers = filteredItems
         .map(item => {
           const val = item[fieldId];
           const num = Number(val);
@@ -368,23 +406,23 @@ const TableView: React.FC<TableViewProps> = ({
       
       if (numbers.length === 0) return 0;
       
-      if (totalType === 'sum') {
+      if (resolvedTotalType === 'sum') {
         return numbers.reduce((acc, val) => acc + val, 0);
       }
-      if (totalType === 'avg') {
+      if (resolvedTotalType === 'avg') {
         const sum = numbers.reduce((acc, val) => acc + val, 0);
         return sum / numbers.length;
       }
-      if (totalType === 'min') {
+      if (resolvedTotalType === 'min') {
         return Math.min(...numbers);
       }
-      if (totalType === 'max') {
+      if (resolvedTotalType === 'max') {
         return Math.max(...numbers);
       }
-      if (totalType === 'count') {
-        return itemsToSum.length;
+      if (resolvedTotalType === 'count') {
+        return filteredItems.length;
       }
-      if (totalType === 'unique') {
+      if (resolvedTotalType === 'unique') {
         const uniqueNumbers = new Set(numbers.map(n => String(n)));
         return uniqueNumbers.size;
       }
@@ -469,6 +507,62 @@ const TableView: React.FC<TableViewProps> = ({
     const property = visibleProperties.find(p => p.id === fieldId);
     if (!property || total === null) return '';
 
+    const parseNumberFilteredTotalType = (rawType: string) => {
+      if (typeof rawType !== 'string' || !rawType.startsWith('number-filter:')) return null;
+      const parts = rawType.split(':');
+      if (parts.length < 4) return null;
+      const baseType = parts[1];
+      if (!['sum', 'avg', 'min', 'max', 'count', 'unique'].includes(baseType)) return null;
+      const filterFieldId = parts[2];
+      const encodedValue = parts.slice(3).join(':');
+      let filterValue = encodedValue;
+      try {
+        filterValue = decodeURIComponent(encodedValue);
+      } catch {
+        filterValue = encodedValue;
+      }
+      return { baseType, filterFieldId, filterValue };
+    };
+
+    const parsedNumberFilter = parseNumberFilteredTotalType(totalType);
+    const resolvedTotalType = parsedNumberFilter?.baseType || totalType;
+
+    const formatFilterLabel = () => {
+      if (!parsedNumberFilter) return '';
+      const filterProp = (collection?.properties || []).find((p: any) => p.id === parsedNumberFilter.filterFieldId) as any;
+      const fieldLabel = filterProp?.name || parsedNumberFilter.filterFieldId;
+      const raw = parsedNumberFilter.filterValue;
+
+      let valueLabel = raw;
+      if (filterProp?.type === 'checkbox') {
+        if (raw === 'true') valueLabel = 'Oui';
+        else if (raw === 'false') valueLabel = 'Non';
+      } else if (filterProp?.type === 'select' || filterProp?.type === 'multi_select' || filterProp?.type === 'multiselect') {
+        const matched = ((filterProp.options || []) as any[]).find((opt: any) => {
+          const optValue = typeof opt === 'string' ? opt : opt?.value;
+          return String(optValue) === raw;
+        });
+        if (matched) {
+          valueLabel = typeof matched === 'string' ? matched : (matched.label || matched.value || raw);
+        }
+      } else if (filterProp?.type === 'relation' && filterProp?.relation?.targetCollectionId) {
+        const targetCollection = (collections || []).find((c: any) => c.id === filterProp?.relation?.targetCollectionId);
+        const targetItem = (targetCollection?.items || []).find((it: any) => String(it?.id) === raw);
+        if (targetItem) {
+          const displayFieldIds = Array.isArray(filterProp?.relation?.displayFieldIds) && filterProp.relation.displayFieldIds.length > 0
+            ? filterProp.relation.displayFieldIds
+            : ['name'];
+          const chunks = displayFieldIds
+            .map((fid: string) => targetItem?.[fid])
+            .filter((v: any) => v !== undefined && v !== null && v !== '')
+            .map((v: any) => String(v));
+          valueLabel = chunks.length > 0 ? chunks.join(' · ') : String(targetItem?.name || targetItem?.title || raw);
+        }
+      }
+
+      return ` (hors ${fieldLabel} = ${valueLabel})`;
+    };
+
     if (property.type === 'checkbox' && typeof totalType === 'string' && totalType.startsWith('linked-progress:')) {
       const linkedFieldId = totalType.slice('linked-progress:'.length);
       const linkedProperty = collection.properties.find((p: any) => p.id === linkedFieldId);
@@ -484,37 +578,38 @@ const TableView: React.FC<TableViewProps> = ({
 
     // Formater les nombres avec décimales si nécessaire
     if (typeof total === 'number') {
-      if (totalType === 'avg') {
+      if (resolvedTotalType === 'avg') {
         const formatted = total.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        return property.type === 'number' ? withAffixes(formatted) : formatted;
+        const base = property.type === 'number' ? withAffixes(formatted) : formatted;
+        return `${base}${formatFilterLabel()}`;
       }
       if (property.type === 'number') {
-        if (totalType === 'count' || totalType === 'unique') {
-          return total.toLocaleString('fr-FR');
+        if (resolvedTotalType === 'count' || resolvedTotalType === 'unique') {
+          return `${total.toLocaleString('fr-FR')}${formatFilterLabel()}`;
         }
-        return withAffixes(total.toLocaleString('fr-FR'));
+        return `${withAffixes(total.toLocaleString('fr-FR'))}${formatFilterLabel()}`;
       }
     }
 
     // Formatage selon le type de total
-    if (totalType === 'count') {
-      return `${total} ligne${total > 1 ? 's' : ''}`;
+    if (resolvedTotalType === 'count') {
+      return `${total} ligne${total > 1 ? 's' : ''}${formatFilterLabel()}`;
     }
-    if (totalType === 'unique') {
-      return `${total} unique${total > 1 ? 's' : ''}`;
+    if (resolvedTotalType === 'unique') {
+      return `${total} unique${total > 1 ? 's' : ''}${formatFilterLabel()}`;
     }
-    if (totalType === 'count-true') {
+    if (resolvedTotalType === 'count-true') {
       return `${total} coché${total > 1 ? 's' : ''}`;
     }
-    if (totalType === 'count-false') {
+    if (resolvedTotalType === 'count-false') {
       return `${total} décoché${total > 1 ? 's' : ''}`;
     }
-    if (totalType === 'count-linked') {
+    if (resolvedTotalType === 'count-linked') {
       return `${total} lié${total > 1 ? 's' : ''}`;
     }
 
     return String(total);
-  }, [visibleProperties]);
+  }, [visibleProperties, collection?.properties, collections]);
 
   const bulkEditableProperties = useMemo(
     () => visibleProperties.filter((p: any) => !p.showContextMenu && canEditFieldFn(p.id) && !isCalculatedNumberProperty(p)),
@@ -720,7 +815,7 @@ const TableView: React.FC<TableViewProps> = ({
         const buildGroupedSections = () => {
           if (!groupedStructure || groups.length === 0) return undefined;
 
-          const sections: Array<{ label: string; items: any[]; depth: number; propertyName: string }> = [];
+          const sections: Array<{ path: string; label: string; items: any[]; depth: number; propertyName: string }> = [];
 
           const traverse = (path: string, depth: number) => {
             const node = groupedStructure.structure[path];
@@ -736,7 +831,7 @@ const TableView: React.FC<TableViewProps> = ({
               : rawValue;
             const groupItems = getItemsForGroupPath(path);
             if (groupItems.length > 0 && shouldShowThisLevelInTop) {
-              sections.push({ label, items: groupItems, depth, propertyName: groupProp?.name ?? '' });
+              sections.push({ path, label, items: groupItems, depth, propertyName: groupProp?.name ?? '' });
             }
             node.subGroups.forEach((subPath: string) => traverse(subPath, depth + 1));
           };
@@ -754,6 +849,10 @@ const TableView: React.FC<TableViewProps> = ({
             formatTotal={formatTotal}
             variant="section"
             groupedSections={buildGroupedSections()}
+            activeRootPath={activeGroupTab}
+            activeSubPath={activeSubGroupPathByRoot[activeGroupTab] || ''}
+            hideGroupSelectors={groups.length > 0}
+            allowGroupSelectorToggle={groups.length > 0}
             persistKey={`table-view:${collection?.id || 'unknown'}`}
           />
         );
@@ -937,6 +1036,10 @@ const TableView: React.FC<TableViewProps> = ({
               depthOffset={hideCurrentHeader ? -1 : 0}
               topTotalRenderMode={topTotalRenderMode}
               groupRowLimit={groups.length > 0 ? rowsPerPage : undefined}
+              onActiveSubGroupTabChange={(path, tabDepth) => {
+                if (tabDepth !== 1) return;
+                setActiveSubGroupPathByRoot((prev) => ({ ...prev, [rootGroup]: path }));
+              }}
             />
           );
 
@@ -1009,6 +1112,7 @@ const TableView: React.FC<TableViewProps> = ({
                 <TableHeader
                   visibleProperties={visibleProperties}
                   allProperties={collection.properties}
+                  collections={collections}
                   items={scopedItems}
                   onEditProperty={onEditProperty}
                   onToggleField={onToggleField}

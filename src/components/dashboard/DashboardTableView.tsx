@@ -300,6 +300,8 @@ const DashboardMonthlyTable: React.FC<{
         <table className="w-full">
           <TableHeader
             visibleProperties={visibleProperties}
+            allProperties={section.collection?.properties}
+            collections={collections}
             items={section.items}
             onEditProperty={() => {}}
             onToggleField={onToggleField}

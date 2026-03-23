@@ -57,6 +57,7 @@ interface GroupRendererProps {
   suppressTopTotalHeader?: boolean;
   topTotalRenderMode?: 'normal' | 'only' | 'skip';
   groupRowLimit?: number;
+  onActiveSubGroupTabChange?: (path: string, depth: number) => void;
 }
 
 const GroupRenderer: React.FC<GroupRendererProps> = ({
@@ -109,6 +110,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   suppressTopTotalHeader = false,
   topTotalRenderMode = 'normal',
   groupRowLimit,
+  onActiveSubGroupTabChange,
 }) => {
   const groupData = groupedStructure.structure[groupPath];
   if (!groupData) return null;
@@ -231,6 +233,12 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
     }
   }, [activeSubGroupTab, subTabsStorageKey]);
 
+  useEffect(() => {
+    if (!activeSubGroupTab) return;
+    if (nextLevelMode !== 'tabs') return;
+    onActiveSubGroupTabChange?.(activeSubGroupTab, depth + 1);
+  }, [activeSubGroupTab, nextLevelMode, onActiveSubGroupTabChange, depth]);
+
   const renderNestedTable = (
     subPath: string,
     topTotalMode: 'normal' | 'only' | 'skip' = 'normal'
@@ -282,6 +290,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
             <TableHeader
               visibleProperties={visibleProperties}
               allProperties={collection.properties}
+              collections={collections}
               items={subItemsForHeader}
               onEditProperty={onEditProperty}
               onToggleField={onToggleField}
@@ -348,6 +357,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               suppressTopTotalHeader
               topTotalRenderMode={topTotalMode}
               groupRowLimit={groupRowLimit}
+              onActiveSubGroupTabChange={onActiveSubGroupTabChange}
             />
           </tbody>
         </table>
@@ -520,6 +530,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                 depthOffset={depthOffset}
                 suppressTopTotalHeader={suppressTopTotalHeader}
                 groupRowLimit={groupRowLimit}
+                onActiveSubGroupTabChange={onActiveSubGroupTabChange}
               />
             ))
           )}
