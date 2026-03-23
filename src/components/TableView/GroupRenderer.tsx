@@ -145,6 +145,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
     (nextGroupId && groupDisplayColumnCounts[nextGroupId]) || defaultGroupDisplayColumnCount
   );
   const nextLevelColumnsClassName = getColumnsClassName(nextLevelColumnCount);
+  const nestedContainerOffset = Math.max(0, displayDepth) * 10;
 
   const displayColumnCount = visibleProperties.filter((p: any) => !p.showContextMenu).length;
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
@@ -191,7 +192,12 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
     });
   }, [collections, groupData.subGroups, groupProperties, groupedStructure.structure, nextGroupId]);
 
-  const [activeSubGroupTab, setActiveSubGroupTab] = useState<string | null>(subGroupCards[0]?.id || null);
+  const subTabsStorageKey = useMemo(
+    () => `erp:table:sub-tabs:${collection?.id || 'unknown'}:${groupPath}:${nextGroupId || 'none'}`,
+    [collection?.id, groupPath, nextGroupId]
+  );
+
+  const [activeSubGroupTab, setActiveSubGroupTab] = useState<string | null>(null);
 
   useEffect(() => {
     if (!subGroupCards.length) {
@@ -199,9 +205,31 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
       return;
     }
     if (!activeSubGroupTab || !subGroupCards.some((card) => card.id === activeSubGroupTab)) {
-      setActiveSubGroupTab(subGroupCards[0].id);
+      let storedTab: string | null = null;
+      if (typeof window !== 'undefined') {
+        try {
+          storedTab = localStorage.getItem(subTabsStorageKey);
+        } catch {
+          storedTab = null;
+        }
+      }
+
+      const nextTab = storedTab && subGroupCards.some((card) => card.id === storedTab)
+        ? storedTab
+        : subGroupCards[0].id;
+      setActiveSubGroupTab(nextTab);
     }
-  }, [activeSubGroupTab, subGroupCards]);
+  }, [activeSubGroupTab, subGroupCards, subTabsStorageKey]);
+
+  useEffect(() => {
+    if (!activeSubGroupTab) return;
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(subTabsStorageKey, activeSubGroupTab);
+    } catch {
+      // ignore storage errors
+    }
+  }, [activeSubGroupTab, subTabsStorageKey]);
 
   const renderNestedTable = (
     subPath: string,
@@ -390,15 +418,19 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
           {groupData.subGroups.length > 0 && (nextLevelMode === 'tabs' || nextLevelMode === 'columns') ? (
             <tr>
               <td colSpan={displayColumnCount + (draggableRows ? 1 : 0) + (enableSelection ? 1 : 0)} className="px-2 py-2">
+                <div
+                  className="rounded-xl border border-black/10 dark:border-white/10 bg-white/40 dark:bg-neutral-950 p-2"
+                  style={{ marginLeft: `${nestedContainerOffset}px` }}
+                >
                 {nextLevelMode === 'tabs' ? (
                   <>
                     <Tabs value={activeSubGroupTab || undefined} onValueChange={setActiveSubGroupTab} className="w-full">
-                      <TabsList className="top-3 left-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0 relative z-10">
+                      <TabsList className="top-3 left-3 h-auto flex-wrap justify-start gap-1 bg-background dark:bg-neutral-950 p-1 relative z-10 rounded-lg">
                         {subGroupCards.map((group) => (
                           <TabsTrigger
                             key={group.id}
                             value={group.id}
-                            className="rounded-full border border-black/10 dark:border-white/10 bg-background px-3 py-1.5 text-xs dark:bg-neutral-900 data-[state=active]:bg-violet-200/40 data-[state=active]:text-violet-700 dark:data-[state=active]:bg-violet-900/30 dark:data-[state=active]:text-violet-300"
+                            className="rounded-full border border-black/10 dark:border-white/10 bg-background px-3 py-1.5 text-xs dark:bg-neutral-950 data-[state=active]:bg-violet-200/40 data-[state=active]:text-violet-700 dark:data-[state=active]:bg-violet-950 dark:data-[state=active]:text-violet-300"
                           >
                             {group.label} ({group.itemCount})
                           </TabsTrigger>
@@ -416,7 +448,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                     {subGroupCards.map((group) => (
                       <div
                         key={group.id}
-                        className="min-w-0 rounded-xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-neutral-900/30 p-3"
+                        className="min-w-0 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-neutral-950 p-3 shadow-sm"
                       >
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <div className="min-w-0">
@@ -434,6 +466,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                     ))}
                   </div>
                 )}
+                </div>
               </td>
             </tr>
           ) : (

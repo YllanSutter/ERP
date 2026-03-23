@@ -125,8 +125,8 @@ export function buildGroupStructure(
 
       const aIsEmpty = aValue === '(vide)';
       const bIsEmpty = bValue === '(vide)';
-      if (aIsEmpty && !bIsEmpty) return 1;
-      if (!aIsEmpty && bIsEmpty) return -1;
+      if (aIsEmpty && !bIsEmpty) return -1;
+      if (!aIsEmpty && bIsEmpty) return 1;
 
       const aIndex = optionOrder.get(aValue);
       const bIndex = optionOrder.get(bValue);

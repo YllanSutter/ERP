@@ -285,16 +285,39 @@ const TableView: React.FC<TableViewProps> = ({
     [orderedProperties, groups]
   );
   const [activeGroupTab, setActiveGroupTab] = useState('');
+  const rootTabsStorageKey = useMemo(
+    () => `erp:table:root-tabs:${collection?.id || 'unknown'}:${groups.join('|')}`,
+    [collection?.id, groups]
+  );
 
   useEffect(() => {
     if (groupDisplayMode !== 'tabs' || rootGroups.length === 0) {
       setActiveGroupTab('');
       return;
     }
-    if (!rootGroups.includes(activeGroupTab)) {
-      setActiveGroupTab(rootGroups[0]);
+    if (!activeGroupTab || !rootGroups.includes(activeGroupTab)) {
+      let storedTab = '';
+      if (typeof window !== 'undefined') {
+        try {
+          storedTab = localStorage.getItem(rootTabsStorageKey) || '';
+        } catch {
+          storedTab = '';
+        }
+      }
+      const nextTab = storedTab && rootGroups.includes(storedTab) ? storedTab : rootGroups[0];
+      setActiveGroupTab(nextTab);
     }
-  }, [groupDisplayMode, rootGroups, activeGroupTab]);
+  }, [groupDisplayMode, rootGroups, activeGroupTab, rootTabsStorageKey]);
+
+  useEffect(() => {
+    if (groupDisplayMode !== 'tabs' || !activeGroupTab) return;
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(rootTabsStorageKey, activeGroupTab);
+    } catch {
+      // ignore storage errors
+    }
+  }, [groupDisplayMode, activeGroupTab, rootTabsStorageKey]);
 
   // Fonction pour calculer le total d'un champ selon le type de total
   const calculateTotal = useCallback((fieldId: string, itemsToSum: any[], totalType: string) => {

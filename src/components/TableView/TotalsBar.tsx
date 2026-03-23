@@ -190,10 +190,10 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
       return (
         <div
           key={prop.id}
-          className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border ${borderClass} ${bgClass} min-w-[170px] max-w-[320px]`}
+          className={`flex items-center gap-2.5 px-1 rounded-sm py-1 border ${borderClass} ${bgClass} min-w-[150px] max-w-[320px]`}
         >
           <div className={`shrink-0 p-1 rounded-md bg-white/70 dark:bg-black/20 border ${borderClass}`}>
-            <Icon size={12} className={iconColorClass} />
+            <Icon size={8} className={iconColorClass} />
           </div>
 
           <div className="min-w-0">
