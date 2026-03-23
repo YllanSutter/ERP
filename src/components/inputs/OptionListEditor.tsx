@@ -23,20 +23,22 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
   const [openIconIndex, setOpenIconIndex] = useState<number | null>(null);
   const [openColorIndex, setOpenColorIndex] = useState<number | null>(null);
 
-  const normalizeOption = (opt: OptionType): { value: string; color: string; icon: string } => {
-    if (typeof opt === 'string') return { value: opt, color: defaultColor, icon: defaultIcon };
+  const normalizeOption = (opt: OptionType): { value: string; label: string; color: string; icon: string } => {
+    if (typeof opt === 'string') return { value: opt, label: opt, color: defaultColor, icon: defaultIcon };
     return {
       value: opt.value,
+      label: opt.label || opt.value,
       color: opt.color || defaultColor,
       icon: opt.icon || defaultIcon
     };
   };
 
-  const normalizedOptions: { value: string; color: string; icon: string }[] = options.map(normalizeOption);
+  const normalizedOptions: { value: string; label: string; color: string; icon: string }[] = options.map(normalizeOption);
 
   const addOption = () => {
     if (!newOptionValue.trim()) return;
-    const next = [...normalizedOptions, { value: newOptionValue.trim(), color: newOptionColor, icon: newOptionIcon }];
+    const trimmed = newOptionValue.trim();
+    const next = [...normalizedOptions, { value: trimmed, label: trimmed, color: newOptionColor, icon: newOptionIcon }];
     onChange(next);
     setNewOptionValue('');
     setNewOptionColor(defaultColor);
@@ -48,7 +50,7 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
     onChange(next);
   };
 
-  const updateOption = (index: number, partial: Partial<{ value: string; color: string; icon: string }>) => {
+  const updateOption = (index: number, partial: Partial<{ value: string; label: string; color: string; icon: string }>) => {
     const next = normalizedOptions.map((opt, i) => (i === index ? { ...opt, ...partial } : opt));
     onChange(next);
   };
@@ -112,8 +114,8 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
 
                 <input
                   type="text"
-                  value={opt.value}
-                  onChange={(e) => updateOption(opt._idx, { value: e.target.value })}
+                  value={opt.label}
+                  onChange={(e) => updateOption(opt._idx, { label: e.target.value })}
                   className="flex-1 px-3 py-2 bg-gray-100 dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white text-sm placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
                 />
 

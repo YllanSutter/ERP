@@ -56,6 +56,7 @@ interface GroupRendererProps {
   depthOffset?: number;
   suppressTopTotalHeader?: boolean;
   topTotalRenderMode?: 'normal' | 'only' | 'skip';
+  groupRowLimit?: number;
 }
 
 const GroupRenderer: React.FC<GroupRendererProps> = ({
@@ -107,6 +108,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   depthOffset = 0,
   suppressTopTotalHeader = false,
   topTotalRenderMode = 'normal',
+  groupRowLimit,
 }) => {
   const groupData = groupedStructure.structure[groupPath];
   if (!groupData) return null;
@@ -317,6 +319,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               depthOffset={depthOffset}
               suppressTopTotalHeader
               topTotalRenderMode={topTotalMode}
+              groupRowLimit={groupRowLimit}
             />
           </tbody>
         </table>
@@ -483,6 +486,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                 formatTotal={formatTotal}
                 depthOffset={depthOffset}
                 suppressTopTotalHeader={suppressTopTotalHeader}
+                groupRowLimit={groupRowLimit}
               />
             ))
           )}
@@ -490,7 +494,11 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
           {(() => {
             const groupItems = groupData.itemIds.map(itemId => itemsMap.get(itemId)).filter(Boolean);
             const sortedItems = sortItems ? sortItems(groupItems) : groupItems;
-            return sortedItems.map(item => (
+            const limitedItems =
+              typeof groupRowLimit === 'number' && groupRowLimit > 0
+                ? sortedItems.slice(0, groupRowLimit)
+                : sortedItems;
+            return limitedItems.map(item => (
             <TableItemRow
               key={item.id}
               item={item}

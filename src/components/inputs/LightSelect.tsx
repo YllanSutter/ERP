@@ -16,11 +16,13 @@ interface LightSelectProps {
 }
 
 const getOptionValue = (opt: OptionType) => typeof opt === 'string' ? opt : opt.value;
+const getOptionLabel = (opt: OptionType) => typeof opt === 'string' ? opt : (opt.label || opt.value);
 const getOptionColor = (opt: OptionType) => typeof opt === 'string' ? '#8b5cf6' : (opt.color || '#8b5cf6');
 const getOptionIcon = (opt: OptionType) => typeof opt === 'string' ? null : (opt.icon || null);
 
 export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChange, placeholder = 'Aucun', sizeClass = 'text-sm h-8', className, disabled = false }) => {
   const selectedOption = options.find((opt) => getOptionValue(opt) === value);
+  const selectedLabel = selectedOption ? getOptionLabel(selectedOption) : '';
   const selectedColor = selectedOption ? getOptionColor(selectedOption) : '#8b5cf6';
   const selectedIconName = selectedOption ? getOptionIcon(selectedOption) : null;
   const SelectedIcon = selectedIconName ? (Icons as any)[selectedIconName] || null : null;
@@ -34,13 +36,13 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
             style={{ backgroundColor: `${selectedColor}22`, borderColor: `${selectedColor}55` }}
           >
             {SelectedIcon && <SelectedIcon size={13} className="opacity-80" />}
-            <span>{getOptionValue(selectedOption)}</span>
+            <span>{selectedLabel}</span>
             <button
               type="button"
               className="ml-1 text-neutral-700 hover:text-red-800 dark:text-white dark:hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
               onClick={() => onChange("")}
               tabIndex={-1}
-              aria-label={`Retirer ${getOptionValue(selectedOption)}`}
+              aria-label={`Retirer ${selectedLabel}`}
             >
               <Icons.X size={12} />
             </button>
@@ -74,6 +76,7 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
               </button>
               {options.map((opt) => {
                 const optValue = getOptionValue(opt);
+                const optLabel = getOptionLabel(opt);
                 const optColor = getOptionColor(opt);
                 const iconName = getOptionIcon(opt);
                 const OptIcon = iconName ? (Icons as any)[iconName] || null : null;
@@ -93,7 +96,7 @@ export const LightSelect: React.FC<LightSelectProps> = ({ options, value, onChan
                     }}
                   >
                     {OptIcon && <OptIcon size={12} className="opacity-80" />}
-                    <span className="truncate">{optValue}</span>
+                    <span className="truncate">{optLabel}</span>
                   </button>
                 );
               })}

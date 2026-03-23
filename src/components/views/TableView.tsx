@@ -547,6 +547,7 @@ const TableView: React.FC<TableViewProps> = ({
     return sortedFlatItems.slice(start, start + rowsPerPage);
   }, [sortedFlatItems, effectivePage, rowsPerPage]);
 
+
   useEffect(() => {
     setPage(1);
   }, [collection?.id, rowsPerPage, sortState.column, sortState.direction]);
@@ -607,8 +608,8 @@ const TableView: React.FC<TableViewProps> = ({
       const groupData = groupedStructure.structure[path];
       if (!groupData) return;
 
-      groupData.itemIds.forEach((id) => itemIds.add(id));
-      groupData.subGroups.forEach((subPath) => collectIds(subPath));
+      groupData.itemIds.forEach((id: string) => itemIds.add(id));
+      groupData.subGroups.forEach((subPath: string) => collectIds(subPath));
     };
 
     collectIds(groupPath);
@@ -736,7 +737,7 @@ const TableView: React.FC<TableViewProps> = ({
       })()}
 
       <div className=" border border-black/10 dark:border-white/5 rounded-lg overflow-hidden backdrop-blur">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20 sticky top-0 z-20">
           <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
             <span>{items.length} ligne{items.length > 1 ? 's' : ''}</span>
             {groups.length > 0 && (
@@ -762,7 +763,7 @@ const TableView: React.FC<TableViewProps> = ({
               value={rowsPerPage}
               onChange={(e) => setRowsPerPage(Number(e.target.value))}
             >
-              {[50, 100, 200, 500].map((size) => (
+              {[10, 25, 50, 100, 200, 500].map((size) => (
                 <option key={size} value={size}>{size}</option>
               ))}
             </select>
@@ -912,6 +913,7 @@ const TableView: React.FC<TableViewProps> = ({
               hideCurrentHeader={hideCurrentHeader}
               depthOffset={hideCurrentHeader ? -1 : 0}
               topTotalRenderMode={topTotalRenderMode}
+              groupRowLimit={groups.length > 0 ? rowsPerPage : undefined}
             />
           );
 
@@ -978,8 +980,9 @@ const TableView: React.FC<TableViewProps> = ({
             const showBottomTotalsByDefault = groups.length === 0;
 
             return (
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="flex flex-col max-h-[calc(100vh-280px)]">
+              <div className="overflow-auto flex-1">
+                <table className="w-full">
                 <TableHeader
                   visibleProperties={visibleProperties}
                   allProperties={collection.properties}
@@ -1027,19 +1030,22 @@ const TableView: React.FC<TableViewProps> = ({
                   </tfoot>
                 )}
               </table>
+              </div>
             </div>
             );
           };
 
           const renderBodyOnlyShell = (body: React.ReactNode) => (
-            <div className="overflow-x-auto">
+            <div className="overflow-auto max-h-[calc(100vh-280px)]">
               <table className="w-full">
                 <tbody className="divide-y divide-white/5">{body}</tbody>
               </table>
             </div>
           );
 
-          const rootGroupCards = rootGroups.map((rootGroup) => {
+          const displayRootGroups = rootGroups;
+
+          const rootGroupCards = displayRootGroups.map((rootGroup: string) => {
             const rootValue = rootGroup.split('/').pop() || rootGroup;
             const label = rootGroupProperty
               ? getGroupLabel(rootGroupProperty, rootValue === '(vide)' ? undefined : rootValue, collections)
@@ -1062,7 +1068,7 @@ const TableView: React.FC<TableViewProps> = ({
           );
           const rootGroupColumnsClassName = getGroupColumnsClassName(rootGroupColumnCount);
 
-          if (!groupedStructure || performanceMode) {
+          if (!groupedStructure || (performanceMode && groups.length === 0)) {
             return renderTableShell(
               renderFlatRows(paginatedFlatItems),
               paginatedFlatItems,
@@ -1070,52 +1076,57 @@ const TableView: React.FC<TableViewProps> = ({
             );
           }
 
-          if (rootGroupMode === 'columns' && rootGroups.length > 0) {
+          if (rootGroupMode === 'columns' && displayRootGroups.length > 0) {
             const hasNestedGroups = groups.length > 1;
             return (
-              <div
-                className={`grid gap-4 overflow-x-auto p-5 ${rootGroupColumnsClassName}`}
-              >
-                {rootGroupCards.map((group) => (
-                  <div
-                    key={group.id}
-                    className="min-w-0 rounded-xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-neutral-900/30 p-3"
-                  >
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-neutral-800 dark:text-white truncate">
-                          {group.label}
-                        </div>
-                        {rootGroupProperty && (
-                          <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                            {rootGroupProperty.name}
+              <div className="overflow-auto max-h-[calc(100vh-280px)]">
+                <div
+                  className={`grid gap-4 p-5 ${rootGroupColumnsClassName}`}
+                >
+                  {rootGroupCards.map((group: any) => (
+                    <div
+                      key={group.id}
+                      className="min-w-0 rounded-xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-neutral-900/30 p-3"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-neutral-800 dark:text-white truncate">
+                            {group.label}
                           </div>
-                        )}
+                          {rootGroupProperty && (
+                            <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                              {rootGroupProperty.name}
+                            </div>
+                          )}
+                        </div>
+                        <span className="shrink-0 rounded-full bg-black/5 dark:bg-white/10 px-2 py-1 text-xs text-neutral-600 dark:text-neutral-300">
+                          {group.itemCount}
+                        </span>
                       </div>
-                      <span className="shrink-0 rounded-full bg-black/5 dark:bg-white/10 px-2 py-1 text-xs text-neutral-600 dark:text-neutral-300">
-                        {group.itemCount}
-                      </span>
+                      {hasNestedGroups
+                        ? renderBodyOnlyShell(renderRootGroupRows(group.id, true))
+                        : renderTableShell(
+                            renderRootGroupRows(group.id, true),
+                            undefined,
+                            getItemsForGroupPath(group.id)
+                          )}
                     </div>
-                    {hasNestedGroups
-                      ? renderBodyOnlyShell(renderRootGroupRows(group.id, true))
-                      : renderTableShell(
-                          renderRootGroupRows(group.id, true),
-                          undefined,
-                          getItemsForGroupPath(group.id)
-                        )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             );
           }
 
-          if (rootGroupMode === 'tabs' && rootGroups.length > 0) {
+          if (rootGroupMode === 'tabs' && displayRootGroups.length > 0) {
             const hasNestedGroups = groups.length > 1;
+            const safeActiveGroupTab = displayRootGroups.includes(activeGroupTab)
+              ? activeGroupTab
+              : displayRootGroups[0];
             return (
-              <>
-                <Tabs value={activeGroupTab} onValueChange={setActiveGroupTab} className="w-full">
-                  <TabsList className="m-2 mt-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
-                    {rootGroupCards.map((group) => (
+              <div className="max-h-[calc(100vh-280px)] overflow-auto flex flex-col">
+                <Tabs value={safeActiveGroupTab} onValueChange={setActiveGroupTab} className="w-full flex flex-col">
+                  <TabsList className="m-2 mt-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0 shrink-0">
+                    {rootGroupCards.map((group: any) => (
                       <TabsTrigger
                         key={group.id}
                         value={group.id}
@@ -1126,23 +1137,25 @@ const TableView: React.FC<TableViewProps> = ({
                     ))}
                   </TabsList>
 
-                  {rootGroupCards.map((group) => (
-                    <TabsContent key={group.id} value={group.id} className="mt-0 border-0 p-0">
-                      {hasNestedGroups
-                        ? renderBodyOnlyShell(renderRootGroupRows(group.id, true, 'skip'))
-                        : renderTableShell(
-                            renderRootGroupRows(group.id, true, 'skip'),
-                            undefined,
-                            getItemsForGroupPath(group.id)
-                          )}
-                    </TabsContent>
-                  ))}
+                  <div className="overflow-auto flex-1">
+                    {rootGroupCards.map((group: any) => (
+                      <TabsContent key={group.id} value={group.id} className="mt-0 border-0 p-0">
+                        {hasNestedGroups
+                          ? renderBodyOnlyShell(renderRootGroupRows(group.id, true, 'skip'))
+                          : renderTableShell(
+                              renderRootGroupRows(group.id, true, 'skip'),
+                              undefined,
+                              getItemsForGroupPath(group.id)
+                            )}
+                      </TabsContent>
+                    ))}
+                  </div>
                 </Tabs>
-              </>
+              </div>
             );
           }
 
-          return renderTableShell(rootGroups.map((rootGroup) => renderRootGroupRows(rootGroup)));
+          return renderTableShell(displayRootGroups.map((rootGroup: string) => renderRootGroupRows(rootGroup)));
         })()}
       </div>
 

@@ -105,7 +105,56 @@ export function buildGroupStructure(
     }
   });
 
-  return { structure, rootGroups: Array.from(rootGroups) };
+  const extractGroupValueFromPath = (path: string) => path.split('/').pop() || path;
+
+  const sortGroupPathsForProperty = (paths: string[], property?: Property) => {
+    if (!property || (property.type !== 'select' && property.type !== 'multi_select')) {
+      return [...paths].sort((a, b) => String(extractGroupValueFromPath(a)).localeCompare(String(extractGroupValueFromPath(b)), 'fr', { numeric: true }));
+    }
+
+    const options = Array.isArray((property as any).options) ? (property as any).options : [];
+    const optionOrder = new Map<string, number>();
+    options.forEach((opt: any, idx: number) => {
+      const val = typeof opt === 'string' ? opt : opt?.value;
+      if (val !== undefined && val !== null) optionOrder.set(String(val), idx);
+    });
+
+    return [...paths].sort((a, b) => {
+      const aValue = String(extractGroupValueFromPath(a));
+      const bValue = String(extractGroupValueFromPath(b));
+
+      const aIsEmpty = aValue === '(vide)';
+      const bIsEmpty = bValue === '(vide)';
+      if (aIsEmpty && !bIsEmpty) return 1;
+      if (!aIsEmpty && bIsEmpty) return -1;
+
+      const aIndex = optionOrder.get(aValue);
+      const bIndex = optionOrder.get(bValue);
+      const aKnown = typeof aIndex === 'number';
+      const bKnown = typeof bIndex === 'number';
+
+      if (aKnown && bKnown) return (aIndex as number) - (bIndex as number);
+      if (aKnown) return -1;
+      if (bKnown) return 1;
+
+      return aValue.localeCompare(bValue, 'fr', { numeric: true });
+    });
+  };
+
+  const sortedRootGroups = sortGroupPathsForProperty(
+    Array.from(rootGroups),
+    properties.find((p: any) => p.id === groups[0])
+  );
+
+  Object.keys(structure).forEach((path) => {
+    const depth = path.split('/').length - 1;
+    const nextGroupId = groups[depth + 1];
+    if (!nextGroupId) return;
+    const nextProp = properties.find((p: any) => p.id === nextGroupId);
+    structure[path].subGroups = sortGroupPathsForProperty(structure[path].subGroups || [], nextProp);
+  });
+
+  return { structure, rootGroups: sortedRootGroups };
 }
 
 /**
@@ -141,6 +190,25 @@ export function getGroupLabel(
   collections: Collection[]
 ): string {
   if (!value && value !== 0 && value !== false) return '(vide)';
+
+  if (property.type === 'select' || property.type === 'multi_select') {
+    const options = Array.isArray((property as any).options) ? (property as any).options : [];
+    const values = Array.isArray(value) ? value : [value];
+
+    const labels = values.map((rawVal) => {
+      const strVal = String(rawVal);
+      const matched = options.find((opt: any) => {
+        if (typeof opt === 'string') return opt === strVal;
+        return String(opt?.value) === strVal;
+      });
+
+      if (!matched) return strVal;
+      if (typeof matched === 'string') return matched;
+      return matched.label || matched.value || strVal;
+    });
+
+    return labels.join(', ');
+  }
   
   if (property.type === 'date' || (property as any).dateGranularity) {
     return formatDateByGranularity(value, (property as any).dateGranularity);

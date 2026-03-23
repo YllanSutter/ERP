@@ -306,7 +306,8 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                             <option value="">Sélectionner...</option>
                             {(sourceProp?.options || []).map((opt: any) => {
                               const optValue = typeof opt === 'string' ? opt : opt.value;
-                              return <option key={optValue} value={optValue}>{optValue}</option>;
+                              const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
+                              return <option key={optValue} value={optValue}>{optLabel}</option>;
                             })}
                           </select>
                         ) : sourceType === 'checkbox' ? (
@@ -394,7 +395,8 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                           <option value="">Sélectionner...</option>
                           {(options || []).map((opt: any) => {
                             const optValue = typeof opt === 'string' ? opt : opt.value;
-                            return <option key={optValue} value={optValue}>{optValue}</option>;
+                            const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
+                            return <option key={optValue} value={optValue}>{optLabel}</option>;
                           })}
                         </select>
                       ) : type === 'checkbox' ? (
@@ -555,7 +557,8 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                         <option value="">Sélectionner...</option>
                         {(filterProp.options || []).map((opt: any) => {
                           const optValue = typeof opt === 'string' ? opt : opt.value;
-                          return <option key={optValue} value={optValue}>{optValue}</option>;
+                          const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
+                          return <option key={optValue} value={optValue}>{optLabel}</option>;
                         })}
                       </select>
                     ) : filterProp?.type === 'date' || filterProp?.type === 'date_range' ? (

@@ -71,6 +71,18 @@ const parsePotentialJsonArray = (value) => {
   }
 };
 
+const parsePotentialJsonObject = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 const normalizeImportScalar = (value) => {
   if (value === undefined || value === null) return null;
   if (typeof value !== 'string') return value;
@@ -191,19 +203,109 @@ const toBooleanValue = (value) => {
   return ['true', '1', 'yes', 'oui'].includes(s);
 };
 
+const normalizeRelationLookupToken = (value) => {
+  const s = String(value || '').trim();
+  if (!s) return '';
+  return s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+};
+
+const isLikelyLabelField = (prop) => {
+  const key = normalizeImportName(prop?.name || prop?.id || '');
+  if (!key) return false;
+  return [
+    'name', 'nom', 'title', 'label', 'code', 'slug', 'reference', 'ref',
+  ].some((hint) => key === hint || key.endsWith(`_${hint}`) || key.startsWith(`${hint}_`));
+};
+
+const getPreferredRelationDisplayFieldIds = (collection) => {
+  const props = Array.isArray(collection?.properties) ? collection.properties : [];
+  if (!props.length) return [];
+  const best = props.find((p) => isLikelyLabelField(p)) || props[0];
+  return best?.id ? [best.id] : [];
+};
+
+const buildRelationLookupForCollection = (collection) => {
+  const idSet = new Set();
+  const tokenToId = new Map();
+  const props = Array.isArray(collection?.properties) ? collection.properties : [];
+  const labelFields = props.filter((p) => isLikelyLabelField(p)).map((p) => p.id);
+
+  (collection?.items || []).forEach((item) => {
+    const itemId = String(item?.id || '').trim();
+    if (!itemId) return;
+    idSet.add(itemId);
+    tokenToId.set(normalizeRelationLookupToken(itemId), itemId);
+
+    labelFields.forEach((fieldId) => {
+      const labelTokens = extractRelationTokens(item?.[fieldId]);
+      labelTokens.forEach((token) => {
+        const normalized = normalizeRelationLookupToken(token);
+        if (normalized) tokenToId.set(normalized, itemId);
+      });
+    });
+  });
+
+  return { idSet, tokenToId };
+};
+
+const resolveRelationTokenToId = (token, lookup) => {
+  const raw = String(token || '').trim();
+  if (!raw) return null;
+  if (lookup?.idSet?.has(raw)) return raw;
+  const normalized = normalizeRelationLookupToken(raw);
+  return (normalized && lookup?.tokenToId?.get(normalized)) || null;
+};
+
 const extractRelationTokens = (value) => {
   if (value === null || value === undefined) return [];
   if (Array.isArray(value)) {
-    return value.map((v) => String(v).trim()).filter(Boolean);
+    return Array.from(new Set(value.flatMap((v) => extractRelationTokens(v)).filter(Boolean)));
+  }
+  if (typeof value === 'object') {
+    const dynamicIdCandidates = Object.keys(value)
+      .filter((k) => /(^id$|_id$|Id$|^id_)/.test(String(k)))
+      .map((k) => value[k]);
+    const dynamicLabelCandidates = Object.keys(value)
+      .filter((k) => /(^name$|^label$|^title$|^code$|^slug$|_name$|_label$|_title$)/i.test(String(k)))
+      .map((k) => value[k]);
+    const candidates = [
+      value.id,
+      value._id,
+      value.uuid,
+      value.value,
+      value.key,
+      value.code,
+      value.slug,
+      value.name,
+      value.label,
+      value.title,
+      ...dynamicIdCandidates,
+      ...dynamicLabelCandidates,
+    ];
+    return Array.from(
+      new Set(
+        candidates
+          .filter((v) => v !== null && v !== undefined)
+          .map((v) => String(v).trim())
+          .filter(Boolean)
+      )
+    );
   }
   const parsedArray = parsePotentialJsonArray(value);
   if (Array.isArray(parsedArray)) {
-    return parsedArray.map((v) => String(v).trim()).filter(Boolean);
+    return Array.from(new Set(parsedArray.flatMap((v) => extractRelationTokens(v)).filter(Boolean)));
+  }
+  const parsedObject = parsePotentialJsonObject(value);
+  if (parsedObject && typeof parsedObject === 'object') {
+    return extractRelationTokens(parsedObject);
   }
   const str = String(value).trim();
   if (!str) return [];
-  if (str.includes(',') || str.includes(';')) {
-    const sep = str.includes(';') ? ';' : ',';
+  if (str.includes(',') || str.includes(';') || str.includes('|')) {
+    const sep = str.includes(';') ? ';' : (str.includes('|') ? '|' : ',');
     return str.split(sep).map((v) => v.trim()).filter(Boolean);
   }
   return [str];
@@ -320,11 +422,8 @@ const enrichCollectionsWithAutoTypesAndRelations = (collections) => {
     items: Array.isArray(c.items) ? [...c.items] : [],
   }));
 
-  const idSetsByCollectionId = new Map(
-    collectionsCopy.map((c) => [
-      c.id,
-      new Set((c.items || []).map((item) => String(item?.id || '').trim()).filter(Boolean)),
-    ])
+  const relationLookupByCollectionId = new Map(
+    collectionsCopy.map((c) => [c.id, buildRelationLookupForCollection(c)])
   );
 
   for (const collection of collectionsCopy) {
@@ -337,8 +436,8 @@ const enrichCollectionsWithAutoTypesAndRelations = (collections) => {
 
       for (const target of collectionsCopy) {
         if (target.id === collection.id) continue;
-        const targetIds = idSetsByCollectionId.get(target.id);
-        if (!targetIds || targetIds.size === 0) continue;
+        const targetLookup = relationLookupByCollectionId.get(target.id);
+        if (!targetLookup?.idSet || targetLookup.idSet.size === 0) continue;
 
         let checked = 0;
         let matched = 0;
@@ -349,8 +448,8 @@ const enrichCollectionsWithAutoTypesAndRelations = (collections) => {
           if (!tokens.length) return;
           checked += 1;
           if (tokens.length > 1) hasMany = true;
-          const allMatch = tokens.every((token) => targetIds.has(String(token)));
-          if (allMatch) matched += 1;
+          const matchedTokens = tokens.filter((token) => Boolean(resolveRelationTokenToId(token, targetLookup))).length;
+          if (matchedTokens > 0) matched += 1;
         });
 
         if (checked === 0) continue;
@@ -365,25 +464,37 @@ const enrichCollectionsWithAutoTypesAndRelations = (collections) => {
       const fieldKey = normalizeImportName(prop.name || prop.id);
       const relationBase = getRelationFieldBase(fieldKey);
       const relationByNameHint = /(_id|_ids|^id_|^ids_)/.test(fieldKey) || !!relationBase;
+      const forceTextField = [
+        'name', 'nom', 'title', 'label', 'slug', 'code', 'ref', 'reference',
+      ].some((hint) => fieldKey === hint || fieldKey.endsWith(`_${hint}`) || fieldKey.startsWith(`${hint}_`));
 
-      if (bestTarget && (bestRatio >= 0.95 || (relationByNameHint && bestRatio >= 0.75))) {
+      // Seuils améliorés : 0.9 strict, 0.6 avec indice de nom
+      if (bestTarget && (bestRatio >= 0.9 || (relationByNameHint && bestRatio >= 0.6))) {
+        const displayFieldIds = getPreferredRelationDisplayFieldIds(bestTarget);
         prop.type = 'relation';
         prop.relation = {
           targetCollectionId: bestTarget.id,
           type: manyHint || fieldKey.endsWith('_ids') || fieldKey.endsWith('ids') ? 'many_to_many' : 'one_to_many',
+          ...(displayFieldIds.length ? { displayFieldIds } : {}),
         };
 
+        const bestTargetLookup = relationLookupByCollectionId.get(bestTarget.id);
         collection.items = (collection.items || []).map((item) => {
           const tokens = extractRelationTokens(item?.[prop.id]);
+          const resolved = Array.from(new Set(
+            tokens
+              .map((token) => resolveRelationTokenToId(token, bestTargetLookup))
+              .filter(Boolean)
+          ));
           const nextVal = prop.relation.type === 'many_to_many'
-            ? Array.from(new Set(tokens))
-            : (tokens[0] || null);
+            ? resolved
+            : (resolved[0] || null);
           return { ...item, [prop.id]: nextVal };
         });
         continue;
       }
 
-      const primitive = inferPrimitiveType(values);
+      const primitive = forceTextField ? 'text' : inferPrimitiveType(values);
       prop.type = primitive;
       collection.items = (collection.items || []).map((item) => {
         const raw = item?.[prop.id];
@@ -396,38 +507,58 @@ const enrichCollectionsWithAutoTypesAndRelations = (collections) => {
       });
     }
 
-    // Fusion automatique des paires "label + id" (ex: tag + tagid) en une seule relation.
+    // Fusion automatique des paires "label + id" (ex: tag + tag_id) en conservant le champ humain.
     const removablePropertyIds = new Set();
-    for (const prop of collection.properties || []) {
+    const props = Array.isArray(collection.properties) ? collection.properties : [];
+    const propByNormalizedKey = new Map(
+      props.map((p) => [normalizeImportName(p?.name || p?.id), p])
+    );
+
+    for (const prop of props) {
       if (!prop || prop.type !== 'relation') continue;
 
       const relationKey = normalizeImportName(prop.name || prop.id);
       const baseKey = getRelationFieldBase(relationKey);
       if (!baseKey) continue;
 
-      const sibling = (collection.properties || []).find((candidate) => {
-        if (!candidate || candidate.id === prop.id) return false;
-        if (candidate.type === 'relation') return false;
-        const candidateKey = normalizeImportName(candidate.name || candidate.id);
-        return candidateKey === baseKey;
-      });
-      if (!sibling) continue;
+      const baseField = propByNormalizedKey.get(baseKey);
+      if (!baseField || baseField.id === prop.id) continue;
 
       const items = Array.isArray(collection.items) ? collection.items : [];
       let overlapCount = 0;
       let compared = 0;
       for (const item of items) {
-        const hasRelation = extractRelationTokens(item?.[prop.id]).length > 0;
-        const hasSibling = String(item?.[sibling.id] ?? '').trim() !== '';
-        if (hasRelation || hasSibling) compared += 1;
-        if (hasRelation && hasSibling) overlapCount += 1;
+        const hasIdField = extractRelationTokens(item?.[prop.id]).length > 0;
+        const hasBaseField = extractRelationTokens(item?.[baseField.id]).length > 0
+          || String(item?.[baseField.id] ?? '').trim() !== '';
+        if (hasIdField || hasBaseField) compared += 1;
+        if (hasIdField && hasBaseField) overlapCount += 1;
       }
 
-      // Ne fusionne que si les deux colonnes cohabitent réellement sur la majorité des lignes.
       if (compared > 0 && overlapCount / compared < 0.6) continue;
 
-      removablePropertyIds.add(sibling.id);
-      prop.name = sibling.name || toImportLabelFromKey(baseKey, prop.name || 'Relation');
+      // Conserver le champ humain (baseField), supprimer le champ technique (prop = *_id)
+      const targetCollection = (collectionsCopy || []).find((c) => c?.id === prop?.relation?.targetCollectionId);
+      const displayFieldIds = getPreferredRelationDisplayFieldIds(targetCollection);
+      baseField.type = 'relation';
+      baseField.relation = {
+        ...(baseField.relation || {}),
+        ...(prop.relation || {}),
+        ...(displayFieldIds.length ? { displayFieldIds } : {}),
+      };
+      baseField.name = baseField.name || toImportLabelFromKey(baseKey, prop.name || 'Relation');
+
+      collection.items = items.map((item) => {
+        const idTokens = extractRelationTokens(item?.[prop.id]);
+        const baseTokens = extractRelationTokens(item?.[baseField.id]);
+        const merged = Array.from(new Set([...idTokens, ...baseTokens].map((v) => String(v).trim()).filter(Boolean)));
+        const nextVal = (baseField.relation?.type || 'many_to_many') === 'many_to_many'
+          ? merged
+          : (merged[0] || null);
+        return { ...item, [baseField.id]: nextVal };
+      });
+
+      removablePropertyIds.add(prop.id);
     }
 
     if (removablePropertyIds.size > 0) {
@@ -519,6 +650,12 @@ const normalizeImportedCollectionsManual = (collections) => {
       relation.type = ['one_to_one', 'one_to_many', 'many_to_many'].includes(String(relation.type || ''))
         ? relation.type
         : 'many_to_many';
+
+      if (!Array.isArray(relation.displayFieldIds) || relation.displayFieldIds.length === 0) {
+        const targetCollection = nextCollections.find((c) => c?.id === mappedTarget);
+        const displayFieldIds = getPreferredRelationDisplayFieldIds(targetCollection);
+        if (displayFieldIds.length) relation.displayFieldIds = displayFieldIds;
+      }
 
       return { ...prop, relation };
     });

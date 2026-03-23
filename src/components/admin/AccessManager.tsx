@@ -136,6 +136,8 @@ const AccessManager = ({
   const [preferencesBusyByUser, setPreferencesBusyByUser] = useState<Record<string, boolean>>({});
   const [preferencesSavedAtByUser, setPreferencesSavedAtByUser] = useState<Record<string, number>>({});
   const [organizationNameEdits, setOrganizationNameEdits] = useState<Record<string, string>>({});
+  const [deletedImportProperties, setDeletedImportProperties] = useState<any[]>([]);
+  const [relationChoiceFieldByKey, setRelationChoiceFieldByKey] = useState<Record<string, string>>({});
 
   const loadAll = async () => {
     try {
@@ -509,7 +511,8 @@ const AccessManager = ({
       const property = draft?.[orgIndex]?.state?.collections?.[collectionIndex]?.properties?.[propertyIndex];
       if (!property) return;
       Object.assign(property, patch);
-      if (patch.type !== 'relation') {
+      const nextType = patch.type ?? property.type;
+      if (nextType !== 'relation') {
         delete property.relation;
       } else if (!property.relation) {
         const targetCollectionId = draft?.[orgIndex]?.state?.collections?.[0]?.id || null;
@@ -518,6 +521,223 @@ const AccessManager = ({
           type: 'many_to_many',
         };
       }
+      
+      // Si on change en relation, créer aussi une relation inverse
+      if (patch.type === 'relation' && property.relation?.targetCollectionId) {
+        const targetCollId = property.relation.targetCollectionId;
+        const targetCollection = draft?.[orgIndex]?.state?.collections?.find((c: any) => c.id === targetCollId);
+        if (targetCollection) {
+          const sourceCollId = draft?.[orgIndex]?.state?.collections?.[collectionIndex]?.id;
+          const inverseRelPropName = property.name || `Relation_${collectionIndex}`;
+          
+          // Chercher si une relation inverse existe déjà
+          const existingInverse = targetCollection.properties?.find((p: any) => 
+            p.type === 'relation' && p.relation?.targetCollectionId === sourceCollId
+          );
+          
+          if (!existingInverse && targetCollection.properties) {
+            targetCollection.properties.push({
+              id: `inverse_${propertyIndex}_${Date.now()}`,
+              name: `Inverse: ${inverseRelPropName}`,
+              type: 'relation',
+              relation: {
+                targetCollectionId: sourceCollId,
+                type: property.relation.type === 'one_to_many' ? 'one_to_many' : property.relation.type,
+              },
+            });
+          }
+        }
+      }
+    });
+  };
+
+  const removeImportProperty = (
+    orgIndex: number,
+    collectionIndex: number,
+    propertyIndex: number
+  ) => {
+    patchImportPreviewOrganizations((draft) => {
+      const collection = draft?.[orgIndex]?.state?.collections?.[collectionIndex];
+      if (!collection || !Array.isArray(collection.properties)) return;
+      const removed = collection.properties[propertyIndex];
+      collection.properties.splice(propertyIndex, 1);
+      
+      // Tracker le champ supprimé
+      if (removed) {
+        setDeletedImportProperties((prev) => [...prev, {
+          orgIndex,
+          collectionIndex,
+          propertyIndex,
+          property: removed,
+          removedAt: Date.now(),
+        }]);
+      }
+    });
+  };
+
+  const convertRelationToChoiceField = (
+    orgIndex: number,
+    collectionIndex: number,
+    propertyIndex: number,
+    mode: 'select' | 'multi_select',
+    optionLabelFieldId?: string,
+    removeTargetCollection = false,
+  ) => {
+    patchImportPreviewOrganizations((draft) => {
+      const org = draft?.[orgIndex];
+      const sourceCollection = org?.state?.collections?.[collectionIndex];
+      const property = sourceCollection?.properties?.[propertyIndex];
+      if (!org || !sourceCollection || !property || property?.type !== 'relation') return;
+
+      const targetCollectionId = String(property?.relation?.targetCollectionId || '').trim();
+      if (!targetCollectionId) return;
+
+      const targetCollection = (org.state.collections || []).find((c: any) => c?.id === targetCollectionId);
+      if (!targetCollection) return;
+
+      const targetProps = Array.isArray(targetCollection.properties) ? targetCollection.properties : [];
+      const preferredLabelProp = optionLabelFieldId
+        ? targetProps.find((p: any) => p?.id === optionLabelFieldId)
+        : null;
+      const labelProp = preferredLabelProp || targetProps.find((p: any) => {
+        const key = String(p?.name || p?.id || '').trim().toLowerCase();
+        return ['name', 'nom', 'label', 'title', 'code', 'slug'].includes(key);
+      }) || targetProps[0];
+
+      const targetItems = Array.isArray(targetCollection.items) ? targetCollection.items : [];
+      const labelById = new Map<string, string>();
+      targetItems.forEach((it: any) => {
+        const id = String(it?.id || '').trim();
+        if (!id) return;
+        const rawLabel = labelProp ? it?.[labelProp.id] : id;
+        const label = String(rawLabel ?? id).trim() || id;
+        labelById.set(id, label);
+      });
+
+      const options = Array.from(labelById.entries()).map(([value, label]) => ({ value: label, label }));
+
+      property.type = mode;
+      delete property.relation;
+      property.importChoiceSource = {
+        collectionId: targetCollectionId,
+        fieldId: labelProp?.id || null,
+      };
+      property.options = options;
+
+      sourceCollection.items = (sourceCollection.items || []).map((item: any) => {
+        const current = item?.[property.id];
+        const asArray = Array.isArray(current)
+          ? current
+          : (current === null || current === undefined || String(current).trim() === '')
+            ? []
+            : [current];
+        const mapped = asArray
+          .map((v: any) => String(v || '').trim())
+          .filter(Boolean)
+          .map((id: string) => labelById.get(id) || id)
+          .filter(Boolean);
+
+        if (mode === 'multi_select') {
+          return { ...item, [property.id]: Array.from(new Set(mapped)) };
+        }
+        return { ...item, [property.id]: mapped[0] || null };
+      });
+
+      if (removeTargetCollection) {
+        const stillReferenced = (org.state.collections || []).some((col: any) =>
+          (col?.properties || []).some((p: any) => p?.type === 'relation' && p?.relation?.targetCollectionId === targetCollectionId)
+        );
+        if (!stillReferenced) {
+          org.state.collections = (org.state.collections || []).filter((c: any) => c?.id !== targetCollectionId);
+        }
+      }
+    });
+  };
+
+  const pickDefaultChoiceFieldId = (targetCollection: any, prop?: any): string => {
+    const targetProps = Array.isArray(targetCollection?.properties) ? targetCollection.properties : [];
+    if (!targetProps.length) return '';
+
+    const relationDisplayFieldId = String(prop?.relation?.displayFieldIds?.[0] || '').trim();
+    if (relationDisplayFieldId && targetProps.some((p: any) => String(p?.id || '') === relationDisplayFieldId)) {
+      return relationDisplayFieldId;
+    }
+
+    const preferred = targetProps.find((p: any) => {
+      const key = String(p?.name || p?.id || '').trim().toLowerCase();
+      return ['name', 'nom', 'label', 'title', 'code', 'slug'].includes(key);
+    });
+    if (preferred?.id) return String(preferred.id);
+
+    return String(targetProps[0]?.id || '');
+  };
+
+  const hydrateChoiceFieldOptions = (
+    orgIndex: number,
+    collectionIndex: number,
+    propertyIndex: number,
+    sourceCollectionId: string,
+    sourceFieldId?: string,
+  ) => {
+    patchImportPreviewOrganizations((draft) => {
+      const org = draft?.[orgIndex];
+      const sourceCollection = org?.state?.collections?.[collectionIndex];
+      const property = sourceCollection?.properties?.[propertyIndex];
+      if (!org || !sourceCollection || !property) return;
+      if (property.type !== 'select' && property.type !== 'multi_select') return;
+
+      const targetCollection = (org.state.collections || []).find((c: any) => c?.id === sourceCollectionId);
+      if (!targetCollection) return;
+
+      const targetProps = Array.isArray(targetCollection.properties) ? targetCollection.properties : [];
+      const resolvedField = sourceFieldId
+        ? targetProps.find((p: any) => p?.id === sourceFieldId)
+        : targetProps.find((p: any) => {
+          const key = String(p?.name || p?.id || '').trim().toLowerCase();
+          return ['name', 'nom', 'label', 'title', 'code', 'slug'].includes(key);
+        }) || targetProps[0];
+      if (!resolvedField) return;
+
+      const targetItems = Array.isArray(targetCollection.items) ? targetCollection.items : [];
+      const labelById = new Map<string, string>();
+      const labelByNormalized = new Map<string, string>();
+      targetItems.forEach((it: any) => {
+        const id = String(it?.id || '').trim();
+        if (!id) return;
+        const label = String(it?.[resolvedField.id] ?? id).trim() || id;
+        labelById.set(id, label);
+        labelByNormalized.set(label.toLowerCase(), label);
+      });
+
+      property.importChoiceSource = {
+        collectionId: sourceCollectionId,
+        fieldId: resolvedField.id,
+      };
+      property.options = Array.from(new Set(Array.from(labelById.values()))).map((label) => ({ value: label, label }));
+
+      sourceCollection.items = (sourceCollection.items || []).map((item: any) => {
+        const current = item?.[property.id];
+        const asArray = Array.isArray(current)
+          ? current
+          : (current === null || current === undefined || String(current).trim() === '')
+            ? []
+            : [current];
+
+        const mapped = asArray
+          .map((v: any) => String(v || '').trim())
+          .filter(Boolean)
+          .map((rawVal: string) => {
+            if (labelById.has(rawVal)) return labelById.get(rawVal) as string;
+            const lower = rawVal.toLowerCase();
+            if (labelByNormalized.has(lower)) return labelByNormalized.get(lower) as string;
+            return rawVal;
+          });
+
+        if (property.type === 'multi_select') {
+          return { ...item, [property.id]: Array.from(new Set(mapped)) };
+        }
+        return { ...item, [property.id]: mapped[0] || null };
+      });
     });
   };
 
@@ -750,6 +970,55 @@ const AccessManager = ({
     });
 
     return { errors, warnings };
+  }, [importPreviewOrganizations]);
+
+  const importRelationSummary = useMemo(() => {
+    const rows: Array<{
+      orgIdx: number;
+      colIdx: number;
+      propIdx: number;
+      orgName: string;
+      collectionName: string;
+      fieldName: string;
+      targetName: string;
+      targetCollectionId: string;
+      relationType: string;
+      targetFields: Array<{ id: string; name: string }>;
+    }> = [];
+
+    (importPreviewOrganizations || []).forEach((org: any, orgIdx: number) => {
+      const orgName = String(org?.name || `Organisation ${orgIdx + 1}`);
+      const cols = Array.isArray(org?.state?.collections) ? org.state.collections : [];
+      cols.forEach((col: any, colIdx: number) => {
+        const collectionName = String(col?.name || `Collection ${colIdx + 1}`);
+        const props = Array.isArray(col?.properties) ? col.properties : [];
+        props.forEach((prop: any, propIdx: number) => {
+          if (prop?.type !== 'relation') return;
+          const targetId = String(prop?.relation?.targetCollectionId || '').trim();
+          const targetCollection = cols.find((c: any) => c?.id === targetId);
+          const targetFields = Array.isArray(targetCollection?.properties)
+            ? targetCollection.properties.map((p: any) => ({
+              id: String(p?.id || ''),
+              name: String(p?.name || p?.id || 'champ'),
+            })).filter((p: any) => p.id)
+            : [];
+          rows.push({
+            orgIdx,
+            colIdx,
+            propIdx,
+            orgName,
+            collectionName,
+            fieldName: String(prop?.name || prop?.id || `Champ ${propIdx + 1}`),
+            targetName: String(targetCollection?.name || targetId || '—'),
+            targetCollectionId: targetId,
+            relationType: String(prop?.relation?.type || 'many_to_many'),
+            targetFields,
+          });
+        });
+      });
+    });
+
+    return rows;
   }, [importPreviewOrganizations]);
 
   const sortedBackups = [...backups].sort(
@@ -2256,6 +2525,103 @@ const AccessManager = ({
                           <div className="text-xs text-emerald-700 dark:text-emerald-300">Aucun problème détecté. Import prêt.</div>
                         )}
                       </div>
+
+                      <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3">
+                        <div className="text-xs font-semibold text-cyan-700 dark:text-cyan-300 mb-2">
+                          Relations détectées ({importRelationSummary.length})
+                        </div>
+                        {importRelationSummary.length === 0 ? (
+                          <div className="text-xs text-neutral-600 dark:text-neutral-300">Aucune relation détectée pour le moment.</div>
+                        ) : (
+                          <div className="space-y-2 max-h-56 overflow-auto pr-1">
+                            {importRelationSummary.map((rel, idx) => (
+                              <div key={`rel-summary-${idx}`} className="flex flex-wrap items-center gap-2 justify-between bg-white/40 dark:bg-white/5 rounded px-2 py-1.5">
+                                <div className="text-xs text-neutral-700 dark:text-neutral-200">
+                                  <span className="font-medium">{rel.collectionName}</span>
+                                  <span className="mx-1">·</span>
+                                  <span>{rel.fieldName}</span>
+                                  <span className="mx-1">→</span>
+                                  <span className="font-medium">{rel.targetName}</span>
+                                  <span className="mx-1">({rel.relationType})</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <select
+                                    className="px-2 py-1 rounded text-[11px] bg-white dark:bg-neutral-900 border border-white/20"
+                                    value={relationChoiceFieldByKey[`${rel.orgIdx}:${rel.colIdx}:${rel.propIdx}`] || rel.targetFields[0]?.id || ''}
+                                    onChange={(e) => {
+                                      const key = `${rel.orgIdx}:${rel.colIdx}:${rel.propIdx}`;
+                                      setRelationChoiceFieldByKey((prev) => ({ ...prev, [key]: e.target.value }));
+                                    }}
+                                    disabled={importCommitBusy || rel.targetFields.length === 0}
+                                    title="Champ utilisé pour générer les options du select"
+                                  >
+                                    {rel.targetFields.map((f) => (
+                                      <option key={f.id} value={f.id}>{f.name}</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    className="px-2 py-1 rounded text-[11px] bg-white/70 dark:bg-white/10 border border-white/20 hover:bg-white"
+                                    onClick={() => {
+                                      const key = `${rel.orgIdx}:${rel.colIdx}:${rel.propIdx}`;
+                                      const selectedFieldId = relationChoiceFieldByKey[key] || rel.targetFields[0]?.id;
+                                      convertRelationToChoiceField(rel.orgIdx, rel.colIdx, rel.propIdx, 'select', selectedFieldId, false);
+                                    }}
+                                    disabled={importCommitBusy}
+                                    title="Convertir en select (liste simple)"
+                                  >
+                                    → select
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="px-2 py-1 rounded text-[11px] bg-white/70 dark:bg-white/10 border border-white/20 hover:bg-white"
+                                    onClick={() => {
+                                      const key = `${rel.orgIdx}:${rel.colIdx}:${rel.propIdx}`;
+                                      const selectedFieldId = relationChoiceFieldByKey[key] || rel.targetFields[0]?.id;
+                                      convertRelationToChoiceField(rel.orgIdx, rel.colIdx, rel.propIdx, 'multi_select', selectedFieldId, false);
+                                    }}
+                                    disabled={importCommitBusy}
+                                    title="Convertir en multi_select (liste multiple)"
+                                  >
+                                    → multi
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {deletedImportProperties.length > 0 && (
+                        <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
+                          <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2">Champs supprimés ({deletedImportProperties.length})</div>
+                          <div className="space-y-2">
+                            {deletedImportProperties.map((deleted: any, idx: number) => (
+                              <div key={`deleted-${idx}`} className="flex items-center justify-between gap-2 p-2 bg-white/30 dark:bg-white/5 rounded text-xs">
+                                <div>
+                                  <span className="font-medium">{deleted.property?.name || 'Sans nom'}</span>
+                                  <span className="text-neutral-500 ml-2">({deleted.property?.type})</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    patchImportPreviewOrganizations((draft) => {
+                                      const collection = draft?.[deleted.orgIndex]?.state?.collections?.[deleted.collectionIndex];
+                                      if (collection && Array.isArray(collection.properties)) {
+                                        collection.properties.splice(deleted.propertyIndex, 0, deleted.property);
+                                      }
+                                    });
+                                    setDeletedImportProperties((prev) => prev.filter((_, i) => i !== idx));
+                                  }}
+                                  className="px-2 py-1 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-500/20"
+                                >
+                                  Restaurer
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </TabsContent>
 
                     <TabsContent value="mapping" className="mt-0 space-y-4">
@@ -2338,22 +2704,46 @@ const AccessManager = ({
                                           </div>
 
                                           <div className="rounded-lg border border-black/10 dark:border-white/10 overflow-hidden">
-                                            <div className="grid grid-cols-12 gap-2 bg-black/5 dark:bg-white/5 px-2 py-2 text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">
+                                            <div className="grid grid-cols-12 gap-2 bg-black/5 dark:bg-white/5 px-2 py-2 text-[11px] font-semibold text-neutral-700 dark:text-neutral-200 sticky top-0 z-10">
                                               <div className="col-span-4">Champ</div>
                                               <div className="col-span-3">Type</div>
                                               <div className="col-span-3">Cible relation</div>
-                                              <div className="col-span-2">Cardinalité</div>
+                                              <div className="col-span-1">Cardinalité</div>
+                                              <div className="col-span-1 text-center">Action</div>
                                             </div>
 
-                                            <div className="max-h-[340px] overflow-auto">
+                                            <div className="max-h-[550px] overflow-auto">
                                               {properties.map((prop: any, propIdx: number) => {
                                                 const relationType = prop?.relation?.type || 'many_to_many';
                                                 const relationTarget = prop?.relation?.targetCollectionId || '';
                                                 const isRelation = prop?.type === 'relation';
+                                                const isChoiceType = prop?.type === 'select' || prop?.type === 'multi_select';
+                                                const choiceSourceCollectionId = String(prop?.importChoiceSource?.collectionId || '');
+                                                const choiceTargetCollection = isChoiceType
+                                                  ? orgCollections.find((c: any) => c?.id === choiceSourceCollectionId)
+                                                  : null;
+                                                const choiceTargetFields = Array.isArray(choiceTargetCollection?.properties)
+                                                  ? choiceTargetCollection.properties
+                                                    .map((p: any) => ({ id: String(p?.id || ''), name: String(p?.name || p?.id || 'champ') }))
+                                                    .filter((p: any) => p.id)
+                                                  : [];
+                                                const choiceSourceFieldId = String(prop?.importChoiceSource?.fieldId || choiceTargetFields[0]?.id || '');
+                                                const relationTargetCollection = isRelation
+                                                  ? orgCollections.find((c: any) => c?.id === relationTarget)
+                                                  : null;
+                                                const relationTargetFields = Array.isArray(relationTargetCollection?.properties)
+                                                  ? relationTargetCollection.properties
+                                                    .map((p: any) => ({ id: String(p?.id || ''), name: String(p?.name || p?.id || 'champ') }))
+                                                    .filter((p: any) => p.id)
+                                                  : [];
+                                                const relationChoiceKey = `${orgIdx}:${colIdx}:${propIdx}`;
+                                                const selectedRelationChoiceFieldId = relationChoiceFieldByKey[relationChoiceKey]
+                                                  || relationTargetFields[0]?.id
+                                                  || '';
                                                 return (
                                                   <div
                                                     key={`org-${orgIdx}-col-${colIdx}-prop-${propIdx}`}
-                                                    className="grid grid-cols-12 gap-2 px-2 py-2 border-t border-black/10 dark:border-white/10 items-start"
+                                                    className="grid grid-cols-12 gap-2 px-2 py-2 border-t border-black/10 dark:border-white/10 items-center"
                                                   >
                                                     <div className="col-span-4">
                                                       <input
@@ -2368,7 +2758,35 @@ const AccessManager = ({
                                                       <select
                                                         className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs"
                                                         value={prop?.type || 'text'}
-                                                        onChange={(e) => updateImportProperty(orgIdx, colIdx, propIdx, { type: e.target.value })}
+                                                        onChange={(e) => {
+                                                          const nextType = e.target.value;
+                                                          const fromRelationTarget = String(prop?.relation?.targetCollectionId || '').trim();
+                                                          if (nextType === 'select' || nextType === 'multi_select') {
+                                                            const sourceCollectionId = fromRelationTarget || choiceSourceCollectionId || '';
+                                                            const sourceCollection = sourceCollectionId
+                                                              ? orgCollections.find((c: any) => c?.id === sourceCollectionId)
+                                                              : null;
+                                                            const defaultFieldId = pickDefaultChoiceFieldId(sourceCollection, prop);
+                                                            updateImportProperty(orgIdx, colIdx, propIdx, {
+                                                              type: nextType,
+                                                              importChoiceSource: {
+                                                                collectionId: sourceCollectionId,
+                                                                fieldId: defaultFieldId,
+                                                              },
+                                                            });
+                                                            if (sourceCollectionId) {
+                                                              hydrateChoiceFieldOptions(
+                                                                orgIdx,
+                                                                colIdx,
+                                                                propIdx,
+                                                                sourceCollectionId,
+                                                                defaultFieldId || undefined,
+                                                              );
+                                                            }
+                                                            return;
+                                                          }
+                                                          updateImportProperty(orgIdx, colIdx, propIdx, { type: nextType });
+                                                        }}
                                                         disabled={importCommitBusy}
                                                       >
                                                         {IMPORT_PROPERTY_TYPE_OPTIONS.map((typeOpt) => (
@@ -2391,16 +2809,64 @@ const AccessManager = ({
                                                           })}
                                                           disabled={importCommitBusy}
                                                         >
+                                                          <option value="">Sélectionner une cible…</option>
                                                           {targetCollections.map((target: any) => (
                                                             <option key={target.id} value={target.id}>{target.name}</option>
                                                           ))}
                                                         </select>
+                                                      ) : isChoiceType ? (
+                                                        <div className="grid grid-cols-1 gap-1">
+                                                          <select
+                                                            className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1 text-[11px]"
+                                                            value={choiceSourceCollectionId}
+                                                            onChange={(e) => {
+                                                              const collectionId = e.target.value;
+                                                              updateImportProperty(orgIdx, colIdx, propIdx, {
+                                                                importChoiceSource: {
+                                                                  collectionId,
+                                                                  fieldId: '',
+                                                                },
+                                                              });
+                                                              if (collectionId) {
+                                                                hydrateChoiceFieldOptions(orgIdx, colIdx, propIdx, collectionId);
+                                                              }
+                                                            }}
+                                                            disabled={importCommitBusy}
+                                                          >
+                                                            <option value="">Source options…</option>
+                                                            {targetCollections.map((target: any) => (
+                                                              <option key={target.id} value={target.id}>{target.name}</option>
+                                                            ))}
+                                                          </select>
+                                                          <select
+                                                            className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1 text-[11px]"
+                                                            value={choiceSourceFieldId}
+                                                            onChange={(e) => {
+                                                              const fieldId = e.target.value;
+                                                              updateImportProperty(orgIdx, colIdx, propIdx, {
+                                                                importChoiceSource: {
+                                                                  collectionId: choiceSourceCollectionId,
+                                                                  fieldId,
+                                                                },
+                                                              });
+                                                              if (choiceSourceCollectionId) {
+                                                                hydrateChoiceFieldOptions(orgIdx, colIdx, propIdx, choiceSourceCollectionId, fieldId || undefined);
+                                                              }
+                                                            }}
+                                                            disabled={importCommitBusy || !choiceSourceCollectionId}
+                                                          >
+                                                            {choiceTargetFields.length === 0 && <option value="">Champ…</option>}
+                                                            {choiceTargetFields.map((f: any) => (
+                                                              <option key={f.id} value={f.id}>{f.name}</option>
+                                                            ))}
+                                                          </select>
+                                                        </div>
                                                       ) : (
                                                         <div className="text-[11px] text-neutral-500 py-1.5">—</div>
                                                       )}
                                                     </div>
 
-                                                    <div className="col-span-2">
+                                                    <div className="col-span-1">
                                                       {isRelation ? (
                                                         <select
                                                           className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs"
@@ -2421,6 +2887,42 @@ const AccessManager = ({
                                                       ) : (
                                                         <div className="text-[11px] text-neutral-500 py-1.5">—</div>
                                                       )}
+                                                    </div>
+
+                                                    <div className="col-span-1 flex justify-center">
+                                                      <div className="flex items-center gap-1">
+                                                        {isRelation && (
+                                                          <>
+                                                            <button
+                                                              type="button"
+                                                              className="px-1.5 py-1 rounded text-[10px] bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/25 disabled:opacity-50"
+                                                              onClick={() => convertRelationToChoiceField(orgIdx, colIdx, propIdx, 'select', selectedRelationChoiceFieldId || undefined)}
+                                                              disabled={importCommitBusy}
+                                                              title="Convertir cette relation en select"
+                                                            >
+                                                              S
+                                                            </button>
+                                                            <button
+                                                              type="button"
+                                                              className="px-1.5 py-1 rounded text-[10px] bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/25 disabled:opacity-50"
+                                                              onClick={() => convertRelationToChoiceField(orgIdx, colIdx, propIdx, 'multi_select', selectedRelationChoiceFieldId || undefined)}
+                                                              disabled={importCommitBusy}
+                                                              title="Convertir cette relation en multi_select"
+                                                            >
+                                                              M
+                                                            </button>
+                                                          </>
+                                                        )}
+                                                        <button
+                                                          type="button"
+                                                          className="p-1 rounded hover:bg-red-500/20 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50"
+                                                          onClick={() => removeImportProperty(orgIdx, colIdx, propIdx)}
+                                                          disabled={importCommitBusy}
+                                                          title="Supprimer cette propriété"
+                                                        >
+                                                          <X size={16} />
+                                                        </button>
+                                                      </div>
                                                     </div>
                                                   </div>
                                                 );
