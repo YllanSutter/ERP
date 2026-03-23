@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, RefreshCw, Shield, UserPlus, Plus, Download, Trash2, Database, RotateCcw, Search, Palette, Clock3, BellRing, Save, CheckCircle2 } from 'lucide-react';
+import { X, RefreshCw, Shield, UserPlus, Plus, Download, Trash2, Database, RotateCcw, Search, Palette, Clock3, BellRing, Save, CheckCircle2, FileUp } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/auth/AuthProvider';
@@ -67,6 +67,31 @@ const flags = [
   { key: 'can_manage_permissions', label: 'Permissions', hint: 'Gérer les droits des rôles et utilisateurs' },
 ];
 
+const IMPORT_PROPERTY_TYPE_OPTIONS = [
+  'text',
+  'number',
+  'select',
+  'multi_select',
+  'date',
+  'date_range',
+  'checkbox',
+  'url',
+  'email',
+  'phone',
+  'relation',
+];
+
+const toSafeImportId = (value: any, fallback: string) => {
+  const source = String(value || '').trim();
+  const normalized = source
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return normalized || fallback;
+};
+
 const AccessManager = ({
   collections,
   dashboards,
@@ -97,12 +122,20 @@ const AccessManager = ({
   const [passwordInputs, setPasswordInputs] = useState<Record<string, string>>({});
   const [backupLabel, setBackupLabel] = useState('');
   const [backupBusy, setBackupBusy] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importCommitBusy, setImportCommitBusy] = useState(false);
+  const [importOrganizationName, setImportOrganizationName] = useState('');
+  const [showImportMapper, setShowImportMapper] = useState(false);
+  const [importPreviewOrganizations, setImportPreviewOrganizations] = useState<any[]>([]);
+  const [importMapperTab, setImportMapperTab] = useState<'mapping' | 'diagnostics'>('mapping');
+  const [dataTransferTab, setDataTransferTab] = useState<'import-new' | 'import-replace' | 'export'>('import-new');
   const [permissionsTab, setPermissionsTab] = useState<'global' | 'collections' | 'dashboards'>('global');
   const [userQuery, setUserQuery] = useState('');
   const [selectedPreferencesUserId, setSelectedPreferencesUserId] = useState<string>('');
   const [userPreferenceDrafts, setUserPreferenceDrafts] = useState<Record<string, UserPreferenceDraft>>({});
   const [preferencesBusyByUser, setPreferencesBusyByUser] = useState<Record<string, boolean>>({});
   const [preferencesSavedAtByUser, setPreferencesSavedAtByUser] = useState<Record<string, number>>({});
+  const [organizationNameEdits, setOrganizationNameEdits] = useState<Record<string, string>>({});
 
   const loadAll = async () => {
     try {
@@ -181,6 +214,55 @@ const AccessManager = ({
       alert(err?.message || 'Impossible de retirer ce membre.');
     } finally {
       setMembersBusy(false);
+    }
+  };
+
+  const renameOrganization = async (organizationId: string) => {
+    const nextName = String(organizationNameEdits[organizationId] || '').trim();
+    if (!nextName) {
+      alert('Le nom de l’organisation ne peut pas être vide.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/organizations/${encodeURIComponent(organizationId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: nextName }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Rename organization failed');
+      await refreshAuth();
+      await loadAll();
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'Impossible de renommer l’organisation.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteOrganization = async (organizationId: string, name: string) => {
+    const ok = confirm(`Supprimer l'organisation "${name}" ? Cette action est irréversible.`);
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/organizations/${encodeURIComponent(organizationId)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Delete organization failed');
+      await refreshAuth();
+      await loadAll();
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'Impossible de supprimer l’organisation.');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -294,6 +376,382 @@ const AccessManager = ({
     }
   };
 
+  const importOrganizationsFromFiles = async (fileList: FileList | null) => {
+    const files = Array.from(fileList || []);
+    if (files.length === 0) return;
+
+    const jsonFiles = files.filter((f) => f.name.toLowerCase().endsWith('.json'));
+    const csvFiles = files.filter((f) => f.name.toLowerCase().endsWith('.csv'));
+
+    if (jsonFiles.length > 0 && csvFiles.length > 0) {
+      alert('Merci de sélectionner soit des JSON, soit des CSV (pas les deux en même temps).');
+      return;
+    }
+
+    setImportBusy(true);
+    try {
+      const previews: any[] = [];
+
+      if (csvFiles.length > 0) {
+        const csvPayload = await Promise.all(
+          csvFiles.map(async (file) => ({
+            name: file.name,
+            text: await file.text(),
+          }))
+        );
+
+        const res = await fetch(`${API_URL}/import/organizations/preview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            format: 'csv',
+            organizationName: importOrganizationName.trim() || undefined,
+            files: csvPayload,
+          }),
+        });
+
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(result?.error || 'Import CSV impossible');
+        previews.push(...(Array.isArray(result?.organizations) ? result.organizations : []));
+      } else if (jsonFiles.length > 0) {
+        for (const file of jsonFiles) {
+          const text = await file.text();
+          const payload = JSON.parse(text);
+          const res = await fetch(`${API_URL}/import/organizations/preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              format: 'json',
+              organizationName: importOrganizationName.trim() || undefined,
+              payload,
+            }),
+          });
+          const result = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(result?.error || `Import JSON impossible (${file.name})`);
+          previews.push(...(Array.isArray(result?.organizations) ? result.organizations : []));
+        }
+      }
+
+      if (!previews.length) {
+        throw new Error('Aucune organisation exploitable trouvée pour prévisualisation.');
+      }
+
+      setImportPreviewOrganizations(previews);
+      setShowImportMapper(true);
+
+    } catch (err) {
+      console.error(err);
+      alert(`❌ Erreur import JSON/CSV : ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
+  const patchImportPreviewOrganizations = (mutator: (draft: any[]) => void) => {
+    setImportPreviewOrganizations((prev) => {
+      const draft = JSON.parse(JSON.stringify(prev || []));
+      mutator(draft);
+      return draft;
+    });
+  };
+
+  const updateImportOrganizationName = (orgIndex: number, name: string) => {
+    patchImportPreviewOrganizations((draft) => {
+      if (!draft[orgIndex]) return;
+      draft[orgIndex].name = name;
+    });
+  };
+
+  const removeImportOrganization = (orgIndex: number) => {
+    patchImportPreviewOrganizations((draft) => {
+      if (!Array.isArray(draft) || !draft[orgIndex]) return;
+      draft.splice(orgIndex, 1);
+    });
+  };
+
+  const updateImportCollectionName = (orgIndex: number, collectionIndex: number, name: string) => {
+    patchImportPreviewOrganizations((draft) => {
+      const collection = draft?.[orgIndex]?.state?.collections?.[collectionIndex];
+      if (!collection) return;
+      collection.name = name;
+    });
+  };
+
+  const removeImportCollection = (orgIndex: number, collectionIndex: number) => {
+    patchImportPreviewOrganizations((draft) => {
+      const org = draft?.[orgIndex];
+      if (!org?.state?.collections || !Array.isArray(org.state.collections)) return;
+      const removed = org.state.collections[collectionIndex];
+      if (!removed) return;
+      org.state.collections.splice(collectionIndex, 1);
+
+      // Nettoyage des relations pointant vers la collection supprimée
+      org.state.collections.forEach((collection: any) => {
+        (collection?.properties || []).forEach((prop: any) => {
+          if (prop?.type === 'relation' && prop?.relation?.targetCollectionId === removed.id) {
+            prop.type = 'text';
+            delete prop.relation;
+          }
+        });
+      });
+    });
+  };
+
+  const updateImportProperty = (
+    orgIndex: number,
+    collectionIndex: number,
+    propertyIndex: number,
+    patch: Record<string, any>
+  ) => {
+    patchImportPreviewOrganizations((draft) => {
+      const property = draft?.[orgIndex]?.state?.collections?.[collectionIndex]?.properties?.[propertyIndex];
+      if (!property) return;
+      Object.assign(property, patch);
+      if (patch.type !== 'relation') {
+        delete property.relation;
+      } else if (!property.relation) {
+        const targetCollectionId = draft?.[orgIndex]?.state?.collections?.[0]?.id || null;
+        property.relation = {
+          targetCollectionId,
+          type: 'many_to_many',
+        };
+      }
+    });
+  };
+
+  const importOrganizationsWithManualMapping = async () => {
+    if (!importPreviewOrganizations.length) return;
+    setImportCommitBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/import/organizations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ mappedOrganizations: importPreviewOrganizations }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result?.error || 'Import manuel impossible');
+
+      const createdCount = Number(result?.createdCount || 0);
+      alert(`✅ Import terminé : ${createdCount} organisation(s) créée(s).`);
+      setShowImportMapper(false);
+      setImportPreviewOrganizations([]);
+      await refreshAuth();
+      await loadAll();
+    } catch (err) {
+      console.error(err);
+      alert(`❌ Erreur import final : ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setImportCommitBusy(false);
+    }
+  };
+
+  const autoFixImportMapping = () => {
+    patchImportPreviewOrganizations((draft) => {
+      draft.forEach((org: any, orgIdx: number) => {
+        org.name = String(org?.name || '').trim() || `Organisation importée ${orgIdx + 1}`;
+
+        const collections = Array.isArray(org?.state?.collections) ? org.state.collections : [];
+        const collectionIdSet = new Set<string>();
+        const oldToNewCollectionId = new Map<string, string>();
+
+        collections.forEach((col: any, colIdx: number) => {
+          const oldId = String(col?.id || '').trim();
+          const baseId = toSafeImportId(oldId || col?.name, `collection_${colIdx + 1}`);
+          let nextId = baseId;
+          let i = 2;
+          while (collectionIdSet.has(nextId)) {
+            nextId = `${baseId}_${i}`;
+            i += 1;
+          }
+          collectionIdSet.add(nextId);
+          if (oldId) oldToNewCollectionId.set(oldId, nextId);
+          col.id = nextId;
+          col.name = String(col?.name || '').trim() || `Collection ${colIdx + 1}`;
+
+          if (!Array.isArray(col.items)) col.items = [];
+          if (!Array.isArray(col.properties)) col.properties = [];
+        });
+
+        collections.forEach((col: any) => {
+          const propertyIdSet = new Set<string>();
+          col.properties.forEach((prop: any, propIdx: number) => {
+            prop.name = String(prop?.name || '').trim() || `Champ ${propIdx + 1}`;
+            const basePropId = toSafeImportId(prop?.id || prop?.name, `champ_${propIdx + 1}`);
+            let nextPropId = basePropId;
+            let i = 2;
+            while (propertyIdSet.has(nextPropId)) {
+              nextPropId = `${basePropId}_${i}`;
+              i += 1;
+            }
+            propertyIdSet.add(nextPropId);
+            prop.id = nextPropId;
+            if (!IMPORT_PROPERTY_TYPE_OPTIONS.includes(String(prop?.type || ''))) {
+              prop.type = 'text';
+            }
+          });
+        });
+
+        const targetItemIdsByCollectionId = new Map<string, Set<string>>();
+        collections.forEach((col: any) => {
+          const itemIdSet = new Set<string>();
+          col.items.forEach((item: any, itemIdx: number) => {
+            const baseItemId = String(item?.id || '').trim() || `${col.id}_item_${itemIdx + 1}`;
+            let nextItemId = toSafeImportId(baseItemId, `${col.id}_item_${itemIdx + 1}`);
+            let i = 2;
+            while (itemIdSet.has(nextItemId)) {
+              nextItemId = `${toSafeImportId(baseItemId, `${col.id}_item_${itemIdx + 1}`)}_${i}`;
+              i += 1;
+            }
+            item.id = nextItemId;
+            itemIdSet.add(nextItemId);
+          });
+          targetItemIdsByCollectionId.set(col.id, itemIdSet);
+        });
+
+        collections.forEach((col: any) => {
+          const firstTarget = collections[0]?.id || null;
+
+          col.properties.forEach((prop: any) => {
+            if (prop.type !== 'relation') {
+              delete prop.relation;
+              return;
+            }
+
+            if (!prop.relation || typeof prop.relation !== 'object') prop.relation = {};
+            const rawTarget = String(prop.relation.targetCollectionId || '').trim();
+            const mappedTarget = oldToNewCollectionId.get(rawTarget) || rawTarget;
+            const validTarget = collections.some((c: any) => c.id === mappedTarget)
+              ? mappedTarget
+              : firstTarget;
+            prop.relation.targetCollectionId = validTarget;
+
+            const relationType = String(prop.relation.type || '');
+            prop.relation.type = ['one_to_one', 'one_to_many', 'many_to_many'].includes(relationType)
+              ? relationType
+              : 'many_to_many';
+          });
+
+          col.items.forEach((item: any) => {
+            col.properties.forEach((prop: any) => {
+              const raw = item?.[prop.id];
+
+              if (prop.type === 'number') {
+                const num = Number(String(raw ?? '').replace(',', '.'));
+                item[prop.id] = Number.isFinite(num) ? num : null;
+                return;
+              }
+
+              if (prop.type === 'checkbox') {
+                const val = String(raw ?? '').trim().toLowerCase();
+                item[prop.id] = ['true', '1', 'yes', 'oui'].includes(val);
+                return;
+              }
+
+              if (prop.type === 'relation') {
+                const targetId = prop?.relation?.targetCollectionId;
+                const targetItemIds = targetItemIdsByCollectionId.get(targetId) || new Set<string>();
+                const relationType = prop?.relation?.type || 'many_to_many';
+
+                const rawValues = Array.isArray(raw)
+                  ? raw
+                  : String(raw ?? '').includes(',')
+                    ? String(raw).split(',')
+                    : String(raw ?? '').includes(';')
+                      ? String(raw).split(';')
+                      : raw === null || raw === undefined || raw === ''
+                        ? []
+                        : [raw];
+
+                const cleaned = Array.from(new Set(rawValues.map((v: any) => String(v).trim()).filter(Boolean)))
+                  .filter((v) => targetItemIds.size === 0 || targetItemIds.has(v));
+
+                item[prop.id] = relationType === 'many_to_many' ? cleaned : (cleaned[0] || null);
+                return;
+              }
+
+              if (raw === undefined) item[prop.id] = null;
+            });
+          });
+        });
+      });
+    });
+  };
+
+  const importMappingDiagnostics = useMemo(() => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    (importPreviewOrganizations || []).forEach((org: any, orgIdx: number) => {
+      const orgLabel = `Organisation ${orgIdx + 1}`;
+      const orgName = String(org?.name || '').trim();
+      if (!orgName) {
+        errors.push(`${orgLabel}: nom d'organisation vide.`);
+      }
+
+      const collections = Array.isArray(org?.state?.collections) ? org.state.collections : [];
+      if (collections.length === 0) {
+        errors.push(`${orgLabel}: aucune collection.`);
+        return;
+      }
+
+      const collectionIds = new Set<string>();
+      const collectionNames = new Set<string>();
+      collections.forEach((col: any, colIdx: number) => {
+        const colLabel = `${orgLabel} > Collection ${colIdx + 1}`;
+        const colName = String(col?.name || '').trim();
+        const colId = String(col?.id || '').trim();
+
+        if (!colName) errors.push(`${colLabel}: nom de collection vide.`);
+        if (!colId) errors.push(`${colLabel}: id de collection vide.`);
+        if (colId && collectionIds.has(colId)) errors.push(`${colLabel}: id de collection dupliqué (${colId}).`);
+        if (colName && collectionNames.has(colName.toLowerCase())) warnings.push(`${colLabel}: nom de collection dupliqué (${colName}).`);
+        if (colId) collectionIds.add(colId);
+        if (colName) collectionNames.add(colName.toLowerCase());
+
+        const properties = Array.isArray(col?.properties) ? col.properties : [];
+        if (properties.length === 0) warnings.push(`${colLabel}: aucune propriété détectée.`);
+
+        const propertyIds = new Set<string>();
+        const propertyNames = new Set<string>();
+        properties.forEach((prop: any, propIdx: number) => {
+          const propLabel = `${colLabel} > Champ ${propIdx + 1}`;
+          const propId = String(prop?.id || '').trim();
+          const propName = String(prop?.name || '').trim();
+          const propType = String(prop?.type || '').trim();
+
+          if (!propId) errors.push(`${propLabel}: id de champ vide.`);
+          if (!propName) errors.push(`${propLabel}: nom de champ vide.`);
+          if (propId && propertyIds.has(propId)) errors.push(`${propLabel}: id de champ dupliqué (${propId}).`);
+          if (propName && propertyNames.has(propName.toLowerCase())) warnings.push(`${propLabel}: nom de champ dupliqué (${propName}).`);
+          if (!IMPORT_PROPERTY_TYPE_OPTIONS.includes(propType)) errors.push(`${propLabel}: type invalide (${propType || 'vide'}).`);
+          if (propId) propertyIds.add(propId);
+          if (propName) propertyNames.add(propName.toLowerCase());
+
+          if (propType === 'relation') {
+            const relation = prop?.relation || {};
+            const targetCollectionId = String(relation?.targetCollectionId || '').trim();
+            const relationType = String(relation?.type || '').trim();
+
+            if (!targetCollectionId) {
+              errors.push(`${propLabel}: relation sans collection cible.`);
+            } else if (!collections.some((c: any) => c?.id === targetCollectionId)) {
+              errors.push(`${propLabel}: collection cible introuvable (${targetCollectionId}).`);
+            }
+
+            if (!['one_to_one', 'one_to_many', 'many_to_many'].includes(relationType)) {
+              errors.push(`${propLabel}: type de relation invalide (${relationType || 'vide'}).`);
+            }
+          }
+        });
+      });
+    });
+
+    return { errors, warnings };
+  }, [importPreviewOrganizations]);
+
   const sortedBackups = [...backups].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
@@ -329,6 +787,18 @@ const AccessManager = ({
       return changed ? next : prev;
     });
   }, [users, memberCandidates]);
+
+  useEffect(() => {
+    setOrganizationNameEdits((prev) => {
+      const next: Record<string, string> = {};
+      (organizations || []).forEach((org: any) => {
+        const id = String(org?.id || '');
+        if (!id) return;
+        next[id] = prev[id] ?? String(org?.name || '');
+      });
+      return next;
+    });
+  }, [organizations]);
 
   const collectionsWithProps = useMemo(() => {
     return collections.map((col: any) => ({
@@ -722,183 +1192,6 @@ const AccessManager = ({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs shadow "
-                style={{ minWidth: 80 }}
-                onClick={async () => {
-                  // Export JSON de l'organisation active
-                  try {
-                    const res = await fetch(`${API_URL}/appstate?scope=organization`, { credentials: 'include' });
-                    if (!res.ok) throw new Error('Erreur export appstate');
-                    const data = await res.json();
-                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'erp_organization_export.json';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  } catch (err) {
-                    alert('Erreur lors de l\'export appstate.');
-                  }
-                }}
-              >
-                Export Orga JSON
-              </button>
-              <button
-                className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-xs shadow "
-                style={{ minWidth: 80 }}
-                onClick={async () => {
-                  // Export JSON global (toutes organisations)
-                  try {
-                    const res = await fetch(`${API_URL}/appstate?scope=global`, { credentials: 'include' });
-                    if (!res.ok) throw new Error('Erreur export global appstate');
-                    const data = await res.json();
-                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'erp_global_export.json';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  } catch (err) {
-                    alert('Erreur lors de l\'export global appstate.');
-                  }
-                }}
-              >
-                Export Complet
-              </button>
-              <button
-                className="px-3 py-1 rounded bg-yellow-600 hover:bg-yellow-700 text-white text-xs shadow "
-                style={{ minWidth: 80 }}
-                onClick={async () => {
-                  // Export CSV des collections de l'organisation active (dans un zip)
-                  try {
-                    const res = await fetch(`${API_URL}/appstate?scope=organization`, { credentials: 'include' });
-                    if (!res.ok) throw new Error('Erreur export appstate');
-                    const data = await res.json();
-                    const appStateArr = Array.isArray(data.app_state) ? data.app_state : [];
-                    const row = appStateArr[0];
-                    if (!row) return;
-                    let state;
-                    try {
-                      state = JSON.parse(row.data);
-                    } catch (e) {
-                      alert('Impossible de parser le state pour CSV');
-                      return;
-                    }
-                    const collections = Array.isArray(state.collections) ? state.collections : [];
-                    if (collections.length === 0) return;
-                    let JSZip;
-                    try {
-                      JSZip = (await import('jszip')).default;
-                    } catch (e) {
-                      alert('JSZip est requis pour l\'export CSV.');
-                      return;
-                    }
-                    const zip = new JSZip();
-                    for (const col of collections) {
-                      const items = Array.isArray(col.items) ? col.items : [];
-                      if (items.length === 0) continue;
-                      const allKeys = Array.from(new Set(items.flatMap((item: {}) => Object.keys(item))));
-                      const header = allKeys.join(',');
-                      const csvRows = [header];
-                      for (const item of items) {
-                        const row = allKeys.map(k => {
-                          let v = (item as Record<string, any>)[k as string];
-                          if (typeof v === 'object' && v !== null) v = JSON.stringify(v);
-                          if (typeof v === 'string' && (v.includes(',') || v.includes('"') || v.includes('\n'))) {
-                            v = '"' + v.replace(/"/g, '""') + '"';
-                          }
-                          return v ?? '';
-                        }).join(',');
-                        csvRows.push(row);
-                      }
-                      const csvContent = csvRows.join('\n');
-                      zip.file(`${col.name || col.id || 'collection'}.csv`, csvContent);
-                    }
-                    const zipBlob = await zip.generateAsync({ type: 'blob' });
-                    const zipUrl = URL.createObjectURL(zipBlob);
-                    const azip = document.createElement('a');
-                    azip.href = zipUrl;
-                    azip.download = 'erp_collections_csv.zip';
-                    document.body.appendChild(azip);
-                    azip.click();
-                    document.body.removeChild(azip);
-                    URL.revokeObjectURL(zipUrl);
-                  } catch (err) {
-                    alert('Erreur lors de l\'export CSV.');
-                  }
-                }}
-              >
-                Export CSV
-              </button>
-              <label className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs shadow cursor-pointer" style={{ minWidth: 80, textAlign: 'center' }}>
-                Importer
-                <input
-                  type="file"
-                  accept="application/json"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    try {
-                      const text = await file.text();
-                      const fullData = JSON.parse(text);  // Garde TOUT le JSON
-                      const appStateRows = Array.isArray(fullData?.app_state) ? fullData.app_state : [];
-                      const organizationIdsFromState = new Set(
-                        appStateRows
-                          .map((row: any) => row?.organization_id)
-                          .filter((value: any) => typeof value === 'string' && value.length > 0)
-                      );
-                      const organizationsInPayload = Array.isArray(fullData?.organizations)
-                        ? fullData.organizations.length
-                        : 0;
-
-                      const inferredScope: 'global' | 'organization' =
-                        fullData?.scope === 'global' ||
-                        /global/i.test(file.name) ||
-                        organizationsInPayload > 1 ||
-                        organizationIdsFromState.size > 1
-                          ? 'global'
-                          : 'organization';
-
-                      const res = await fetch(`${API_URL}/appstate?scope=${inferredScope}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include',
-                        body: JSON.stringify(fullData),  // ← Envoi TOUT (users + appstate + ...)
-                      });
-                      const result = await res.json().catch(() => ({}));
-                      if (!res.ok) {
-                        throw new Error(result?.error || 'Erreur import appstate');
-                      }
-
-                      const appliedScope: 'global' | 'organization' =
-                        result?.scope === 'global' ? 'global' : inferredScope;
-
-                      if (appliedScope === 'global') {
-                        const orgCount =
-                          organizationsInPayload ||
-                          organizationIdsFromState.size ||
-                          1;
-                        alert(`✅ Import global réussi ! ${orgCount} organisation(s) remplacée(s).`);
-                      } else {
-                        alert('✅ Import organisation réussi ! Seule l’organisation active a été remplacée.');
-                      }
-                      // Optionnel : reload tout
-                      loadAll();
-                    } catch (err) {
-                      alert(`❌ Erreur lors de l'import : ${err instanceof Error ? err.message : String(err)}`);
-                    }
-                  }}
-
-                />
-              </label>
               <button onClick={loadAll} className="p-2 rounded-lg hover:bg-white/10 text-neutral-600 dark:text-white" title="Rafraîchir">
                 <RefreshCw size={16} />
               </button>
@@ -909,7 +1202,317 @@ const AccessManager = ({
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-6 max-h-[80svh] overflow-y-scroll">
+            <div className="lg:col-span-3 bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
+              <div className="w-full text-left">
+                <div>
+                  <h4 className="font-semibold">Imports / Exports</h4>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Zone de transfert de données (exports, import nouvelles orga, import remplacement).
+                  </p>
+                </div>
+              </div>
+
+              <Tabs
+                value={dataTransferTab}
+                onValueChange={(value) => setDataTransferTab(value as 'import-new' | 'import-replace' | 'export')}
+                className="mt-4"
+              >
+                <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto gap-2 bg-transparent p-0">
+                  <TabsTrigger value="import-new" className="border border-emerald-500/30 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
+                    Import nouvelles orgas
+                  </TabsTrigger>
+                  <TabsTrigger value="import-replace" className="border border-amber-500/30 data-[state=active]:bg-amber-600 data-[state=active]:text-white">
+                    Import remplacement
+                  </TabsTrigger>
+                  <TabsTrigger value="export" className="border border-blue-500/30 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                    Exports
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="import-new" className="mt-3">
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+                    <div className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-200 mb-2">IMPORT NOUVELLES ORGAS</div>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-3">
+                      Ajoute une ou plusieurs organisations à partir de fichiers JSON/CSV, avec prévisualisation et remapping avant validation.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        className="px-2 py-1 rounded border border-white/10 bg-white dark:bg-neutral-900 text-xs"
+                        placeholder="Nom orga (optionnel)"
+                        value={importOrganizationName}
+                        onChange={(e) => setImportOrganizationName(e.target.value)}
+                        disabled={importBusy}
+                      />
+                      <label
+                        className={`px-3 py-1 rounded text-white text-xs shadow cursor-pointer flex items-center gap-1 ${importBusy ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                        title="Importe des .json ou .csv et crée de nouvelles organisations automatiquement"
+                      >
+                        <FileUp size={13} />
+                        {importBusy ? 'Import…' : 'Importer JSON/CSV'}
+                        <input
+                          type="file"
+                          accept=".json,.csv,application/json,text/csv"
+                          multiple
+                          className="hidden"
+                          onChange={async (e) => {
+                            const files = e.target.files;
+                            await importOrganizationsFromFiles(files);
+                            e.currentTarget.value = '';
+                          }}
+                          disabled={importBusy}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="import-replace" className="mt-3">
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                    <div className="text-[11px] font-semibold text-amber-800 dark:text-amber-200 mb-2">IMPORT REMPLACEMENT</div>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-3">
+                      Remplace les données existantes via un export appstate JSON (scope auto: organisation ou global).
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs shadow cursor-pointer" title="Import historique appstate (peut remplacer des données selon le scope)">
+                        Importer Appstate JSON
+                        <input
+                          type="file"
+                          accept="application/json"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const text = await file.text();
+                              const fullData = JSON.parse(text);
+                              const appStateRows = Array.isArray(fullData?.app_state) ? fullData.app_state : [];
+                              const organizationIdsFromState = new Set(
+                                appStateRows
+                                  .map((row: any) => row?.organization_id)
+                                  .filter((value: any) => typeof value === 'string' && value.length > 0)
+                              );
+                              const organizationsInPayload = Array.isArray(fullData?.organizations)
+                                ? fullData.organizations.length
+                                : 0;
+
+                              const inferredScope: 'global' | 'organization' =
+                                fullData?.scope === 'global' ||
+                                /global/i.test(file.name) ||
+                                organizationsInPayload > 1 ||
+                                organizationIdsFromState.size > 1
+                                  ? 'global'
+                                  : 'organization';
+
+                              const res = await fetch(`${API_URL}/appstate?scope=${inferredScope}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'include',
+                                body: JSON.stringify(fullData),
+                              });
+                              const result = await res.json().catch(() => ({}));
+                              if (!res.ok) throw new Error(result?.error || 'Erreur import appstate');
+
+                              const appliedScope: 'global' | 'organization' =
+                                result?.scope === 'global' ? 'global' : inferredScope;
+
+                              if (appliedScope === 'global') {
+                                const orgCount = organizationsInPayload || organizationIdsFromState.size || 1;
+                                alert(`✅ Import global réussi ! ${orgCount} organisation(s) remplacée(s).`);
+                              } else {
+                                alert('✅ Import organisation réussi ! Seule l’organisation active a été remplacée.');
+                              }
+                              loadAll();
+                            } catch (err) {
+                              alert(`❌ Erreur lors de l'import : ${err instanceof Error ? err.message : String(err)}`);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="export" className="mt-3">
+                  <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
+                    <div className="text-[11px] font-semibold text-blue-800 dark:text-blue-200 mb-2">EXPORT</div>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-3">
+                      Exporte l’organisation active (JSON/CSV) ou tout l’ERP (global JSON).
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs shadow"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${API_URL}/appstate?scope=organization`, { credentials: 'include' });
+                            if (!res.ok) throw new Error('Erreur export appstate');
+                            const data = await res.json();
+                            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'erp_organization_export.json';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                          } catch {
+                            alert('Erreur lors de l\'export appstate.');
+                          }
+                        }}
+                        title="Exporter uniquement l'organisation active en JSON"
+                      >
+                        Orga JSON
+                      </button>
+                      <button
+                        className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-xs shadow"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${API_URL}/appstate?scope=global`, { credentials: 'include' });
+                            if (!res.ok) throw new Error('Erreur export global appstate');
+                            const data = await res.json();
+                            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'erp_global_export.json';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                          } catch {
+                            alert('Erreur lors de l\'export global appstate.');
+                          }
+                        }}
+                        title="Exporter toutes les organisations (global) en JSON"
+                      >
+                        Global JSON
+                      </button>
+                      <button
+                        className="px-3 py-1 rounded bg-yellow-600 hover:bg-yellow-700 text-white text-xs shadow"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${API_URL}/appstate?scope=organization`, { credentials: 'include' });
+                            if (!res.ok) throw new Error('Erreur export appstate');
+                            const data = await res.json();
+                            const appStateArr = Array.isArray(data.app_state) ? data.app_state : [];
+                            const row = appStateArr[0];
+                            if (!row) return;
+                            let state;
+                            try {
+                              state = JSON.parse(row.data);
+                            } catch {
+                              alert('Impossible de parser le state pour CSV');
+                              return;
+                            }
+                            const collections = Array.isArray(state.collections) ? state.collections : [];
+                            if (collections.length === 0) return;
+                            let JSZip;
+                            try {
+                              JSZip = (await import('jszip')).default;
+                            } catch {
+                              alert('JSZip est requis pour l\'export CSV.');
+                              return;
+                            }
+                            const zip = new JSZip();
+                            for (const col of collections) {
+                              const items = Array.isArray(col.items) ? col.items : [];
+                              if (items.length === 0) continue;
+                              const allKeys = Array.from(new Set(items.flatMap((item: {}) => Object.keys(item))));
+                              const header = allKeys.join(',');
+                              const csvRows = [header];
+                              for (const item of items) {
+                                const row = allKeys.map((k) => {
+                                  let v = (item as Record<string, any>)[k as string];
+                                  if (typeof v === 'object' && v !== null) v = JSON.stringify(v);
+                                  if (typeof v === 'string' && (v.includes(',') || v.includes('"') || v.includes('\n'))) {
+                                    v = '"' + v.replace(/"/g, '""') + '"';
+                                  }
+                                  return v ?? '';
+                                }).join(',');
+                                csvRows.push(row);
+                              }
+                              zip.file(`${col.name || col.id || 'collection'}.csv`, csvRows.join('\n'));
+                            }
+                            const zipBlob = await zip.generateAsync({ type: 'blob' });
+                            const zipUrl = URL.createObjectURL(zipBlob);
+                            const azip = document.createElement('a');
+                            azip.href = zipUrl;
+                            azip.download = 'erp_collections_csv.zip';
+                            document.body.appendChild(azip);
+                            azip.click();
+                            document.body.removeChild(azip);
+                            URL.revokeObjectURL(zipUrl);
+                          } catch {
+                            alert('Erreur lors de l\'export CSV.');
+                          }
+                        }}
+                        title="Exporter les collections de l'organisation active en CSV (ZIP)"
+                      >
+                        CSV (ZIP)
+                      </button>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <div className="text-[11px] text-neutral-600 dark:text-neutral-300 text-center max-w-2xl mx-auto mt-3">
+                  <span className="font-semibold">Aide rapide :</span> <strong>Importer JSON/CSV</strong> crée de nouvelles organisations (avec remapping),
+                  <strong> Import Appstate</strong> remplace des données, <strong>Exports</strong> sert à sauvegarder l'orga active ou tout le global.
+                </div>
+              </Tabs>
+            </div>
+
             <div className="space-y-4">
+              <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold">Organisations</h4>
+                  <span className="text-xs text-neutral-500">{(organizations || []).length} total</span>
+                </div>
+
+                <div className="space-y-2 max-h-64 overflow-auto pr-1">
+                  {(organizations || []).length === 0 && (
+                    <p className="text-sm text-neutral-500">Aucune organisation.</p>
+                  )}
+                  {(organizations || []).map((org: any) => {
+                    const orgId = String(org?.id || '');
+                    const isActive = activeOrganizationId === orgId;
+                    return (
+                      <div key={orgId} className="rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900/70 p-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs"
+                            value={organizationNameEdits[orgId] ?? String(org?.name || '')}
+                            onChange={(e) => setOrganizationNameEdits((prev) => ({ ...prev, [orgId]: e.target.value }))}
+                            disabled={busy}
+                          />
+                          <button
+                            type="button"
+                            className="px-2 py-1.5 rounded bg-cyan-600 hover:bg-cyan-700 text-white text-xs disabled:opacity-60"
+                            onClick={() => renameOrganization(orgId)}
+                            disabled={busy || !orgId}
+                            title="Renommer"
+                          >
+                            <Save size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            className="px-2 py-1.5 rounded bg-red-600 hover:bg-red-700 text-white text-xs disabled:opacity-60"
+                            onClick={() => deleteOrganization(orgId, String(org?.name || orgId))}
+                            disabled={busy || !orgId}
+                            title="Supprimer"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                        <div className="mt-1 text-[11px] text-neutral-500 flex items-center justify-between">
+                          <span className="truncate">{orgId}</span>
+                          {isActive && <span className="text-emerald-600 dark:text-emerald-300">Active</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -1585,6 +2188,285 @@ const AccessManager = ({
               </div>
             </div>
           </div>
+
+          {showImportMapper && (
+            <div className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center px-4">
+              <div className="w-full max-w-6xl max-h-[88vh] overflow-hidden rounded-xl border border-white/10 bg-white dark:bg-neutral-950 shadow-2xl flex flex-col">
+                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/10">
+                  <div>
+                    <h4 className="font-semibold">Prévisualisation & remapping import</h4>
+                    <p className="text-xs text-neutral-500">Vous pouvez tout ajuster à la main avant création des organisations.</p>
+                    <p className="text-[11px] mt-1 text-neutral-500">
+                      {importMappingDiagnostics.errors.length} erreur(s) · {importMappingDiagnostics.warnings.length} avertissement(s)
+                    </p>
+                  </div>
+                  <button
+                    className="p-2 rounded hover:bg-white/10"
+                    onClick={() => {
+                      if (importCommitBusy) return;
+                      setShowImportMapper(false);
+                    }}
+                    disabled={importCommitBusy}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-auto p-4">
+                  <Tabs
+                    value={importMapperTab}
+                    onValueChange={(value) => setImportMapperTab(value as 'mapping' | 'diagnostics')}
+                    className="space-y-4"
+                  >
+                    <TabsList className="grid w-full grid-cols-2 h-auto gap-2 bg-transparent p-0">
+                      <TabsTrigger value="mapping" className="border border-cyan-500/30 data-[state=active]:bg-cyan-600 data-[state=active]:text-white">
+                        Mapping manuel
+                      </TabsTrigger>
+                      <TabsTrigger value="diagnostics" className="border border-amber-500/30 data-[state=active]:bg-amber-600 data-[state=active]:text-white">
+                        Diagnostics ({importMappingDiagnostics.errors.length} / {importMappingDiagnostics.warnings.length})
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="diagnostics" className="mt-0 space-y-3">
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                        <div className="text-xs text-neutral-700 dark:text-neutral-300 mb-2">
+                          Corrigez d’abord les erreurs bloquantes, puis utilisez l’import final.
+                        </div>
+                        {importMappingDiagnostics.errors.length > 0 && (
+                          <div className="mb-2">
+                            <div className="text-xs font-semibold text-red-700 dark:text-red-300 mb-1">Erreurs bloquantes</div>
+                            <ul className="list-disc pl-5 space-y-1 text-xs text-red-800 dark:text-red-200">
+                              {importMappingDiagnostics.errors.map((msg, idx) => (
+                                <li key={`import-error-${idx}`}>{msg}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {importMappingDiagnostics.warnings.length > 0 && (
+                          <div>
+                            <div className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1">Avertissements</div>
+                            <ul className="list-disc pl-5 space-y-1 text-xs text-amber-900 dark:text-amber-200">
+                              {importMappingDiagnostics.warnings.map((msg, idx) => (
+                                <li key={`import-warning-${idx}`}>{msg}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {importMappingDiagnostics.errors.length === 0 && importMappingDiagnostics.warnings.length === 0 && (
+                          <div className="text-xs text-emerald-700 dark:text-emerald-300">Aucun problème détecté. Import prêt.</div>
+                        )}
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="mapping" className="mt-0 space-y-4">
+                      {importPreviewOrganizations.map((org: any, orgIdx: number) => {
+                        const orgCollections = Array.isArray(org?.state?.collections) ? org.state.collections : [];
+                        return (
+                          <div key={`org-${orgIdx}`} className="rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900/70 p-3 space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                              <div className="md:col-span-2">
+                                <label className="block text-xs text-neutral-500 mb-1">Nom de l’organisation</label>
+                                <input
+                                  className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-2 text-sm"
+                                  value={org?.name || ''}
+                                  onChange={(e) => updateImportOrganizationName(orgIdx, e.target.value)}
+                                  disabled={importCommitBusy}
+                                />
+                              </div>
+                              <div className="flex items-end md:justify-end">
+                                <button
+                                  type="button"
+                                  className="px-2 py-1.5 rounded bg-red-600/90 hover:bg-red-700 text-white text-xs disabled:opacity-60"
+                                  onClick={() => removeImportOrganization(orgIdx)}
+                                  disabled={importCommitBusy || importPreviewOrganizations.length <= 1}
+                                  title={importPreviewOrganizations.length <= 1 ? 'Au moins une organisation est requise' : 'Supprimer cette organisation de l’import'}
+                                >
+                                  Supprimer organisation
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              {orgCollections.length === 0 ? (
+                                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+                                  Aucune collection détectée pour cette organisation.
+                                </div>
+                              ) : (
+                                <Tabs defaultValue={`col-${orgIdx}-0`} className="space-y-3">
+                                  <TabsList className="w-full justify-start overflow-x-auto flex-nowrap bg-transparent p-0 gap-2">
+                                    {orgCollections.map((col: any, colIdx: number) => (
+                                      <TabsTrigger
+                                        key={`org-${orgIdx}-tab-${colIdx}`}
+                                        value={`col-${orgIdx}-${colIdx}`}
+                                        className="border border-cyan-500/30 data-[state=active]:bg-cyan-600 data-[state=active]:text-white whitespace-nowrap"
+                                      >
+                                        {col?.name || `Collection ${colIdx + 1}`}
+                                      </TabsTrigger>
+                                    ))}
+                                  </TabsList>
+
+                                  {orgCollections.map((col: any, colIdx: number) => {
+                                    const properties = Array.isArray(col?.properties) ? col.properties : [];
+                                    const targetCollections = orgCollections.map((c: any) => ({ id: c.id, name: c.name || c.id }));
+                                    return (
+                                      <TabsContent key={`org-${orgIdx}-content-${colIdx}`} value={`col-${orgIdx}-${colIdx}`} className="mt-0">
+                                        <div className="rounded-lg border border-black/10 dark:border-white/10 p-3 space-y-3">
+                                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-1">
+                                            <div>
+                                              <label className="block text-xs text-neutral-500 mb-1">Nom collection</label>
+                                              <input
+                                                className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-2 text-sm"
+                                                value={col?.name || ''}
+                                                onChange={(e) => updateImportCollectionName(orgIdx, colIdx, e.target.value)}
+                                                disabled={importCommitBusy}
+                                              />
+                                            </div>
+                                            <div className="text-xs text-neutral-500 flex items-end pb-2">
+                                              {Array.isArray(col?.items) ? col.items.length : 0} item(s) · {properties.length} champ(s)
+                                            </div>
+                                            <div className="flex items-end md:justify-end">
+                                              <button
+                                                type="button"
+                                                className="px-2 py-1.5 rounded bg-red-600/90 hover:bg-red-700 text-white text-xs disabled:opacity-60"
+                                                onClick={() => removeImportCollection(orgIdx, colIdx)}
+                                                disabled={importCommitBusy || orgCollections.length <= 1}
+                                                title={orgCollections.length <= 1 ? 'Au moins une collection est requise' : 'Supprimer cette collection de l’import'}
+                                              >
+                                                Supprimer collection
+                                              </button>
+                                            </div>
+                                          </div>
+
+                                          <div className="rounded-lg border border-black/10 dark:border-white/10 overflow-hidden">
+                                            <div className="grid grid-cols-12 gap-2 bg-black/5 dark:bg-white/5 px-2 py-2 text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">
+                                              <div className="col-span-4">Champ</div>
+                                              <div className="col-span-3">Type</div>
+                                              <div className="col-span-3">Cible relation</div>
+                                              <div className="col-span-2">Cardinalité</div>
+                                            </div>
+
+                                            <div className="max-h-[340px] overflow-auto">
+                                              {properties.map((prop: any, propIdx: number) => {
+                                                const relationType = prop?.relation?.type || 'many_to_many';
+                                                const relationTarget = prop?.relation?.targetCollectionId || '';
+                                                const isRelation = prop?.type === 'relation';
+                                                return (
+                                                  <div
+                                                    key={`org-${orgIdx}-col-${colIdx}-prop-${propIdx}`}
+                                                    className="grid grid-cols-12 gap-2 px-2 py-2 border-t border-black/10 dark:border-white/10 items-start"
+                                                  >
+                                                    <div className="col-span-4">
+                                                      <input
+                                                        className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs"
+                                                        value={prop?.name || ''}
+                                                        onChange={(e) => updateImportProperty(orgIdx, colIdx, propIdx, { name: e.target.value })}
+                                                        disabled={importCommitBusy}
+                                                      />
+                                                    </div>
+
+                                                    <div className="col-span-3">
+                                                      <select
+                                                        className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs"
+                                                        value={prop?.type || 'text'}
+                                                        onChange={(e) => updateImportProperty(orgIdx, colIdx, propIdx, { type: e.target.value })}
+                                                        disabled={importCommitBusy}
+                                                      >
+                                                        {IMPORT_PROPERTY_TYPE_OPTIONS.map((typeOpt) => (
+                                                          <option key={typeOpt} value={typeOpt}>{typeOpt}</option>
+                                                        ))}
+                                                      </select>
+                                                    </div>
+
+                                                    <div className="col-span-3">
+                                                      {isRelation ? (
+                                                        <select
+                                                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs"
+                                                          value={relationTarget}
+                                                          onChange={(e) => updateImportProperty(orgIdx, colIdx, propIdx, {
+                                                            relation: {
+                                                              ...(prop?.relation || {}),
+                                                              targetCollectionId: e.target.value,
+                                                              type: relationType,
+                                                            },
+                                                          })}
+                                                          disabled={importCommitBusy}
+                                                        >
+                                                          {targetCollections.map((target: any) => (
+                                                            <option key={target.id} value={target.id}>{target.name}</option>
+                                                          ))}
+                                                        </select>
+                                                      ) : (
+                                                        <div className="text-[11px] text-neutral-500 py-1.5">—</div>
+                                                      )}
+                                                    </div>
+
+                                                    <div className="col-span-2">
+                                                      {isRelation ? (
+                                                        <select
+                                                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs"
+                                                          value={relationType}
+                                                          onChange={(e) => updateImportProperty(orgIdx, colIdx, propIdx, {
+                                                            relation: {
+                                                              ...(prop?.relation || {}),
+                                                              targetCollectionId: relationTarget || targetCollections[0]?.id || null,
+                                                              type: e.target.value,
+                                                            },
+                                                          })}
+                                                          disabled={importCommitBusy}
+                                                        >
+                                                          <option value="one_to_one">one_to_one</option>
+                                                          <option value="one_to_many">one_to_many</option>
+                                                          <option value="many_to_many">many_to_many</option>
+                                                        </select>
+                                                      ) : (
+                                                        <div className="text-[11px] text-neutral-500 py-1.5">—</div>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </TabsContent>
+                                    );
+                                  })}
+                                </Tabs>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </TabsContent>
+                  </Tabs>
+                </div>
+
+                <div className="px-4 py-3 border-t border-white/10 flex items-center justify-end gap-2">
+                  <button
+                    className="px-3 py-2 rounded bg-amber-600 hover:bg-amber-700 text-white text-sm disabled:opacity-60"
+                    onClick={autoFixImportMapping}
+                    disabled={importCommitBusy || !importPreviewOrganizations.length}
+                  >
+                    Auto-fix mapping
+                  </button>
+                  <button
+                    className="px-3 py-2 rounded border border-white/20 text-sm"
+                    onClick={() => setShowImportMapper(false)}
+                    disabled={importCommitBusy}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    className="px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-60"
+                    onClick={importOrganizationsWithManualMapping}
+                    disabled={importCommitBusy || !importPreviewOrganizations.length || importMappingDiagnostics.errors.length > 0}
+                  >
+                    {importCommitBusy ? 'Import en cours…' : 'Créer les organisations'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>

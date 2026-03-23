@@ -251,6 +251,9 @@ const TableView: React.FC<TableViewProps> = ({
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [dragItemId, setDragItemId] = useState<string | null>(null);
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
+  const [performanceMode, setPerformanceMode] = useState<boolean>(items.length >= 600);
+  const [rowsPerPage, setRowsPerPage] = useState<number>(50);
+  const [page, setPage] = useState<number>(1);
 
   if (!collection) {
     return (
@@ -534,7 +537,23 @@ const TableView: React.FC<TableViewProps> = ({
     setSelectedItemIds(new Set());
   }, [showSelectionColumn]);
 
-  const canReorderRows = canEdit && !sortState.column;
+  const canReorderRows = canEdit && !sortState.column && !performanceMode;
+
+  const sortedFlatItems = useMemo(() => sortItems(items), [items, sortItems]);
+  const totalPages = Math.max(1, Math.ceil(sortedFlatItems.length / rowsPerPage));
+  const effectivePage = Math.min(page, totalPages);
+  const paginatedFlatItems = useMemo(() => {
+    const start = (effectivePage - 1) * rowsPerPage;
+    return sortedFlatItems.slice(start, start + rowsPerPage);
+  }, [sortedFlatItems, effectivePage, rowsPerPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [collection?.id, rowsPerPage, sortState.column, sortState.direction]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const reorderItemsById = useCallback((sourceId: string, targetId: string) => {
     if (sourceId === targetId) return;
@@ -717,6 +736,57 @@ const TableView: React.FC<TableViewProps> = ({
       })()}
 
       <div className=" border border-black/10 dark:border-white/5 rounded-lg overflow-hidden backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20">
+          <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
+            <span>{items.length} ligne{items.length > 1 ? 's' : ''}</span>
+            {groups.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-white/70 dark:bg-white/10">
+                Groupes actifs: {groups.length}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={`px-2 py-1 rounded text-xs border ${performanceMode ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-white dark:bg-neutral-900 border-black/10 dark:border-white/10'}`}
+              onClick={() => setPerformanceMode((prev) => !prev)}
+              title="Réduit les coûts d'affichage sur les gros datasets (pagination + rendu simplifié)"
+            >
+              {performanceMode ? 'Mode performance ON' : 'Mode performance OFF'}
+            </button>
+
+            <label className="text-xs text-neutral-600 dark:text-neutral-300">Lignes/page</label>
+            <select
+              className="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900"
+              value={rowsPerPage}
+              onChange={(e) => setRowsPerPage(Number(e.target.value))}
+            >
+              {[50, 100, 200, 500].map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              className="px-2 py-1 rounded text-xs border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 disabled:opacity-50"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={effectivePage <= 1}
+            >
+              ◀
+            </button>
+            <span className="text-xs min-w-[70px] text-center">{effectivePage}/{totalPages}</span>
+            <button
+              type="button"
+              className="px-2 py-1 rounded text-xs border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 disabled:opacity-50"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={effectivePage >= totalPages}
+            >
+              ▶
+            </button>
+          </div>
+        </div>
+
         {showSelectionColumn && (
           <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20">
             <span className="text-xs text-neutral-600 dark:text-neutral-300">
@@ -845,8 +915,8 @@ const TableView: React.FC<TableViewProps> = ({
             />
           );
 
-          const renderFlatRows = () =>
-            sortItems(items).map(item => (
+          const renderFlatRows = (sourceItems: any[] = items) =>
+            sourceItems.map(item => (
               <TableItemRow
                 key={item.id}
                 item={item}
@@ -992,8 +1062,12 @@ const TableView: React.FC<TableViewProps> = ({
           );
           const rootGroupColumnsClassName = getGroupColumnsClassName(rootGroupColumnCount);
 
-          if (!groupedStructure) {
-            return renderTableShell(renderFlatRows());
+          if (!groupedStructure || performanceMode) {
+            return renderTableShell(
+              renderFlatRows(paginatedFlatItems),
+              paginatedFlatItems,
+              paginatedFlatItems
+            );
           }
 
           if (rootGroupMode === 'columns' && rootGroups.length > 0) {

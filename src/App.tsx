@@ -496,14 +496,21 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     return base;
   }, [dashboards, dashboardSort]);
 
-  const orderedProperties = getOrderedProperties(currentCollection, activeViewConfig, collectionsWithCalculatedFields);
+  const orderedProperties = useMemo(
+    () => getOrderedProperties(currentCollection, activeViewConfig, collectionsWithCalculatedFields),
+    [currentCollection, activeViewConfig, collectionsWithCalculatedFields]
+  );
 
-  const filteredItems = getFilteredItems(
-    currentCollection,
-    activeViewConfig,
-    relationFilter,
-    activeCollection,
-    collectionsWithCalculatedFields
+  const filteredItems = useMemo(
+    () =>
+      getFilteredItems(
+        currentCollection,
+        activeViewConfig,
+        relationFilter,
+        activeCollection,
+        collectionsWithCalculatedFields
+      ),
+    [currentCollection, activeViewConfig, relationFilter, activeCollection, collectionsWithCalculatedFields]
   );
 
   if (authLoading) {

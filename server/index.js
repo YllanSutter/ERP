@@ -32,6 +32,736 @@ const INITIAL_APP_STATE = {
   favorites: { views: [], items: [] }
 };
 
+const RESERVED_IMPORT_ITEM_KEYS = new Set(['id', '_eventSegments', '_preserveEventSegments', '__collectionId']);
+
+const normalizeImportName = (value, fallback = 'element') => {
+  const source = String(value || '').trim();
+  if (!source) return fallback;
+  return source
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || fallback;
+};
+
+const ensureUniqueId = (baseId, usedIds, fallbackPrefix = 'id') => {
+  let candidate = String(baseId || '').trim() || `${fallbackPrefix}_${Math.random().toString(36).slice(2, 8)}`;
+  if (!usedIds.has(candidate)) {
+    usedIds.add(candidate);
+    return candidate;
+  }
+  let i = 2;
+  while (usedIds.has(`${candidate}_${i}`)) i += 1;
+  const unique = `${candidate}_${i}`;
+  usedIds.add(unique);
+  return unique;
+};
+
+const parsePotentialJsonArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeImportScalar = (value) => {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  return trimmed;
+};
+
+const detectCsvDelimiter = (headerLine = '') => {
+  const candidates = [',', ';', '\t', '|'];
+  const counts = candidates.map((sep) => ({
+    sep,
+    count: (headerLine.match(new RegExp(`\\${sep === '\t' ? 't' : sep}`, 'g')) || []).length,
+  }));
+  counts.sort((a, b) => b.count - a.count);
+  return counts[0]?.count > 0 ? counts[0].sep : ',';
+};
+
+const parseCsvRows = (content, delimiter) => {
+  const rows = [];
+  let row = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < content.length; i += 1) {
+    const ch = content[i];
+    const next = content[i + 1];
+
+    if (ch === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && ch === delimiter) {
+      row.push(current);
+      current = '';
+      continue;
+    }
+
+    if (!inQuotes && (ch === '\n' || ch === '\r')) {
+      if (ch === '\r' && next === '\n') i += 1;
+      row.push(current);
+      rows.push(row);
+      row = [];
+      current = '';
+      continue;
+    }
+
+    current += ch;
+  }
+
+  if (current.length > 0 || row.length > 0) {
+    row.push(current);
+    rows.push(row);
+  }
+
+  return rows;
+};
+
+const csvContentToObjects = (content) => {
+  const lines = String(content || '').trim();
+  if (!lines) return [];
+
+  const firstLine = lines.split(/\r?\n/)[0] || '';
+  const delimiter = detectCsvDelimiter(firstLine);
+  const rows = parseCsvRows(lines, delimiter);
+  if (!rows.length) return [];
+
+  const headers = rows[0].map((h, idx) => {
+    const clean = String(h || '').trim();
+    return clean || `colonne_${idx + 1}`;
+  });
+
+  const objects = [];
+  for (let i = 1; i < rows.length; i += 1) {
+    const row = rows[i];
+    const hasData = row.some((cell) => String(cell || '').trim() !== '');
+    if (!hasData) continue;
+    const obj = {};
+    headers.forEach((header, index) => {
+      obj[header] = normalizeImportScalar(row[index]);
+    });
+    objects.push(obj);
+  }
+  return objects;
+};
+
+const inferPrimitiveType = (values) => {
+  const nonNull = values.filter((v) => v !== null && v !== undefined && String(v).trim() !== '');
+  if (!nonNull.length) return 'text';
+
+  const boolLike = nonNull.every((v) => {
+    const s = String(v).trim().toLowerCase();
+    return ['true', 'false', '1', '0', 'yes', 'no', 'oui', 'non'].includes(s);
+  });
+  if (boolLike) return 'checkbox';
+
+  const numberLike = nonNull.every((v) => Number.isFinite(Number(String(v).replace(',', '.'))));
+  if (numberLike) return 'number';
+
+  const dateLike = nonNull.every((v) => {
+    const d = new Date(String(v));
+    return !Number.isNaN(d.getTime());
+  });
+  if (dateLike) return 'date';
+
+  return 'text';
+};
+
+const toBooleanValue = (value) => {
+  if (value === null || value === undefined) return false;
+  const s = String(value).trim().toLowerCase();
+  return ['true', '1', 'yes', 'oui'].includes(s);
+};
+
+const extractRelationTokens = (value) => {
+  if (value === null || value === undefined) return [];
+  if (Array.isArray(value)) {
+    return value.map((v) => String(v).trim()).filter(Boolean);
+  }
+  const parsedArray = parsePotentialJsonArray(value);
+  if (Array.isArray(parsedArray)) {
+    return parsedArray.map((v) => String(v).trim()).filter(Boolean);
+  }
+  const str = String(value).trim();
+  if (!str) return [];
+  if (str.includes(',') || str.includes(';')) {
+    const sep = str.includes(';') ? ';' : ',';
+    return str.split(sep).map((v) => v.trim()).filter(Boolean);
+  }
+  return [str];
+};
+
+const getRelationFieldBase = (fieldKey = '') => {
+  const key = String(fieldKey || '').trim().toLowerCase();
+  if (!key) return null;
+
+  if (key.endsWith('_ids') && key.length > 4) return key.slice(0, -4);
+  if (key.endsWith('_id') && key.length > 3) return key.slice(0, -3);
+
+  if (key.endsWith('ids') && key.length > 4) return key.slice(0, -3);
+  if (key.endsWith('id') && key.length > 3) return key.slice(0, -2);
+
+  return null;
+};
+
+const toImportLabelFromKey = (key = '', fallback = 'Relation') => {
+  const base = String(key || '').trim();
+  if (!base) return fallback;
+  const words = base.split('_').filter(Boolean);
+  if (!words.length) return fallback;
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+};
+
+const buildDefaultViewsFromCollections = (collections) => {
+  const views = {};
+  for (const collection of collections) {
+    const firstDate = (collection.properties || []).find((p) => p.type === 'date')?.id || null;
+    views[collection.id] = [
+      {
+        id: 'default',
+        name: 'Vue par défaut',
+        type: 'table',
+        hiddenFields: [],
+        filters: [],
+        groups: [],
+        groupBy: null,
+        dateProperty: firstDate,
+        fieldOrder: (collection.properties || []).map((p) => p.id),
+      },
+    ];
+  }
+  return views;
+};
+
+const normalizeCollectionFromRows = (name, rows = []) => {
+  const collectionName = String(name || '').trim() || 'Collection importée';
+  const collectionId = `col_${normalizeImportName(collectionName, 'collection')}`;
+  const keySet = new Set();
+  rows.forEach((row) => {
+    if (row && typeof row === 'object') {
+      Object.keys(row).forEach((k) => keySet.add(k));
+    }
+  });
+
+  if (!keySet.size) keySet.add('name');
+  const keyList = Array.from(keySet);
+  const hasExplicitId = keyList.some((k) => normalizeImportName(k) === 'id');
+  if (!hasExplicitId) keyList.unshift('id');
+
+  const usedFieldIds = new Set();
+  const keyToFieldId = new Map();
+  const properties = keyList
+    .filter((key) => !RESERVED_IMPORT_ITEM_KEYS.has(normalizeImportName(key)))
+    .map((key, index) => {
+      const normalizedKey = normalizeImportName(key, `champ_${index + 1}`);
+      const fieldId = ensureUniqueId(normalizedKey, usedFieldIds, 'champ');
+      keyToFieldId.set(key, fieldId);
+      return {
+        id: fieldId,
+        name: String(key || fieldId),
+        type: normalizedKey === 'id' ? 'text' : 'text',
+      };
+    });
+
+  const usedItemIds = new Set();
+  const explicitIdKey = keyList.find((k) => normalizeImportName(k) === 'id') || null;
+  const idFieldId = properties.find((p) => normalizeImportName(p.name) === 'id')?.id || properties[0]?.id;
+
+  const items = rows.map((row, idx) => {
+    const sourceId = explicitIdKey ? normalizeImportScalar(row?.[explicitIdKey]) : null;
+    const itemId = ensureUniqueId(sourceId || `${normalizeImportName(collectionName, 'item')}_${idx + 1}`, usedItemIds, 'item');
+    const item = { id: itemId };
+
+    properties.forEach((prop) => {
+      if (prop.id === idFieldId) {
+        item[prop.id] = itemId;
+        return;
+      }
+      const sourceKey = keyList.find((k) => keyToFieldId.get(k) === prop.id);
+      const raw = sourceKey ? row?.[sourceKey] : null;
+      item[prop.id] = normalizeImportScalar(raw);
+    });
+
+    return item;
+  });
+
+  return {
+    id: collectionId,
+    name: collectionName,
+    icon: 'database',
+    color: '#06b6d4',
+    properties,
+    items,
+  };
+};
+
+const enrichCollectionsWithAutoTypesAndRelations = (collections) => {
+  const collectionsCopy = (collections || []).map((c) => ({
+    ...c,
+    properties: Array.isArray(c.properties) ? [...c.properties] : [],
+    items: Array.isArray(c.items) ? [...c.items] : [],
+  }));
+
+  const idSetsByCollectionId = new Map(
+    collectionsCopy.map((c) => [
+      c.id,
+      new Set((c.items || []).map((item) => String(item?.id || '').trim()).filter(Boolean)),
+    ])
+  );
+
+  for (const collection of collectionsCopy) {
+    for (const prop of collection.properties || []) {
+      if (!prop || prop.id === 'id') continue;
+      const values = (collection.items || []).map((item) => item?.[prop.id]);
+      let bestTarget = null;
+      let bestRatio = 0;
+      let manyHint = false;
+
+      for (const target of collectionsCopy) {
+        if (target.id === collection.id) continue;
+        const targetIds = idSetsByCollectionId.get(target.id);
+        if (!targetIds || targetIds.size === 0) continue;
+
+        let checked = 0;
+        let matched = 0;
+        let hasMany = false;
+
+        values.forEach((v) => {
+          const tokens = extractRelationTokens(v);
+          if (!tokens.length) return;
+          checked += 1;
+          if (tokens.length > 1) hasMany = true;
+          const allMatch = tokens.every((token) => targetIds.has(String(token)));
+          if (allMatch) matched += 1;
+        });
+
+        if (checked === 0) continue;
+        const ratio = matched / checked;
+        if (ratio > bestRatio) {
+          bestRatio = ratio;
+          bestTarget = target;
+          manyHint = hasMany;
+        }
+      }
+
+      const fieldKey = normalizeImportName(prop.name || prop.id);
+      const relationBase = getRelationFieldBase(fieldKey);
+      const relationByNameHint = /(_id|_ids|^id_|^ids_)/.test(fieldKey) || !!relationBase;
+
+      if (bestTarget && (bestRatio >= 0.95 || (relationByNameHint && bestRatio >= 0.75))) {
+        prop.type = 'relation';
+        prop.relation = {
+          targetCollectionId: bestTarget.id,
+          type: manyHint || fieldKey.endsWith('_ids') || fieldKey.endsWith('ids') ? 'many_to_many' : 'one_to_many',
+        };
+
+        collection.items = (collection.items || []).map((item) => {
+          const tokens = extractRelationTokens(item?.[prop.id]);
+          const nextVal = prop.relation.type === 'many_to_many'
+            ? Array.from(new Set(tokens))
+            : (tokens[0] || null);
+          return { ...item, [prop.id]: nextVal };
+        });
+        continue;
+      }
+
+      const primitive = inferPrimitiveType(values);
+      prop.type = primitive;
+      collection.items = (collection.items || []).map((item) => {
+        const raw = item?.[prop.id];
+        if (raw === null || raw === undefined || String(raw).trim?.() === '') {
+          return { ...item, [prop.id]: raw === undefined ? null : raw };
+        }
+        if (primitive === 'checkbox') return { ...item, [prop.id]: toBooleanValue(raw) };
+        if (primitive === 'number') return { ...item, [prop.id]: Number(String(raw).replace(',', '.')) };
+        return item;
+      });
+    }
+
+    // Fusion automatique des paires "label + id" (ex: tag + tagid) en une seule relation.
+    const removablePropertyIds = new Set();
+    for (const prop of collection.properties || []) {
+      if (!prop || prop.type !== 'relation') continue;
+
+      const relationKey = normalizeImportName(prop.name || prop.id);
+      const baseKey = getRelationFieldBase(relationKey);
+      if (!baseKey) continue;
+
+      const sibling = (collection.properties || []).find((candidate) => {
+        if (!candidate || candidate.id === prop.id) return false;
+        if (candidate.type === 'relation') return false;
+        const candidateKey = normalizeImportName(candidate.name || candidate.id);
+        return candidateKey === baseKey;
+      });
+      if (!sibling) continue;
+
+      const items = Array.isArray(collection.items) ? collection.items : [];
+      let overlapCount = 0;
+      let compared = 0;
+      for (const item of items) {
+        const hasRelation = extractRelationTokens(item?.[prop.id]).length > 0;
+        const hasSibling = String(item?.[sibling.id] ?? '').trim() !== '';
+        if (hasRelation || hasSibling) compared += 1;
+        if (hasRelation && hasSibling) overlapCount += 1;
+      }
+
+      // Ne fusionne que si les deux colonnes cohabitent réellement sur la majorité des lignes.
+      if (compared > 0 && overlapCount / compared < 0.6) continue;
+
+      removablePropertyIds.add(sibling.id);
+      prop.name = sibling.name || toImportLabelFromKey(baseKey, prop.name || 'Relation');
+    }
+
+    if (removablePropertyIds.size > 0) {
+      collection.properties = (collection.properties || []).filter((prop) => !removablePropertyIds.has(prop.id));
+      collection.items = (collection.items || []).map((item) => {
+        const nextItem = { ...item };
+        removablePropertyIds.forEach((fieldId) => {
+          delete nextItem[fieldId];
+        });
+        return nextItem;
+      });
+    }
+  }
+
+  return collectionsCopy;
+};
+
+const VALID_IMPORT_PROPERTY_TYPES = new Set([
+  'text',
+  'number',
+  'select',
+  'multi_select',
+  'multiselect',
+  'date',
+  'date_range',
+  'checkbox',
+  'url',
+  'email',
+  'phone',
+  'relation',
+]);
+
+const normalizeImportedCollectionsManual = (collections) => {
+  const sourceCollections = Array.isArray(collections) ? collections : [];
+  const usedCollectionIds = new Set();
+  const collectionIdMap = new Map();
+
+  const nextCollections = sourceCollections.map((collection, cIdx) => {
+    const rawCollectionId = String(collection?.id || '').trim() || `collection_${cIdx + 1}`;
+    const nextCollectionId = ensureUniqueId(rawCollectionId, usedCollectionIds, 'collection');
+    collectionIdMap.set(rawCollectionId, nextCollectionId);
+
+    const usedFieldIds = new Set();
+    const properties = (Array.isArray(collection?.properties) ? collection.properties : []).map((prop, pIdx) => {
+      const rawFieldId = String(prop?.id || '').trim() || `champ_${pIdx + 1}`;
+      const nextFieldId = ensureUniqueId(rawFieldId, usedFieldIds, 'champ');
+      const normalizedType = VALID_IMPORT_PROPERTY_TYPES.has(String(prop?.type || '').trim())
+        ? String(prop.type).trim()
+        : 'text';
+      return {
+        ...prop,
+        id: nextFieldId,
+        name: String(prop?.name || nextFieldId),
+        type: normalizedType,
+      };
+    });
+
+    const usedItemIds = new Set();
+    const items = (Array.isArray(collection?.items) ? collection.items : []).map((item, iIdx) => {
+      const itemId = ensureUniqueId(String(item?.id || '').trim() || `${nextCollectionId}_item_${iIdx + 1}`, usedItemIds, 'item');
+      return { ...item, id: itemId };
+    });
+
+    return {
+      ...collection,
+      id: nextCollectionId,
+      name: String(collection?.name || `Collection ${cIdx + 1}`),
+      properties,
+      items,
+    };
+  });
+
+  const allCollectionIds = new Set(nextCollections.map((c) => c.id));
+
+  return nextCollections.map((collection) => {
+    const properties = (collection.properties || []).map((prop) => {
+      const relation = prop?.relation && typeof prop.relation === 'object' ? { ...prop.relation } : null;
+      if (prop.type !== 'relation' || !relation) {
+        return { ...prop, relation: prop.type === 'relation' ? relation || {} : undefined };
+      }
+
+      const rawTarget = String(relation.targetCollectionId || '').trim();
+      const mappedTarget = collectionIdMap.get(rawTarget) || rawTarget;
+      if (!allCollectionIds.has(mappedTarget)) {
+        return { ...prop, type: 'text', relation: undefined };
+      }
+
+      relation.targetCollectionId = mappedTarget;
+      relation.type = ['one_to_one', 'one_to_many', 'many_to_many'].includes(String(relation.type || ''))
+        ? relation.type
+        : 'many_to_many';
+
+      return { ...prop, relation };
+    });
+
+    const relationPropsById = new Map(properties.filter((p) => p.type === 'relation').map((p) => [p.id, p]));
+
+    const items = (collection.items || []).map((item) => {
+      const nextItem = { ...item };
+
+      properties.forEach((prop) => {
+        const raw = nextItem[prop.id];
+        if (raw === undefined || raw === null || (typeof raw === 'string' && raw.trim() === '')) {
+          nextItem[prop.id] = raw ?? null;
+          return;
+        }
+
+        if (prop.type === 'checkbox') {
+          nextItem[prop.id] = toBooleanValue(raw);
+          return;
+        }
+
+        if (prop.type === 'number') {
+          const num = Number(String(raw).replace(',', '.'));
+          nextItem[prop.id] = Number.isFinite(num) ? num : null;
+          return;
+        }
+
+        if (prop.type === 'relation') {
+          const relation = relationPropsById.get(prop.id)?.relation || {};
+          const relType = relation.type || 'many_to_many';
+          const tokens = extractRelationTokens(raw);
+          nextItem[prop.id] = relType === 'many_to_many' ? Array.from(new Set(tokens)) : (tokens[0] || null);
+          return;
+        }
+      });
+
+      return nextItem;
+    });
+
+    return { ...collection, properties, items };
+  });
+};
+
+const normalizeImportedStateFromCollections = (collections, rawState = {}, options = {}) => {
+  const infer = options?.infer !== false;
+  const safeCollections = infer
+    ? enrichCollectionsWithAutoTypesAndRelations(collections)
+    : normalizeImportedCollectionsManual(collections);
+  const views = rawState.views && typeof rawState.views === 'object'
+    ? rawState.views
+    : buildDefaultViewsFromCollections(safeCollections);
+
+  return {
+    collections: safeCollections,
+    views,
+    dashboards: Array.isArray(rawState.dashboards) ? rawState.dashboards : [],
+    dashboardSort: rawState.dashboardSort || 'created',
+    dashboardFilters: rawState.dashboardFilters && typeof rawState.dashboardFilters === 'object'
+      ? rawState.dashboardFilters
+      : {},
+    favorites: rawState.favorites && typeof rawState.favorites === 'object'
+      ? {
+          views: Array.isArray(rawState.favorites.views) ? rawState.favorites.views : [],
+          items: Array.isArray(rawState.favorites.items) ? rawState.favorites.items : [],
+        }
+      : { views: [], items: [] },
+  };
+};
+
+const parseOrganizationsFromJsonPayload = (payload) => {
+  const organizations = [];
+  const data = payload || {};
+
+  const isArrayOfObjects = (value) => {
+    return Array.isArray(value)
+      && value.length > 0
+      && value.every((row) => row && typeof row === 'object' && !Array.isArray(row));
+  };
+
+  const pushFromState = (organizationName, stateObj) => {
+    if (!stateObj || typeof stateObj !== 'object') return;
+    const collections = Array.isArray(stateObj.collections) ? stateObj.collections : [];
+    if (!collections.length) return;
+    organizations.push({
+      name: String(organizationName || 'Organisation importée').trim(),
+      state: normalizeImportedStateFromCollections(collections, stateObj),
+    });
+  };
+
+  if (data?.scope === 'global' && Array.isArray(data.organizations) && Array.isArray(data.app_state)) {
+    data.organizations.forEach((org) => {
+      const stateRow = data.app_state.find((row) => row.organization_id === org.id);
+      if (!stateRow?.data) return;
+      try {
+        const parsedState = typeof stateRow.data === 'string' ? JSON.parse(stateRow.data) : stateRow.data;
+        pushFromState(org.name || 'Organisation importée', parsedState);
+      } catch {
+        // Ignore state row invalide
+      }
+    });
+    return organizations;
+  }
+
+  if (data?.scope === 'organization' && Array.isArray(data.app_state) && data.app_state[0]?.data) {
+    try {
+      const parsedState = typeof data.app_state[0].data === 'string'
+        ? JSON.parse(data.app_state[0].data)
+        : data.app_state[0].data;
+      pushFromState(data.organization?.name || data.name || 'Organisation importée', parsedState);
+    } catch {
+      // Ignore
+    }
+    return organizations;
+  }
+
+  if (Array.isArray(data.organizations)) {
+    data.organizations.forEach((org, index) => {
+      if (org?.state && typeof org.state === 'object') {
+        pushFromState(org.name || `Organisation importée ${index + 1}`, org.state);
+        return;
+      }
+
+      if (Array.isArray(org?.collections)) {
+        const collections = org.collections.map((col, colIdx) => {
+          if (Array.isArray(col?.items)) return col;
+          if (Array.isArray(col?.rows)) return normalizeCollectionFromRows(col.name || `Collection ${colIdx + 1}`, col.rows);
+          return col;
+        });
+        organizations.push({
+          name: org.name || `Organisation importée ${index + 1}`,
+          state: normalizeImportedStateFromCollections(collections, org),
+        });
+      }
+    });
+    return organizations;
+  }
+
+  if (Array.isArray(data.collections)) {
+    organizations.push({
+      name: data.organizationName || data.name || 'Organisation importée',
+      state: normalizeImportedStateFromCollections(data.collections, data),
+    });
+    return organizations;
+  }
+
+  if (Array.isArray(data)) {
+    const allObjects = data.every((row) => row && typeof row === 'object' && !Array.isArray(row));
+    if (allObjects) {
+      const collection = normalizeCollectionFromRows(data.name || 'Collection importée', data);
+      organizations.push({
+        name: 'Organisation importée',
+        state: normalizeImportedStateFromCollections([collection], {}),
+      });
+    }
+  }
+
+  // Fallback générique : objet racine avec plusieurs tableaux de lignes
+  // Ex: { users: [...], products: [...], orders: [...] }
+  if (!organizations.length && data && typeof data === 'object' && !Array.isArray(data)) {
+    const genericCollections = Object.entries(data)
+      .filter(([, value]) => isArrayOfObjects(value))
+      .map(([key, value]) => normalizeCollectionFromRows(key, value));
+
+    if (genericCollections.length > 0) {
+      organizations.push({
+        name: data.organizationName || data.name || 'Organisation importée (JSON générique)',
+        state: normalizeImportedStateFromCollections(genericCollections, {}),
+      });
+    }
+  }
+
+  return organizations;
+};
+
+const buildImportPreviewOrganizations = ({ format, body }) => {
+  const normalizedFormat = String(format || '').toLowerCase();
+  if (normalizedFormat === 'csv') {
+    return parseOrganizationsFromCsvFiles(body?.files || [], body?.organizationName || '');
+  }
+  if (normalizedFormat === 'json') {
+    return parseOrganizationsFromJsonPayload(body?.payload || {});
+  }
+  return [];
+};
+
+const sanitizeMappedOrganizations = (mappedOrganizations = []) => {
+  if (!Array.isArray(mappedOrganizations)) return [];
+
+  const out = [];
+  mappedOrganizations.forEach((org, index) => {
+    const orgName = String(org?.name || `Organisation importée ${index + 1}`).trim();
+    const state = org?.state && typeof org.state === 'object' ? org.state : {};
+    const collections = Array.isArray(state.collections)
+      ? state.collections
+      : (Array.isArray(org?.collections) ? org.collections : []);
+    if (!collections.length) return;
+
+    out.push({
+      name: orgName,
+      state: normalizeImportedStateFromCollections(collections, state, { infer: false }),
+    });
+  });
+
+  return out;
+};
+
+const applyOrganizationNameOverride = (organizations = [], overrideName = '') => {
+  const forcedName = String(overrideName || '').trim();
+  if (!forcedName) return organizations;
+  if (!Array.isArray(organizations) || organizations.length === 0) return organizations;
+
+  if (organizations.length === 1) {
+    return [{ ...organizations[0], name: forcedName }];
+  }
+
+  return organizations.map((org, index) => ({
+    ...org,
+    name: `${forcedName} ${index + 1}`,
+  }));
+};
+
+const parseOrganizationsFromCsvFiles = (files = [], organizationName = '') => {
+  const normalizedFiles = Array.isArray(files) ? files : [];
+  const collections = [];
+
+  normalizedFiles.forEach((file, index) => {
+    const filename = String(file?.name || `collection_${index + 1}.csv`);
+    const rawName = filename.replace(/\.csv$/i, '').trim() || `Collection ${index + 1}`;
+    const rows = csvContentToObjects(file?.content || file?.text || '');
+    if (!rows.length) return;
+    collections.push(normalizeCollectionFromRows(rawName, rows));
+  });
+
+  if (!collections.length) return [];
+
+  return [
+    {
+      name: String(organizationName || 'Organisation importée CSV').trim(),
+      state: normalizeImportedStateFromCollections(collections, {}),
+    },
+  ];
+};
+
 // PostgreSQL connection pool
 let pool;
 if (process.env.DATABASE_PUBLIC_URL) {
@@ -217,7 +947,7 @@ app.use(cors({
   credentials: true 
 }));
 app.use(cookieParser());
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '20mb' }));
 
 // --- DB bootstrap -------------------------------------------------------
 const bootstrap = async () => {
@@ -442,6 +1172,13 @@ const bootstrap = async () => {
   `);
 
   await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS app_state_organization_id_unique ON app_state (organization_id);');
+  await pool.query(`
+    SELECT setval(
+      pg_get_serial_sequence('app_state', 'id'),
+      GREATEST(COALESCE((SELECT MAX(id) FROM app_state), 0) + 1, 1),
+      false
+    );
+  `);
 
   const firstUser = await pool.query('SELECT id FROM users ORDER BY created_at ASC, id ASC LIMIT 1');
   if (firstUser.rowCount > 0) {
@@ -524,10 +1261,21 @@ const ensureSystemRolesForOrganization = async (organizationId) => {
   }
 };
 
+const syncAppStateIdSequence = async () => {
+  await pool.query(`
+    SELECT setval(
+      pg_get_serial_sequence('app_state', 'id'),
+      GREATEST(COALESCE((SELECT MAX(id) FROM app_state), 0) + 1, 1),
+      false
+    );
+  `);
+};
+
 const ensureAppStateForOrganization = async (organizationId) => {
   if (!organizationId) return;
   const state = await pool.query('SELECT id FROM app_state WHERE organization_id = $1', [organizationId]);
   if (!state.rowCount) {
+    await syncAppStateIdSequence();
     await pool.query(
       'INSERT INTO app_state (organization_id, data) VALUES ($1, $2)',
       [organizationId, JSON.stringify(INITIAL_APP_STATE)]
@@ -1290,6 +2038,118 @@ app.post('/api/auth/impersonate', requireAuth, async (req, res) => {
   return res.json({ ok: true, impersonatedRoleId: roleId });
 });
 
+const createOrganizationFromImportedState = async (ownerUserId, organizationName, state) => {
+  const orgId = uuidv4();
+  const trimmedName = String(organizationName || '').trim() || `Organisation importée ${new Date().toLocaleDateString('fr-FR')}`;
+  const safeState = state && typeof state === 'object'
+    ? state
+    : { ...INITIAL_APP_STATE };
+
+  await pool.query(
+    'INSERT INTO organizations (id, name, owner_user_id) VALUES ($1, $2, $3)',
+    [orgId, trimmedName, ownerUserId]
+  );
+  await pool.query(
+    'INSERT INTO organization_members (organization_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+    [orgId, ownerUserId]
+  );
+
+  await ensureSystemRolesForOrganization(orgId);
+  const adminRole = await getRoleByNameInOrganization(orgId, 'admin');
+  if (adminRole.rowCount) {
+    await pool.query(
+      'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+      [orgId, ownerUserId, adminRole.rows[0].id]
+    );
+  }
+
+  await syncAppStateIdSequence();
+  await pool.query(
+    `INSERT INTO app_state (organization_id, user_id, data)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (organization_id) DO UPDATE SET
+       user_id = EXCLUDED.user_id,
+       data = EXCLUDED.data`,
+    [orgId, ownerUserId, JSON.stringify(safeState)]
+  );
+
+  return { id: orgId, name: trimmedName };
+};
+
+app.post('/api/import/organizations', requireAuth, async (req, res) => {
+  try {
+    const isBaseAdmin = !!req.auth.baseIsAdmin;
+    if (!isBaseAdmin) {
+      return res.status(403).json({ error: 'Forbidden: import requires base admin' });
+    }
+
+    const manualMapped = sanitizeMappedOrganizations(req.body?.mappedOrganizations || []);
+    const format = String(req.body?.format || '').toLowerCase();
+    let parsedOrganizations = manualMapped.length
+      ? manualMapped
+      : buildImportPreviewOrganizations({ format, body: req.body });
+
+    parsedOrganizations = applyOrganizationNameOverride(parsedOrganizations, req.body?.organizationName || '');
+
+    if (!manualMapped.length && !['csv', 'json'].includes(format)) {
+      return res.status(400).json({ error: 'Invalid format. Expected json or csv.' });
+    }
+
+    if (!Array.isArray(parsedOrganizations) || parsedOrganizations.length === 0) {
+      return res.status(400).json({ error: 'Aucune organisation exploitable trouvée dans le fichier.' });
+    }
+
+    const created = [];
+    for (const org of parsedOrganizations) {
+      if (!org?.state || !Array.isArray(org.state.collections) || org.state.collections.length === 0) {
+        continue;
+      }
+      const createdOrg = await createOrganizationFromImportedState(req.auth.user.id, org.name, org.state);
+      created.push(createdOrg);
+      await logAudit(req.auth?.user?.id, 'organization.import', 'organization', createdOrg.id, {
+        source: manualMapped.length ? 'manual-mapped' : format,
+        name: createdOrg.name,
+      });
+    }
+
+    if (!created.length) {
+      return res.status(400).json({ error: 'Import vide: aucune organisation créée.' });
+    }
+
+    return res.status(201).json({ ok: true, createdCount: created.length, organizations: created });
+  } catch (err) {
+    console.error('Import organizations failed', err);
+    return res.status(500).json({ error: 'Import organizations failed' });
+  }
+});
+
+app.post('/api/import/organizations/preview', requireAuth, async (req, res) => {
+  try {
+    const isBaseAdmin = !!req.auth.baseIsAdmin;
+    if (!isBaseAdmin) {
+      return res.status(403).json({ error: 'Forbidden: import preview requires base admin' });
+    }
+
+    const format = String(req.body?.format || '').toLowerCase();
+    if (!['csv', 'json'].includes(format)) {
+      return res.status(400).json({ error: 'Invalid format. Expected json or csv.' });
+    }
+
+    const organizations = applyOrganizationNameOverride(
+      buildImportPreviewOrganizations({ format, body: req.body }),
+      req.body?.organizationName || ''
+    );
+    if (!organizations.length) {
+      return res.status(400).json({ error: 'Aucune organisation exploitable trouvée dans le fichier.' });
+    }
+
+    return res.json({ ok: true, organizations });
+  } catch (err) {
+    console.error('Import preview failed', err);
+    return res.status(500).json({ error: 'Import preview failed' });
+  }
+});
+
 app.get('/api/organizations', requireAuth, async (req, res) => {
   const organizations = req.auth.organizations || [];
   return res.json({ organizations, activeOrganizationId: req.auth.activeOrganization?.id || null });
@@ -1337,6 +2197,110 @@ app.post('/api/organizations', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Create organization failed', err);
     return res.status(500).json({ error: 'Create organization failed' });
+  }
+});
+
+app.patch('/api/organizations/:id', requireAuth, async (req, res) => {
+  try {
+    const organizationId = String(req.params.id || '').trim();
+    const name = String(req.body?.name || '').trim();
+    if (!organizationId) return res.status(400).json({ error: 'organizationId required' });
+    if (!name) return res.status(400).json({ error: 'name required' });
+
+    const organization = await pool.query(
+      'SELECT id, owner_user_id FROM organizations WHERE id = $1 LIMIT 1',
+      [organizationId]
+    );
+    if (!organization.rowCount) return res.status(404).json({ error: 'organization not found' });
+
+    const isOwner = String(organization.rows[0].owner_user_id || '') === String(req.auth.user.id || '');
+    const isOrgAdmin = await isUserAdminInOrganization(organizationId, req.auth.user.id);
+    const canManage = !!req.auth.baseIsAdmin || isOwner || isOrgAdmin;
+    if (!canManage) return res.status(403).json({ error: 'Forbidden' });
+
+    const updated = await pool.query(
+      'UPDATE organizations SET name = $2 WHERE id = $1 RETURNING id, name, owner_user_id, created_at',
+      [organizationId, name]
+    );
+
+    await logAudit(req.auth?.user?.id, 'organization.rename', 'organization', organizationId, { name });
+
+    const organizations = await getUserOrganizations(req.auth.user.id);
+    return res.json({
+      ok: true,
+      organization: updated.rows[0],
+      organizations,
+      activeOrganizationId: req.auth.activeOrganization?.id || organizations[0]?.id || null,
+    });
+  } catch (err) {
+    console.error('Rename organization failed', err);
+    return res.status(500).json({ error: 'Rename organization failed' });
+  }
+});
+
+app.delete('/api/organizations/:id', requireAuth, async (req, res) => {
+  try {
+    const organizationId = String(req.params.id || '').trim();
+    if (!organizationId) return res.status(400).json({ error: 'organizationId required' });
+
+    const organization = await pool.query(
+      'SELECT id, owner_user_id FROM organizations WHERE id = $1 LIMIT 1',
+      [organizationId]
+    );
+    if (!organization.rowCount) return res.status(404).json({ error: 'organization not found' });
+
+    const isOwner = String(organization.rows[0].owner_user_id || '') === String(req.auth.user.id || '');
+    const isOrgAdmin = await isUserAdminInOrganization(organizationId, req.auth.user.id);
+    const canManage = !!req.auth.baseIsAdmin || isOwner || isOrgAdmin;
+    if (!canManage) return res.status(403).json({ error: 'Forbidden' });
+
+    const userOrganizations = await getUserOrganizations(req.auth.user.id);
+    const belongsToUser = userOrganizations.some((org) => org.id === organizationId);
+    if (belongsToUser && userOrganizations.length <= 1) {
+      return res.status(400).json({ error: 'Vous devez conserver au moins une organisation.' });
+    }
+
+    await pool.query('DELETE FROM app_state WHERE organization_id = $1', [organizationId]);
+    const deleted = await pool.query('DELETE FROM organizations WHERE id = $1 RETURNING id, name', [organizationId]);
+    if (!deleted.rowCount) return res.status(404).json({ error: 'organization not found' });
+
+    await logAudit(req.auth?.user?.id, 'organization.delete', 'organization', organizationId, {
+      name: deleted.rows[0]?.name || null,
+    });
+
+    let organizations = await getUserOrganizations(req.auth.user.id);
+    if (!organizations.length) {
+      const fallbackOrgId = await ensureDefaultOrganization(req.auth.user.id);
+      organizations = await getUserOrganizations(req.auth.user.id);
+      if (fallbackOrgId) {
+        res.cookie('active_organization_id', fallbackOrgId, {
+          httpOnly: true,
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+    }
+
+    const currentActiveId = req.auth.activeOrganization?.id || null;
+    const nextActiveId = currentActiveId && currentActiveId !== organizationId
+      ? currentActiveId
+      : organizations[0]?.id || null;
+
+    if (nextActiveId) {
+      res.cookie('active_organization_id', nextActiveId, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+    }
+    res.clearCookie('impersonate_role_id');
+
+    return res.json({ ok: true, organizations, activeOrganizationId: nextActiveId });
+  } catch (err) {
+    console.error('Delete organization failed', err);
+    return res.status(500).json({ error: 'Delete organization failed' });
   }
 });
 
@@ -1946,6 +2910,8 @@ app.post('/api/appstate', requireAuth, async (req, res) => {
         );
       }
 
+      await syncAppStateIdSequence();
+
       for (const ur of user_roles) {
         await pool.query(
           'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
@@ -2021,6 +2987,7 @@ app.post('/api/appstate', requireAuth, async (req, res) => {
         [row.id, row.user_id || null, row.organization_id || null, row.data]
       );
     }
+    await syncAppStateIdSequence();
     for (const ur of user_roles) {
       await pool.query(
         'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3)',
@@ -2131,6 +3098,7 @@ app.patch('/api/state/item', requireAuth, async (req, res) => {
       [stateStr, organizationId]
     );
     if (updateRes.rowCount === 0) {
+      await syncAppStateIdSequence();
       await pool.query(
         'INSERT INTO app_state (organization_id, data) VALUES ($1, $2)',
         [organizationId, stateStr]
@@ -2211,6 +3179,7 @@ app.patch('/api/state/structure', requireAuth, async (req, res) => {
       [stateStr, organizationId]
     );
     if (updateRes.rowCount === 0) {
+      await syncAppStateIdSequence();
       await pool.query(
         'INSERT INTO app_state (organization_id, data) VALUES ($1, $2)',
         [organizationId, stateStr]
@@ -2314,6 +3283,7 @@ app.post('/api/state', requireAuth, async (req, res) => {
     // Upsert : si la ligne existe, update, sinon insert
     const updateRes = await pool.query('UPDATE app_state SET data = $1 WHERE organization_id = $2', [stateStr, organizationId]);
     if (updateRes.rowCount === 0) {
+      await syncAppStateIdSequence();
       await pool.query('INSERT INTO app_state (organization_id, data) VALUES ($1, $2)', [organizationId, stateStr]);
     }
 

@@ -75,6 +75,10 @@ function hasItemCountChanged(prev: Collection[], next: Collection[]): boolean {
   return false;
 }
 
+function countItems(collections: Collection[] = []): number {
+  return (collections || []).reduce((acc, col) => acc + ((col.items || []).length || 0), 0);
+}
+
 // Verifie si la structure (hors contenu des items) a change
 function buildStructureSnapshot(
   views: ViewMap,
@@ -278,6 +282,9 @@ export function useErpSync({
 
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
 
+    const totalItems = countItems(collections);
+    const saveDelay = totalItems >= 1000 ? 1200 : totalItems >= 300 ? 700 : 400;
+
     debounceTimeout.current = setTimeout(async () => {
       try {
         const cleanedCollections = cleanForSave(collections);
@@ -358,18 +365,18 @@ export function useErpSync({
       } catch (err) {
         console.error('Impossible de sauvegarder les donnees', err);
       }
-    }, 400);
+    }, saveDelay);
 
     return () => {
       if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
     };
   }, [
-    JSON.stringify(collections),
-    JSON.stringify(views),
-    JSON.stringify(dashboards),
+    collections,
+    views,
+    dashboards,
     dashboardSort,
-    JSON.stringify(dashboardFilters),
-    JSON.stringify(favorites),
+    dashboardFilters,
+    favorites,
     isLoaded,
     user,
     organizationId,
