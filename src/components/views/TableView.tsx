@@ -40,6 +40,7 @@ const TableView: React.FC<TableViewProps> = ({
   onDelete,
   onToggleFavoriteItem,
   onBulkDelete,
+  onBulkUpdate,
   hiddenFields,
   orderedProperties,
   onReorderItems,
@@ -768,11 +769,23 @@ const TableView: React.FC<TableViewProps> = ({
       }
     };
 
-    items.forEach((item) => {
-      if (!selectedItemIds.has(item.id)) return;
-      onEdit({ ...item, [bulkFieldId]: cloneForItem(parsedValue) });
-    });
-  }, [canEdit, bulkFieldId, bulkValue, selectedItemIds, collection, items, onEdit]);
+    // Collecter tous les items à mettre à jour
+    const itemsToUpdate = items
+      .filter((item) => selectedItemIds.has(item.id))
+      .map((item) => ({ ...item, [bulkFieldId]: cloneForItem(parsedValue) }));
+
+    // Utiliser onBulkUpdate si disponible (plus efficace - une seule action d'état)
+    // Sinon fallback à l'ancienne méthode (appel onEdit pour chaque item)
+    if (onBulkUpdate) {
+      console.log('handleBulkApply - using onBulkUpdate for', itemsToUpdate.length, 'items');
+      onBulkUpdate(itemsToUpdate);
+    } else {
+      console.log('handleBulkApply - fallback to onEdit for', itemsToUpdate.length, 'items');
+      itemsToUpdate.forEach((item) => {
+        onEdit(item);
+      });
+    }
+  }, [canEdit, bulkFieldId, bulkValue, selectedItemIds, collection, items, onEdit, onBulkUpdate]);
 
   const handleBulkDelete = useCallback(() => {
     if (!canEdit || selectedItemIds.size === 0) return;

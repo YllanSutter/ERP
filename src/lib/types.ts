@@ -75,6 +75,7 @@ export interface TableViewProps {
   items: Item[];
   favoriteItemIds?: string[];
   onEdit: (item: Item) => void;
+  onBulkUpdate?: (items: Item[], collectionId?: string) => void;
   onDelete: (id: string) => void;
   onToggleFavoriteItem?: (itemId: string) => void;
   onBulkDelete?: (ids: string[], collectionId?: string) => void;

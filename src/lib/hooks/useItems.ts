@@ -323,10 +323,74 @@ export const useItems = (
     setCollections(updatedCollections);
   };
 
+  /**
+   * Met à jour plusieurs items en UNE SEULE action d'état (évite les race conditions)
+   * @param itemUpdates Tableau de { itemId, updates } ou directement d'items avec __collectionId
+   * @param collectionId ID de la collection (optionnel si __collectionId dans chaque item)
+   */
+  const bulkUpdateItems = (
+    itemUpdates: Array<{ id: string; [key: string]: any }>,
+    collectionId?: string
+  ) => {
+    if (!itemUpdates.length) return;
+    
+    const targetCollectionId = collectionId || activeCollection;
+    if (!targetCollectionId) return;
+
+    setCollections((prevCollections: any[]) => {
+      const sourceCollection = prevCollections.find((c: any) => c.id === targetCollectionId);
+      if (!sourceCollection) return prevCollections;
+
+      // Grouper les changements de relations pour les traiter une fois
+      const itemIdToUpdates = new Map(itemUpdates.map((update) => [update.id, update]));
+      let updatedCollections = prevCollections.map((col: any) => {
+        if (col.id !== targetCollectionId) return col;
+
+        return {
+          ...col,
+          items: col.items.map((i: any) => {
+            const itemUpdate = itemIdToUpdates.get(i.id);
+            if (!itemUpdate) return i;
+            const sanitized = stripCalculatedNumberFieldsFromItem(itemUpdate, sourceCollection);
+            return sanitized;
+          })
+        };
+      });
+
+      // Traiter les relations pour tous les items modifiés
+      const relationProps = (sourceCollection.properties || []).filter(
+        (p: any) => p.type === 'relation'
+      );
+      
+      for (const itemUpdate of itemUpdates) {
+        const prevItem = sourceCollection.items.find((i: any) => i.id === itemUpdate.id) || {};
+        
+        relationProps.forEach((prop: any) => {
+          const beforeVal = prevItem[prop.id];
+          const afterVal = itemUpdate[prop.id];
+          if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
+            updatedCollections = applyRelationChangeInternal(
+              updatedCollections,
+              sourceCollection,
+              itemUpdate,
+              prop,
+              afterVal,
+              beforeVal
+            );
+          }
+        });
+      }
+
+      console.log('bulkUpdateItems - updating', itemUpdates.length, 'items in one state update');
+      return updatedCollections;
+    });
+  };
+
   return {
     saveItem,
     updateItem,
     deleteItem,
-    bulkDeleteItems
+    bulkDeleteItems,
+    bulkUpdateItems
   };
 };

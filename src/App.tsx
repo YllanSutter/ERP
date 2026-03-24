@@ -872,6 +872,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     items={filteredItems}
                     favoriteItemIds={favorites.items}
                     onEdit={(item: any) => itemHooks.updateItem(item)}
+                    onBulkUpdate={itemHooks.bulkUpdateItems}
                     onDelete={itemHooks.deleteItem}
                     onToggleFavoriteItem={(itemId: string) => {
                       setFavorites((prev) => ({

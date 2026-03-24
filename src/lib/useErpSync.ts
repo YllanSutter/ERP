@@ -308,12 +308,18 @@ export function useErpSync({
         let needsFullPost = structureChanged || countChanged;
 
         // Patches d'items (PATCH /api/state/item) - evite de tout recharger chez les autres
-        if (!countChanged) {
+        if (!countChanged && !needsFullPost) {
           const patches = diffCollectionsItems(prevCollections, cleanedCollections);
+          
           if (patches.length > 0) {
-            const results = await Promise.all(
-              patches.map((patch) =>
-                fetch(`${API_URL}/state/item`, {
+            console.log(`[useErpSync] Sending ${patches.length} item patches...`);
+            
+            // Envoyer les patches séquentiellement (pas en parallèle) pour éviter les race conditions
+            // où plusieurs patches liraient la même version de l'état et s'écraseraient l'un l'autre
+            let allOk = true;
+            for (const patch of patches) {
+              try {
+                const r = await fetch(`${API_URL}/state/item`, {
                   method: 'PATCH',
                   headers: {
                     'Content-Type': 'application/json',
@@ -321,15 +327,24 @@ export function useErpSync({
                   },
                   credentials: 'include',
                   body: JSON.stringify(patch),
-                }).catch(() => null)
-              )
-            );
-            const allOk = results.every((r) => r && (r as Response).ok);
+                });
+                if (!r.ok) {
+                  console.warn(`[useErpSync] Patch failed for item ${patch.itemId}:`, r.status);
+                  allOk = false;
+                }
+              } catch (err) {
+                console.error(`[useErpSync] Patch error for item ${patch.itemId}:`, err);
+                allOk = false;
+              }
+            }
+            
             if (allOk) {
+              console.log(`[useErpSync] All ${patches.length} patches succeeded, snapshot updated`);
               lastSavedCollectionsRef.current = cleanedCollections;
               if (!needsFullPost) return; // tout est sauve via les patches
             } else {
-              needsFullPost = true; // fallback POST complet si un patch a echoue
+              console.warn(`[useErpSync] Some patches failed, falling back to full POST`);
+              needsFullPost = true; // fallback POST complet si des patches ont echoue
             }
           }
         }
@@ -346,6 +361,7 @@ export function useErpSync({
           };
           const fullPayloadStr = JSON.stringify(fullPayload);
           if (fullPayloadStr !== lastSavedPayloadRef.current) {
+            console.log(`[useErpSync] Sending full POST with ${cleanedCollections.reduce((acc, c) => acc + (c.items?.length ?? 0), 0)} items`);
             const res = await fetch(`${API_URL}/state`, {
               method: 'POST',
               headers: {
@@ -356,9 +372,12 @@ export function useErpSync({
               body: fullPayloadStr,
             });
             if (res.ok) {
+              console.log(`[useErpSync] Full POST succeeded`);
               lastSavedPayloadRef.current = fullPayloadStr;
               lastSavedCollectionsRef.current = cleanedCollections;
               lastSavedStructureRef.current = currentStructureStr;
+            } else {
+              console.error(`[useErpSync] Full POST failed with status ${res.status}`);
             }
           }
         }
