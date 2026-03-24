@@ -290,6 +290,7 @@ const TableView: React.FC<TableViewProps> = ({
     [orderedProperties, groups]
   );
   const [activeGroupTab, setActiveGroupTab] = useState('');
+  const [activeGroupSelectByDepth, setActiveGroupSelectByDepth] = useState<Record<number, string>>({});
   const rootTabsStorageKey = useMemo(
     () => `erp:table:root-tabs:${collection?.id || 'unknown'}:${groups.join('|')}`,
     [collection?.id, groups]
@@ -1010,12 +1011,13 @@ const TableView: React.FC<TableViewProps> = ({
           const renderRootGroupRows = (
             rootGroup: string,
             hideCurrentHeader = false,
-            topTotalRenderMode: 'normal' | 'only' | 'skip' = 'normal'
+            topTotalRenderMode: 'normal' | 'only' | 'skip' = 'normal',
+            depthOverride = 0
           ) => (
             <GroupRenderer
               key={rootGroup}
               groupPath={rootGroup}
-              depth={0}
+              depth={depthOverride}
               groups={groups}
               groupProperties={orderedProperties}
               groupDisplayModes={groupDisplayModes}
@@ -1228,7 +1230,7 @@ const TableView: React.FC<TableViewProps> = ({
             };
           });
 
-          const rootGroupMode: 'accordion' | 'columns' | 'tabs' =
+          const rootGroupMode: 'accordion' | 'columns' | 'tabs' | 'select' =
             (groups[0] && (groupDisplayModes as any)?.[groups[0]]) || groupDisplayMode || 'accordion';
           const rootGroupColumnCount = normalizeGroupColumnCount(
             (groups[0] && (groupDisplayColumnCounts as any)?.[groups[0]]) || groupDisplayColumnCount
@@ -1332,6 +1334,149 @@ const TableView: React.FC<TableViewProps> = ({
                     ))}
                   </div>
                 </Tabs>
+              </div>
+            );
+          }
+
+          if (rootGroupMode === 'select' && displayRootGroups.length > 0) {
+            type SelectLevel = {
+              depth: number;
+              groupId: string;
+              property: any;
+              options: Array<{ id: string; label: string; itemCount: number }>;
+              selectedId: string;
+            };
+
+            const selectLevels: SelectLevel[] = [];
+            let currentOptions = displayRootGroups;
+            let parentPath: string | null = null;
+
+            for (let depth = 0; depth < groups.length; depth++) {
+              const groupId = groups[depth];
+              const mode = (groupDisplayModes as any)?.[groupId] || (depth === 0 ? rootGroupMode : 'accordion');
+              if (mode !== 'select') break;
+              if (!currentOptions.length) break;
+
+              const property = orderedProperties.find((p: any) => p.id === groupId);
+              if (!property) break;
+
+              const options = currentOptions.map((pathId: string) => {
+                const rawValue = pathId.split('/').pop() || pathId;
+                const label = getGroupLabel(property, rawValue === '(vide)' ? undefined : rawValue, collections);
+                const itemCount = groupedStructure
+                  ? countItemsInGroup(pathId, groupedStructure.structure)
+                  : 0;
+                return { id: pathId, label, itemCount };
+              });
+
+              const persisted = activeGroupSelectByDepth[depth];
+              const selectedId = options.some((o) => o.id === persisted)
+                ? persisted
+                : options[0].id;
+
+              selectLevels.push({ depth, groupId, property, options, selectedId });
+
+              parentPath = selectedId;
+              const node = groupedStructure?.structure?.[selectedId];
+              currentOptions = node?.subGroups || [];
+            }
+
+            const finalSelectedPath = selectLevels.length > 0
+              ? selectLevels[selectLevels.length - 1].selectedId
+              : displayRootGroups[0];
+            const selectedDepth = Math.max(0, finalSelectedPath.split('/').length - 1);
+
+            return (
+              <div className="max-h-[calc(100vh-280px)] overflow-auto flex flex-col gap-2">
+                <div className="px-3 pt-3 grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(selectLevels.length, 1)}, minmax(180px, 1fr))` }}>
+                  {selectLevels.map((level) => (
+                    <div key={`group-select-${level.depth}`} className="min-w-0">
+                      <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1 truncate">
+                        {level.property?.name || `Niveau ${level.depth + 1}`}
+                      </label>
+                      <select
+                        value={level.selectedId}
+                        onChange={(e) => {
+                          const nextId = e.target.value;
+                          setActiveGroupSelectByDepth((prev) => {
+                            const next: Record<number, string> = { ...prev, [level.depth]: nextId };
+                            Object.keys(next).forEach((k) => {
+                              const d = Number(k);
+                              if (d > level.depth) delete next[d];
+                            });
+                            return next;
+                          });
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-xs"
+                      >
+                        {level.options.map((opt) => (
+                          <option key={opt.id} value={opt.id}>{opt.label} ({opt.itemCount})</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="overflow-auto flex-1">
+                  {groups.length > selectedDepth + 1
+                    ? renderBodyOnlyShell(
+                        <GroupRenderer
+                          key={finalSelectedPath}
+                          groupPath={finalSelectedPath}
+                          depth={selectedDepth}
+                          groups={groups}
+                          groupProperties={orderedProperties}
+                          groupDisplayModes={groupDisplayModes}
+                          defaultGroupDisplayMode={groupDisplayMode as any}
+                          groupDisplayColumnCounts={groupDisplayColumnCounts}
+                          groupTabStyleFieldIds={groupTabStyleFieldIds}
+                          defaultGroupDisplayColumnCount={normalizeGroupColumnCount(groupDisplayColumnCount)}
+                          groupTotalsByGroupId={groupTotalsByGroupId}
+                          groupedStructure={groupedStructure!}
+                          collection={collection}
+                          collections={collections}
+                          expandedGroups={expandedGroups}
+                          toggleGroup={toggleGroup}
+                          itemsMap={itemsMap}
+                          visibleProperties={visibleProperties}
+                          favoriteItemIds={favoriteItemIds}
+                          onEdit={onEdit}
+                          onDelete={onDelete}
+                          onToggleFavoriteItem={onToggleFavoriteItem}
+                          onViewDetail={onViewDetail}
+                          onRelationChange={onRelationChange}
+                          onNavigateToCollection={onNavigateToCollection}
+                          onEditProperty={onEditProperty}
+                          onToggleField={onToggleField}
+                          onDeleteProperty={onDeleteProperty}
+                          onDuplicateProperty={onDuplicateProperty}
+                          onToggleTotalField={onSetTotalField}
+                          canEdit={canEdit}
+                          canEditField={canEditFieldFn}
+                          sortItems={sortItems}
+                          enableSelection={showSelectionColumn}
+                          selectedItemIds={selectedItemIds}
+                          onSelectionChange={handleSelectionChange}
+                          draggableRows={canReorderRows}
+                          dragItemId={dragItemId}
+                          dragOverItemId={dragOverItemId}
+                          onRowDragStart={handleRowDragStart}
+                          onRowDragEnter={handleRowDragEnter}
+                          onRowDrop={handleRowDrop}
+                          onRowDragEnd={handleRowDragEnd}
+                          totalFields={totalFields}
+                          calculateTotal={calculateTotal}
+                          formatTotal={formatTotal}
+                          hideCurrentHeader
+                          topTotalRenderMode="skip"
+                        />
+                      )
+                    : renderTableShell(
+                        renderRootGroupRows(finalSelectedPath, true, 'skip', selectedDepth),
+                        undefined,
+                        getItemsForGroupPath(finalSelectedPath)
+                      )}
+                </div>
               </div>
             );
           }

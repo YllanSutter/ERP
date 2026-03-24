@@ -119,7 +119,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
   };
 
   const normalizeMode = (mode?: string): TableGroupDisplayMode => {
-    if (mode === 'columns' || mode === 'tabs' || mode === 'accordion') return mode;
+    if (mode === 'columns' || mode === 'tabs' || mode === 'select' || mode === 'accordion') return mode;
     return 'accordion';
   };
 
@@ -280,6 +280,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
                     <option value="accordion">Type: Chevron (accordéon)</option>
                     <option value="columns">Type: Colonnes</option>
                     <option value="tabs">Type: Onglets</option>
+                    <option value="select">Type: Select</option>
                   </select>
 
                   <select
@@ -338,6 +339,8 @@ const GroupModal: React.FC<GroupModalProps> = ({
                     ? `Affichage en colonnes (${columnCount} colonne${columnCount > 1 ? 's' : ''}).`
                     : mode === 'tabs'
                       ? 'Affichage par onglets.'
+                      : mode === 'select'
+                        ? 'Affichage via menu déroulant (select).'
                       : 'Affichage en accordéon (chevrons).'}
                 </p>
 

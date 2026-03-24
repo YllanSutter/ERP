@@ -13,8 +13,8 @@ interface GroupRendererProps {
   depth: number;
   groups: string[];
   groupProperties: Property[];
-  groupDisplayModes?: Record<string, 'accordion' | 'columns' | 'tabs'>;
-  defaultGroupDisplayMode?: 'accordion' | 'columns' | 'tabs';
+  groupDisplayModes?: Record<string, 'accordion' | 'columns' | 'tabs' | 'select'>;
+  defaultGroupDisplayMode?: 'accordion' | 'columns' | 'tabs' | 'select';
   groupDisplayColumnCounts?: Record<string, 1 | 2 | 3>;
   groupTabStyleFieldIds?: Record<string, string>;
   defaultGroupDisplayColumnCount?: 1 | 2 | 3;
@@ -124,7 +124,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   const property = groupProperties.find((p: Property) => p.id === groupId);
   if (!property) return null;
 
-  const currentLevelMode: 'accordion' | 'columns' | 'tabs' =
+  const currentLevelMode: 'accordion' | 'columns' | 'tabs' | 'select' =
     (groupId && groupDisplayModes[groupId])
       || (depth === 0 ? (defaultGroupDisplayMode || 'accordion') : 'accordion');
   const canCollapse = currentLevelMode === 'accordion';
@@ -138,7 +138,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   const itemCount = countItemsInGroup(groupPath, groupedStructure.structure);
   const displayDepth = Math.max(0, depth + depthOffset);
   const nextGroupId = groups[depth + 1];
-  const nextLevelMode: 'accordion' | 'columns' | 'tabs' =
+  const nextLevelMode: 'accordion' | 'columns' | 'tabs' | 'select' =
     (nextGroupId && groupDisplayModes[nextGroupId]) || 'accordion';
   const normalizeColumnCount = (count: any): 1 | 2 | 3 => (count === 1 || count === 2 || count === 3 ? count : 3);
   const getColumnsClassName = (count: 1 | 2 | 3) => {
@@ -211,8 +211,13 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
     () => `erp:table:sub-tabs:${collection?.id || 'unknown'}:${groupPath}:${nextGroupId || 'none'}`,
     [collection?.id, groupPath, nextGroupId]
   );
+  const subSelectStorageKey = useMemo(
+    () => `erp:table:sub-select:${collection?.id || 'unknown'}:${groupPath}:${nextGroupId || 'none'}`,
+    [collection?.id, groupPath, nextGroupId]
+  );
 
   const [activeSubGroupTab, setActiveSubGroupTab] = useState<string | null>(null);
+  const [activeSubGroupSelect, setActiveSubGroupSelect] = useState<string | null>(null);
 
   useEffect(() => {
     if (!subGroupCards.length) {
@@ -245,6 +250,38 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
       // ignore storage errors
     }
   }, [activeSubGroupTab, subTabsStorageKey]);
+
+  useEffect(() => {
+    if (!subGroupCards.length) {
+      setActiveSubGroupSelect(null);
+      return;
+    }
+    if (!activeSubGroupSelect || !subGroupCards.some((card) => card.id === activeSubGroupSelect)) {
+      let storedSelect: string | null = null;
+      if (typeof window !== 'undefined') {
+        try {
+          storedSelect = localStorage.getItem(subSelectStorageKey);
+        } catch {
+          storedSelect = null;
+        }
+      }
+
+      const nextSelect = storedSelect && subGroupCards.some((card) => card.id === storedSelect)
+        ? storedSelect
+        : subGroupCards[0].id;
+      setActiveSubGroupSelect(nextSelect);
+    }
+  }, [activeSubGroupSelect, subGroupCards, subSelectStorageKey]);
+
+  useEffect(() => {
+    if (!activeSubGroupSelect) return;
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(subSelectStorageKey, activeSubGroupSelect);
+    } catch {
+      // ignore storage errors
+    }
+  }, [activeSubGroupSelect, subSelectStorageKey]);
 
   useEffect(() => {
     if (!activeSubGroupTab) return;
@@ -439,7 +476,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
       {topTotalRenderMode !== 'only' && shouldRenderChildren && (
         <>
           {/* Sous-groupes en tableaux dédiés (onglets/colonnes), sinon rendu accordéon classique */}
-          {groupData.subGroups.length > 0 && (nextLevelMode === 'tabs' || nextLevelMode === 'columns') ? (
+          {groupData.subGroups.length > 0 && (nextLevelMode === 'tabs' || nextLevelMode === 'columns' || nextLevelMode === 'select') ? (
             <tr>
               <td colSpan={displayColumnCount + (draggableRows ? 1 : 0) + (enableSelection ? 1 : 0)} className="px-2 py-2">
                 <div
@@ -481,6 +518,24 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                       ))}
                     </Tabs>
                   </>
+                ) : nextLevelMode === 'select' ? (
+                  <div className="space-y-2">
+                    <div className="px-2 pt-2">
+                      <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">
+                        {subGroupCards[0]?.propertyName || 'Groupe'}
+                      </label>
+                      <select
+                        value={activeSubGroupSelect || subGroupCards[0]?.id || ''}
+                        onChange={(e) => setActiveSubGroupSelect(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-xs"
+                      >
+                        {subGroupCards.map((group) => (
+                          <option key={group.id} value={group.id}>{group.label} ({group.itemCount})</option>
+                        ))}
+                      </select>
+                    </div>
+                    {activeSubGroupSelect ? renderNestedTable(activeSubGroupSelect, 'skip') : null}
+                  </div>
                 ) : (
                   <div className={`grid gap-3 ${nextLevelColumnsClassName}`}>
                     {subGroupCards.map((group) => (
