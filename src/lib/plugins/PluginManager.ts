@@ -78,6 +78,13 @@ export class PluginManager {
   }
 
   /**
+   * Retourne la définition complète d'un plugin enregistré
+   */
+  getPluginDefinition(pluginId: string): Plugin | undefined {
+    return this.plugins.get(pluginId);
+  }
+
+  /**
    * Retourne les plugins actifs pour une organisation
    */
   getActivePlugins(organizationId: string): PluginManifest[] {

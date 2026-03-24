@@ -3546,6 +3546,52 @@ app.post('/api/plugins/config/:organizationId/:pluginId', requireAuth, async (re
 });
 
 // --- Plugin: Steam / ITAD Integration -----------------------------------
+app.get('/api/plugins/steam/games', requireAuth, async (_req, res) => {
+  try {
+    const steamListPath = path.join(__dirname, '../public/steamList.json');
+
+    const readLocalList = () => {
+      try {
+        if (!fs.existsSync(steamListPath)) return [];
+        const raw = fs.readFileSync(steamListPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((g) => g && typeof g.appid === 'number' && typeof g.name === 'string' && g.name.trim());
+      } catch {
+        return [];
+      }
+    };
+
+    const localList = readLocalList();
+    if (localList.length > 0) {
+      return res.json(localList);
+    }
+
+    // Fallback: fetch from Steam and cache locally
+    const steamRes = await fetch('https://api.steampowered.com/ISteamApps/GetAppList/v2/');
+    if (!steamRes.ok) {
+      return res.status(502).json({ error: 'Steam API unavailable' });
+    }
+
+    const steamData = await steamRes.json();
+    const apps = Array.isArray(steamData?.applist?.apps) ? steamData.applist.apps : [];
+    const normalized = apps
+      .filter((g) => g && typeof g.appid === 'number' && typeof g.name === 'string' && g.name.trim())
+      .map((g) => ({ appid: g.appid, name: g.name.trim() }));
+
+    try {
+      fs.writeFileSync(steamListPath, JSON.stringify(normalized));
+    } catch (writeErr) {
+      console.warn('[Steam] Failed to cache steamList.json:', writeErr);
+    }
+
+    return res.json(normalized);
+  } catch (error) {
+    console.error('[Steam] Games endpoint error:', error);
+    return res.status(500).json({ error: 'Failed to load Steam games list' });
+  }
+});
+
 app.post('/api/plugins/steam/import-prices', requireAuth, async (req, res) => {
   try {
     const { itemIds, organizationId, config = {} } = req.body;

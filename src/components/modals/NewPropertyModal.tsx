@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import ShinyButton from '@/components/ui/ShinyButton';
 import OptionListEditor from '@/components/inputs/OptionListEditor';
@@ -7,6 +7,8 @@ import { OptionType } from '@/components/inputs/LightSelect';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 import RichTextEditor from '@/components/fields/RichTextEditor';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { useAuth } from '@/auth/AuthProvider';
+import { getPluginPropertyTypeOptions } from '@/lib/plugins/propertyTypes';
 
 interface NewPropertyModalProps {
   onClose: () => void;
@@ -31,6 +33,7 @@ const PropertyTypeLabels = {
 };
 
 const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, collections, currentCollection }) => {
+  const { activeOrganizationId } = useAuth();
   const [name, setName] = useState('');
   const [type, setType] = useState('text');
   const [options, setOptions] = useState<OptionType[]>([]);
@@ -46,6 +49,43 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
   const [includeDuration, setIncludeDuration] = useState(true);
   const [numberPrefix, setNumberPrefix] = useState('');
   const [numberSuffix, setNumberSuffix] = useState('');
+  const [pluginPropertyTypeLabels, setPluginPropertyTypeLabels] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPluginPropertyTypes = async () => {
+      try {
+        const options = await getPluginPropertyTypeOptions(activeOrganizationId);
+        if (cancelled) return;
+        const labels = Object.fromEntries(options.map((opt) => [opt.value, opt.label]));
+        setPluginPropertyTypeLabels(labels);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load plugin property types:', error);
+          setPluginPropertyTypeLabels({});
+        }
+      }
+    };
+
+    loadPluginPropertyTypes();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrganizationId]);
+
+  const availablePropertyTypeEntries = (() => {
+    const merged: [string, string][] = Object.entries({
+      ...PropertyTypeLabels,
+      ...pluginPropertyTypeLabels,
+    });
+
+    if (type && !merged.some(([value]) => value === type)) {
+      merged.push([type, type]);
+    }
+
+    return merged;
+  })();
 
   const targetCollection = (collections || []).find((c: any) => c.id === relationTarget);
   const filterProp = targetCollection?.properties?.find((p: any) => p.id === relationFilterField);
@@ -109,7 +149,7 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
             onChange={(e) => setType(e.target.value)} 
             className="bg-gray-200 dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded px-4 py-2 text-sm text-neutral-700 dark:text-white w-full"
           >
-            {Object.entries(PropertyTypeLabels).map(([key, label]) => (
+            {availablePropertyTypeEntries.map(([key, label]) => (
               <option key={key} value={key}>{label}</option>
             ))}
           </select>

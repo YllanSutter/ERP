@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import ShinyButton from '@/components/ui/ShinyButton';
 import OptionListEditor from '@/components/inputs/OptionListEditor';
@@ -8,6 +8,23 @@ import * as Icons from 'lucide-react';
 import { OptionType } from '@/components/inputs/LightSelect';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { useAuth } from '@/auth/AuthProvider';
+import { getPluginPropertyTypeOptions } from '@/lib/plugins/propertyTypes';
+
+const BASE_PROPERTY_TYPE_LABELS: Record<string, string> = {
+  text: 'Texte',
+  number: 'Nombre',
+  select: 'Sélection',
+  multi_select: 'Multi-sélection',
+  date: 'Date',
+  date_range: 'Période',
+  checkbox: 'Case à cocher',
+  url: 'URL',
+  email: 'Email',
+  phone: 'Téléphone',
+  relation: 'Relation',
+  rich_text: 'Texte enrichi',
+};
 
 interface EditPropertyModalProps {
   onClose: () => void;
@@ -18,6 +35,7 @@ interface EditPropertyModalProps {
 }
 
 const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, property, collections, currentCollectionId }) => {
+  const { activeOrganizationId } = useAuth();
   const [name, setName] = useState(property.name);
   const [type, setType] = useState(property.type || 'text');
   const [icon, setIcon] = useState(property.icon || 'Tag');
@@ -44,6 +62,43 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
   const [includeDuration, setIncludeDuration] = useState(property.includeDuration !== false);
   const [numberPrefix, setNumberPrefix] = useState(property.numberPrefix || '');
   const [numberSuffix, setNumberSuffix] = useState(property.numberSuffix || '');
+  const [pluginPropertyTypeLabels, setPluginPropertyTypeLabels] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPluginPropertyTypes = async () => {
+      try {
+        const options = await getPluginPropertyTypeOptions(activeOrganizationId);
+        if (cancelled) return;
+        const labels = Object.fromEntries(options.map((opt) => [opt.value, opt.label]));
+        setPluginPropertyTypeLabels(labels);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load plugin property types:', error);
+          setPluginPropertyTypeLabels({});
+        }
+      }
+    };
+
+    loadPluginPropertyTypes();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrganizationId]);
+
+  const availablePropertyTypeEntries = (() => {
+    const merged: [string, string][] = Object.entries({
+      ...BASE_PROPERTY_TYPE_LABELS,
+      ...pluginPropertyTypeLabels,
+    });
+
+    if (type && !merged.some(([value]) => value === type)) {
+      merged.push([type, type]);
+    }
+
+    return merged;
+  })();
 
   const targetCollection = (collections || []).find((c: any) => c.id === relationTarget);
   const filterProp = targetCollection?.properties?.find((p: any) => p.id === relationFilterField);
@@ -300,19 +355,9 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                   onChange={(e) => setType(e.target.value)}
                   className="w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
                 >
-                  <option value="text">Texte</option>
-                  <option value="number">Nombre</option>
-                  <option value="select">Sélection</option>
-                  <option value="multi_select">Multi-sélection</option>
-                  <option value="date">Date</option>
-                  <option value="date_range">Période</option>
-                  <option value="checkbox">Case à cocher</option>
-                  <option value="url">URL</option>
-                  <option value="email">Email</option>
-                  <option value="phone">Téléphone</option>
-                  <option value="steam">Steam (Autocomplete)</option>
-                  <option value="relation">Relation</option>
-                  <option value="rich_text">Texte enrichi</option>
+                  {availablePropertyTypeEntries.map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
                 </select>
               </div>
               <div>

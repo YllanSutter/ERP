@@ -18,6 +18,7 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [games, setGames] = useState<SteamGame[]>([]);
+  const [gamesLoaded, setGamesLoaded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -27,10 +28,15 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
       setIsLoading(true);
       const loadedGames = await loadSteamGamesList();
       setGames(loadedGames);
+      setGamesLoaded(true);
       setIsLoading(false);
     };
     loadGames();
   }, []);
+
+  useEffect(() => {
+    setSearchInput(value || '');
+  }, [value]);
 
   // Mettre à jour les suggestions
   useEffect(() => {
@@ -47,6 +53,7 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+        setSuggestions([]);
       }
     };
 
@@ -68,8 +75,13 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
     setIsOpen(true);
   };
 
+  const minLen = 20;
+  const inputLength = (searchInput && typeof searchInput === 'string')
+    ? Math.min(Math.max(searchInput.length, minLen), 60)
+    : minLen;
+
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div ref={containerRef} className="relative inline-block max-w-full">
       <div className="relative">
         <input
           ref={inputRef}
@@ -77,22 +89,30 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
           value={searchInput}
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
+          onBlur={() => {
+            window.setTimeout(() => {
+              setIsOpen(false);
+              setSuggestions([]);
+            }, 120);
+          }}
           placeholder="Rechercher un jeu Steam..."
+          autoComplete="off"
           disabled={disabled || isLoading}
-          className="w-full px-3 py-2 rounded border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 text-sm disabled:opacity-50"
+          className="py-1 bg-transparent border border-transparent text-neutral-700 dark:text-white placeholder-neutral-600 focus:border-black/10 dark:focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ width: `${inputLength}ch`, maxWidth: '100%' }}
         />
         {isLoading && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+          <div className="absolute right-1 top-1/2 -translate-y-1/2">
             <Loader className="w-4 h-4 animate-spin" />
           </div>
         )}
         {!isLoading && suggestions.length > 0 && (
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         )}
       </div>
 
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute top-full mt-1 w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded shadow-lg z-50">
+        <div className="absolute top-full mt-1 min-w-[22rem] max-w-[32rem] bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded shadow-lg z-50">
           <ul className="max-h-64 overflow-y-auto">
             {suggestions.map((game, index) => (
               <li key={`${game.appid}-${index}`}>
@@ -100,7 +120,7 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
                   onClick={() => handleSelectGame(game)}
                   className="w-full text-left px-3 py-2 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition text-sm"
                 >
-                  <div className="font-medium">{game.name}</div>
+                  <div className="font-medium whitespace-normal break-words">{game.name}</div>
                   <div className="text-xs text-gray-500">App ID: {game.appid}</div>
                 </button>
               </li>
@@ -109,9 +129,15 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
         </div>
       )}
 
-      {isOpen && searchInput && suggestions.length === 0 && !isLoading && (
-        <div className="absolute top-full mt-1 w-full bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded text-center py-2 text-sm text-gray-500 z-50">
+      {isOpen && searchInput && suggestions.length === 0 && !isLoading && gamesLoaded && games.length > 0 && (
+        <div className="absolute top-full mt-1 min-w-[22rem] max-w-[32rem] bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded text-center py-2 text-sm text-gray-500 z-50">
           Aucun jeu trouvé
+        </div>
+      )}
+
+      {isOpen && !isLoading && gamesLoaded && games.length === 0 && (
+        <div className="absolute top-full mt-1 min-w-[22rem] max-w-[32rem] bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded text-center py-2 text-sm text-gray-500 z-50">
+          Liste Steam indisponible
         </div>
       )}
     </div>

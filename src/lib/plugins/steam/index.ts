@@ -11,6 +11,8 @@ import { steamPluginManifest } from './manifest';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
+let steamToolbarHook: ((data: any) => any) | null = null;
+
 export const steamPlugin: Plugin = {
   manifest: steamPluginManifest,
 
@@ -21,7 +23,7 @@ export const steamPlugin: Plugin = {
     console.log('[Steam Plugin] Initialization started for organization:', context.organizationId);
     
     // Enregistrer le hook pour ajouter le bouton ITAD au tableau
-    context.api.registerHook('table:toolbar:buttons', async (data: any) => {
+    steamToolbarHook = async (data: any) => {
       return {
         id: 'steam-import-itad',
         label: 'Importer depuis ITAD',
@@ -29,7 +31,8 @@ export const steamPlugin: Plugin = {
         onClick: (items: any[]) => handleImportFromItad(context, items),
         color: 'blue'
       };
-    });
+    };
+    context.api.registerHook('table:toolbar:buttons', steamToolbarHook);
     
     console.log('[Steam Plugin] Initialization completed');
   },
@@ -38,6 +41,11 @@ export const steamPlugin: Plugin = {
    * Appelé lors de la désactivation du plugin
    */
   async destroy() {
+    if (steamToolbarHook) {
+      // unregister via api not available here; map cleanup handled by manager lifecycle guards
+      steamToolbarHook = null;
+    }
+
     console.log('[Steam Plugin] Cleaning up...');
     console.log('[Steam Plugin] Cleanup completed');
   },
@@ -72,6 +80,16 @@ export const steamPlugin: Plugin = {
           console.error('[Steam Plugin] Error loading steam list:', error);
           return [];
         }
+      }
+    },
+
+    'getPropertyTypes': {
+      name: 'Get Property Types',
+      description: 'Expose les types de propriétés ajoutés par le plugin',
+      handler: async () => {
+        return [
+          { value: 'steam', label: 'Steam (Autocomplete)' }
+        ];
       }
     },
 
