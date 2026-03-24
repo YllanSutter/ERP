@@ -13,8 +13,10 @@ import {
   Fingerprint,
   type LucideIcon,
 } from 'lucide-react';
+import * as Icons from 'lucide-react';
 import { Property } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Méta-données par type de total
@@ -180,6 +182,12 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
   inlineMode = 'default',
   className = '',
 }) => {
+  const splitFilterHint = React.useCallback((text: string) => {
+    const match = String(text || '').match(/^(.*)\s\((hors .+)\)$/i);
+    if (!match) return { visible: text, hint: '' };
+    return { visible: match[1], hint: match[2] };
+  }, []);
+
   const activeTotals = displayProperties.filter((p: any) => totalFields[p.id]);
 
   const normalizeTotalTypeForMeta = React.useCallback((rawType: string) => {
@@ -202,18 +210,28 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
         ? LINKED_PROGRESS_META
         : (TOTAL_META[resolvedTotalType] ?? DEFAULT_META);
 
-      const { Icon, label, iconColorClass, bgClass, borderClass, valueColorClass } = meta;
+      const { Icon, iconColorClass, bgClass, borderClass, valueColorClass } = meta;
+      const PropIcon = (Icons as any)[prop.icon] || Icon;
+      const accentColor = prop?.color;
+      const cardStyle = accentColor
+        ? { backgroundColor: `${accentColor}14`, borderColor: `${accentColor}55` }
+        : undefined;
+      const iconWrapStyle = accentColor
+        ? { borderColor: `${accentColor}66`, backgroundColor: `${accentColor}22` }
+        : undefined;
+      const accentStyle = accentColor ? { color: accentColor } : undefined;
 
       const total = calculateTotal(prop.id, sourceItems, totalType);
       const formatted = formatTotal(prop.id, total, totalType);
+      const { visible: visibleFormatted, hint: filterHint } = splitFilterHint(formatted || '');
 
-      return (
+      const card = (
         <div
-          key={prop.id}
           className={`flex items-center gap-2.5 px-1 rounded-sm py-1 border ${borderClass} ${bgClass} min-w-[150px] max-w-[320px]`}
+          style={cardStyle}
         >
-          <div className={`shrink-0 p-1 rounded-md bg-white/70 dark:bg-black/20 border ${borderClass}`}>
-            <Icon size={8} className={iconColorClass} />
+          <div className={`shrink-0 p-1 rounded-md bg-white/70 dark:bg-black/20 border ${borderClass}`} style={iconWrapStyle}>
+            <PropIcon size={8} className={iconColorClass} style={accentStyle} />
           </div>
 
           <div className="min-w-0">
@@ -221,10 +239,21 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
               <span className="font-semibold text-neutral-600 dark:text-neutral-300">{prop.name}</span>
               <span className="mx-1 text-neutral-400 dark:text-neutral-500">·</span>
               <span className="mx-1 text-neutral-400 dark:text-neutral-500">·</span>
-              <span className={`font-extrabold ${valueColorClass}`}>{formatted || '—'}</span>
+              <span className={`font-extrabold ${valueColorClass}`} style={accentStyle}>{visibleFormatted || '—'}</span>
             </span>
           </div>
         </div>
+      );
+
+      if (!filterHint) return <React.Fragment key={prop.id}>{card}</React.Fragment>;
+
+      return (
+        <Tooltip key={prop.id}>
+          <TooltipTrigger asChild>{card}</TooltipTrigger>
+          <TooltipContent side="top" align="center">
+            {filterHint}
+          </TooltipContent>
+        </Tooltip>
       );
     })
   );
@@ -410,7 +439,9 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
               </p>
             )}
             <div className="flex flex-wrap gap-3">
-              {renderCards(items)}
+              <TooltipProvider>
+                {renderCards(items)}
+              </TooltipProvider>
             </div>
           </div>
 
@@ -463,7 +494,9 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
                           <span className="text-[10px] text-neutral-400 dark:text-neutral-500">({root.items.length})</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {renderCards(root.items)}
+                          <TooltipProvider>
+                            {renderCards(root.items)}
+                          </TooltipProvider>
                         </div>
                       </div>
                     )}
@@ -482,7 +515,9 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
                           <span className="text-[10px] text-neutral-400 dark:text-neutral-500">({activeSub.items.length})</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {renderCards(activeSub.items)}
+                          <TooltipProvider>
+                            {renderCards(activeSub.items)}
+                          </TooltipProvider>
                         </div>
                       </div>
                     )}
@@ -505,7 +540,9 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
                             <span className="text-[10px] text-neutral-400 dark:text-neutral-500">({leaf.items.length})</span>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            {renderCards(leaf.items)}
+                            <TooltipProvider>
+                              {renderCards(leaf.items)}
+                            </TooltipProvider>
                           </div>
                         </div>
                       ))}
@@ -529,7 +566,9 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
   if (inlineMode === 'plain') {
     return (
       <div className={`${inlineContainerClass} ${className}`}>
-        {renderCards(items)}
+        <TooltipProvider>
+          {renderCards(items)}
+        </TooltipProvider>
       </div>
     );
   }
@@ -542,7 +581,9 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
         Totaux
       </span>
 
-      {renderCards(items)}
+      <TooltipProvider>
+        {renderCards(items)}
+      </TooltipProvider>
     </div>
   );
 };

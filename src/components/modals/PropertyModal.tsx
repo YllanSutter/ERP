@@ -283,7 +283,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                   />
                   {showColorPopover && (
                     <div className="absolute top-full left-0 mt-2 z-50">
-                      <ColorPicker value={color} onChange={(val) => { setColor(val); setShowColorPopover(false); }} />
+                      <ColorPicker value={color} onChange={setColor} />
                     </div>
                   )}
                 </div>
