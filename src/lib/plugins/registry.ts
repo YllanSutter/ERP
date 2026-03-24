@@ -16,13 +16,19 @@ const AVAILABLE_PLUGINS: Plugin[] = [
   // Ajoutez d'autres plugins ici
 ];
 
+let registryInitialized = false;
+
 /**
  * Initialise le registre en enregistrant tous les plugins disponibles
  */
 export function initializePluginRegistry() {
+  if (registryInitialized) return;
+
   AVAILABLE_PLUGINS.forEach(plugin => {
     pluginManager.registerPlugin(plugin);
   });
+
+  registryInitialized = true;
   
   console.log(`[Plugin Registry] ${AVAILABLE_PLUGINS.length} plugin(s) registered`);
 }

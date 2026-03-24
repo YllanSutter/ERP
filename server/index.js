@@ -1134,6 +1134,18 @@ const bootstrap = async () => {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS plugin_configs (
+      organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL,
+      enabled BOOLEAN DEFAULT FALSE,
+      config JSONB DEFAULT '{}',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (organization_id, plugin_id)
+    );
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS roles (
       id UUID PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
@@ -1284,6 +1296,18 @@ const bootstrap = async () => {
       organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
       user_id UUID REFERENCES users(id) ON DELETE CASCADE,
       PRIMARY KEY (organization_id, user_id)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS plugin_configs (
+      organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL,
+      enabled BOOLEAN DEFAULT FALSE,
+      config JSONB DEFAULT '{}',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (organization_id, plugin_id)
     );
   `);
 
@@ -3447,6 +3471,237 @@ app.get('/api/audit', requireAuth, requirePermission('can_manage_permissions'), 
 
 // Serve static files from the dist folder
 app.use(express.static(path.join(__dirname, '../dist')));
+
+// --- Plugin Configuration Management -----------------------------------
+// GET plugin config for an organization
+app.get('/api/plugins/config/:organizationId', requireAuth, async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    
+    // Verify user is in organization
+    const checkMember = await pool.query(
+      'SELECT 1 FROM organization_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1',
+      [organizationId, req.auth.user.id]
+    );
+    if (checkMember.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
+    // Get all plugin configs for this organization
+    const result = await pool.query(
+      'SELECT plugin_id, enabled, config FROM plugin_configs WHERE organization_id = $1 ORDER BY plugin_id',
+      [organizationId]
+    );
+    
+    // Convert to map format
+    const configs = {};
+    result.rows.forEach(row => {
+      configs[row.plugin_id] = {
+        enabled: row.enabled,
+        config: row.config
+      };
+    });
+    
+    res.json(configs);
+  } catch (error) {
+    console.error('[Plugins] GET config error:', error);
+    res.status(500).json({ error: 'Failed to load plugin config' });
+  }
+});
+
+// POST/PUT plugin config for an organization
+app.post('/api/plugins/config/:organizationId/:pluginId', requireAuth, async (req, res) => {
+  try {
+    const { organizationId, pluginId } = req.params;
+    const { enabled, config } = req.body;
+    
+    // Verify user is in organization
+    const checkMember = await pool.query(
+      'SELECT 1 FROM organization_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1',
+      [organizationId, req.auth.user.id]
+    );
+    if (checkMember.rows.length === 0) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
+    // Upsert plugin config
+    const result = await pool.query(
+      `INSERT INTO plugin_configs (organization_id, plugin_id, enabled, config, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (organization_id, plugin_id) 
+       DO UPDATE SET enabled = $3, config = $4, updated_at = NOW()
+       RETURNING plugin_id, enabled, config`,
+      [organizationId, pluginId, enabled || false, JSON.stringify(config || {})]
+    );
+    
+    res.json({
+      plugin_id: result.rows[0].plugin_id,
+      enabled: result.rows[0].enabled,
+      config: result.rows[0].config
+    });
+  } catch (error) {
+    console.error('[Plugins] POST config error:', error);
+    res.status(500).json({ error: 'Failed to save plugin config' });
+  }
+});
+
+// --- Plugin: Steam / ITAD Integration -----------------------------------
+app.post('/api/plugins/steam/import-prices', requireAuth, async (req, res) => {
+  try {
+    const { itemIds, organizationId, config = {} } = req.body;
+    if (!itemIds || !Array.isArray(itemIds)) {
+      return res.status(400).json({ error: 'itemIds must be an array' });
+    }
+
+    const ITAD_API_KEY = process.env.ITAD_API_KEY;
+    if (!ITAD_API_KEY) {
+      return res.status(500).json({ error: 'ITAD_API_KEY not configured' });
+    }
+
+    const country = config.itadCountry || 'FR';
+    const shops = Array.isArray(config.itadShops) ? config.itadShops : [61];
+    const capacity = config.itadCapacity || 3;
+
+    console.log(`[ITAD Plugin] Starting price import for ${itemIds.length} items`);
+
+    const updates = [];
+    const errors = [];
+
+    // Step 1: Get items from database
+    const items = await pool.query(
+      'SELECT id, data FROM app_state WHERE id = ANY($1) AND organization_id = $2',
+      [itemIds, organizationId]
+    );
+
+    const itemsMap = {};
+    for (const row of items.rows) {
+      try {
+        const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+        itemsMap[row.id] = data;
+      } catch (e) {
+        console.error(`Failed to parse item ${row.id}:`, e);
+      }
+    }
+
+    // Step 2: For each item, try to lookup on ITAD and get prices
+    for (const itemId of itemIds) {
+      const item = itemsMap[itemId];
+      if (!item) {
+        errors.push({ itemId, error: 'Item not found' });
+        continue;
+      }
+
+      // Get Steam App ID from item (you might need to adjust field name)
+      const steamAppId = item.steam_app_id || item.appid || item.steamId;
+      if (!steamAppId) {
+        errors.push({ itemId, error: 'No Steam App ID found in item' });
+        continue;
+      }
+
+      try {
+        // Step 2a: Lookup ITAD ID
+        const lookupRes = await fetch('https://api.isthereanydeal.com/games/lookup/v1', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 10000
+        });
+
+        const lookupUrl = new URL('https://api.isthereanydeal.com/games/lookup/v1');
+        lookupUrl.searchParams.append('key', ITAD_API_KEY);
+        lookupUrl.searchParams.append('appid', String(steamAppId));
+
+        const lookupRes2 = await fetch(lookupUrl.toString());
+        if (!lookupRes2.ok) {
+          errors.push({ itemId, error: 'ITAD lookup failed' });
+          continue;
+        }
+
+        const lookupData = await lookupRes2.json();
+        if (!lookupData.found || !lookupData.game || !lookupData.game.id) {
+          errors.push({ itemId, error: 'ITAD ID not found' });
+          continue;
+        }
+
+        const itadId = lookupData.game.id;
+        await new Promise(r => setTimeout(r, 120)); // Rate limiting
+
+        // Step 2b: Get prices via v3 API
+        const pricesUrl = new URL('https://api.isthereanydeal.com/games/prices/v3');
+        pricesUrl.searchParams.append('key', ITAD_API_KEY);
+        pricesUrl.searchParams.append('country', country);
+        pricesUrl.searchParams.append('shops', shops.join(','));
+        pricesUrl.searchParams.append('capacity', String(capacity));
+
+        const pricesRes = await fetch(pricesUrl.toString(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([itadId]),
+          timeout: 15000
+        });
+
+        if (!pricesRes.ok) {
+          errors.push({ itemId, error: 'ITAD prices lookup failed' });
+          continue;
+        }
+
+        const pricesData = await pricesRes.json();
+        const priceItem = Array.isArray(pricesData) ? pricesData[0] : null;
+
+        if (!priceItem) {
+          errors.push({ itemId, error: 'No price data returned' });
+          continue;
+        }
+
+        // Extract price from response
+        const candidates = Array.isArray(priceItem.prices) ? priceItem.prices : 
+                          Array.isArray(priceItem.deals) ? priceItem.deals : [];
+
+        if (candidates.length === 0) {
+          errors.push({ itemId, error: 'No prices found' });
+          continue;
+        }
+
+        // Find Steam shop (id 61)
+        const getAmount = (obj) => {
+          if (!obj) return undefined;
+          return obj.value ?? obj.amount ?? obj.price_new ?? obj.price;
+        };
+
+        const steamEntry = candidates.find(c => String(c?.shop?.id) === '61') || candidates[0];
+        const salePrice = getAmount(steamEntry?.price) || 0;
+        const regularPrice = getAmount(steamEntry?.regular) || salePrice;
+
+        updates.push({
+          itemId,
+          steamAppId,
+          itadId,
+          prices: { sale: salePrice, regular: regularPrice }
+        });
+
+        // Update item in memory (you might want to persist this)
+        if (config.priceSaleColumn) {
+          item[config.priceSaleColumn] = salePrice;
+        }
+        if (config.priceRegularColumn) {
+          item[config.priceRegularColumn] = regularPrice;
+        }
+
+      } catch (error) {
+        errors.push({ itemId, error: error.message || String(error) });
+      }
+    }
+
+    res.json({
+      success: true,
+      updated: updates.length,
+      errors: errors.length,
+      details: { updates, errors }
+    });
+  } catch (error) {
+    console.error('[ITAD Plugin] Error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
 
 // Catch-all: serve index.html for any non-API routes (SPA routing)
 app.get('*', (req, res) => {

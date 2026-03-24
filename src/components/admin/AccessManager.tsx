@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/auth/AuthProvider';
 import { PluginManagerUI } from './PluginManager';
 import { initializePluginRegistry } from '@/lib/plugins';
+import { pluginManager } from '@/lib/plugins/PluginManager';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -1028,11 +1029,69 @@ const AccessManager = ({
   );
   const visibleBackups = sortedBackups.slice(0, 10);
 
+  // Load plugin configs from database and initialize
+  const loadPluginConfigs = async () => {
+    if (!activeOrganizationId) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/plugins/config/${activeOrganizationId}`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        console.warn('[AccessManager] Failed to load plugin configs');
+        return;
+      }
+      
+      const configs = await response.json() as Record<string, any>;
+      console.log('[AccessManager] Loaded plugin configs from DB:', configs);
+
+      const enabledPlugins = Object.entries(configs)
+        .filter(([, value]) => Boolean((value as any)?.enabled))
+        .map(([pluginId]) => pluginId);
+      const pluginConfigs = Object.fromEntries(
+        Object.entries(configs).map(([pluginId, value]) => [pluginId, (value as any)?.config || {}])
+      );
+
+      await pluginManager.initializeOrganizationPlugins(
+        activeOrganizationId,
+        {
+          organizationId: activeOrganizationId,
+          plugins: pluginManager.getAllPlugins(),
+          enabledPlugins,
+          pluginConfigs,
+        },
+        {
+          organizationId: activeOrganizationId,
+          userId: user?.id || '',
+          api: {
+            getOrganizationData: () => ({}),
+            updateOrganizationConfig: async () => {},
+            registerHook: (hookName, callback) => pluginManager.registerHook(hookName, callback),
+            unregisterHook: (hookName, callback) => pluginManager.unregisterHook(hookName, callback),
+            emit: (eventName, data) => {
+              window.dispatchEvent(new CustomEvent(eventName, { detail: data }));
+            },
+          },
+        }
+      );
+
+      enabledPlugins.forEach((pluginId) => {
+        console.log(`[AccessManager] Re-enabled plugin: ${pluginId}`);
+      });
+    } catch (error) {
+      console.error('[AccessManager] Error loading plugin configs:', error);
+    }
+  };
+
   useEffect(() => {
     loadAll();
+    console.log('[AccessManager] Initializing plugin registry...');
     initializePluginRegistry();
+    console.log('[AccessManager] Plugin registry initialized');
+    loadPluginConfigs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeOrganizationId]);
 
   useEffect(() => {
     const mergedUsers = [...users, ...memberCandidates.filter((c) => !users.some((u) => u.id === c.id))];
@@ -1867,7 +1926,8 @@ const AccessManager = ({
                 </div>
                 {(() => {
                   const orgId = activeOrganizationId || 'default';
-                  return <PluginManagerUI organizationId={orgId} />;
+                  const props = collections[0]?.properties || [];
+                  return <PluginManagerUI organizationId={orgId} collectionProperties={props} />;
                 })()}
               </div>
 

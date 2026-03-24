@@ -310,6 +310,7 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                   <option value="url">URL</option>
                   <option value="email">Email</option>
                   <option value="phone">Téléphone</option>
+                  <option value="steam">Steam (Autocomplete)</option>
                   <option value="relation">Relation</option>
                   <option value="rich_text">Texte enrichi</option>
                 </select>

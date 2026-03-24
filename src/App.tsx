@@ -37,6 +37,9 @@ import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
 import { MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 import { applyCalculatedFieldsToCollections, stripCalculatedNumberFieldsFromItem } from '@/lib/calculatedFields';
 import { applyUserCalendarPreferences } from '@/lib/calendarUtils';
+import { importPricesFromItad } from '@/lib/itadUtils';
+import { pluginManager } from '@/lib/plugins/PluginManager';
+import { initializePluginRegistry } from '@/lib/plugins';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -110,6 +113,61 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     applyUserCalendarPreferences(user?.user_preferences || {});
   }, [user?.user_preferences]);
 
+  useEffect(() => {
+    const bootstrapPlugins = async () => {
+      if (!activeOrganizationId || !user?.id) return;
+
+      try {
+        initializePluginRegistry();
+
+        const response = await fetch(`${API_URL}/plugins/config/${activeOrganizationId}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          console.warn('[Plugin Bootstrap] Failed to load plugin configs');
+          return;
+        }
+
+        const configs = await response.json() as Record<string, { enabled?: boolean; config?: Record<string, any> }>;
+        const enabledPlugins = Object.entries(configs)
+          .filter(([, value]) => Boolean(value?.enabled))
+          .map(([pluginId]) => pluginId);
+
+        const pluginConfigs = Object.fromEntries(
+          Object.entries(configs).map(([pluginId, value]) => [pluginId, value?.config || {}])
+        );
+
+        await pluginManager.initializeOrganizationPlugins(
+          activeOrganizationId,
+          {
+            organizationId: activeOrganizationId,
+            plugins: pluginManager.getAllPlugins(),
+            enabledPlugins,
+            pluginConfigs,
+          },
+          {
+            organizationId: activeOrganizationId,
+            userId: user.id,
+            api: {
+              getOrganizationData: () => ({}),
+              updateOrganizationConfig: async () => {},
+              registerHook: (hookName, callback) => pluginManager.registerHook(hookName, callback),
+              unregisterHook: (hookName, callback) => pluginManager.unregisterHook(hookName, callback),
+              emit: (eventName, data) => {
+                window.dispatchEvent(new CustomEvent(eventName, { detail: data }));
+              },
+            },
+          }
+        );
+      } catch (error) {
+        console.error('[Plugin Bootstrap] Error:', error);
+      }
+    };
+
+    bootstrapPlugins();
+  }, [activeOrganizationId, user?.id]);
+
   const [collections, setCollections] = useState<any[]>(defaultCollections);
   // console.log(collections);
   const [views, setViews] = useState<Record<string, any[]>>(defaultViews);
@@ -174,6 +232,37 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
   );
 
   const itemHooks = useItems(collections, setCollections, activeCollection);
+
+  // Handler for ITAD bulk import
+  const handleBulkImportItad = async (itemIds: string[]) => {
+    if (!activeOrganizationId || !activeCollection) {
+      console.error('Missing organization or collection');
+      return;
+    }
+
+    try {
+      // Get Steam plugin config
+      const config = pluginManager.getPluginConfig(activeOrganizationId, 'steam');
+      
+      // Call ITAD import utility
+      await importPricesFromItad(activeOrganizationId, itemIds, config);
+      
+      // Reload items to reflect imported prices
+      // Force refresh by fetching items again
+      const response = await fetch(`${API_URL}/items?collectionId=${activeCollection}&organizationId=${activeOrganizationId}`);
+      const freshItems = await response.json();
+      
+      // Update collection with fresh items
+      const updatedCollections = collections.map(col => 
+        col.id === activeCollection 
+          ? { ...col, items: freshItems }
+          : col
+      );
+      setCollections(updatedCollections);
+    } catch (error) {
+      console.error('ITAD import error:', error);
+    }
+  };
 
   const viewHooks = useViews(views, setViews, activeCollection, activeView, setActiveView);
   const collectionsWithCalculatedFields = useMemo(
@@ -995,6 +1084,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                       setEditingItem(item || null);
                       setShowNewItemModal(true);
                     }}
+                    onBulkImportItad={handleBulkImportItad}
                   />
                 )}
                   </motion.div>

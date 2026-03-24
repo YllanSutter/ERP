@@ -31,7 +31,8 @@ export type PropertyType =
   | 'relation' 
   | 'url' 
   | 'email' 
-  | 'phone';
+  | 'phone'
+  | 'steam';
 
 export interface RelationConfig {
   targetCollectionId: string;
@@ -102,4 +103,5 @@ export interface TableViewProps {
   groupTotalsByGroupId?: Record<string, GroupTotalConfig>;
   totalFields?: Record<string, string>; // fieldId -> totalType (sum, count, unique, avg, min, max)
   onSetTotalField?: (fieldId: string, totalType: string | null) => void;
+  onBulkImportItad?: (itemIds: string[]) => Promise<void>;
 }

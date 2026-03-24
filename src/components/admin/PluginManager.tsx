@@ -1,30 +1,54 @@
 import React, { useState, useEffect } from 'react';
-import { pluginManager, PluginManifest, PluginContext } from '@/lib/plugins';
+import { pluginManager, PluginManifest, PluginContext, getAllAvailablePlugins } from '@/lib/plugins';
 import { useAuth } from '@/auth/AuthProvider';
 import { Power, Settings } from 'lucide-react';
+import SteamPluginConfig from './SteamPluginConfig';
+
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 interface PluginManagerProps {
   organizationId: string;
+  collectionProperties?: any[];
 }
 
-export const PluginManagerUI: React.FC<PluginManagerProps> = ({ organizationId }) => {
+export const PluginManagerUI: React.FC<PluginManagerProps> = ({ organizationId, collectionProperties = [] }) => {
   const { user } = useAuth();
   const [plugins, setPlugins] = useState<PluginManifest[]>([]);
   const [activePlugins, setActivePlugins] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const [configPluginId, setConfigPluginId] = useState<string | null>(null);
 
   useEffect(() => {
     loadPlugins();
+    // Log au montage
+    console.log('[PluginManagerUI] Component mounted, organizationId:', organizationId);
   }, [organizationId]);
 
-  const loadPlugins = () => {
-    const allPlugins = pluginManager.getAllPlugins();
-    setPlugins(allPlugins);
+  const loadPlugins = async () => {
+    try {
+      const allPluginsData = getAllAvailablePlugins();
+      const manifests = allPluginsData.map(p => p.manifest);
+      setPlugins(manifests);
+      console.log('[PluginManagerUI] Loaded plugins:', manifests);
 
-    const active = new Set(
-      pluginManager.getActivePlugins(organizationId).map(p => p.id)
-    );
-    setActivePlugins(active);
+      const active = new Set(pluginManager.getActivePlugins(organizationId).map(p => p.id));
+
+      // Merge with persisted state from DB to avoid stale UI after refresh
+      const response = await fetch(`${API_URL}/plugins/config/${organizationId}`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const persisted = await response.json() as Record<string, { enabled?: boolean }>;
+        Object.entries(persisted).forEach(([pluginId, cfg]) => {
+          if (cfg?.enabled) active.add(pluginId);
+          else active.delete(pluginId);
+        });
+      }
+
+      setActivePlugins(active);
+    } catch (error) {
+      console.error('[PluginManagerUI] Error loading plugins:', error);
+    }
   };
 
   const handleTogglePlugin = async (pluginId: string) => {
@@ -62,6 +86,22 @@ export const PluginManagerUI: React.FC<PluginManagerProps> = ({ organizationId }
       } else {
         await pluginManager.enablePlugin(organizationId, pluginId, context);
         setActivePlugins(prev => new Set(prev).add(pluginId));
+      }
+
+      // Save to database
+      const newState = !isActive;
+      const response = await fetch(`/api/plugins/config/${organizationId}/${pluginId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          enabled: newState,
+          config: pluginManager.getPluginConfig(organizationId, pluginId) || {}
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to save plugin config:', await response.text());
       }
     } catch (error) {
       console.error('Error toggling plugin:', error);
@@ -122,8 +162,8 @@ export const PluginManagerUI: React.FC<PluginManagerProps> = ({ organizationId }
                   )}
                 </button>
                 <button
-                  className="px-2 py-1.5 rounded bg-white/10 hover:bg-white/20 text-xs text-neutral-600 dark:text-white flex items-center gap-1 disabled:opacity-60"
-                  disabled
+                  onClick={() => setConfigPluginId(plugin.id)}
+                  className="px-2 py-1.5 rounded bg-white/10 hover:bg-white/20 text-xs text-neutral-600 dark:text-white flex items-center gap-1 disabled:opacity-60 transition"
                 >
                   <Settings className="w-3.5 h-3.5" />
                 </button>
@@ -131,6 +171,14 @@ export const PluginManagerUI: React.FC<PluginManagerProps> = ({ organizationId }
             </div>
           ))}
         </div>
+      )}
+
+      {configPluginId === 'steam' && (
+        <SteamPluginConfig
+          organizationId={organizationId}
+          properties={collectionProperties}
+          onClose={() => setConfigPluginId(null)}
+        />
       )}
     </div>
   );

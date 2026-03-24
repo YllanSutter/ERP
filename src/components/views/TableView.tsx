@@ -65,6 +65,7 @@ const TableView: React.FC<TableViewProps> = ({
   groupTotalsByGroupId = {},
   totalFields = {},
   onSetTotalField,
+  onBulkImportItad,
 }) => {
     const normalizeGroupColumnCount = useCallback((count: any): 1 | 2 | 3 => {
       return count === 1 || count === 2 || count === 3 ? count : 3;
@@ -962,6 +963,16 @@ const TableView: React.FC<TableViewProps> = ({
             >
               Appliquer
             </button>
+            {onBulkImportItad && (
+              <button
+                type="button"
+                onClick={() => onBulkImportItad(Array.from(selectedItemIds))}
+                disabled={selectedCount === 0}
+                className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-500/10 border border-white/10 hover:bg-white/20 transition cursor-pointer group"
+              >
+                ⬇️ Importer ITAD
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setSelectedItemIds(new Set())}
@@ -1038,7 +1049,10 @@ const TableView: React.FC<TableViewProps> = ({
               groupRowLimit={groups.length > 0 ? rowsPerPage : undefined}
               onActiveSubGroupTabChange={(path, tabDepth) => {
                 if (tabDepth !== 1) return;
-                setActiveSubGroupPathByRoot((prev) => ({ ...prev, [rootGroup]: path }));
+                setActiveSubGroupPathByRoot((prev) => {
+                  if (prev[rootGroup] === path) return prev;
+                  return { ...prev, [rootGroup]: path };
+                });
               }}
             />
           );

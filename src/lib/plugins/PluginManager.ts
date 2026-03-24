@@ -27,6 +27,10 @@ export class PluginManager {
     }
 
     const key = `${organizationId}:${pluginId}`;
+    if (this.activePlugins.has(key)) {
+      this.updateOrganizationConfig(organizationId, pluginId, true);
+      return;
+    }
     
     if (plugin.initialize) {
       await plugin.initialize(context);
@@ -46,6 +50,10 @@ export class PluginManager {
     }
 
     const key = `${organizationId}:${pluginId}`;
+    if (!this.activePlugins.has(key)) {
+      this.updateOrganizationConfig(organizationId, pluginId, false);
+      return;
+    }
 
     if (plugin.destroy) {
       await plugin.destroy();
@@ -213,14 +221,24 @@ export class PluginManager {
     this.organizationConfigs.set(organizationId, config);
 
     for (const pluginId of config.enabledPlugins) {
+      if (this.isPluginActive(organizationId, pluginId)) {
+        continue;
+      }
+
       const plugin = this.plugins.get(pluginId);
-      if (plugin && plugin.initialize) {
+      if (!plugin) {
+        continue;
+      }
+
+      if (plugin.initialize) {
         try {
           await plugin.initialize(context);
           this.activePlugins.add(`${organizationId}:${pluginId}`);
         } catch (error) {
           console.error(`Failed to initialize plugin "${pluginId}":`, error);
         }
+      } else {
+        this.activePlugins.add(`${organizationId}:${pluginId}`);
       }
     }
   }

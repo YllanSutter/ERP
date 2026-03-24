@@ -1,12 +1,15 @@
 /**
  * Plugin Steam
  * 
- * Un plugin template vide pour démonstration et développement.
- * À remplacer par votre propre logique de plugin.
+ * Intégration Steam avec :
+ * - Type de propriété custom pour la recherche de jeux
+ * - Import de prix depuis ITAD
  */
 
 import { Plugin, PluginContext } from '../types';
 import { steamPluginManifest } from './manifest';
+
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const steamPlugin: Plugin = {
   manifest: steamPluginManifest,
@@ -17,11 +20,16 @@ export const steamPlugin: Plugin = {
   async initialize(context: PluginContext) {
     console.log('[Steam Plugin] Initialization started for organization:', context.organizationId);
     
-    // TODO: Ajouter votre logique d'initialisation ici
-    // Exemples:
-    // - Charger les données
-    // - Enregistrer des hooks
-    // - Configurer les écouteurs d'événements
+    // Enregistrer le hook pour ajouter le bouton ITAD au tableau
+    context.api.registerHook('table:toolbar:buttons', async (data: any) => {
+      return {
+        id: 'steam-import-itad',
+        label: 'Importer depuis ITAD',
+        icon: '⬇️',
+        onClick: (items: any[]) => handleImportFromItad(context, items),
+        color: 'blue'
+      };
+    });
     
     console.log('[Steam Plugin] Initialization completed');
   },
@@ -31,25 +39,100 @@ export const steamPlugin: Plugin = {
    */
   async destroy() {
     console.log('[Steam Plugin] Cleaning up...');
-    
-    // TODO: Ajouter votre logique de nettoyage ici
-    // Exemples:
-    // - Désenregistrer les hooks
-    // - Arrêter les écouteurs
-    // - Nettoyer les ressources
-    
     console.log('[Steam Plugin] Cleanup completed');
   },
 
   /**
    * Hooks disponibles que ce plugin peut utiliser
    */
-  hooks: {},
+  hooks: {
+    'property:register': {
+      name: 'Register Custom Property Type',
+      description: 'Enregistrer un nouveau type de propriété'
+    },
+    'table:toolbar:buttons': {
+      name: 'Table Toolbar Buttons',
+      description: 'Ajouter des boutons à la barre d\'outils du tableau'
+    }
+  },
 
   /**
    * Actions disponibles que ce plugin expose
    */
-  actions: {}
+  actions: {
+    'getSteamGamesList': {
+      name: 'Get Steam Games List',
+      description: 'Récupère la liste des jeux Steam',
+      handler: async () => {
+        try {
+          const response = await fetch('/steamList.json');
+          if (!response.ok) throw new Error('Failed to load steam list');
+          return await response.json();
+        } catch (error) {
+          console.error('[Steam Plugin] Error loading steam list:', error);
+          return [];
+        }
+      }
+    },
+
+    'importFromItad': {
+      name: 'Import Prices from ITAD',
+      description: 'Importe les prix depuis IsThereAnyDeal',
+      handler: async (organizationId: string, itemIds: string[], config: any) => {
+        return await handleImportFromItad(
+          { organizationId, userId: '', api: {} as any },
+          itemIds,
+          config
+        );
+      }
+    },
+
+    'updatePluginConfig': {
+      name: 'Update Plugin Config',
+      description: 'Met à jour la configuration du plugin',
+      handler: async (organizationId: string, config: Record<string, any>) => {
+        // Cette action sera traitée par le manager
+        return { success: true, config };
+      }
+    }
+  }
 };
+
+/**
+ * Importe les prix depuis ITAD
+ */
+async function handleImportFromItad(
+  context: PluginContext,
+  items: any[],
+  config?: any
+): Promise<any> {
+  try {
+    console.log('[Steam Plugin] Starting ITAD import for', items.length, 'items');
+    
+    const itemIds = items.map(item => item.id || item);
+    const response = await fetch(`${API_URL}/plugins/steam/import-prices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        itemIds,
+        organizationId: context.organizationId,
+        config: config || {}
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Import failed: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('[Steam Plugin] Import completed:', result);
+    
+    return result;
+  } catch (error) {
+    console.error('[Steam Plugin] Import error:', error);
+    throw error;
+  }
+}
 
 export { steamPluginManifest };

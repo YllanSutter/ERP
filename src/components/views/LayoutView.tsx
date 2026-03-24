@@ -27,6 +27,7 @@ interface LayoutViewProps {
   onRelationChange?: (property: any, item: any, value: any) => void;
   onUpdateViewConfig?: (viewId: string, updates: Record<string, any>) => void;
   onShowNewItemModalForCollection?: (collection: any, item?: any) => void;
+  onBulkImportItad?: (itemIds: string[]) => Promise<void>;
 }
 
 const LayoutView: React.FC<LayoutViewProps> = ({
@@ -44,6 +45,7 @@ const LayoutView: React.FC<LayoutViewProps> = ({
   onRelationChange,
   onUpdateViewConfig,
   onShowNewItemModalForCollection,
+  onBulkImportItad,
 }) => {
   const layoutPanels: LayoutPanelConfig[] = Array.isArray(viewConfig?.layoutPanels)
     ? viewConfig.layoutPanels
@@ -141,6 +143,7 @@ const LayoutView: React.FC<LayoutViewProps> = ({
                   groupDisplayColumnCount={viewConfig.groupDisplayColumnCount || 3}
                   groupDisplayColumnCounts={viewConfig.groupDisplayColumnCounts || {}}
                   groupTotalsByGroupId={viewConfig.groupTotalsByGroupId || {}}
+                  onBulkImportItad={onBulkImportItad}
                 />
               )}
               {viewConfig.type === 'kanban' && (

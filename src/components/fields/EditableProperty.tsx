@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import * as Icons from 'lucide-react';
 import RichTextEditor from '@/components/fields/RichTextEditor';
+import SteamPropertyField from '@/components/fields/SteamPropertyField';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
@@ -1247,6 +1248,17 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
         readOnly={readOnly}
         className={className}
         showToolbar={!readOnly}
+      />
+    );
+  }
+
+  // Steam
+  if (property.type === 'steam') {
+    return (
+      <SteamPropertyField
+        value={value || ''}
+        onChange={onChange}
+        disabled={readOnly}
       />
     );
   }
