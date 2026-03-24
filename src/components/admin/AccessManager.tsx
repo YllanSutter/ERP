@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, RefreshCw, Shield, UserPlus, Plus, Download, Trash2, Database, RotateCcw, Search, Palette, Clock3, BellRing, Save, CheckCircle2, FileUp } from 'lucide-react';
+import { X, RefreshCw, Shield, UserPlus, Plus, Download, Trash2, Database, RotateCcw, Search, Palette, Clock3, BellRing, Save, CheckCircle2, FileUp, Zap } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/auth/AuthProvider';
+import { PluginManagerUI } from './PluginManager';
+import { initializePluginRegistry } from '@/lib/plugins';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -1028,6 +1030,7 @@ const AccessManager = ({
 
   useEffect(() => {
     loadAll();
+    initializePluginRegistry();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1855,6 +1858,17 @@ const AccessManager = ({
                     </div>
                   )}
                 </div>
+              </div>
+
+              <div className="bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap size={16} className="text-blue-500" />
+                  <h4 className="font-semibold">Plugins</h4>
+                </div>
+                {(() => {
+                  const orgId = activeOrganizationId || 'default';
+                  return <PluginManagerUI organizationId={orgId} />;
+                })()}
               </div>
 
             </div>
