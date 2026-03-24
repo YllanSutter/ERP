@@ -290,6 +290,12 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
     onActiveSubGroupTabChange?.(activeSubGroupTab, depth + 1);
   }, [activeSubGroupTab, nextLevelMode, onActiveSubGroupTabChange, depth]);
 
+  useEffect(() => {
+    if (!activeSubGroupSelect) return;
+    if (nextLevelMode !== 'select') return;
+    onActiveSubGroupTabChange?.(activeSubGroupSelect, depth + 1);
+  }, [activeSubGroupSelect, nextLevelMode, onActiveSubGroupTabChange, depth]);
+
   const renderNestedTable = (
     subPath: string,
     topTotalMode: 'normal' | 'only' | 'skip' = 'normal'

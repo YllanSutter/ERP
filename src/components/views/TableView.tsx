@@ -864,6 +864,16 @@ const TableView: React.FC<TableViewProps> = ({
       {Object.keys(totalFields).length > 0 && items.length > 0 && (() => {
         const rootGroupId = groups[0];
         const rootGroupTotalConfig = rootGroupId ? (groupTotalsByGroupId[rootGroupId] ?? {}) : {};
+        const topRootGroupMode: 'accordion' | 'columns' | 'tabs' | 'select' =
+          (groups[0] && (groupDisplayModes as any)?.[groups[0]]) || groupDisplayMode || 'accordion';
+        const topActiveRootPath =
+          topRootGroupMode === 'select'
+            ? (activeGroupSelectByDepth[0] || rootGroups[0] || '')
+            : (activeGroupTab || rootGroups[0] || '');
+        const topActiveSubPath =
+          topRootGroupMode === 'select'
+            ? (activeGroupSelectByDepth[1] || '')
+            : (activeSubGroupPathByRoot[topActiveRootPath] || '');
         const shouldShowTopTotalsSection =
           groups.length === 0
             ? true
@@ -909,8 +919,8 @@ const TableView: React.FC<TableViewProps> = ({
             formatTotal={formatTotal}
             variant="section"
             groupedSections={buildGroupedSections()}
-            activeRootPath={activeGroupTab}
-            activeSubPath={activeSubGroupPathByRoot[activeGroupTab] || ''}
+            activeRootPath={topActiveRootPath}
+            activeSubPath={topActiveSubPath}
             hideGroupSelectors={groups.length > 0}
             allowGroupSelectorToggle={groups.length > 0}
             persistKey={`table-view:${collection?.id || 'unknown'}`}
