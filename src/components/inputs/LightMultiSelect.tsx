@@ -102,7 +102,7 @@ export const LightMultiSelect: React.FC<LightMultiSelectProps> = ({ options, val
           title="Ajouter / gérer"
           isAbsolute
           size={14}
-          contentClassName="w-64"
+          contentClassName="w-64 z-[401]"
         >
           <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
             {options.map((opt) => {

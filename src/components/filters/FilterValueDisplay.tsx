@@ -43,6 +43,17 @@ const FilterValueDisplay: React.FC<FilterValueDisplayProps> = ({
       });
     }
 
+    if (property?.type === 'select' || property?.type === 'multi_select') {
+      const opts = (property.options || []).map((opt: any) =>
+        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value }
+      );
+      const values = Array.isArray(filter.value) ? filter.value : filter.value ? [filter.value] : [];
+      return values.map((v: any) => {
+        const opt = opts.find((o: any) => o.value === v);
+        return opt ? opt.label : v;
+      });
+    }
+
     if (Array.isArray(filter.value)) {
       return filter.value.filter(Boolean).map(String);
     }
@@ -107,7 +118,7 @@ const FilterValueDisplay: React.FC<FilterValueDisplayProps> = ({
 
     if (property?.type === 'select') {
       const opts = (property.options || []).map((opt: any) =>
-        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.value, color: opt.color, icon: opt.icon }
+        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
       );
       if (isMultiValueOperator) {
         const currentValues = Array.isArray(filter.value) ? filter.value : filter.value ? [filter.value] : [];
@@ -131,7 +142,7 @@ const FilterValueDisplay: React.FC<FilterValueDisplayProps> = ({
 
     if (property?.type === 'multi_select') {
       const opts = (property.options || []).map((opt: any) =>
-        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.value, color: opt.color, icon: opt.icon }
+        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
       );
       const currentValues = Array.isArray(filter.value) ? filter.value : [];
       return (

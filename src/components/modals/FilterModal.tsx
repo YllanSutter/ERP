@@ -113,12 +113,34 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
       const relation = selectedProp.relation || {};
       const targetCollection = (collections || []).find((c: any) => c.id === relation.targetCollectionId);
       const targetItems = targetCollection?.items || [];
-      const nameField = targetCollection?.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
       const values = Array.isArray(value) ? value : value ? [value] : [];
 
       return values.map((id: string) => {
         const item = targetItems.find((ti: any) => ti.id === id);
-        return item ? (nameField ? item[nameField.id] || 'Sans titre' : item.name || 'Sans titre') : id;
+        return item ? getRelationItemLabel(item, relation, targetCollection) : id;
+      });
+    }
+
+    if (selectedProp?.type === 'select') {
+      const opts = (selectedProp.options || []).map((opt: any) =>
+        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
+      );
+      const values = Array.isArray(value) ? value : value ? [value] : [];
+      return values.map((v: any) => {
+        const opt = opts.find((o: any) => o.value === v);
+        return opt ? opt.label : v;
+      });
+    }
+
+    if (selectedProp?.type === 'multi_select') {
+      const opts = (selectedProp.options || []).map((opt: any) =>
+        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
+      );
+
+      const values = Array.isArray(value) ? value : [];
+      return values.map((v: any) => {
+        const opt = opts.find((o: any) => o.value === v);
+        return opt ? opt.label : v;
       });
     }
 
@@ -138,6 +160,50 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
 
   const selectedOperatorLabel = operators.find((op) => op.value === operator)?.label || operator;
   const selectedOperatorCompactLabel = compactOperatorLabels[operator] || selectedOperatorLabel;
+
+  const toDisplayText = (input: any): string => {
+    if (input === null || input === undefined) return '';
+    if (typeof input === 'string') return input;
+    if (typeof input === 'number' || typeof input === 'boolean') return String(input);
+    if (Array.isArray(input)) {
+      return input
+        .map((v) => toDisplayText(v))
+        .filter(Boolean)
+        .join(', ');
+    }
+    if (typeof input === 'object') {
+      const candidate = input.name ?? input.label ?? input.title ?? input.value ?? input.appid ?? input.id;
+      if (candidate !== null && candidate !== undefined) return String(candidate);
+      try {
+        return JSON.stringify(input);
+      } catch {
+        return '';
+      }
+    }
+    return String(input);
+  };
+
+  const getRelationItemLabel = (item: any, relation: any, targetCollection: any): string => {
+    if (!item) return '';
+
+    const configuredDisplayFields = Array.isArray(relation?.displayFieldIds)
+      ? relation.displayFieldIds.filter((id: any) => typeof id === 'string' && id.trim() !== '')
+      : [];
+
+    if (configuredDisplayFields.length > 0) {
+      const chunks = configuredDisplayFields
+        .map((fieldId: string) => toDisplayText(item?.[fieldId]).trim())
+        .filter(Boolean);
+      if (chunks.length > 0) return chunks.join(' · ');
+    }
+
+    const nameField = targetCollection?.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
+    const fallback = nameField ? item?.[nameField.id] : item?.name;
+    const fallbackText = toDisplayText(fallback).trim();
+    if (fallbackText) return fallbackText;
+
+    return String(item?.id || 'Sans titre');
+  };
 
   const renderShadcnSelect = (
     currentValue: string,
@@ -271,16 +337,16 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
       const targetCollection = (collections || []).find((c: any) => c.id === targetCollectionId);
       const targetItems = targetCollection?.items || [];
       const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
-      const nameField = targetCollection?.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
+      const relationOptions = targetItems.map((ti: any) => ({
+        value: ti.id,
+        label: getRelationItemLabel(ti, relation, targetCollection)
+      }));
 
       if (isSourceMany || isMultiValueOperator) {
         const currentValues = Array.isArray(value) ? value : value ? [value] : [];
         return (
           <LightMultiSelect
-            options={targetItems.map((ti: any) => ({
-              value: ti.id,
-              label: nameField ? ti[nameField.id] || 'Sans titre' : ti.name || 'Sans titre'
-            }))}
+            options={relationOptions}
             values={currentValues}
             onChange={(vals) => setValue(vals)}
             placeholder="Aucun"
@@ -293,17 +359,14 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
         renderShadcnSelect(
           typeof value === 'string' ? value : '',
           (nextValue) => setValue(nextValue),
-          targetItems.map((ti: any) => ({
-            value: ti.id,
-            label: nameField ? ti[nameField.id] || 'Sans titre' : ti.name || 'Sans titre'
-          }))
+          relationOptions
         )
       );
     }
 
     if (selectedProp?.type === 'select') {
       const opts = (selectedProp.options || []).map((opt: any) =>
-        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.value, color: opt.color, icon: opt.icon }
+        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
       );
       if (isMultiValueOperator) {
         const currentValues = Array.isArray(value) ? value : value ? [value] : [];
@@ -326,12 +389,22 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
 
     if (selectedProp?.type === 'multi_select') {
       const opts = (selectedProp.options || []).map((opt: any) =>
-        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.value, color: opt.color, icon: opt.icon }
+        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
       );
+
+      // Si importChoiceSource existe, les vrais labels sont dans les options statiques, pas dans la collection
+      // On garde juste les options statiques
+      let finalOpts = opts;
+      if (selectedProp?.importChoiceSource?.collectionId) {
+        // Les options statiques contiennent les vrais labels
+        // On les utilise tels quels
+        finalOpts = opts;
+      }
+
       const currentValues = Array.isArray(value) ? value : [];
       return (
         <LightMultiSelect
-          options={opts}
+          options={finalOpts}
           values={currentValues}
           onChange={(vals) => setValue(vals)}
         />
