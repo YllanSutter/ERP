@@ -206,11 +206,31 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   const [showToolbarTools, setShowToolbarTools] = useState(false);
 
   const activeCollections = calendarCollections.length > 0 ? calendarCollections : currentCollection ? [currentCollection] : [];
+  const normalizeSearchText = (input: any): string => {
+    if (input === null || input === undefined) return '';
+    if (typeof input === 'string') return input;
+    if (typeof input === 'number' || typeof input === 'boolean') return String(input);
+    if (Array.isArray(input)) return input.map((v) => normalizeSearchText(v)).join(' ');
+    if (typeof input === 'object') {
+      const candidate = input.name ?? input.label ?? input.title ?? input.value ?? input.id ?? input.appid;
+      if (candidate !== null && candidate !== undefined) return String(candidate);
+      try {
+        return JSON.stringify(input);
+      } catch {
+        return '';
+      }
+    }
+    return String(input);
+  };
+
   const getItemLabel = (collection: any, item: any) => {
     const props = collection?.properties || [];
     const nameField = props.find((p: any) => p.name === 'Nom' || p.id === 'name') || props[0];
-    if (!nameField) return item?.name || item?.id || 'Élément';
-    return item?.[nameField.id] || item?.name || item?.id || 'Élément';
+    const rawLabel = !nameField
+      ? item?.name || item?.id || 'Élément'
+      : item?.[nameField.id] || item?.name || item?.id || 'Élément';
+    const normalized = normalizeSearchText(rawLabel).trim();
+    return normalized || 'Élément';
   };
 
   const activeSearchCollectionId =
