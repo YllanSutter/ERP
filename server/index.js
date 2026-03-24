@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -3599,6 +3600,21 @@ app.post('/api/plugins/steam/import-prices', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'itemIds must be an array' });
     }
 
+    const activeOrganizationId = req.auth.activeOrganization?.id;
+    if (!activeOrganizationId) {
+      return res.status(400).json({ error: 'No active organization' });
+    }
+    if (organizationId && organizationId !== activeOrganizationId) {
+      return res.status(403).json({ error: 'Organization mismatch' });
+    }
+
+    const sanitizedItemIds = Array.from(
+      new Set(itemIds.map((id) => String(id || '').trim()).filter(Boolean))
+    );
+    if (sanitizedItemIds.length === 0) {
+      return res.status(400).json({ error: 'No valid item ids provided' });
+    }
+
     const ITAD_API_KEY = process.env.ITAD_API_KEY;
     if (!ITAD_API_KEY) {
       return res.status(500).json({ error: 'ITAD_API_KEY not configured' });
@@ -3608,67 +3624,245 @@ app.post('/api/plugins/steam/import-prices', requireAuth, async (req, res) => {
     const shops = Array.isArray(config.itadShops) ? config.itadShops : [61];
     const capacity = config.itadCapacity || 3;
 
-    console.log(`[ITAD Plugin] Starting price import for ${itemIds.length} items`);
+    console.log(`[ITAD Plugin] Starting price import for ${sanitizedItemIds.length} items`);
 
     const updates = [];
     const errors = [];
 
-    // Step 1: Get items from database
-    const items = await pool.query(
-      'SELECT id, data FROM app_state WHERE id = ANY($1) AND organization_id = $2',
-      [itemIds, organizationId]
+    // Step 1: Load organization state
+    const stateResult = await pool.query(
+      'SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1',
+      [activeOrganizationId]
     );
+    if (stateResult.rows.length === 0) {
+      return res.status(404).json({ error: 'State not found for organization' });
+    }
 
-    const itemsMap = {};
-    for (const row of items.rows) {
-      try {
-        const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
-        itemsMap[row.id] = data;
-      } catch (e) {
-        console.error(`Failed to parse item ${row.id}:`, e);
+    let state;
+    try {
+      state = typeof stateResult.rows[0].data === 'string'
+        ? JSON.parse(stateResult.rows[0].data)
+        : stateResult.rows[0].data;
+    } catch (e) {
+      console.error('[ITAD Plugin] Failed to parse app state:', e);
+      return res.status(500).json({ error: 'Failed to parse organization state' });
+    }
+
+    const collections = Array.isArray(state?.collections) ? state.collections : [];
+    const itemRefs = new Map();
+
+    for (const collection of collections) {
+      const items = Array.isArray(collection?.items) ? collection.items : [];
+      for (const item of items) {
+        if (!item || !item.id) continue;
+        if (!sanitizedItemIds.includes(item.id)) continue;
+        itemRefs.set(item.id, { collection, item });
       }
     }
 
-    // Step 2: For each item, try to lookup on ITAD and get prices
-    for (const itemId of itemIds) {
-      const item = itemsMap[itemId];
-      if (!item) {
+    const steamListPath = path.join(__dirname, '../public/steamList.json');
+    const steamNameToAppIds = new Map();
+    try {
+      if (fs.existsSync(steamListPath)) {
+        const raw = fs.readFileSync(steamListPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        const list = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed?.applist?.apps)
+            ? parsed.applist.apps
+            : [];
+        for (const game of list) {
+          const name = String(game?.name || '').trim().toLowerCase();
+          const appid = Number(game?.appid);
+          if (name && Number.isFinite(appid)) {
+            if (!steamNameToAppIds.has(name)) {
+              steamNameToAppIds.set(name, new Set());
+            }
+            steamNameToAppIds.get(name).add(appid);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[ITAD Plugin] Failed to load local steamList.json:', e);
+    }
+
+    const getUniqueSteamAppIdByName = (name) => {
+      const key = String(name || '').trim().toLowerCase();
+      if (!key) return undefined;
+      const ids = steamNameToAppIds.get(key);
+      if (!ids || ids.size !== 1) return undefined;
+      return Array.from(ids)[0];
+    };
+
+    const getAmount = (obj) => {
+      if (!obj) return undefined;
+      const value = obj.value ?? obj.amount ?? obj.price_new ?? obj.price;
+      if (value === null || value === undefined || value === '') return undefined;
+      const num = Number(value);
+      return Number.isFinite(num) ? num : undefined;
+    };
+
+    const fetchJsonWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        return response;
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    // Step 2: For each selected item, lookup on ITAD and update prices
+    for (const itemId of sanitizedItemIds) {
+      const ref = itemRefs.get(itemId);
+      if (!ref) {
         errors.push({ itemId, error: 'Item not found' });
         continue;
       }
 
-      // Get Steam App ID from item (you might need to adjust field name)
-      const steamAppId = item.steam_app_id || item.appid || item.steamId;
-      if (!steamAppId) {
-        errors.push({ itemId, error: 'No Steam App ID found in item' });
+      const { collection, item } = ref;
+      if (!hasPermission(req.auth, { collection_id: collection.id }, 'can_write')) {
+        errors.push({ itemId, error: 'Forbidden to write this collection' });
+        continue;
+      }
+
+      const steamProps = Array.isArray(collection?.properties)
+        ? collection.properties.filter((p) => p?.type === 'steam')
+        : [];
+
+      let steamAppId;
+      let steamTitle = '';
+
+      // 1) Priority: dedicated steam property value
+      for (const prop of steamProps) {
+        const rawValue = item[prop.id];
+        if (rawValue === null || rawValue === undefined || rawValue === '') continue;
+
+        if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+          steamAppId = rawValue;
+          break;
+        }
+
+        if (typeof rawValue === 'string') {
+          const trimmed = rawValue.trim();
+          if (!steamTitle) steamTitle = trimmed;
+
+          // plain numeric string
+          const asNumber = Number(trimmed);
+          if (Number.isFinite(asNumber)) {
+            steamAppId = asNumber;
+            break;
+          }
+
+          // JSON string value: {"name":"...","appid":123}
+          if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              const parsedId = Number(parsed?.appid ?? parsed?.appId ?? parsed?.id);
+              if (Number.isFinite(parsedId)) {
+                steamAppId = parsedId;
+                steamTitle = String(parsed?.name || steamTitle || '').trim();
+                break;
+              }
+              const parsedName = String(parsed?.name || '').trim().toLowerCase();
+              const mapped = getUniqueSteamAppIdByName(parsedName);
+              if (parsedName && Number.isFinite(mapped)) {
+                steamAppId = mapped;
+                steamTitle = String(parsed?.name || steamTitle || '').trim();
+                break;
+              }
+            } catch {
+              // ignore parse errors
+            }
+          }
+
+          // "Game Name (12345)" pattern
+          const matchAppId = trimmed.match(/\b(\d{3,})\b/);
+          if (matchAppId) {
+            const extracted = Number(matchAppId[1]);
+            if (Number.isFinite(extracted)) {
+              steamAppId = extracted;
+              break;
+            }
+          }
+
+          const mapped = getUniqueSteamAppIdByName(trimmed.toLowerCase());
+          if (Number.isFinite(mapped)) {
+            steamAppId = mapped;
+            break;
+          }
+        }
+
+        if (typeof rawValue === 'object') {
+          const asNumber = Number(rawValue.appid ?? rawValue.appId ?? rawValue.id);
+          if (Number.isFinite(asNumber)) {
+            steamAppId = asNumber;
+            steamTitle = String(rawValue.name || steamTitle || '').trim();
+            break;
+          }
+          const name = String(rawValue.name || '').trim().toLowerCase();
+          const mapped = getUniqueSteamAppIdByName(name);
+          if (name && Number.isFinite(mapped)) {
+            steamAppId = mapped;
+            steamTitle = String(rawValue.name || steamTitle || '').trim();
+            break;
+          }
+        }
+      }
+
+      // 2) Fallback: only dedicated steam fields (avoid generic appid/id collisions)
+      if (!Number.isFinite(steamAppId)) {
+        const fallbackId = Number(item.steam_app_id ?? item.steamAppId);
+        if (Number.isFinite(fallbackId)) {
+          steamAppId = fallbackId;
+        }
+      }
+
+      if (!steamTitle) {
+        steamTitle = String(item.steam_name || item.steamName || '').trim();
+      }
+
+      if (!Number.isFinite(steamAppId)) {
+        errors.push({ itemId, error: 'No Steam App ID found in item', steamValue: steamTitle || null });
         continue;
       }
 
       try {
-        // Step 2a: Lookup ITAD ID
-        const lookupRes = await fetch('https://api.isthereanydeal.com/games/lookup/v1', {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 10000
-        });
+        // Step 2a: Lookup ITAD game id by Steam appid
+        let itadId = null;
 
-        const lookupUrl = new URL('https://api.isthereanydeal.com/games/lookup/v1');
-        lookupUrl.searchParams.append('key', ITAD_API_KEY);
-        lookupUrl.searchParams.append('appid', String(steamAppId));
+        const lookupByAppIdUrl = new URL('https://api.isthereanydeal.com/games/lookup/v1');
+        lookupByAppIdUrl.searchParams.append('key', ITAD_API_KEY);
+        lookupByAppIdUrl.searchParams.append('appid', String(steamAppId));
 
-        const lookupRes2 = await fetch(lookupUrl.toString());
-        if (!lookupRes2.ok) {
-          errors.push({ itemId, error: 'ITAD lookup failed' });
+        const lookupByAppIdRes = await fetchJsonWithTimeout(lookupByAppIdUrl.toString(), {}, 10000);
+        if (lookupByAppIdRes.ok) {
+          const lookupData = await lookupByAppIdRes.json();
+          if (lookupData?.found && lookupData?.game?.id) {
+            itadId = lookupData.game.id;
+          }
+        }
+
+        // Fallback lookup by title when appid lookup cannot resolve
+        if (!itadId && steamTitle) {
+          const lookupByTitleUrl = new URL('https://api.isthereanydeal.com/games/lookup/v1');
+          lookupByTitleUrl.searchParams.append('key', ITAD_API_KEY);
+          lookupByTitleUrl.searchParams.append('title', steamTitle);
+          const lookupByTitleRes = await fetchJsonWithTimeout(lookupByTitleUrl.toString(), {}, 10000);
+          if (lookupByTitleRes.ok) {
+            const lookupByTitleData = await lookupByTitleRes.json();
+            if (lookupByTitleData?.found && lookupByTitleData?.game?.id) {
+              itadId = lookupByTitleData.game.id;
+            }
+          }
+        }
+
+        if (!itadId) {
+          errors.push({ itemId, error: 'ITAD ID not found', steamAppId, steamTitle: steamTitle || null });
           continue;
         }
 
-        const lookupData = await lookupRes2.json();
-        if (!lookupData.found || !lookupData.game || !lookupData.game.id) {
-          errors.push({ itemId, error: 'ITAD ID not found' });
-          continue;
-        }
-
-        const itadId = lookupData.game.id;
         await new Promise(r => setTimeout(r, 120)); // Rate limiting
 
         // Step 2b: Get prices via v3 API
@@ -3678,12 +3872,11 @@ app.post('/api/plugins/steam/import-prices', requireAuth, async (req, res) => {
         pricesUrl.searchParams.append('shops', shops.join(','));
         pricesUrl.searchParams.append('capacity', String(capacity));
 
-        const pricesRes = await fetch(pricesUrl.toString(), {
+        const pricesRes = await fetchJsonWithTimeout(pricesUrl.toString(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify([itadId]),
-          timeout: 15000
-        });
+          body: JSON.stringify([itadId])
+        }, 15000);
 
         if (!pricesRes.ok) {
           errors.push({ itemId, error: 'ITAD prices lookup failed' });
@@ -3691,10 +3884,16 @@ app.post('/api/plugins/steam/import-prices', requireAuth, async (req, res) => {
         }
 
         const pricesData = await pricesRes.json();
-        const priceItem = Array.isArray(pricesData) ? pricesData[0] : null;
+        const priceItem = Array.isArray(pricesData)
+          ? pricesData[0]
+          : Array.isArray(pricesData?.data)
+            ? pricesData.data[0]
+            : Array.isArray(pricesData?.result)
+              ? pricesData.result[0]
+              : null;
 
         if (!priceItem) {
-          errors.push({ itemId, error: 'No price data returned' });
+          errors.push({ itemId, error: 'No price data returned', steamAppId, itadId });
           continue;
         }
 
@@ -3707,15 +3906,9 @@ app.post('/api/plugins/steam/import-prices', requireAuth, async (req, res) => {
           continue;
         }
 
-        // Find Steam shop (id 61)
-        const getAmount = (obj) => {
-          if (!obj) return undefined;
-          return obj.value ?? obj.amount ?? obj.price_new ?? obj.price;
-        };
-
         const steamEntry = candidates.find(c => String(c?.shop?.id) === '61') || candidates[0];
-        const salePrice = getAmount(steamEntry?.price) || 0;
-        const regularPrice = getAmount(steamEntry?.regular) || salePrice;
+        const salePrice = getAmount(steamEntry?.price) ?? 0;
+        const regularPrice = getAmount(steamEntry?.regular) ?? salePrice;
 
         updates.push({
           itemId,
@@ -3724,7 +3917,7 @@ app.post('/api/plugins/steam/import-prices', requireAuth, async (req, res) => {
           prices: { sale: salePrice, regular: regularPrice }
         });
 
-        // Update item in memory (you might want to persist this)
+        // Update selected columns directly in state
         if (config.priceSaleColumn) {
           item[config.priceSaleColumn] = salePrice;
         }
@@ -3735,6 +3928,27 @@ app.post('/api/plugins/steam/import-prices', requireAuth, async (req, res) => {
       } catch (error) {
         errors.push({ itemId, error: error.message || String(error) });
       }
+    }
+
+    // Step 3: Persist updated state
+    const stateStr = JSON.stringify(state);
+    const updateRes = await pool.query(
+      'UPDATE app_state SET data = $1 WHERE organization_id = $2',
+      [stateStr, activeOrganizationId]
+    );
+    if (updateRes.rowCount === 0) {
+      await syncAppStateIdSequence();
+      await pool.query(
+        'INSERT INTO app_state (organization_id, data) VALUES ($1, $2)',
+        [activeOrganizationId, stateStr]
+      );
+    }
+
+    if (global.io && updates.length > 0) {
+      global.io.emit('stateUpdated', {
+        userId: req.auth.user.id,
+        organizationId: activeOrganizationId,
+      });
     }
 
     res.json({

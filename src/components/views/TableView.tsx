@@ -970,7 +970,7 @@ const TableView: React.FC<TableViewProps> = ({
                 disabled={selectedCount === 0}
                 className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-500/10 border border-white/10 hover:bg-white/20 transition cursor-pointer group"
               >
-                ⬇️ Importer ITAD
+                ⬇️ Importer ITAD ({selectedCount})
               </button>
             )}
             <button

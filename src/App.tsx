@@ -247,18 +247,16 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
       // Call ITAD import utility
       await importPricesFromItad(activeOrganizationId, itemIds, config);
       
-      // Reload items to reflect imported prices
-      // Force refresh by fetching items again
-      const response = await fetch(`${API_URL}/items?collectionId=${activeCollection}&organizationId=${activeOrganizationId}`);
-      const freshItems = await response.json();
-      
-      // Update collection with fresh items
-      const updatedCollections = collections.map(col => 
-        col.id === activeCollection 
-          ? { ...col, items: freshItems }
-          : col
-      );
-      setCollections(updatedCollections);
+      // Reload full state to reflect imported prices
+      const response = await fetch(`${API_URL}/state`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const freshState = await response.json();
+        if (Array.isArray(freshState?.collections)) {
+          setCollections(freshState.collections);
+        }
+      }
     } catch (error) {
       console.error('ITAD import error:', error);
     }
@@ -270,6 +268,9 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     [collections]
   );
   const currentCollection = collectionsWithCalculatedFields.find((c) => c.id === activeCollection);
+  const isSteamPluginActive = Boolean(
+    activeOrganizationId && pluginManager.isPluginActive(activeOrganizationId, 'steam')
+  );
   const { currentViews } = viewHooks;
   const activeDashboardConfig = dashboards.find((d) => d.id === activeDashboard) || null;
 
@@ -955,6 +956,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                       }
                       viewHooks.updateView(activeView, { totalFields: nextTotalFields });
                     }}
+                    onBulkImportItad={isSteamPluginActive ? handleBulkImportItad : undefined}
                   />
                 )}
                 {activeViewConfig?.type === 'kanban' && (
@@ -1084,7 +1086,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                       setEditingItem(item || null);
                       setShowNewItemModal(true);
                     }}
-                    onBulkImportItad={handleBulkImportItad}
+                    onBulkImportItad={isSteamPluginActive ? handleBulkImportItad : undefined}
                   />
                 )}
                   </motion.div>

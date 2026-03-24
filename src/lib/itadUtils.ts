@@ -24,7 +24,20 @@ export async function importPricesFromItad(
     });
 
     if (!response.ok) {
-      throw new Error(`Import failed: ${response.statusText}`);
+      let errorMessage = `Import failed: ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody?.error && errorBody?.details) {
+          errorMessage = `Import failed: ${errorBody.error} (${errorBody.details})`;
+        } else if (errorBody?.error) {
+          errorMessage = `Import failed: ${errorBody.error}`;
+        } else if (errorBody?.details) {
+          errorMessage = `Import failed: ${errorBody.details}`;
+        }
+      } catch {
+        // Keep default status text when response body is not JSON
+      }
+      throw new Error(errorMessage);
     }
 
     const result = await response.json();

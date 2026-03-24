@@ -3,17 +3,29 @@ import { ChevronDown, Loader } from 'lucide-react';
 import { searchSteamGames, loadSteamGamesList, SteamGame } from '@/lib/plugins/steam/steamUtils';
 
 interface SteamPropertyFieldProps {
-  value?: string;
-  onChange?: (value: string) => void;
+  value?: any;
+  onChange?: (value: any) => void;
   disabled?: boolean;
 }
+
+const getSteamDisplayName = (value: any): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'object') {
+    if (typeof value.name === 'string') return value.name;
+    if (typeof value.label === 'string') return value.label;
+    if (value.appid !== undefined && value.appid !== null) return String(value.appid);
+  }
+  return '';
+};
 
 export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
   value = '',
   onChange,
   disabled = false
 }) => {
-  const [searchInput, setSearchInput] = useState(value);
+  const [searchInput, setSearchInput] = useState(getSteamDisplayName(value));
   const [suggestions, setSuggestions] = useState<SteamGame[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,7 +47,7 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
   }, []);
 
   useEffect(() => {
-    setSearchInput(value || '');
+    setSearchInput(getSteamDisplayName(value));
   }, [value]);
 
   // Mettre à jour les suggestions
@@ -63,7 +75,7 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
 
   const handleSelectGame = (game: SteamGame) => {
     setSearchInput(game.name);
-    onChange?.(game.name);
+    onChange?.({ name: game.name, appid: game.appid });
     setIsOpen(false);
     setSuggestions([]);
   };
