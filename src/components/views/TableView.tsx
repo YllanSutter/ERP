@@ -295,6 +295,10 @@ const TableView: React.FC<TableViewProps> = ({
     () => `erp:table:root-tabs:${collection?.id || 'unknown'}:${groups.join('|')}`,
     [collection?.id, groups]
   );
+  const rootSelectStorageKey = useMemo(
+    () => `erp:table:root-select:${collection?.id || 'unknown'}:${groups.join('|')}`,
+    [collection?.id, groups]
+  );
 
   useEffect(() => {
     if (groupDisplayMode !== 'tabs' || rootGroups.length === 0) {
@@ -324,6 +328,44 @@ const TableView: React.FC<TableViewProps> = ({
       // ignore storage errors
     }
   }, [groupDisplayMode, activeGroupTab, rootTabsStorageKey]);
+
+  useEffect(() => {
+    const rootGroupMode: 'accordion' | 'columns' | 'tabs' | 'select' =
+      (groups[0] && (groupDisplayModes as any)?.[groups[0]]) || groupDisplayMode || 'accordion';
+    if (rootGroupMode !== 'select') {
+      setActiveGroupSelectByDepth({});
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(rootSelectStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return;
+      const next: Record<number, string> = {};
+      Object.entries(parsed).forEach(([k, v]) => {
+        const depth = Number(k);
+        if (Number.isInteger(depth) && typeof v === 'string' && v) {
+          next[depth] = v;
+        }
+      });
+      setActiveGroupSelectByDepth(next);
+    } catch {
+      // ignore storage errors
+    }
+  }, [groupDisplayMode, groupDisplayModes, groups, rootSelectStorageKey]);
+
+  useEffect(() => {
+    const rootGroupMode: 'accordion' | 'columns' | 'tabs' | 'select' =
+      (groups[0] && (groupDisplayModes as any)?.[groups[0]]) || groupDisplayMode || 'accordion';
+    if (rootGroupMode !== 'select') return;
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(rootSelectStorageKey, JSON.stringify(activeGroupSelectByDepth || {}));
+    } catch {
+      // ignore storage errors
+    }
+  }, [groupDisplayMode, groupDisplayModes, groups, activeGroupSelectByDepth, rootSelectStorageKey]);
 
   // Fonction pour calculer le total d'un champ selon le type de total
   const calculateTotal = useCallback((fieldId: string, itemsToSum: any[], totalType: string) => {
