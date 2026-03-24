@@ -413,13 +413,31 @@ const RelationEditor = ({
   const [newItemData, setNewItemData] = useState<any>({});
   const [isCreating, setIsCreating] = useState(false);
 
+  const toSearchText = useCallback((input: any): string => {
+    if (input === null || input === undefined) return '';
+    if (typeof input === 'string') return input.toLowerCase();
+    if (typeof input === 'number' || typeof input === 'boolean') return String(input).toLowerCase();
+    if (Array.isArray(input)) return input.map((v) => toSearchText(v)).join(' ').toLowerCase();
+    if (typeof input === 'object') {
+      const candidate = input.name ?? input.label ?? input.title ?? input.value ?? input.id ?? input.appid;
+      if (candidate !== null && candidate !== undefined) return String(candidate).toLowerCase();
+      try {
+        return JSON.stringify(input).toLowerCase();
+      } catch {
+        return '';
+      }
+    }
+    return String(input).toLowerCase();
+  }, []);
+
   const filteredItems = useMemo(() => 
     targetItems.filter((ti: any) => {
-      const byName = getItemName(ti).toLowerCase().includes(searchQuery.toLowerCase());
-      const byLabel = getItemLabel(ti).toLowerCase().includes(searchQuery.toLowerCase());
+      const q = searchQuery.toLowerCase();
+      const byName = toSearchText(getItemName(ti)).includes(q);
+      const byLabel = toSearchText(getItemLabel(ti)).includes(q);
       return byName || byLabel;
     }),
-  [targetItems, getItemName, getItemLabel, searchQuery]);
+  [targetItems, getItemName, getItemLabel, searchQuery, toSearchText]);
 
   // Récupérer les templates de champs qui ont des conditions
   const availableTemplates = useMemo(() => {
@@ -1189,7 +1207,25 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
     const getItemName = useCallback((it: any) => {
       const nameField = targetCollection?.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
-      return nameField ? it[nameField.id] || 'Sans titre' : it.name || 'Sans titre';
+      const rawValue = nameField ? it[nameField.id] : it.name;
+
+      if (typeof rawValue === 'string') {
+        const trimmed = rawValue.trim();
+        return trimmed || 'Sans titre';
+      }
+
+      if (typeof rawValue === 'number' || typeof rawValue === 'boolean') {
+        return String(rawValue);
+      }
+
+      if (rawValue && typeof rawValue === 'object') {
+        const candidate = rawValue.name ?? rawValue.label ?? rawValue.title ?? rawValue.value ?? rawValue.appid ?? rawValue.id;
+        if (candidate !== null && candidate !== undefined && String(candidate).trim()) {
+          return String(candidate);
+        }
+      }
+
+      return 'Sans titre';
     }, [targetCollection]);
     const getItemLabel = useCallback((it: any) => getItemName(it), [getItemName]);
 
