@@ -7,6 +7,7 @@ import TableItemRow from './TableItemRow';
 import TableHeader from './TableHeader';
 import TotalsBar from './TotalsBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface GroupRendererProps {
   groupPath: string;
@@ -524,15 +525,19 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                       <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">
                         {subGroupCards[0]?.propertyName || 'Groupe'}
                       </label>
-                      <select
+                      <Select
                         value={activeSubGroupSelect || subGroupCards[0]?.id || ''}
-                        onChange={(e) => setActiveSubGroupSelect(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-xs"
+                        onValueChange={(value) => setActiveSubGroupSelect(value)}
                       >
-                        {subGroupCards.map((group) => (
-                          <option key={group.id} value={group.id}>{group.label} ({group.itemCount})</option>
-                        ))}
-                      </select>
+                        <SelectTrigger className="w-full rounded-lg border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {subGroupCards.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>{group.label} ({group.itemCount})</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     {activeSubGroupSelect ? renderNestedTable(activeSubGroupSelect, 'skip') : null}
                   </div>

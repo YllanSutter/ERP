@@ -11,6 +11,7 @@ import EditableProperty from '@/components/fields/EditableProperty';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { countItemsInGroup, getGroupLabel, resolveGroupVisualStyle } from '@/lib/groupingUtils';
 import { isCalculatedNumberProperty } from '@/lib/calculatedFields';
 import {
@@ -1436,10 +1437,9 @@ const TableView: React.FC<TableViewProps> = ({
                       <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1 truncate">
                         {level.property?.name || `Niveau ${level.depth + 1}`}
                       </label>
-                      <select
+                      <Select
                         value={level.selectedId}
-                        onChange={(e) => {
-                          const nextId = e.target.value;
+                        onValueChange={(nextId) => {
                           setActiveGroupSelectByDepth((prev) => {
                             const next: Record<number, string> = { ...prev, [level.depth]: nextId };
                             Object.keys(next).forEach((k) => {
@@ -1449,12 +1449,16 @@ const TableView: React.FC<TableViewProps> = ({
                             return next;
                           });
                         }}
-                        className="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-xs"
                       >
-                        {level.options.map((opt) => (
-                          <option key={opt.id} value={opt.id}>{opt.label} ({opt.itemCount})</option>
-                        ))}
-                      </select>
+                        <SelectTrigger className="w-full rounded-lg border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {level.options.map((opt) => (
+                            <SelectItem key={opt.id} value={opt.id}>{opt.label} ({opt.itemCount})</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   ))}
                 </div>

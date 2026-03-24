@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import ShinyButton from '@/components/ui/ShinyButton';
 import { TableGroupDisplayMode, TableGroupColumnCount } from '@/lib/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type GroupTotalPosition = 'top' | 'bottom' | 'both';
 
@@ -252,52 +253,62 @@ const GroupModal: React.FC<GroupModalProps> = ({
                   </div>
                 </div>
 
-                <select
-                  value={row.propertyId}
-                  onChange={(e) => updateRowProperty(row.uid, e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+                <Select
+                  value={row.propertyId || '__none__'}
+                  onValueChange={(value) => updateRowProperty(row.uid, value === '__none__' ? '' : value)}
                 >
-                  <option value="">Sélectionner un champ...</option>
-                  {groupableProperties.map((prop: any) => (
-                    <option key={prop.id} value={prop.id}>
-                      {prop.name}
-                      {prop.isRelationLinkedColumn ? ' (lié)' : ''}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-full bg-gray-300 dark:bg-neutral-800/50 border-white/10 text-neutral-700 dark:text-white">
+                    <SelectValue placeholder="Sélectionner un champ..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sélectionner un champ...</SelectItem>
+                    {groupableProperties.map((prop: any) => (
+                      <SelectItem key={prop.id} value={prop.id}>
+                        {prop.name}{prop.isRelationLinkedColumn ? ' (lié)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <select
+                  <Select
                     value={mode}
-                    onChange={(e) => {
+                    onValueChange={(value) => {
                       if (!groupId) return;
-                      const nextMode = e.target.value as TableGroupDisplayMode;
-                      updateGroupMode(groupId, normalizeMode(nextMode));
+                      updateGroupMode(groupId, normalizeMode(value));
                     }}
                     disabled={!groupId}
-                    className="w-full px-3 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none disabled:opacity-50"
                   >
-                    <option value="accordion">Type: Chevron (accordéon)</option>
-                    <option value="columns">Type: Colonnes</option>
-                    <option value="tabs">Type: Onglets</option>
-                    <option value="select">Type: Select</option>
-                  </select>
+                    <SelectTrigger className="w-full bg-gray-300 dark:bg-neutral-800/50 border-white/10 text-neutral-700 dark:text-white disabled:opacity-50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="accordion">Type: Chevron (accordéon)</SelectItem>
+                      <SelectItem value="columns">Type: Colonnes</SelectItem>
+                      <SelectItem value="tabs">Type: Onglets</SelectItem>
+                      <SelectItem value="select">Type: Select</SelectItem>
+                    </SelectContent>
+                  </Select>
 
-                  <select
+                  <Select
                     value={String(columnCount)}
-                    onChange={(e) => {
+                    onValueChange={(value) => {
                       if (!groupId) return;
-                      const raw = Number(e.target.value);
+                      const raw = Number(value);
                       const nextCount: TableGroupColumnCount = raw === 1 || raw === 2 || raw === 3 ? raw : 3;
                       updateGroupColumnCount(groupId, nextCount);
                     }}
                     disabled={!groupId || mode !== 'columns'}
-                    className="w-full px-3 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none disabled:opacity-50"
                   >
-                    <option value="1">Colonnes: 1</option>
-                    <option value="2">Colonnes: 2</option>
-                    <option value="3">Colonnes: 3</option>
-                  </select>
+                    <SelectTrigger className="w-full bg-gray-300 dark:bg-neutral-800/50 border-white/10 text-neutral-700 dark:text-white disabled:opacity-50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Colonnes: 1</SelectItem>
+                      <SelectItem value="2">Colonnes: 2</SelectItem>
+                      <SelectItem value="3">Colonnes: 3</SelectItem>
+                    </SelectContent>
+                  </Select>
 
                   <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-200">
                     <input
@@ -312,26 +323,25 @@ const GroupModal: React.FC<GroupModalProps> = ({
                     Afficher le total
                   </label>
 
-                  <select
+                  <Select
                     value={cfg.position === 'top' ? 'top' : cfg.position === 'both' ? 'both' : 'bottom'}
-                    onChange={(e) => {
+                    onValueChange={(value) => {
                       if (!groupId) return;
                       updateGroupTotalConfig(groupId, {
-                        position:
-                          e.target.value === 'top'
-                            ? 'top'
-                            : e.target.value === 'both'
-                              ? 'both'
-                              : 'bottom',
+                        position: value === 'top' ? 'top' : value === 'both' ? 'both' : 'bottom',
                       });
                     }}
                     disabled={!groupId || cfg.enabled === false}
-                    className="w-full px-3 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none disabled:opacity-50"
                   >
-                    <option value="bottom">Total en bas</option>
-                    <option value="top">Total en haut</option>
-                    <option value="both">Total en haut et en bas</option>
-                  </select>
+                    <SelectTrigger className="w-full bg-gray-300 dark:bg-neutral-800/50 border-white/10 text-neutral-700 dark:text-white disabled:opacity-50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bottom">Total en bas</SelectItem>
+                      <SelectItem value="top">Total en haut</SelectItem>
+                      <SelectItem value="both">Total en haut et en bas</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -349,10 +359,10 @@ const GroupModal: React.FC<GroupModalProps> = ({
                     <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-1">
                       Modèle visuel des onglets
                     </label>
-                    <select
-                      value={groupTabStyleFieldIds[groupId] || ''}
-                      onChange={(e) => {
-                        const nextValue = e.target.value;
+                    <Select
+                      value={groupTabStyleFieldIds[groupId] || '__none__'}
+                      onValueChange={(value) => {
+                        const nextValue = value === '__none__' ? '' : value;
                         setGroupTabStyleFieldIds((prev) => {
                           const next = { ...prev };
                           if (!nextValue) {
@@ -364,13 +374,17 @@ const GroupModal: React.FC<GroupModalProps> = ({
                         });
                       }}
                       disabled={relationStyleFieldOptions.length === 0}
-                      className="w-full px-3 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
                     >
-                      <option value="">Aucun style spécial</option>
-                      {relationStyleFieldOptions.map((p: any) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="w-full bg-gray-300 dark:bg-neutral-800/50 border-white/10 text-neutral-700 dark:text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Aucun style spécial</SelectItem>
+                        {relationStyleFieldOptions.map((p: any) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
                       Choisis un champ select/multi-select de la collection liée pour reprendre icône + couleur dans les onglets de ce niveau.
                     </p>
