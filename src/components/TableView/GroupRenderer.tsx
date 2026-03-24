@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getGroupLabel, countItemsInGroup, GroupedItems } from '@/lib/groupingUtils';
+import * as LucideIcons from 'lucide-react';
+import { getGroupLabel, countItemsInGroup, GroupedItems, resolveGroupVisualStyle } from '@/lib/groupingUtils';
 import { Collection, Property, Item, GroupTotalConfig } from '@/lib/types';
 import GroupHeader from './GroupHeader';
 import TableItemRow from './TableItemRow';
@@ -15,6 +16,7 @@ interface GroupRendererProps {
   groupDisplayModes?: Record<string, 'accordion' | 'columns' | 'tabs'>;
   defaultGroupDisplayMode?: 'accordion' | 'columns' | 'tabs';
   groupDisplayColumnCounts?: Record<string, 1 | 2 | 3>;
+  groupTabStyleFieldIds?: Record<string, string>;
   defaultGroupDisplayColumnCount?: 1 | 2 | 3;
   groupTotalsByGroupId?: Record<string, GroupTotalConfig>;
   groupedStructure: { structure: GroupedItems; rootGroups: string[] };
@@ -68,6 +70,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   groupDisplayModes = {},
   defaultGroupDisplayMode = 'accordion',
   groupDisplayColumnCounts = {},
+  groupTabStyleFieldIds = {},
   defaultGroupDisplayColumnCount = 3,
   groupTotalsByGroupId = {},
   groupedStructure,
@@ -189,8 +192,18 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
       const rawValue = subPath.split('/').pop() || subPath;
       const labelValue = rawValue === '(vide)' ? undefined : rawValue;
       const label = nextProperty ? getGroupLabel(nextProperty, labelValue, collections) : rawValue;
+      const visualStyle = nextProperty
+        ? resolveGroupVisualStyle(nextProperty, labelValue, collections, nextGroupId ? groupTabStyleFieldIds[nextGroupId] : undefined)
+        : null;
       const itemCount = countItemsInGroup(subPath, groupedStructure.structure);
-      return { id: subPath, label, itemCount, propertyName: nextProperty?.name || '' };
+      return {
+        id: subPath,
+        label,
+        itemCount,
+        propertyName: nextProperty?.name || '',
+        color: visualStyle?.color,
+        icon: visualStyle?.icon,
+      };
     });
   }, [collections, groupData.subGroups, groupProperties, groupedStructure.structure, nextGroupId]);
 
@@ -315,6 +328,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               groupDisplayModes={groupDisplayModes}
               defaultGroupDisplayMode={defaultGroupDisplayMode}
               groupDisplayColumnCounts={groupDisplayColumnCounts}
+              groupTabStyleFieldIds={groupTabStyleFieldIds}
               defaultGroupDisplayColumnCount={defaultGroupDisplayColumnCount}
               groupTotalsByGroupId={groupTotalsByGroupId}
               groupedStructure={groupedStructure}
@@ -435,15 +449,29 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                 {nextLevelMode === 'tabs' ? (
                   <>
                     <Tabs value={activeSubGroupTab || undefined} onValueChange={setActiveSubGroupTab} className="w-full">
-                      <TabsList className="top-3 left-3 h-auto flex-wrap justify-start gap-1 bg-background dark:bg-neutral-950 p-1 relative z-10 rounded-lg">
+                      <TabsList className="m-2 mt-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0 shrink-0">
                         {subGroupCards.map((group) => (
-                          <TabsTrigger
-                            key={group.id}
-                            value={group.id}
-                            className="rounded-full border border-black/10 dark:border-white/10 bg-background px-3 py-1.5 text-xs dark:bg-neutral-950 data-[state=active]:bg-violet-200/40 data-[state=active]:text-violet-700 dark:data-[state=active]:bg-violet-950 dark:data-[state=active]:text-violet-300"
-                          >
-                            {group.label} ({group.itemCount})
-                          </TabsTrigger>
+                          (() => {
+                            const GroupIcon = group.icon ? (LucideIcons as any)[group.icon] : null;
+                            const isActive = activeSubGroupTab === group.id;
+                            return (
+                              <TabsTrigger
+                                key={group.id}
+                                value={group.id}
+                                className="rounded-full border border-black/10 dark:border-white/10 bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
+                                style={group.color ? {
+                                  borderColor: `${group.color}55`,
+                                  backgroundColor: isActive ? `${group.color}30` : `${group.color}1a`,
+                                  color: isActive ? group.color : undefined,
+                                } : undefined}
+                              >
+                                <span className="inline-flex items-center gap-1.5">
+                                  {GroupIcon ? <GroupIcon size={12} style={{ color: group.color || undefined }} /> : null}
+                                  <span>{group.label} ({group.itemCount})</span>
+                                </span>
+                              </TabsTrigger>
+                            );
+                          })()
                         ))}
                       </TabsList>
                       {subGroupCards.map((group) => (
@@ -490,6 +518,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                 groupDisplayModes={groupDisplayModes}
                 defaultGroupDisplayMode={defaultGroupDisplayMode}
                 groupDisplayColumnCounts={groupDisplayColumnCounts}
+                groupTabStyleFieldIds={groupTabStyleFieldIds}
                 defaultGroupDisplayColumnCount={defaultGroupDisplayColumnCount}
                 groupTotalsByGroupId={groupTotalsByGroupId}
                 groupedStructure={groupedStructure}

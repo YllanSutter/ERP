@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Plus, Zap } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import { useGrouping } from '@/lib/hooks/useGrouping';
 import { TableViewProps } from '@/lib/types';
 import GroupRenderer from '@/components/TableView/GroupRenderer';
@@ -10,7 +11,7 @@ import EditableProperty from '@/components/fields/EditableProperty';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { countItemsInGroup, getGroupLabel } from '@/lib/groupingUtils';
+import { countItemsInGroup, getGroupLabel, resolveGroupVisualStyle } from '@/lib/groupingUtils';
 import { isCalculatedNumberProperty } from '@/lib/calculatedFields';
 import {
   ContextMenu,
@@ -63,6 +64,7 @@ const TableView: React.FC<TableViewProps> = ({
   groupDisplayModes = {},
   groupDisplayColumnCount = 3,
   groupDisplayColumnCounts = {},
+  groupTabStyleFieldIds = {},
   groupTotalsByGroupId = {},
   totalFields = {},
   onSetTotalField,
@@ -1019,6 +1021,7 @@ const TableView: React.FC<TableViewProps> = ({
               groupDisplayModes={groupDisplayModes}
               defaultGroupDisplayMode={groupDisplayMode}
               groupDisplayColumnCounts={groupDisplayColumnCounts}
+              groupTabStyleFieldIds={groupTabStyleFieldIds}
               defaultGroupDisplayColumnCount={normalizeGroupColumnCount(groupDisplayColumnCount)}
               groupTotalsByGroupId={groupTotalsByGroupId}
               groupedStructure={groupedStructure!}
@@ -1207,11 +1210,21 @@ const TableView: React.FC<TableViewProps> = ({
             const itemCount = groupedStructure
               ? countItemsInGroup(rootGroup, groupedStructure.structure)
               : 0;
+            const visualStyle = rootGroupProperty
+              ? resolveGroupVisualStyle(
+                  rootGroupProperty,
+                  rootValue === '(vide)' ? undefined : rootValue,
+                  collections,
+                  groups[0] ? groupTabStyleFieldIds[groups[0]] : undefined
+                )
+              : null;
 
             return {
               id: rootGroup,
               label,
               itemCount,
+              color: visualStyle?.color,
+              icon: visualStyle?.icon,
             };
           });
 
@@ -1281,13 +1294,27 @@ const TableView: React.FC<TableViewProps> = ({
                 <Tabs value={safeActiveGroupTab} onValueChange={setActiveGroupTab} className="w-full flex flex-col">
                   <TabsList className="m-2 mt-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0 shrink-0">
                     {rootGroupCards.map((group: any) => (
-                      <TabsTrigger
-                        key={group.id}
-                        value={group.id}
-                        className="rounded-full border border-black/10 dark:border-white/10 bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
-                      >
-                        {group.label} ({group.itemCount})
-                      </TabsTrigger>
+                      (() => {
+                        const GroupIcon = group.icon ? (LucideIcons as any)[group.icon] : null;
+                        const isActive = safeActiveGroupTab === group.id;
+                        return (
+                          <TabsTrigger
+                            key={group.id}
+                            value={group.id}
+                            className="rounded-full border border-black/10 dark:border-white/10 bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
+                            style={group.color ? {
+                              borderColor: `${group.color}55`,
+                              backgroundColor: isActive ? `${group.color}30` : `${group.color}1a`,
+                              color: isActive ? group.color : undefined,
+                            } : undefined}
+                          >
+                            <span className="inline-flex items-center gap-1.5">
+                              {GroupIcon ? <GroupIcon size={12} style={{ color: group.color || undefined }} /> : null}
+                              <span>{group.label} ({group.itemCount})</span>
+                            </span>
+                          </TabsTrigger>
+                        );
+                      })()
                     ))}
                   </TabsList>
 

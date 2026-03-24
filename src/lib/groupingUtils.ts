@@ -238,6 +238,69 @@ export function getGroupLabel(
   return String(value);
 }
 
+export function resolveGroupVisualStyle(
+  property: Property,
+  value: any,
+  collections: Collection[],
+  overrideStyleFieldId?: string
+): { color?: string; icon?: string } | null {
+  if (!property) return null;
+  if (value === null || value === undefined || value === '' || value === '(vide)') return null;
+
+  // IMPORTANT: aucun style n'est appliqué si aucun champ modèle n'est explicitement configuré
+  if (!overrideStyleFieldId) return null;
+
+  const resolveSelectOptionStyle = (
+    prop: any,
+    raw: any
+  ): { color?: string; icon?: string } | null => {
+    if (!prop || (prop.type !== 'select' && prop.type !== 'multi_select')) return null;
+    const options = Array.isArray(prop.options) ? prop.options : [];
+    const rawValues = Array.isArray(raw) ? raw : [raw];
+    const firstValue = rawValues.find((v: any) => v !== null && v !== undefined && v !== '');
+    if (firstValue === undefined) return null;
+
+    const strVal = String(firstValue);
+    const matched = options.find((opt: any) => {
+      if (typeof opt === 'string') return opt === strVal;
+      return String(opt?.value) === strVal;
+    });
+
+    if (!matched || typeof matched === 'string') return null;
+    return {
+      color: matched.color || undefined,
+      icon: matched.icon || undefined,
+    };
+  };
+
+  if (property.type === 'select' || property.type === 'multi_select') {
+    return resolveSelectOptionStyle(property as any, value);
+  }
+
+  if (property.type !== 'relation') return null;
+
+  const relation: any = (property as any).relation || {};
+  const targetCollection = collections.find(
+    (c: any) => c.id === relation.targetCollectionId
+  );
+  if (!targetCollection) return null;
+
+  const relationIds = Array.isArray(value) ? value : [value];
+  const firstRelationId = relationIds.find((id: any) => id !== null && id !== undefined && id !== '' && id !== '(vide)');
+  if (!firstRelationId) return null;
+
+  const targetItem = (targetCollection.items || []).find((it: any) => String(it.id) === String(firstRelationId));
+  if (!targetItem) return null;
+
+  const styleFieldId = overrideStyleFieldId;
+  if (!styleFieldId) return null;
+
+  const styleProp = (targetCollection.properties || []).find((p: any) => p.id === styleFieldId);
+  if (!styleProp) return null;
+
+  return resolveSelectOptionStyle(styleProp, targetItem[styleFieldId]);
+}
+
 /**
  * Compter récursivement tous les items dans un groupe et ses sous-groupes
  */

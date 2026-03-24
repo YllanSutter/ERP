@@ -39,6 +39,7 @@ export interface RelationConfig {
   type?: 'one-to-one' | 'one-to-many' | 'many-to-many';
   maxVisible?: number;
   displayFieldIds?: string[];
+  tabStyleFieldId?: string;
   autoHideSource?: boolean;
   filter?: {
     fieldId: string;
@@ -102,6 +103,7 @@ export interface TableViewProps {
   groupDisplayColumnCount?: TableGroupColumnCount;
   groupDisplayColumnCounts?: Record<string, TableGroupColumnCount>;
   groupTotalsByGroupId?: Record<string, GroupTotalConfig>;
+  groupTabStyleFieldIds?: Record<string, string>;
   totalFields?: Record<string, string>; // fieldId -> totalType (sum, count, unique, avg, min, max)
   onSetTotalField?: (fieldId: string, totalType: string | null) => void;
   onBulkImportItad?: (itemIds: string[]) => Promise<void>;

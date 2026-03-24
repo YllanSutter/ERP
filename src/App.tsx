@@ -932,6 +932,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
                     groupDisplayModes={activeViewConfig?.groupDisplayModes || {}}
                     groupDisplayColumnCount={activeViewConfig?.groupDisplayColumnCount || 3}
                     groupDisplayColumnCounts={activeViewConfig?.groupDisplayColumnCounts || {}}
+                    groupTabStyleFieldIds={activeViewConfig?.groupTabStyleFieldIds || {}}
                     groupTotalsByGroupId={activeViewConfig?.groupTotalsByGroupId || {}}
                     onShowNewItemModal={() => setShowNewItemModal(true)}
                     onQuickCreateItem={handleQuickCreateItem}
@@ -1269,20 +1270,23 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
       {showGroupModal && (
         <GroupModal
           properties={orderedProperties || []}
+          collections={collectionsWithCalculatedFields || []}
           currentGroups={activeViewConfig?.groups || []}
           initialGroupTotalsByGroupId={activeViewConfig?.groupTotalsByGroupId || {}}
           initialGroupDisplayModes={activeViewConfig?.groupDisplayModes || {}}
           initialGroupDisplayColumnCounts={activeViewConfig?.groupDisplayColumnCounts || {}}
+          initialGroupTabStyleFieldIds={activeViewConfig?.groupTabStyleFieldIds || {}}
           initialDefaultGroupDisplayMode={activeViewConfig?.groupDisplayMode || 'accordion'}
           initialDefaultGroupDisplayColumnCount={activeViewConfig?.groupDisplayColumnCount || 3}
           onClose={() => setShowGroupModal(false)}
-          onSave={(groups, groupTotalsByGroupId, groupDisplayModes, groupDisplayColumnCounts) => {
+          onSave={(groups, groupTotalsByGroupId, groupDisplayModes, groupDisplayColumnCounts, groupTabStyleFieldIds) => {
             if (!activeView) return;
             viewHooks.updateView(activeView, {
               groups,
               groupTotalsByGroupId,
               groupDisplayModes,
               groupDisplayColumnCounts,
+              groupTabStyleFieldIds,
               groupDisplayMode: groups[0] ? (groupDisplayModes[groups[0]] || 'accordion') : 'accordion',
               groupDisplayColumnCount: groups[0] ? (groupDisplayColumnCounts[groups[0]] || 3) : 3,
             });

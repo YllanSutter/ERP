@@ -17,10 +17,12 @@ interface GroupRow {
 
 interface GroupModalProps {
   properties: any[];
+  collections: any[];
   currentGroups?: string[];
   initialGroupTotalsByGroupId?: Record<string, GroupTotalConfig>;
   initialGroupDisplayModes?: Record<string, TableGroupDisplayMode>;
   initialGroupDisplayColumnCounts?: Record<string, TableGroupColumnCount>;
+  initialGroupTabStyleFieldIds?: Record<string, string>;
   initialDefaultGroupDisplayMode?: TableGroupDisplayMode;
   initialDefaultGroupDisplayColumnCount?: TableGroupColumnCount;
   onClose: () => void;
@@ -28,7 +30,8 @@ interface GroupModalProps {
     groups: string[],
     groupTotalsByGroupId: Record<string, GroupTotalConfig>,
     groupDisplayModes: Record<string, TableGroupDisplayMode>,
-    groupDisplayColumnCounts: Record<string, TableGroupColumnCount>
+    groupDisplayColumnCounts: Record<string, TableGroupColumnCount>,
+    groupTabStyleFieldIds: Record<string, string>
   ) => void;
 }
 
@@ -36,10 +39,12 @@ const makeUid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const GroupModal: React.FC<GroupModalProps> = ({
   properties,
+  collections,
   currentGroups = [],
   initialGroupTotalsByGroupId = {},
   initialGroupDisplayModes = {},
   initialGroupDisplayColumnCounts = {},
+  initialGroupTabStyleFieldIds = {},
   initialDefaultGroupDisplayMode = 'accordion',
   initialDefaultGroupDisplayColumnCount = 3,
   onClose,
@@ -65,6 +70,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
   );
   const [groupDisplayColumnCounts, setGroupDisplayColumnCounts] = useState<Record<string, TableGroupColumnCount>>(
     initialGroupDisplayColumnCounts || {}
+  );
+  const [groupTabStyleFieldIds, setGroupTabStyleFieldIds] = useState<Record<string, string>>(
+    initialGroupTabStyleFieldIds || {}
   );
 
   const updateRowProperty = (uid: string, propertyId: string) => {
@@ -160,6 +168,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
     const nextTotalsByGroupId: Record<string, GroupTotalConfig> = {};
     const nextDisplayModes: Record<string, TableGroupDisplayMode> = {};
     const nextDisplayColumnCounts: Record<string, TableGroupColumnCount> = {};
+    const nextTabStyleFieldIds: Record<string, string> = {};
 
     uniqueGroups.forEach((groupId) => {
       const cfg = groupTotalsByGroupId[groupId] || {};
@@ -171,9 +180,14 @@ const GroupModal: React.FC<GroupModalProps> = ({
       const index = uniqueGroups.indexOf(groupId);
       nextDisplayModes[groupId] = getGroupMode(groupId, index);
       nextDisplayColumnCounts[groupId] = getGroupColumnCount(groupId);
+
+      const configuredStyleField = groupTabStyleFieldIds[groupId];
+      if (configuredStyleField) {
+        nextTabStyleFieldIds[groupId] = configuredStyleField;
+      }
     });
 
-    onSave(uniqueGroups, nextTotalsByGroupId, nextDisplayModes, nextDisplayColumnCounts);
+    onSave(uniqueGroups, nextTotalsByGroupId, nextDisplayModes, nextDisplayColumnCounts, nextTabStyleFieldIds);
   };
 
   return (
@@ -195,6 +209,21 @@ const GroupModal: React.FC<GroupModalProps> = ({
             const cfg = (groupId && groupTotalsByGroupId[groupId]) || { enabled: true, position: 'bottom' };
             const mode = groupId ? getGroupMode(groupId, idx) : 'accordion';
             const columnCount = groupId ? getGroupColumnCount(groupId) : 3;
+            const groupProp = groupableProperties.find((p: any) => p.id === groupId);
+            const sourceRelationProp = groupProp?.isRelationLinkedColumn && groupProp?.sourceRelationPropertyId
+              ? properties.find((p: any) => p.id === groupProp.sourceRelationPropertyId)
+              : null;
+            const relationTargetCollectionId =
+              groupProp?.type === 'relation'
+                ? groupProp?.relation?.targetCollectionId
+                : groupProp?.isRelationLinkedColumn
+                  ? (groupProp?.sourceTargetCollectionId || sourceRelationProp?.relation?.targetCollectionId || '')
+                  : '';
+            const relationTargetCollection = relationTargetCollectionId
+              ? (collections || []).find((c: any) => c.id === relationTargetCollectionId)
+              : null;
+            const relationStyleFieldOptions = (relationTargetCollection?.properties || [])
+              .filter((p: any) => p.type === 'select' || p.type === 'multi_select');
             return (
               <div key={row.uid} className="rounded-lg border border-black/10 dark:border-white/10 p-3 bg-black/[0.03] dark:bg-white/[0.03]">
                 <div className="flex items-center gap-2 mb-3">
@@ -311,6 +340,44 @@ const GroupModal: React.FC<GroupModalProps> = ({
                       ? 'Affichage par onglets.'
                       : 'Affichage en accordéon (chevrons).'}
                 </p>
+
+                {groupId && mode === 'tabs' && (groupProp?.type === 'relation' || groupProp?.isRelationLinkedColumn) && (
+                  <div className="mt-3">
+                    <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-1">
+                      Modèle visuel des onglets
+                    </label>
+                    <select
+                      value={groupTabStyleFieldIds[groupId] || ''}
+                      onChange={(e) => {
+                        const nextValue = e.target.value;
+                        setGroupTabStyleFieldIds((prev) => {
+                          const next = { ...prev };
+                          if (!nextValue) {
+                            delete next[groupId];
+                          } else {
+                            next[groupId] = nextValue;
+                          }
+                          return next;
+                        });
+                      }}
+                      disabled={relationStyleFieldOptions.length === 0}
+                      className="w-full px-3 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+                    >
+                      <option value="">Aucun style spécial</option>
+                      {relationStyleFieldOptions.map((p: any) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                      Choisis un champ select/multi-select de la collection liée pour reprendre icône + couleur dans les onglets de ce niveau.
+                    </p>
+                    {relationStyleFieldOptions.length === 0 && (
+                      <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                        Aucun champ select/multi-select trouvé dans la collection liée.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
