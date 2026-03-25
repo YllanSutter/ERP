@@ -482,12 +482,8 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
 
                     {root.id === activeRoot?.id && (
                       <div className="mt-3 rounded-xl border border-black/8 dark:border-white/8 bg-white/60 dark:bg-neutral-900/40 p-3">
-                        <div className="mb-2 flex items-center gap-1.5">
-                          {root.propertyName && (
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-                              {root.propertyName}
-                            </span>
-                          )}
+                        <div className="mb-2 flex items-center gap-1.5 -mt-[20px]">
+                        
                           <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 truncate">
                             {root.label}
                           </span>
@@ -503,12 +499,8 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
 
                     {root.id === activeRoot?.id && activeSub && activeSub.children.length > 0 && (
                       <div className="mt-3 rounded-xl border border-black/8 dark:border-white/8 bg-white/60 dark:bg-neutral-900/40 p-3">
-                        <div className="mb-2 flex items-center gap-1.5">
-                          {activeSub.propertyName && (
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-                              {activeSub.propertyName}
-                            </span>
-                          )}
+                        <div className="mb-2 flex items-center gap-1.5 -mt-[20px]">
+                        
                           <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 truncate">
                             {activeSub.label}
                           </span>
@@ -528,12 +520,8 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
                           key={leaf.id}
                           className="rounded-xl border border-black/8 dark:border-white/8 bg-white/60 dark:bg-neutral-900/40 p-3"
                         >
-                          <div className="mb-2 flex items-center gap-1.5">
-                            {leaf.propertyName && (
-                              <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-                                {leaf.propertyName}
-                              </span>
-                            )}
+                          <div className="mb-2 flex items-center gap-1.5 -mt-[20px]">
+                          
                             <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 truncate">
                               {leaf.label}
                             </span>
