@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { countItemsInGroup, getGroupLabel, resolveGroupVisualStyle } from '@/lib/groupingUtils';
 import { isCalculatedNumberProperty } from '@/lib/calculatedFields';
+import { compareValues } from '@/lib/utils/sortUtils';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -173,14 +174,7 @@ const TableView: React.FC<TableViewProps> = ({
     return [...arr].sort((a, b) => {
       const aVal = sortProp ? resolveProjectedValue(a, sortProp) : (a && col in a ? a[col] : undefined);
       const bVal = sortProp ? resolveProjectedValue(b, sortProp) : (b && col in b ? b[col] : undefined);
-      if (aVal === undefined || aVal === null) return 1;
-      if (bVal === undefined || bVal === null) return -1;
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortState.direction === 'asc' ? aVal - bVal : bVal - aVal;
-      }
-      return sortState.direction === 'asc'
-        ? String(aVal).localeCompare(String(bVal), 'fr', { numeric: true })
-        : String(bVal).localeCompare(String(aVal), 'fr', { numeric: true });
+      return compareValues(aVal, bVal, sortState.direction);
     });
   }, [sortState, orderedProperties, resolveProjectedValue]);
   

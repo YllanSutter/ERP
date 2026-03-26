@@ -13,7 +13,7 @@ const clampHour = (value: number, min = 0, max = 24) => {
   return Math.max(min, Math.min(max, value));
 };
 
-const parseTimeToDecimalHour = (value: string | number | null | undefined, fallback: number): number => {
+export const parseTimeToDecimalHour = (value: string | number | null | undefined, fallback: number): number => {
   if (typeof value === 'number' && Number.isFinite(value)) return clampHour(value);
   if (typeof value !== 'string') return clampHour(fallback);
   const [hRaw, mRaw] = value.split(':');

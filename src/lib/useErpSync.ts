@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { cleanForSave } from '@/lib/utils/cleanUtils';
 
 // Types minimalistes pour éviter les erreurs TS
 type Collection = { id: string; items?: any[]; [key: string]: any };
@@ -28,7 +29,6 @@ interface UseErpSyncParams {
   setFavorites: (f: Favorites) => void;
   setIsLoaded: (b: boolean) => void;
   API_URL: string;
-  cleanForSave: (obj: any) => any;
   socket: any;
 }
 
@@ -117,7 +117,6 @@ export function useErpSync({
   setFavorites,
   setIsLoaded,
   API_URL,
-  cleanForSave,
   socket,
 }: UseErpSyncParams) {
   const lastReloadRef = useRef(0);

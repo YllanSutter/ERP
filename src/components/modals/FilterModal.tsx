@@ -6,6 +6,7 @@ import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MONTH_NAMES } from '@/lib/calendarUtils';
 import { getOrderedProperties } from '@/lib/filterUtils';
+import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 
 interface FilterModalProps {
   properties: any[];
@@ -113,7 +114,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
       const relation = selectedProp.relation || {};
       const targetCollection = (collections || []).find((c: any) => c.id === relation.targetCollectionId);
       const targetItems = targetCollection?.items || [];
-      const values = Array.isArray(value) ? value : value ? [value] : [];
+      const values = normalizeRelationIds(value);
 
       return values.map((id: string) => {
         const item = targetItems.find((ti: any) => ti.id === id);
@@ -125,14 +126,14 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
       const opts = (selectedProp.options || []).map((opt: any) =>
         typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
       );
-      const values = Array.isArray(value) ? value : value ? [value] : [];
+      const values = normalizeRelationIds(value);
       return values.map((v: any) => {
         const opt = opts.find((o: any) => o.value === v);
         return opt ? opt.label : v;
       });
     }
 
-    if (selectedProp?.type === 'multi_select') {
+    if (selectedProp?.type === 'multiselect') {
       const opts = (selectedProp.options || []).map((opt: any) =>
         typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
       );
@@ -343,7 +344,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
       }));
 
       if (isSourceMany || isMultiValueOperator) {
-        const currentValues = Array.isArray(value) ? value : value ? [value] : [];
+        const currentValues = normalizeRelationIds(value);
         return (
           <LightMultiSelect
             options={relationOptions}
@@ -369,7 +370,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
         typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
       );
       if (isMultiValueOperator) {
-        const currentValues = Array.isArray(value) ? value : value ? [value] : [];
+        const currentValues = normalizeRelationIds(value);
         return (
           <LightMultiSelect
             options={opts}
@@ -387,7 +388,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
       );
     }
 
-    if (selectedProp?.type === 'multi_select') {
+    if (selectedProp?.type === 'multiselect') {
       const opts = (selectedProp.options || []).map((opt: any) =>
         typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
       );

@@ -1,4 +1,6 @@
 import { Item, Property, Collection } from './types';
+import { normalizeRelationIds } from '@/lib/utils/relationUtils';
+import { MONTH_NAMES } from '@/lib/utils/dateUtils';
 
 /**
  * Structure de données pour les items groupés
@@ -31,8 +33,9 @@ export function buildGroupStructure(
 
   // Pour chaque item, construire son chemin de groupe
   items.forEach(item => {
-    let currentPath = '';
-    
+    // currentPaths : liste des chemins actifs (multiselect peut en créer plusieurs)
+    let currentPaths = [''];
+
     for (let depth = 0; depth < groups.length; depth++) {
       const groupId = groups[depth];
       const prop = properties.find((p: any) => p.id === groupId);
@@ -45,11 +48,7 @@ export function buildGroupStructure(
         }
 
         const relationValue = (item as any)[linkedProp.sourceRelationPropertyId];
-        const relatedIds = Array.isArray(relationValue)
-          ? relationValue
-          : relationValue
-            ? [relationValue]
-            : [];
+        const relatedIds = normalizeRelationIds(relationValue);
         if (!relatedIds.length) return null;
 
         const sourceRelationProp: any = properties.find((p: any) => p.id === linkedProp.sourceRelationPropertyId);
@@ -62,7 +61,7 @@ export function buildGroupStructure(
           .filter((v: any) => v !== undefined && v !== null && v !== '');
 
         if (!values.length) return null;
-        if (linkedProp.type === 'multi_select') {
+        if (linkedProp.type === 'multiselect') {
           return values.flatMap((v: any) => Array.isArray(v) ? v : [v]);
         }
         if (linkedProp.type === 'checkbox') {
@@ -70,45 +69,84 @@ export function buildGroupStructure(
         }
         return values[0];
       })();
-      let groupValue: string;
-      
-      // Formater la valeur selon le type
+
+      // Formater la valeur selon le type — multiselect produit plusieurs valeurs
+      let groupValues: string[];
       if (prop.type === 'date' || (prop as any).dateGranularity) {
-        groupValue = formatDateByGranularity(rawValue, (prop as any).dateGranularity);
-      } else if (rawValue === null || rawValue === undefined || rawValue === '') {
-        groupValue = '(vide)';
+        groupValues = [formatDateByGranularity(rawValue, (prop as any).dateGranularity)];
+      } else if (rawValue === null || rawValue === undefined || rawValue === '' || (Array.isArray(rawValue) && rawValue.length === 0)) {
+        groupValues = ['(vide)'];
+      } else if (prop.type === 'multiselect' && Array.isArray(rawValue)) {
+        groupValues = rawValue.map((v: any) => String(v));
       } else {
-        groupValue = String(rawValue);
-      }
-      
-      const parentPath = currentPath;
-      currentPath = currentPath ? `${currentPath}/${groupValue}` : groupValue;
-
-      // Initialiser ce niveau de groupe s'il n'existe pas
-      if (!structure[currentPath]) {
-        structure[currentPath] = { itemIds: [], subGroups: [] };
+        groupValues = [String(rawValue)];
       }
 
-      // Si c'est le dernier niveau de groupage, ajouter l'item
-      if (depth === groups.length - 1) {
-        if (!structure[currentPath].itemIds.includes(item.id)) {
-          structure[currentPath].itemIds.push(item.id);
+      const nextPaths: string[] = [];
+
+      for (const parentPath of currentPaths) {
+        for (const groupValue of groupValues) {
+          const currentPath = parentPath ? `${parentPath}/${groupValue}` : groupValue;
+
+          // Initialiser ce niveau de groupe s'il n'existe pas
+          if (!structure[currentPath]) {
+            structure[currentPath] = { itemIds: [], subGroups: [] };
+          }
+
+          // Si c'est le dernier niveau de groupage, ajouter l'item
+          if (depth === groups.length - 1) {
+            if (!structure[currentPath].itemIds.includes(item.id)) {
+              structure[currentPath].itemIds.push(item.id);
+            }
+          }
+
+          // Enregistrer ce groupe comme sous-groupe de son parent
+          if (parentPath && !structure[parentPath].subGroups.includes(currentPath)) {
+            structure[parentPath].subGroups.push(currentPath);
+          } else if (!parentPath) {
+            rootGroups.add(currentPath.split('/')[0]);
+          }
+
+          if (!nextPaths.includes(currentPath)) {
+            nextPaths.push(currentPath);
+          }
         }
       }
 
-      // Enregistrer ce groupe comme sous-groupe de son parent
-      if (parentPath && !structure[parentPath].subGroups.includes(currentPath)) {
-        structure[parentPath].subGroups.push(currentPath);
-      } else if (!parentPath) {
-        rootGroups.add(currentPath.split('/')[0]);
-      }
+      currentPaths = nextPaths;
     }
   });
 
   const extractGroupValueFromPath = (path: string) => path.split('/').pop() || path;
 
   const sortGroupPathsForProperty = (paths: string[], property?: Property) => {
-    if (!property || (property.type !== 'select' && property.type !== 'multi_select')) {
+    const granularity = (property as any)?.dateGranularity;
+
+    if (property?.type === 'date' && granularity === 'month') {
+      return [...paths].sort((a, b) => {
+        const aVal = extractGroupValueFromPath(a);
+        const bVal = extractGroupValueFromPath(b);
+        if (aVal === '(vide)') return -1;
+        if (bVal === '(vide)') return 1;
+        return MONTH_NAMES.indexOf(aVal) - MONTH_NAMES.indexOf(bVal);
+      });
+    }
+
+    if (property?.type === 'date' && granularity === 'month-year') {
+      return [...paths].sort((a, b) => {
+        const aVal = extractGroupValueFromPath(a);
+        const bVal = extractGroupValueFromPath(b);
+        if (aVal === '(vide)') return -1;
+        if (bVal === '(vide)') return 1;
+        const parseMonthYear = (s: string) => {
+          const parts = s.split(' ');
+          return (parseInt(parts[1] || '0') * 12) + MONTH_NAMES.indexOf(parts[0]);
+        };
+        return parseMonthYear(aVal) - parseMonthYear(bVal);
+      });
+    }
+
+    if (!property || (property.type !== 'select' && property.type !== 'multiselect')) {
       return [...paths].sort((a, b) => String(extractGroupValueFromPath(a)).localeCompare(String(extractGroupValueFromPath(b)), 'fr', { numeric: true }));
     }
 
@@ -165,15 +203,14 @@ export function formatDateByGranularity(dateString: string, granularity?: string
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return String(dateString);
-    
+
     if (granularity === 'year') {
       return date.getFullYear().toString();
     } else if (granularity === 'month') {
-      return date.toLocaleDateString('fr-FR', { month: 'long' });
+      return MONTH_NAMES[date.getMonth()];
     } else if (granularity === 'month-year') {
-      return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+      return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
     } else {
-      // Full date format
       return date.toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
     }
   } catch (e) {
@@ -191,7 +228,7 @@ export function getGroupLabel(
 ): string {
   if (!value && value !== 0 && value !== false) return '(vide)';
 
-  if (property.type === 'select' || property.type === 'multi_select') {
+  if (property.type === 'select' || property.type === 'multiselect') {
     const options = Array.isArray((property as any).options) ? (property as any).options : [];
     const values = Array.isArray(value) ? value : [value];
 
@@ -254,7 +291,7 @@ export function resolveGroupVisualStyle(
     prop: any,
     raw: any
   ): { color?: string; icon?: string } | null => {
-    if (!prop || (prop.type !== 'select' && prop.type !== 'multi_select')) return null;
+    if (!prop || (prop.type !== 'select' && prop.type !== 'multiselect')) return null;
     const options = Array.isArray(prop.options) ? prop.options : [];
     const rawValues = Array.isArray(raw) ? raw : [raw];
     const firstValue = rawValues.find((v: any) => v !== null && v !== undefined && v !== '');
@@ -273,7 +310,7 @@ export function resolveGroupVisualStyle(
     };
   };
 
-  if (property.type === 'select' || property.type === 'multi_select') {
+  if (property.type === 'select' || property.type === 'multiselect') {
     return resolveSelectOptionStyle(property as any, value);
   }
 

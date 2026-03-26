@@ -1,4 +1,5 @@
 import { PROPERTY_TYPES } from '../constants';
+import { cloneValue, getEmptyValueForProperty } from '@/lib/utils/propertyUtils';
 
 export const useCollections = (
   collections: any[],
@@ -196,23 +197,6 @@ export const useCollections = (
       showContextMenu: false,
     };
 
-    const cloneValue = (value: any) => {
-      if (value === null || typeof value !== 'object') return value;
-      try {
-        return structuredClone(value);
-      } catch {
-        return JSON.parse(JSON.stringify(value));
-      }
-    };
-
-    const getEmptyValueForProperty = (prop: any) => {
-      if (!prop) return '';
-      if (prop.type === 'checkbox') return false;
-      if (prop.type === 'multi_select' || prop.type === 'multiselect') return [];
-      if (prop.type === 'number') return null;
-      if (prop.type === 'date' || prop.type === 'date_range') return null;
-      return '';
-    };
 
     const updatedCollections = collections.map((col) => {
       if (col.id !== activeCollection) return col;

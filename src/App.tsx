@@ -38,6 +38,8 @@ import { MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 import { applyCalculatedFieldsToCollections, stripCalculatedNumberFieldsFromItem } from '@/lib/calculatedFields';
 import { applyUserCalendarPreferences } from '@/lib/calendarUtils';
 import { importPricesFromItad } from '@/lib/itadUtils';
+import { isEmptyValue } from '@/lib/utils/valueUtils';
+import { getRoundedNow } from '@/lib/utils/dateUtils';
 import { pluginManager } from '@/lib/plugins/PluginManager';
 import { initializePluginRegistry } from '@/lib/plugins';
 import {
@@ -68,29 +70,6 @@ const App = () => {
     }
   }, [theme]);
 
-    // Nettoie récursivement un objet pour supprimer les cycles et les clés privées (commençant par _)
-function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
-  if (obj === null || typeof obj !== 'object') return obj;
-  if (stack.has(obj)) return undefined;
-
-  if (Array.isArray(obj)) {
-    stack.add(obj);
-    const arr = obj.map((item) => cleanForSave(item, stack)).filter((v) => v !== undefined);
-    stack.delete(obj);
-    return arr;
-  }
-
-  stack.add(obj);
-  const result: Record<string, any> = {};
-  for (const key in obj) {
-    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
-    // On NE filtre plus les clés commençant par _ pour garder _eventSegments
-    const val = cleanForSave(obj[key], stack);
-    if (val !== undefined) result[key] = val;
-  }
-  stack.delete(obj);
-  return result;
-}
   // Filtres par dashboard (clé = dashboard.id)
   const [dashboardFilters, setDashboardFilters] = useState<Record<string, any[]>>({});
   const {
@@ -274,44 +253,7 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
   const { currentViews } = viewHooks;
   const activeDashboardConfig = dashboards.find((d) => d.id === activeDashboard) || null;
 
-  const getRoundedNow = () => {
-    const now = new Date();
-    const minutes = now.getMinutes();
-    const rounded = Math.round(minutes / 15) * 15;
-    now.setMinutes(rounded);
-    now.setSeconds(0);
-    now.setMilliseconds(0);
-    return now;
-  };
 
-  const isEmptyTiptapDoc = (doc: any) => {
-    if (!doc || doc.type !== 'doc') return false;
-    const hasText = (node: any): boolean => {
-      if (!node) return false;
-      if (typeof node.text === 'string' && node.text.trim() !== '') return true;
-      if (Array.isArray(node.content)) return node.content.some(hasText);
-      return false;
-    };
-    return !hasText(doc);
-  };
-
-  const isEmptyValue = (val: any) => {
-    if (val === null || val === undefined) return true;
-    if (typeof val === 'string') {
-      const trimmed = val.trim();
-      if (!trimmed) return true;
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (isEmptyTiptapDoc(parsed)) return true;
-      } catch {
-        // ignore JSON parse errors
-      }
-      return false;
-    }
-    if (Array.isArray(val)) return val.length === 0;
-    if (typeof val === 'object' && isEmptyTiptapDoc(val)) return true;
-    return false;
-  };
 
   const getMatchingTemplate = (prop: any, data: any) => {
     const templates = Array.isArray(prop.defaultTemplates) ? prop.defaultTemplates : [];
@@ -422,7 +364,6 @@ function cleanForSave(obj: any, stack: WeakSet<object> = new WeakSet()): any {
     setFavorites,
     setIsLoaded,
     API_URL,
-    cleanForSave,
     socket
   });
 

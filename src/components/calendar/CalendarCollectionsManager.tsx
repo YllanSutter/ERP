@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
 import MonthView from '../CalendarView/MonthView';
 import WeekView from '../CalendarView/WeekView';
-import { MONTH_NAMES } from '@/lib/calendarUtils';
+import { MONTH_NAMES, getMonday, getPreviousPeriod, getNextPeriod } from '@/lib/calendarUtils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
   moveAllSegmentsOfItem, 
@@ -169,27 +169,6 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
       const updatedItem = moveAllSegmentsOfItem(item, dateField.id, newDate, newHours, newMinutes, col);
       onEdit(updatedItem);
     }
-  };
-  // --- State pour la vue et la date courante ---
-  const getMonday = (date: string | number | Date) => {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    return new Date(d.setDate(diff));
-  };
-  const getPreviousPeriod = (date: string | number | Date, mode: string) => {
-    const d = new Date(date);
-    if (mode === 'month') d.setMonth(d.getMonth() - 1);
-    else if (mode === 'week') d.setDate(d.getDate() - 7);
-    else d.setDate(d.getDate() - 1);
-    return d;
-  };
-  const getNextPeriod = (date: string | number | Date, mode: string) => {
-    const d = new Date(date);
-    if (mode === 'month') d.setMonth(d.getMonth() + 1);
-    else if (mode === 'week') d.setDate(d.getDate() + 7);
-    else d.setDate(d.getDate() + 1);
-    return d;
   };
   const getInitialViewMode = () => {
     if (typeof window !== 'undefined') {

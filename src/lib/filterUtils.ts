@@ -1,4 +1,7 @@
 
+import { normalizeRelationIds } from '@/lib/utils/relationUtils';
+import { MONTH_NAMES } from '@/lib/utils/dateUtils';
+
 export const getFilteredItems = (
   currentCollection: any,
   currentViewConfig: any,
@@ -19,17 +22,9 @@ export const getFilteredItems = (
         return String(date.getFullYear());
       }
       if (granularity === 'month') {
-        const MONTH_NAMES = [
-          'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-          'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-        ];
         return MONTH_NAMES[date.getMonth()];
       }
       if (granularity === 'month-year') {
-        const MONTH_NAMES = [
-          'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-          'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-        ];
         return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
       }
     }
@@ -125,11 +120,7 @@ export const getFilteredItems = (
     if (!config) return [];
 
     const relationValue = item?.[config.sourceRelationPropertyId];
-    const relatedIds = Array.isArray(relationValue)
-      ? relationValue
-      : relationValue
-        ? [relationValue]
-        : [];
+    const relatedIds = normalizeRelationIds(relationValue);
     if (!relatedIds.length) return [];
 
     const sourceRelationProp = (currentCollection?.properties || []).find((p: any) => p.id === config.sourceRelationPropertyId);
@@ -187,11 +178,7 @@ export const getFilteredItems = (
 
       const relatedItems = relationProps.flatMap((relProp: any) => {
         const relationValue = item?.[relProp.id];
-        const ids = Array.isArray(relationValue)
-          ? relationValue
-          : relationValue
-            ? [relationValue]
-            : [];
+        const ids = normalizeRelationIds(relationValue);
         return ids
           .map((id: string) => (sourceCollection.items || []).find((it: any) => it.id === id))
           .filter(Boolean);

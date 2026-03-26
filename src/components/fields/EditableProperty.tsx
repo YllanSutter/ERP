@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 import * as Icons from 'lucide-react';
 import RichTextEditor from '@/components/fields/RichTextEditor';
 import SteamPropertyField from '@/components/fields/SteamPropertyField';
@@ -388,7 +389,7 @@ const RelationEditor = ({
   onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
   isSourceMany: boolean;
 }) => {
-  const selectedIds = Array.isArray(value) ? value : (value ? [value] : []);
+  const selectedIds = normalizeRelationIds(value);
   const relationMaxVisibleRaw = property?.relation?.maxVisible;
   const relationMaxVisible = Number.isFinite(Number(relationMaxVisibleRaw)) && Number(relationMaxVisibleRaw) > 0
     ? Number(relationMaxVisibleRaw)
@@ -976,7 +977,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
   // Multi-select
   if (property.type === 'multi_select') {
-    const selectedValues: string[] = Array.isArray(value) ? value : (value ? [value] : []);
+    const selectedValues: string[] = normalizeRelationIds(value);
     return (
       <LightMultiSelect
         options={property.options || []}

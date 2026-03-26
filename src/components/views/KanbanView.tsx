@@ -5,6 +5,9 @@ import { cn } from '@/lib/utils';
 import EditableProperty from '@/components/fields/EditableProperty';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
+import { getNameValue } from '@/lib/calendarUtils';
+import { compareValues } from '@/lib/utils/sortUtils';
+import { shouldShowColumn } from '@/lib/utils/columnFilterUtils';
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -112,68 +115,8 @@ const KanbanView: React.FC<KanbanViewProps> = ({
     columnColors['Toutes les données'] = '#8b5cf6';
   }
 
-  // Fonction pour vérifier si une valeur de colonne doit être affichée selon les filtres
-  const shouldShowColumn = (columnValue: string) => {
-    if (!groupByProp || filters.length === 0) return true;
-    
-    // Vérifier s'il y a des filtres sur le champ de groupement
-    const filtersOnGroupBy = filters.filter(f => f.property === groupByProp.id);
-    if (filtersOnGroupBy.length === 0) return true;
-    
-    // Séparer les filtres par type
-    const equalsFilters = filtersOnGroupBy.filter(f => f.operator === 'equals');
-    const notEqualsFilters = filtersOnGroupBy.filter(f => f.operator === 'not_equals');
-    const otherFilters = filtersOnGroupBy.filter(f => f.operator !== 'equals' && f.operator !== 'not_equals');
-    
-    // Pour les filtres "equals", la colonne doit correspondre à AU MOINS UN
-    if (equalsFilters.length > 0) {
-      const matchesEquals = equalsFilters.some(f =>
-        Array.isArray(f.value) ? f.value.includes(columnValue) : columnValue === f.value
-      );
-      if (!matchesEquals) return false;
-    }
-    
-    // Pour les filtres "not_equals", la colonne NE doit correspondre à AUCUN
-    if (notEqualsFilters.length > 0) {
-      const matchesNotEquals = notEqualsFilters.some(f =>
-        Array.isArray(f.value) ? f.value.includes(columnValue) : columnValue === f.value
-      );
-      if (matchesNotEquals) return false;
-    }
-    
-    // Pour les autres filtres
-    for (const filter of otherFilters) {
-      const filterValue = filter.value;
-      
-      if (filter.operator === 'contains') {
-        if (Array.isArray(filterValue)) {
-          const matches = filterValue.some((fv: any) =>
-            columnValue?.toLowerCase().includes(String(fv).toLowerCase())
-          );
-          if (!matches) return false;
-        } else if (!columnValue?.toLowerCase().includes(filterValue?.toLowerCase())) {
-          return false;
-        }
-      } else if (filter.operator === 'not_contains') {
-        if (Array.isArray(filterValue)) {
-          const matches = filterValue.some((fv: any) =>
-            columnValue?.toLowerCase().includes(String(fv).toLowerCase())
-          );
-          if (matches) return false;
-        } else if (columnValue?.toLowerCase().includes(filterValue?.toLowerCase())) {
-          return false;
-        }
-      } else if (filter.operator === 'is_empty') {
-        if (columnValue !== 'Sans valeur' && columnValue !== null && columnValue !== '') return false;
-      } else if (filter.operator === 'is_not_empty') {
-        if (columnValue === 'Sans valeur' || columnValue === null || columnValue === '') return false;
-      }
-    }
-    
-    return true;
-  };
 
-  const columns = Object.keys(groupedItems).filter(col => shouldShowColumn(col));
+  const columns = Object.keys(groupedItems).filter(col => shouldShowColumn(col, filters, groupByProp?.id ?? null));
 
   const allDisplayableProps = useMemo(
     () =>
@@ -228,29 +171,15 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   const sortItemsForColumn = (columnItems: any[], columnName: string) => {
     const { sortFieldId, sortDirection } = getColumnSettings(columnName);
     if (!sortFieldId) return columnItems;
-    const dir = sortDirection === 'desc' ? -1 : 1;
 
     const extractValue = (item: any) => {
-      if (sortFieldId === '__name') return getNameValue(item);
+      if (sortFieldId === '__name') return getNameValue(item, collection);
       return item?.[sortFieldId];
     };
 
-    return [...columnItems].sort((a, b) => {
-      const va = extractValue(a);
-      const vb = extractValue(b);
-      if (va === null || va === undefined || va === '') return 1;
-      if (vb === null || vb === undefined || vb === '') return -1;
-      if (typeof va === 'number' && typeof vb === 'number') {
-        return (va - vb) * dir;
-      }
-      return String(va).localeCompare(String(vb), 'fr', { numeric: true, sensitivity: 'base' }) * dir;
-    });
+    return [...columnItems].sort((a, b) => compareValues(extractValue(a), extractValue(b), sortDirection as 'asc' | 'desc'));
   };
 
-  const getNameValue = (item: any) => {
-    const nameField = collection.properties.find((p: any) => p.name === 'Nom' || p.id === 'name');
-    return nameField ? item[nameField.id] : item.name || 'Sans titre';
-  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -371,7 +300,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                         onClick={() => onViewDetail(item)}
                         className="font-medium dark:text-white hover:text-cyan-300 text-sm flex-1 line-clamp-2 text-left"
                       >
-                        {getNameValue(item)}
+                        {getNameValue(item, collection)}
                       </button>
                     </div>
 

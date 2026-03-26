@@ -3,6 +3,7 @@ import { LightSelect } from '@/components/inputs/LightSelect';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { MONTH_NAMES } from '@/lib/calendarUtils';
+import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 
 interface FilterValueDisplayProps {
   filter: { property: string; operator: string; value: any };
@@ -36,18 +37,18 @@ const FilterValueDisplay: React.FC<FilterValueDisplayProps> = ({
           : [];
       }
       const nameField = targetCol.properties?.find((p: any) => p.name === 'Nom' || p.id === 'name') || targetCol.properties?.[0] || ({ id: 'name' } as any);
-      const values = Array.isArray(filter.value) ? filter.value : filter.value ? [filter.value] : [];
+      const values = normalizeRelationIds(filter.value);
       return values.map((id: string) => {
         const item = targetCol.items.find((i: any) => i.id === id);
         return item ? item[nameField.id] || item.name || id : id;
       });
     }
 
-    if (property?.type === 'select' || property?.type === 'multi_select') {
+    if (property?.type === 'select' || property?.type === 'multiselect') {
       const opts = (property.options || []).map((opt: any) =>
         typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value }
       );
-      const values = Array.isArray(filter.value) ? filter.value : filter.value ? [filter.value] : [];
+      const values = normalizeRelationIds(filter.value);
       return values.map((v: any) => {
         const opt = opts.find((o: any) => o.value === v);
         return opt ? opt.label : v;
@@ -87,7 +88,7 @@ const FilterValueDisplay: React.FC<FilterValueDisplayProps> = ({
       const nameField = targetCol.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
 
       if (isMultiValueOperator) {
-        const currentValues = Array.isArray(filter.value) ? filter.value : filter.value ? [filter.value] : [];
+        const currentValues = normalizeRelationIds(filter.value);
         return (
           <LightMultiSelect
             options={targetItems.map((ti: any) => ({
@@ -121,7 +122,7 @@ const FilterValueDisplay: React.FC<FilterValueDisplayProps> = ({
         typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
       );
       if (isMultiValueOperator) {
-        const currentValues = Array.isArray(filter.value) ? filter.value : filter.value ? [filter.value] : [];
+        const currentValues = normalizeRelationIds(filter.value);
         return (
           <LightMultiSelect
             options={opts}
@@ -140,7 +141,7 @@ const FilterValueDisplay: React.FC<FilterValueDisplayProps> = ({
       }
     }
 
-    if (property?.type === 'multi_select') {
+    if (property?.type === 'multiselect') {
       const opts = (property.options || []).map((opt: any) =>
         typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
       );

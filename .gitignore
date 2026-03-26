@@ -12,6 +12,10 @@ backups/
 *.sql
 backup_local.sql
 
+# Claude
+CLAUDE.md
+claude/
+
 # Logs
 *.log
 npm-debug.log*

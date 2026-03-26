@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { getNameValue as getNameValueLib, MONTH_NAMES } from '@/lib/calendarUtils';
+import { useConfigSync } from '@/lib/hooks/useConfigSync';
+import { getNameValue as getNameValueLib, MONTH_NAMES, parseTimeToDecimalHour, getMonday, getPreviousPeriod, getNextPeriod } from '@/lib/calendarUtils';
 import { motion } from 'framer-motion';
 import { getFilteredItems } from '@/lib/filterUtils';
 import CalendarCollectionsManager from '../calendar/CalendarCollectionsManager';
@@ -54,21 +55,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 }) => {
   const { user } = useAuth();
 
-  const parseTimeToDecimal = (value: any, fallback: number) => {
-    if (typeof value !== 'string') return fallback;
-    const [hRaw, mRaw] = value.split(':');
-    const h = Number(hRaw);
-    const m = Number(mRaw);
-    if (!Number.isFinite(h) || !Number.isFinite(m)) return fallback;
-    return Math.max(0, Math.min(24, h + m / 60));
-  };
-
   const userWorkRange = useMemo(() => {
     const prefs = user?.user_preferences && typeof user.user_preferences === 'object'
       ? user.user_preferences
       : {};
-    const workStartHour = parseTimeToDecimal(prefs.workStart, 9);
-    const workEndHourRaw = parseTimeToDecimal(prefs.workEnd, 18);
+    const workStartHour = parseTimeToDecimalHour(prefs.workStart, 9);
+    const workEndHourRaw = parseTimeToDecimalHour(prefs.workEnd, 18);
     const workEndHour = Math.max(workStartHour + 0.25, workEndHourRaw);
     const displayStartHour = Math.max(0, Math.floor(workStartHour - 2));
     const displayEndHour = Math.min(24, Math.ceil(workEndHour + 2));
@@ -92,16 +84,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     if (collections.length > 0) return [collections[0].id];
     return [];
   };
-  const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(
-    getInitialSelectedCollections
-  );
-
-  // Sélecteur 'collection - Temps' (champ date par collection)
   const getInitialSelectedDateFields = () => {
     if (viewConfig?.calendarDateFields && typeof viewConfig.calendarDateFields === 'object') {
       return viewConfig.calendarDateFields;
     }
-    // fallback initial : premier champ date/date_range de chaque collection
     const initial: Record<string, string> = {};
     collections.forEach(col => {
       const dateProp = col.properties.find((p: any) => p.type === 'date' || p.type === 'date_range');
@@ -109,7 +95,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     });
     return initial;
   };
-  const [selectedDateFields, setSelectedDateFields] = useState<Record<string, string>>(getInitialSelectedDateFields);
 
   const getInitialCollectionRoles = () => {
     if (viewConfig?.calendarCollectionRoles && typeof viewConfig.calendarCollectionRoles === 'object') {
@@ -121,40 +106,24 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     });
     return initial;
   };
-  const [collectionRoles, setCollectionRoles] = useState<Record<string, 'primary' | 'secondary' | 'default'>>(
-    getInitialCollectionRoles
-  );
 
   const viewKey = viewConfig?.id || null;
 
-  React.useEffect(() => {
-    setSelectedCollectionIds(getInitialSelectedCollections());
-    setSelectedDateFields(getInitialSelectedDateFields());
-  }, [viewKey]);
-
-  React.useEffect(() => {
-    if (viewConfig?.calendarCollectionIds) {
-      setSelectedCollectionIds(viewConfig.calendarCollectionIds);
-    } else {
-      setSelectedCollectionIds(getInitialSelectedCollections());
-    }
-  }, [viewConfig?.calendarCollectionIds, viewKey]);
-
-  React.useEffect(() => {
-    if (viewConfig?.calendarDateFields) {
-      setSelectedDateFields(viewConfig.calendarDateFields);
-    } else {
-      setSelectedDateFields(getInitialSelectedDateFields());
-    }
-  }, [viewConfig?.calendarDateFields, viewKey]);
-
-  React.useEffect(() => {
-    if (viewConfig?.calendarCollectionRoles) {
-      setCollectionRoles(viewConfig.calendarCollectionRoles);
-    } else {
-      setCollectionRoles(getInitialCollectionRoles());
-    }
-  }, [viewConfig?.calendarCollectionRoles, viewKey]);
+  const [selectedCollectionIds, setSelectedCollectionIds] = useConfigSync<string[]>(
+    viewConfig?.calendarCollectionIds,
+    getInitialSelectedCollections,
+    viewKey
+  );
+  const [selectedDateFields, setSelectedDateFields] = useConfigSync<Record<string, string>>(
+    viewConfig?.calendarDateFields,
+    getInitialSelectedDateFields,
+    viewKey
+  );
+  const [collectionRoles, setCollectionRoles] = useConfigSync<Record<string, 'primary' | 'secondary' | 'default'>>(
+    viewConfig?.calendarCollectionRoles,
+    getInitialCollectionRoles,
+    viewKey
+  );
 
   React.useEffect(() => {
     if (!collections || collections.length === 0) return;
@@ -308,28 +277,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     onEdit(updatedItem);
   };
 
-  // --- Ajout navigation et sélecteur de vue ---
-  // Fonctions utilitaires pour navigation
-  const getMonday = (date: Date) => {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    return new Date(d.setDate(diff));
-  };
-  const getPreviousPeriod = (date: Date, mode: 'month' | 'week' | 'day') => {
-    const d = new Date(date);
-    if (mode === 'month') d.setMonth(d.getMonth() - 1);
-    else if (mode === 'week') d.setDate(d.getDate() - 7);
-    else d.setDate(d.getDate() - 1);
-    return d;
-  };
-  const getNextPeriod = (date: Date, mode: 'month' | 'week' | 'day') => {
-    const d = new Date(date);
-    if (mode === 'month') d.setMonth(d.getMonth() + 1);
-    else if (mode === 'week') d.setDate(d.getDate() + 7);
-    else d.setDate(d.getDate() + 1);
-    return d;
-  };
 
   // --- Affichage ---
   // Pour l'exemple, on affiche la vue semaine (à adapter selon viewMode si besoin)
