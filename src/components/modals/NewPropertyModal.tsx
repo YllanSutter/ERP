@@ -382,8 +382,8 @@ const NewPropertyModal: React.FC<NewPropertyModalProps> = ({ onClose, onSave, co
                   className="w-full px-4 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
                 >
                   <option value="">Sélectionner...</option>
-                  {(collections || []).filter((c: any) => c.id !== currentCollection).map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                  {(collections || []).map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.id === currentCollection ? `${c.name} (cette collection)` : c.name}</option>
                   ))}
                 </select>
               </div>

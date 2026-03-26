@@ -130,7 +130,14 @@ export const useCollections = (
       }
     };
 
+    const isSelfRelation = sourceCollection.id === targetCollection.id;
     const updatedCollections = collections.map((col) => {
+      if (isSelfRelation && col.id === sourceCollection.id) {
+        const existsReciprocal = col.properties.some((p: any) => p.id === targetPropId);
+        const newProps = [...col.properties, sourceProp];
+        if (!existsReciprocal) newProps.push(targetProp);
+        return { ...col, properties: newProps };
+      }
       if (col.id === sourceCollection.id) {
         return { ...col, properties: [...col.properties, sourceProp] };
       }
