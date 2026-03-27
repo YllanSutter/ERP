@@ -408,25 +408,39 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                           </p>
                         </div>
                       ) : type === 'relation' ? (
-                        <EditableProperty
-                          property={{
-                            name,
-                            type,
-                            relation: relationTarget ? {
-                              targetCollectionId: relationTarget,
-                              type: relationType,
-                              displayFieldIds: relationDisplayFieldIds,
-                              filter: relationFilterField && relationFilterValue ? { fieldId: relationFilterField, value: relationFilterValue } : undefined
-                            } : undefined
-                          }}
-                          value={tpl.value}
-                          onChange={(val: any) => updateTemplate({ value: val })}
-                          onRelationChange={(_prop: any, _item: any, val: any) => updateTemplate({ value: val })}
-                          collections={collections}
-                          currentItem={{}}
-                          size="md"
-                          readOnly={false}
-                        />
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={tpl.isCurrentGroupTemplate === true}
+                              onChange={(e) => updateTemplate({ isCurrentGroupTemplate: e.target.checked, value: e.target.checked ? null : tpl.value })}
+                              className="rounded"
+                            />
+                            <span className="text-neutral-700 dark:text-neutral-300">Groupage actuel</span>
+                            <span className="text-xs text-neutral-500">(rempli automatiquement si créé depuis un groupe)</span>
+                          </label>
+                          {!tpl.isCurrentGroupTemplate && (
+                            <EditableProperty
+                              property={{
+                                name,
+                                type,
+                                relation: relationTarget ? {
+                                  targetCollectionId: relationTarget,
+                                  type: relationType,
+                                  displayFieldIds: relationDisplayFieldIds,
+                                  filter: relationFilterField && relationFilterValue ? { fieldId: relationFilterField, value: relationFilterValue } : undefined
+                                } : undefined
+                              }}
+                              value={tpl.value}
+                              onChange={(val: any) => updateTemplate({ value: val })}
+                              onRelationChange={(_prop: any, _item: any, val: any) => updateTemplate({ value: val })}
+                              collections={collections}
+                              currentItem={{}}
+                              size="md"
+                              readOnly={false}
+                            />
+                          )}
+                        </div>
                       ) : type === 'select' || type === 'multi_select' ? (
                         <select
                           value={tpl.value ?? ''}

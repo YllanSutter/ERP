@@ -92,8 +92,8 @@ export interface TableViewProps {
   onRelationChange: (prop: Property, item: Item, value: any) => void;
   onNavigateToCollection: (collectionId: string, linkedIds?: string[]) => void;
   groups?: string[];
-  onShowNewItemModal?: () => void;
-  onQuickCreateItem?: () => void;
+  onShowNewItemModal?: (prefill?: Record<string, any>) => void;
+  onQuickCreateItem?: (prefill?: Record<string, any>) => void;
   initialSortState?: { column: string | null; direction: 'asc' | 'desc' };
   onSortStateChange?: (state: { column: string | null; direction: 'asc' | 'desc' }) => void;
   initialExpandedGroups?: string[];
@@ -107,4 +107,5 @@ export interface TableViewProps {
   totalFields?: Record<string, string>; // fieldId -> totalType (sum, count, unique, avg, min, max)
   onSetTotalField?: (fieldId: string, totalType: string | null) => void;
   onBulkImportItad?: (itemIds: string[]) => Promise<void>;
+  onGroupContextChange?: (prefill: Record<string, any> | null) => void;
 }

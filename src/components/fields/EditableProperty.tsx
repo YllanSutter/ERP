@@ -30,6 +30,7 @@ interface EditablePropertyProps {
   currentItem?: any;
   onRelationChange?: (property: any, item: any, value: any) => void;
   onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
+  onNavigateToRelatedItem?: (item: any, targetCollection: any, propName: string) => void;
   forceRichEditor?: boolean;
   maxVisible?: number; // Ajouté pour LightMultiSelect
 }
@@ -372,6 +373,7 @@ const RelationEditor = ({
   className,
   size,
   onNavigateToCollection,
+  onNavigateToRelatedItem,
   isSourceMany
 }: {
   property: any;
@@ -387,6 +389,7 @@ const RelationEditor = ({
   className?: string;
   size?: string;
   onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
+  onNavigateToRelatedItem?: (item: any, targetCollection: any, propName: string) => void;
   isSourceMany: boolean;
 }) => {
   const selectedIds = normalizeRelationIds(value);
@@ -783,7 +786,18 @@ const RelationEditor = ({
               className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 border hover:bg-white/20 transition cursor-pointer group"
               style={{ backgroundColor: `${baseColor}12`, borderColor: `${baseColor}35` }}
             >
-              <span className="truncate">{label}</span>
+              {onNavigateToRelatedItem && it ? (
+                <button
+                  type="button"
+                  className="flex items-center gap-0.5 truncate hover:underline"
+                  onClick={(e) => { e.stopPropagation(); onNavigateToRelatedItem(it, targetCollection, property.name); }}
+                >
+                  <span className="truncate">{label}</span>
+                  <Icons.ArrowRight size={9} className="shrink-0 opacity-60" />
+                </button>
+              ) : (
+                <span className="truncate">{label}</span>
+              )}
               {!readOnly && (
                 <button
                   type="button"
@@ -945,6 +959,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   currentItem,
   onRelationChange,
   onNavigateToCollection,
+  onNavigateToRelatedItem,
   forceRichEditor = false,
   maxVisible
 }) => {
@@ -1263,6 +1278,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
         className={className}
         size={size}
         onNavigateToCollection={onNavigateToCollection}
+        onNavigateToRelatedItem={onNavigateToRelatedItem}
         isSourceMany={isSourceMany}
       />
     );

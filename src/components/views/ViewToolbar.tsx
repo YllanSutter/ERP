@@ -49,8 +49,8 @@ interface ViewToolbarProps {
   onShowFilterModal: () => void;
   onShowGroupModal: () => void;
   onShowNewPropertyModal: () => void;
-  onShowNewItemModal: () => void;
-  onQuickCreateItem: () => void;
+  onShowNewItemModal: (prefill?: Record<string, any>) => void;
+  onQuickCreateItem: (prefill?: Record<string, any>) => void;
   onSetShowViewSettings: (show: boolean) => void;
   onToggleFieldVisibility: (fieldId: string) => void;
   onUpdateViewFieldOrder: (nextOrder: string[]) => void;

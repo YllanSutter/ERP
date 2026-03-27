@@ -314,10 +314,45 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ onClose, onSave, 
                               placeholder="Ex: {{now:month}}, {{now:year}}, {{now}}, ou durée en heures"
                             />
                             <p className="text-xs text-neutral-500">
-                              Templates: <code className="px-1 bg-black/10 dark:bg-white/10 rounded">{'{{now:month}}'}</code> (mois actuel), 
-                              <code className="px-1 bg-black/10 dark:bg-white/10 rounded ml-1">{'{{now:year}}'}</code> (année actuelle), 
+                              Templates: <code className="px-1 bg-black/10 dark:bg-white/10 rounded">{'{{now:month}}'}</code> (mois actuel),
+                              <code className="px-1 bg-black/10 dark:bg-white/10 rounded ml-1">{'{{now:year}}'}</code> (année actuelle),
                               <code className="px-1 bg-black/10 dark:bg-white/10 rounded ml-1">{'{{now}}'}</code> (maintenant), ou un nombre pour la durée
                             </p>
+                          </div>
+                        ) : type === 'relation' ? (
+                          <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={tpl.isCurrentGroupTemplate === true}
+                                onChange={(e) => updateTemplate({ isCurrentGroupTemplate: e.target.checked, value: e.target.checked ? null : tpl.value })}
+                                className="rounded"
+                              />
+                              <span className="text-neutral-700 dark:text-neutral-300">Groupage actuel</span>
+                              <span className="text-xs text-neutral-500">(rempli automatiquement si créé depuis un groupe)</span>
+                            </label>
+                            {!tpl.isCurrentGroupTemplate && (
+                              <EditableProperty
+                                property={{
+                                  ...property,
+                                  type,
+                                  options,
+                                  relation: type === 'relation' ? {
+                                    targetCollectionId: relationTarget,
+                                    type: relationType,
+                                    displayFieldIds: relationDisplayFieldIds,
+                                    filter: relationFilterField && relationFilterValue ? { fieldId: relationFilterField, value: relationFilterValue } : undefined
+                                  } : undefined
+                                }}
+                                value={tpl.value}
+                                onChange={(val) => updateTemplate({ value: val })}
+                                collections={collections}
+                                currentItem={{}}
+                                size="md"
+                                readOnly={false}
+                                onRelationChange={(_prop, _item, val) => updateTemplate({ value: val })}
+                              />
+                            )}
                           </div>
                         ) : (
                           <EditableProperty

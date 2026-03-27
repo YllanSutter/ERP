@@ -12,6 +12,7 @@ export interface GroupHeaderProps {
   onToggle: () => void;
   colSpan: number;
   showChevron?: boolean;
+  onCreateItem?: () => void;
 }
 
 const GroupHeader: React.FC<GroupHeaderProps> = ({
@@ -24,6 +25,7 @@ const GroupHeader: React.FC<GroupHeaderProps> = ({
   onToggle,
   colSpan,
   showChevron = true,
+  onCreateItem,
 }) => {
   const indent = Math.max(0, depth) * 14;
 
@@ -57,6 +59,16 @@ const GroupHeader: React.FC<GroupHeaderProps> = ({
           <span className="text-xs bg-black/10 dark:bg-white/10 px-2 py-1 rounded ml-auto">
             {itemCount}
           </span>
+          {onCreateItem && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onCreateItem(); }}
+              className="ml-1 flex items-center justify-center w-6 h-6 rounded-full bg-black/5 dark:bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 transition-colors opacity-60 hover:opacity-100"
+              title="Créer un élément dans ce groupe"
+            >
+              <Icons.Plus size={13} />
+            </button>
+          )}
         </button>
       </td>
     </tr>

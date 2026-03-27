@@ -166,6 +166,9 @@ const App = () => {
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
   const [showPropertyModal, setShowPropertyModal] = useState(false);
   const [showNewItemModal, setShowNewItemModal] = useState(false);
+  const [groupContext, setGroupContext] = useState<Record<string, any> | null>(null);
+  // Vider le contexte de groupe si la collection ou la vue change
+  useEffect(() => { setGroupContext(null); }, [activeCollection, activeView]);
   const [modalCollection, setModalCollection] = useState<any>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [editingFilterIndex, setEditingFilterIndex] = useState<number | null>(null);
@@ -290,13 +293,13 @@ const App = () => {
     return nextData;
   };
 
-  const handleQuickCreateItem = () => {
+  const handleQuickCreateItem = (prefill?: Record<string, any>) => {
     if (!currentCollection) return;
     const props = currentCollection.properties || [];
     const nameField = props.find((p: any) => p.name === 'Nom' || p.id === 'name') || props[0];
     const baseName = currentCollection.name ? `Nouveau ${currentCollection.name}` : 'Nouvel élément';
-    let item: any = {};
-    if (nameField) item[nameField.id] = baseName;
+    let item: any = { ...(prefill || {}) };
+    if (nameField && !item[nameField.id]) item[nameField.id] = baseName;
 
     props.forEach((prop: any) => {
       if (item[prop.id] === undefined && prop.type === 'date') {
@@ -718,7 +721,7 @@ const App = () => {
                   setEditingProperty(null);
                   setShowPropertyModal(true);
                 }}
-                onShowNewItemModal={() => setShowNewItemModal(true)}
+                onShowNewItemModal={(prefill) => { console.log('[GroupContext] + clicked, groupContext:', groupContext, 'prefill:', prefill); if (prefill && Object.keys(prefill).length > 0) { setEditingItem(prefill); setGroupContext(prefill); } setShowNewItemModal(true); }}
                 onQuickCreateItem={handleQuickCreateItem}
                 onSetShowViewSettings={setShowViewSettings}
                 onToggleFieldVisibility={viewHooks.toggleFieldVisibility}
@@ -875,7 +878,8 @@ const App = () => {
                     groupDisplayColumnCounts={activeViewConfig?.groupDisplayColumnCounts || {}}
                     groupTabStyleFieldIds={activeViewConfig?.groupTabStyleFieldIds || {}}
                     groupTotalsByGroupId={activeViewConfig?.groupTotalsByGroupId || {}}
-                    onShowNewItemModal={() => setShowNewItemModal(true)}
+                    onShowNewItemModal={(prefill) => { if (prefill && Object.keys(prefill).length > 0) { setEditingItem(prefill); setGroupContext(prefill); } setShowNewItemModal(true); }}
+                    onGroupContextChange={(prefill) => { console.log('[GroupContext] set from TableView:', prefill); setGroupContext(prefill); }}
                     onQuickCreateItem={handleQuickCreateItem}
                     initialSortState={activeViewConfig?.tableSortState || { column: null, direction: 'asc' }}
                     onSortStateChange={(state) => {
@@ -938,6 +942,7 @@ const App = () => {
                       if (!activeView) return;
                       viewHooks.updateView(activeView, updates);
                     }}
+                    onShowNewItemModal={(prefill) => { if (prefill && Object.keys(prefill).length > 0) { setEditingItem(prefill); setGroupContext(prefill); } setShowNewItemModal(true); }}
                   />
                 )}
                 {activeViewConfig?.type === 'calendar' && (
@@ -1174,6 +1179,7 @@ const App = () => {
             setEditingItem({ ...itemToSave, __collectionId: colId });
           }}
           editingItem={editingItem}
+          groupContext={groupContext}
           onToggleFavoriteItem={(itemId: string) => {
             setFavorites((prev) => ({
               ...prev,
@@ -1182,6 +1188,7 @@ const App = () => {
                 : [...prev.items, itemId],
             }));
           }}
+          onSaveRelatedItem={(colId, item) => itemHooks.saveItem(item, null, colId)}
         />
       )}
       {showFilterModal && (

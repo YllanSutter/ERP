@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { countItemsInGroup, getGroupLabel, resolveGroupVisualStyle } from '@/lib/groupingUtils';
 import { isCalculatedNumberProperty } from '@/lib/calculatedFields';
 import { compareValues } from '@/lib/utils/sortUtils';
+import { buildGroupPrefill } from '@/lib/utils/groupPrefillUtils';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -71,6 +72,7 @@ const TableView: React.FC<TableViewProps> = ({
   totalFields = {},
   onSetTotalField,
   onBulkImportItad,
+  onGroupContextChange,
 }) => {
     const normalizeGroupColumnCount = useCallback((count: any): 1 | 2 | 3 => {
       return count === 1 || count === 2 || count === 3 ? count : 3;
@@ -106,6 +108,21 @@ const TableView: React.FC<TableViewProps> = ({
     initialExpandedGroups,
     onExpandedGroupsChange
   );
+
+  // Ref stable pour éviter les boucles de re-render (onGroupContextChange change à chaque render App)
+  const onGroupContextChangeRef = useRef(onGroupContextChange);
+  useEffect(() => { onGroupContextChangeRef.current = onGroupContextChange; });
+
+  const handleToggleGroup = useCallback((groupPath: string) => {
+    const wasExpanded = expandedGroups.has(groupPath);
+    toggleGroup(groupPath);
+    if (!wasExpanded) {
+      const prefill = buildGroupPrefill(groupPath, groups, collection.properties || []);
+      const ctx = Object.keys(prefill).length > 0 ? prefill : null;
+      console.log('[GroupContext] accordion toggle:', groupPath, '→', ctx);
+      onGroupContextChangeRef.current?.(ctx);
+    }
+  }, [expandedGroups, toggleGroup, groups, collection.properties]);
 
   // Tri par colonne
   const [sortState, setSortState] = useState<{ column: string | null; direction: 'asc' | 'desc' }>(
@@ -361,6 +378,27 @@ const TableView: React.FC<TableViewProps> = ({
       // ignore storage errors
     }
   }, [groupDisplayMode, groupDisplayModes, groups, activeGroupSelectByDepth, rootSelectStorageKey]);
+
+  // Mise à jour du groupContext selon le mode d'affichage actif (racine tabs/select uniquement)
+  // Utilise la ref pour éviter d'inclure onGroupContextChange dans les deps (boucle infinie)
+  useEffect(() => {
+    if (!onGroupContextChangeRef.current || groups.length === 0) return;
+    const rootGroupMode = (groups[0] && (groupDisplayModes as any)?.[groups[0]]) || groupDisplayMode || 'accordion';
+    if (rootGroupMode === 'tabs' && activeGroupTab) {
+      const prefill = buildGroupPrefill(activeGroupTab, groups, collection.properties || []);
+      const ctx = Object.keys(prefill).length > 0 ? prefill : null;
+      console.log('[GroupContext] root tab change:', activeGroupTab, '→', ctx);
+      onGroupContextChangeRef.current(ctx);
+    } else if (rootGroupMode === 'select') {
+      const deepestPath = Object.values(activeGroupSelectByDepth).filter(Boolean).join('/');
+      if (deepestPath) {
+        const prefill = buildGroupPrefill(deepestPath, groups, collection.properties || []);
+        const ctx = Object.keys(prefill).length > 0 ? prefill : null;
+        console.log('[GroupContext] root select change:', deepestPath, '→', ctx);
+        onGroupContextChangeRef.current(ctx);
+      }
+    }
+  }, [activeGroupTab, activeGroupSelectByDepth, groups, groupDisplayMode, groupDisplayModes, collection.properties]);
 
   // Fonction pour calculer le total d'un champ selon le type de total
   const calculateTotal = useCallback((fieldId: string, itemsToSum: any[], totalType: string) => {
@@ -1077,7 +1115,7 @@ const TableView: React.FC<TableViewProps> = ({
               collection={collection}
               collections={collections}
               expandedGroups={expandedGroups}
-              toggleGroup={toggleGroup}
+              toggleGroup={handleToggleGroup}
               itemsMap={itemsMap}
               visibleProperties={visibleProperties}
               favoriteItemIds={favoriteItemIds}
@@ -1112,12 +1150,23 @@ const TableView: React.FC<TableViewProps> = ({
               depthOffset={hideCurrentHeader ? -1 : 0}
               topTotalRenderMode={topTotalRenderMode}
               groupRowLimit={groups.length > 0 ? rowsPerPage : undefined}
+              onCreateItemInGroup={(groupPath) => {
+                const prefill = buildGroupPrefill(groupPath, groups, collection.properties || []);
+                onShowNewItemModal?.(prefill);
+              }}
               onActiveSubGroupTabChange={(path, tabDepth) => {
-                if (tabDepth !== 1) return;
-                setActiveSubGroupPathByRoot((prev) => {
-                  if (prev[rootGroup] === path) return prev;
-                  return { ...prev, [rootGroup]: path };
-                });
+                if (tabDepth === 1) {
+                  setActiveSubGroupPathByRoot((prev) => {
+                    if (prev[rootGroup] === path) return prev;
+                    return { ...prev, [rootGroup]: path };
+                  });
+                }
+                if (path) {
+                  const prefill = buildGroupPrefill(path, groups, collection.properties || []);
+                  const ctx = Object.keys(prefill).length > 0 ? prefill : null;
+                  console.log('[GroupContext] subGroup tab change: path=', path, 'tabDepth=', tabDepth, '→', ctx);
+                  onGroupContextChangeRef.current?.(ctx);
+                }
               }}
             />
           );
@@ -1486,7 +1535,7 @@ const TableView: React.FC<TableViewProps> = ({
                           collection={collection}
                           collections={collections}
                           expandedGroups={expandedGroups}
-                          toggleGroup={toggleGroup}
+                          toggleGroup={handleToggleGroup}
                           itemsMap={itemsMap}
                           visibleProperties={visibleProperties}
                           favoriteItemIds={favoriteItemIds}
@@ -1519,6 +1568,18 @@ const TableView: React.FC<TableViewProps> = ({
                           formatTotal={formatTotal}
                           hideCurrentHeader
                           topTotalRenderMode="skip"
+                          onCreateItemInGroup={(groupPath) => {
+                            const prefill = buildGroupPrefill(groupPath, groups, collection.properties || []);
+                            onShowNewItemModal?.(prefill);
+                          }}
+                          onActiveSubGroupTabChange={(path, tabDepth) => {
+                            if (path) {
+                              const prefill = buildGroupPrefill(path, groups, collection.properties || []);
+                              const ctx = Object.keys(prefill).length > 0 ? prefill : null;
+                              console.log('[GroupContext] select-mode subGroup tab:', path, 'depth=', tabDepth, '→', ctx);
+                              onGroupContextChangeRef.current?.(ctx);
+                            }
+                          }}
                         />
                       )
                     : renderTableShell(

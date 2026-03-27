@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { GripHorizontal } from 'lucide-react';
+import { GripHorizontal, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import EditableProperty from '@/components/fields/EditableProperty';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
@@ -45,6 +45,7 @@ interface KanbanViewProps {
   columnSettings?: Record<string, Record<string, KanbanColumnSettings>>;
   showFieldsOnHover?: boolean;
   onUpdateViewConfig?: (updates: Record<string, any>) => void;
+  onShowNewItemModal?: (prefill?: Record<string, any>) => void;
 }
 
 const KanbanView: React.FC<KanbanViewProps> = ({
@@ -64,6 +65,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   columnSettings = {},
   showFieldsOnHover = false,
   onUpdateViewConfig,
+  onShowNewItemModal,
 }) => {
   const [draggedItem, setDraggedItem] = useState<any>(null);
   // Hooks de permissions
@@ -358,6 +360,17 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                 ))
               )}
             </div>
+
+            {canEdit && onShowNewItemModal && groupByProp && column !== 'Toutes les données' && (
+              <button
+                type="button"
+                onClick={() => onShowNewItemModal(column !== 'Sans valeur' ? { [groupByProp.id]: column } : {})}
+                className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-white/10 text-xs text-neutral-500 hover:text-neutral-300 hover:border-white/20 hover:bg-white/5 transition-colors"
+              >
+                <Plus size={13} />
+                Ajouter
+              </button>
+            )}
               </motion.div>
             </ContextMenuTrigger>
             <ContextMenuContent className="min-w-[230px]">

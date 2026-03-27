@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as LucideIcons from 'lucide-react';
 import { getGroupLabel, countItemsInGroup, GroupedItems, resolveGroupVisualStyle } from '@/lib/groupingUtils';
 import { Collection, Property, Item, GroupTotalConfig } from '@/lib/types';
@@ -61,6 +61,7 @@ interface GroupRendererProps {
   topTotalRenderMode?: 'normal' | 'only' | 'skip';
   groupRowLimit?: number;
   onActiveSubGroupTabChange?: (path: string, depth: number) => void;
+  onCreateItemInGroup?: (groupPath: string) => void;
 }
 
 const GroupRenderer: React.FC<GroupRendererProps> = ({
@@ -115,6 +116,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   topTotalRenderMode = 'normal',
   groupRowLimit,
   onActiveSubGroupTabChange,
+  onCreateItemInGroup,
 }) => {
   const groupData = groupedStructure.structure[groupPath];
   if (!groupData) return null;
@@ -220,6 +222,10 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   const [activeSubGroupTab, setActiveSubGroupTab] = useState<string | null>(null);
   const [activeSubGroupSelect, setActiveSubGroupSelect] = useState<string | null>(null);
 
+  // Ref stable pour éviter que les effets se re-déclenchent à chaque re-render parent
+  const onActiveSubGroupTabChangeRef = useRef(onActiveSubGroupTabChange);
+  useEffect(() => { onActiveSubGroupTabChangeRef.current = onActiveSubGroupTabChange; });
+
   useEffect(() => {
     if (!subGroupCards.length) {
       setActiveSubGroupTab(null);
@@ -287,14 +293,14 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   useEffect(() => {
     if (!activeSubGroupTab) return;
     if (nextLevelMode !== 'tabs') return;
-    onActiveSubGroupTabChange?.(activeSubGroupTab, depth + 1);
-  }, [activeSubGroupTab, nextLevelMode, onActiveSubGroupTabChange, depth]);
+    onActiveSubGroupTabChangeRef.current?.(activeSubGroupTab, depth + 1);
+  }, [activeSubGroupTab, nextLevelMode, depth]);
 
   useEffect(() => {
     if (!activeSubGroupSelect) return;
     if (nextLevelMode !== 'select') return;
-    onActiveSubGroupTabChange?.(activeSubGroupSelect, depth + 1);
-  }, [activeSubGroupSelect, nextLevelMode, onActiveSubGroupTabChange, depth]);
+    onActiveSubGroupTabChangeRef.current?.(activeSubGroupSelect, depth + 1);
+  }, [activeSubGroupSelect, nextLevelMode, depth]);
 
   const renderNestedTable = (
     subPath: string,
@@ -416,6 +422,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               topTotalRenderMode={topTotalMode}
               groupRowLimit={groupRowLimit}
               onActiveSubGroupTabChange={onActiveSubGroupTabChange}
+              onCreateItemInGroup={onCreateItemInGroup}
             />
           </tbody>
         </table>
@@ -477,6 +484,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
           }}
           colSpan={displayColumnCount + (draggableRows ? 1 : 0) + (enableSelection ? 1 : 0)}
           showChevron={canCollapse}
+          onCreateItem={onCreateItemInGroup ? () => onCreateItemInGroup(groupPath) : undefined}
         />
       )}
 
@@ -626,6 +634,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                 suppressTopTotalHeader={suppressTopTotalHeader}
                 groupRowLimit={groupRowLimit}
                 onActiveSubGroupTabChange={onActiveSubGroupTabChange}
+                onCreateItemInGroup={onCreateItemInGroup}
               />
             ))
           )}

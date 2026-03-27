@@ -19,7 +19,7 @@ function Tabs({ tabs, active, onTab, className = "" }: { tabs: { id: string; lab
   );
 }
 import { motion } from 'framer-motion';
-import { Star, Trash2, Clock, Edit2, History } from 'lucide-react';
+import { Star, Trash2, Clock, Edit2, History, ChevronLeft } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { calculateSegmentsClient, formatSegmentDisplay } from '@/lib/calculateSegmentsClient';
@@ -62,6 +62,15 @@ interface NewItemModalProps {
   favorites?: { views: string[]; items: string[] };
   onToggleFavoriteItem?: (itemId: string) => void;
   orderedProperties?: any[];
+  onSaveRelatedItem?: (collectionId: string, item: any) => void;
+  groupContext?: Record<string, any> | null;
+}
+
+interface SubItemEntry {
+  collection: any;
+  item: any;
+  formData: any;
+  propName: string;
 }
 
 interface DraftPayloadState {
@@ -81,7 +90,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   collections,
   favorites,
   onToggleFavoriteItem,
-  orderedProperties
+  orderedProperties,
+  onSaveRelatedItem,
+  groupContext,
 }) => {
   const { user, isAdmin, isEditor, permissions } = useAuth();
 
@@ -269,7 +280,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     data: any,
     sourceFieldId?: string,
     autoFilledMap: Record<string, boolean> = {},
-    allowPrompt = false
+    allowPrompt = false,
+    groupCtx?: Record<string, any> | null
   ) => {
     let nextData = { ...data };
     let nextAutoFilled = { ...autoFilledMap };
@@ -291,6 +303,20 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     }
 
     props.forEach((prop: any) => {
+      // Gestion template "groupage actuel" (isCurrentGroupTemplate)
+      if (prop.type === 'relation' && !sourceFieldId) {
+        const currentGroupTpl = (prop.defaultTemplates || []).find((t: any) => t?.isCurrentGroupTemplate);
+        if (currentGroupTpl) {
+          const resolvedCtx = groupCtx !== undefined ? groupCtx : groupContextRef?.current;
+          const contextValue = resolvedCtx?.[prop.id];
+          if (contextValue && !isEmptyValue(contextValue) && isEmptyValue(nextData[prop.id])) {
+            nextData[prop.id] = contextValue;
+            nextAutoFilled[prop.id] = true;
+          }
+          return;
+        }
+      }
+
       const match = getMatchingTemplate(prop, nextData, sourceFieldId);
       if (!match) return;
 
@@ -529,10 +555,12 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     }
 
     if (!prefill || !prefill.id) {
+      // groupContext peut être null si React a batché les updates — fallback sur prefill
+      const effectiveGroupCtx = groupContext ?? (prefill && !prefill.id ? prefill : null);
       let currentData = { ...data };
       let currentAutoFilled = { ...autoFilled };
       for (let i = 0; i < 3; i += 1) {
-        const { nextData, nextAutoFilled } = applyTemplates(currentData, undefined, currentAutoFilled, false) as any;
+        const { nextData, nextAutoFilled } = applyTemplates(currentData, undefined, currentAutoFilled, false, effectiveGroupCtx) as any;
         const prevSerialized = JSON.stringify(currentData);
         const nextSerialized = JSON.stringify(nextData);
         currentData = nextData;
@@ -571,6 +599,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const [draftPromptOpen, setDraftPromptOpen] = useState(false);
   const [draftPayload, setDraftPayload] = useState<DraftPayloadState | null>(null);
   const initialDataRef = useRef(initialForm.data);
+  const groupContextRef = useRef<Record<string, any> | null>(null);
+  React.useEffect(() => { groupContextRef.current = groupContext ?? null; }, [groupContext]);
+
   const draftAppliedRef = useRef(false);
   const draftReadyRef = useRef(true);
   const didMountRef = useRef(false);
@@ -1084,6 +1115,34 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   // État pour gérer l'ouverture du modal d'édition des plages
   const [editingDateProp, setEditingDateProp] = useState<any>(null);
 
+  // Navigation pile pour les items liés (drill-down relations)
+  const [subItemStack, setSubItemStack] = useState<SubItemEntry[]>([]);
+  const currentSubItem = subItemStack.length > 0 ? subItemStack[subItemStack.length - 1] : null;
+
+  const navigateToRelatedItem = (propName: string, targetCollection: any, targetItem: any) => {
+    setSubItemStack(prev => [...prev, { collection: targetCollection, item: targetItem, formData: { ...targetItem }, propName }]);
+  };
+
+  const navigateBack = () => {
+    setSubItemStack(prev => prev.slice(0, -1));
+  };
+
+  const updateSubFormData = (key: string, value: any) => {
+    setSubItemStack(prev => {
+      if (!prev.length) return prev;
+      const next = [...prev];
+      next[next.length - 1] = { ...next[next.length - 1], formData: { ...next[next.length - 1].formData, [key]: value } };
+      return next;
+    });
+  };
+
+  const saveSubItem = () => {
+    if (!subItemStack.length || !onSaveRelatedItem) return;
+    const top = subItemStack[subItemStack.length - 1];
+    onSaveRelatedItem(top.collection.id, top.formData);
+    navigateBack();
+  };
+
   const timeOptions = useMemo(() => {
     const options: string[] = [];
     const minHour = Math.max(0, Math.floor(workDayStart - 1));
@@ -1289,8 +1348,99 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           )}
         </div>
         <div className="flex-1 px-8 py-6 pt-10 z-10 relative overflow-y-auto bg-white dark:bg-transparent">
+          {currentSubItem ? (
+            /* Panneau sous-item : drill-down relation */
+            <div className="space-y-4">
+              {/* Breadcrumb */}
+              <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400 mb-6">
+                <button
+                  type="button"
+                  onClick={navigateBack}
+                  className="flex items-center gap-1 text-indigo-500 hover:text-indigo-400 transition-colors font-medium"
+                >
+                  <ChevronLeft size={16} />
+                  Retour
+                </button>
+                <span>/</span>
+                <span>{currentSubItem.propName}</span>
+                <span>/</span>
+                <span className="font-medium text-neutral-700 dark:text-neutral-200 truncate max-w-[200px]">
+                  {(() => {
+                    const titleProp = (currentSubItem.collection.properties || [])[0];
+                    return titleProp ? currentSubItem.formData[titleProp.id] || 'Sans titre' : 'Sans titre';
+                  })()}
+                </span>
+              </div>
+
+              {/* Champs classiques */}
+              <div className="space-y-2">
+                {(currentSubItem.collection.properties || [])
+                  .filter((p: any) => p.type !== 'relation')
+                  .map((prop: any) => (
+                    <div className="flex items-start gap-3 py-1" key={prop.id}>
+                      <label className="text-sm font-medium text-neutral-500 dark:text-neutral-400 w-[130px] shrink-0 pt-1 truncate">
+                        {prop.name}
+                      </label>
+                      <div className="flex-1 min-w-0">
+                        <EditableProperty
+                          property={prop}
+                          value={currentSubItem.formData[prop.id]}
+                          onChange={(val) => updateSubFormData(prop.id, val)}
+                          size="md"
+                          collections={readableCollections}
+                          collection={currentSubItem.collection}
+                          currentItem={currentSubItem.formData}
+                          onRelationChange={(property, _item, value) => updateSubFormData(property.id, value)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+              </div>
+
+              {/* Relations du sous-item */}
+              {(currentSubItem.collection.properties || []).some((p: any) => p.type === 'relation') && (
+                <div className="pt-4 border-t border-black/10 dark:border-white/10 space-y-3">
+                  <h4 className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Relations</h4>
+                  {(currentSubItem.collection.properties || [])
+                    .filter((p: any) => p.type === 'relation')
+                    .map((prop: any) => {
+                      const targetCol = readableCollections.find((c: any) => c.id === prop.relation?.targetCollectionId);
+                      return (
+                        <div key={prop.id} className="flex items-center gap-3">
+                          <label className="text-sm font-medium text-neutral-500 dark:text-neutral-400 whitespace-nowrap w-[130px] shrink-0">{prop.name}</label>
+                          <EditableProperty
+                            property={prop}
+                            value={currentSubItem.formData[prop.id]}
+                            onChange={(val) => updateSubFormData(prop.id, val)}
+                            size="md"
+                            collections={readableCollections}
+                            collection={currentSubItem.collection}
+                            currentItem={currentSubItem.formData}
+                            onRelationChange={(property, _item, value) => updateSubFormData(property.id, value)}
+                            onNavigateToRelatedItem={(item) => navigateToRelatedItem(prop.name, targetCol, item)}
+                          />
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+
+              {/* Bouton enregistrer sous-item */}
+              {onSaveRelatedItem && (
+                <div className="pt-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={saveSubItem}
+                    className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+                  >
+                    Enregistrer
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
           <div className="space-y-6">
-          
+
           {/* Relations en haut sur toute la largeur */}
           {relationPropsForDisplay.length > 0 && (
             <div className="pb-10 border-b border-black/10 dark:border-white/10">
@@ -1311,11 +1461,12 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       collections={readableCollections}
                       collection={selectedCollection}
                       currentItem={formData}
-                      onRelationChange={(property, item, value) => {
+                      onRelationChange={(property, _item, value) => {
                         if (!canWriteField(selectedCollection?.id, property.id)) return;
                         setFormData({ ...formData, [property.id]: value });
                       }}
                       readOnly={!canWriteField(selectedCollection?.id, prop.id)}
+                      onNavigateToRelatedItem={(item, targetCol) => navigateToRelatedItem(prop.name, targetCol, item)}
                     />
                   </div>
                 ))}
@@ -1592,6 +1743,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             </div>
           )}
           </div>
+          )}
         </div>
         <div className="flex items-center justify-between gap-3 px-8 py-4 border-t border-black/10 dark:border-white/10 bg-white/90 dark:bg-neutral-950/80 backdrop-blur">
           <div className="flex items-center gap-3">
