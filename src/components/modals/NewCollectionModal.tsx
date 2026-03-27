@@ -1,7 +1,5 @@
-import React, { useState } from 'react';
-import IconPicker from '@/components/inputs/IconPicker';
-import ColorPicker from '@/components/inputs/ColorPicker';
-import ModalWrapper, { FormField, FormInput } from '@/components/ui/ModalWrapper';
+import { useState } from 'react';
+import ModalWrapper, { FormNameInput } from '@/components/ui/ModalWrapper';
 
 interface NewCollectionModalProps {
   onClose: () => void;
@@ -19,22 +17,19 @@ const NewCollectionModal: React.FC<NewCollectionModalProps> = ({ onClose, onSave
       onClose={onClose}
       onSave={() => { if (name) onSave(name, icon, color); }}
       saveLabel="Créer"
+      size="sm"
     >
-      <div className="space-y-6">
-        <FormField label="Nom">
-          <FormInput
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Nom de la collection"
-          />
-        </FormField>
-        <FormField label="Icône">
-          <IconPicker value={icon} onChange={setIcon} />
-        </FormField>
-        <FormField label="Couleur">
-          <ColorPicker value={color} onChange={setColor} />
-        </FormField>
-      </div>
+      <FormNameInput
+        label="Nom"
+        value={name}
+        onChange={setName}
+        icon={icon}
+        onIconChange={setIcon}
+        color={color}
+        onColorChange={setColor}
+        placeholder="Nom de la collection"
+        autoFocus
+      />
     </ModalWrapper>
   );
 };

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ModalWrapper, { FormField, FormInput, FormSelect, FormCheckbox } from '@/components/ui/ModalWrapper';
 import { TableGroupColumnCount, TableGroupDisplayMode } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { LayoutList, Columns, CalendarDays, LayoutDashboard } from 'lucide-react';
 
 interface NewViewModalProps {
   onClose: () => void;
@@ -42,10 +43,10 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
   const [layoutPanels, setLayoutPanels] = useState<any[]>(() => Array.isArray(view?.layoutPanels) ? view.layoutPanels : []);
 
   const viewTypes = [
-    { value: 'table', label: 'Tableau' },
-    { value: 'kanban', label: 'Kanban' },
-    { value: 'calendar', label: 'Calendrier' },
-    { value: 'layout', label: 'Multi-vues' }
+    { value: 'table', label: 'Tableau', icon: LayoutList },
+    { value: 'kanban', label: 'Kanban', icon: Columns },
+    { value: 'calendar', label: 'Calendrier', icon: CalendarDays },
+    { value: 'layout', label: 'Multi-vues', icon: LayoutDashboard },
   ];
 
   const selectProps = collection?.properties.filter((p: any) => p.type === 'select') || [];
@@ -82,18 +83,25 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
       onClose={onClose}
       onSave={handleSave}
       saveLabel={mode === 'edit' ? 'Enregistrer' : 'Créer'}
+      size="sm"
     >
       <div className="space-y-4">
         <FormInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom de la vue" />
 
-        <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2">
           {viewTypes.map(vt => (
             <button
               key={vt.value}
               onClick={() => setType(vt.value)}
-              className={cn('w-full flex items-center gap-3 px-4 py-3 rounded-lg border transition-all', type === vt.value ? 'border-violet-500 bg-violet-500/20' : 'border-black/10 hover:border-black/20 dark:border-white/10 dark:hover:border-white/20')}
+              className={cn(
+                'flex flex-col items-center gap-2 px-4 py-4 rounded-xl border transition-all',
+                type === vt.value
+                  ? 'border-violet-500 bg-violet-500/15 text-violet-600 dark:text-violet-400'
+                  : 'border-black/10 hover:border-black/20 dark:border-white/10 dark:hover:border-white/20 text-neutral-500 dark:text-neutral-400'
+              )}
             >
-              <span className="font-medium text-neutral-700 dark:text-white">{vt.label}</span>
+              <vt.icon size={22} />
+              <span className="text-sm font-medium text-neutral-700 dark:text-white">{vt.label}</span>
             </button>
           ))}
         </div>

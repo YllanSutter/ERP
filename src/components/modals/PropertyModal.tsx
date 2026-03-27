@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import ModalWrapper, { FormField, FormInput, FormSelect, FormHint, FormCheckbox } from '@/components/ui/ModalWrapper';
+import ModalWrapper, { FormField, FormInput, FormSelect, FormHint, FormCheckbox, FormNameInput } from '@/components/ui/ModalWrapper';
 import OptionListEditor from '@/components/inputs/OptionListEditor';
-import IconPicker from '@/components/inputs/IconPicker';
-import ColorPicker from '@/components/inputs/ColorPicker';
 import * as Icons from 'lucide-react';
+import { Type, Hash, ChevronDown, ListChecks, Calendar, CalendarRange, ToggleLeft, Link, Mail, Phone, GitMerge, AlignLeft } from 'lucide-react';
 import { OptionType } from '@/components/inputs/LightSelect';
 import RichTextEditor from '@/components/fields/RichTextEditor';
 import EditableProperty from '@/components/fields/EditableProperty';
@@ -11,6 +10,7 @@ import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 import { DATE_GRANULARITIES } from '@/lib/types';
 import { useAuth } from '@/auth/AuthProvider';
 import { getPluginPropertyTypeOptions } from '@/lib/plugins/propertyTypes';
+import { cn } from '@/lib/utils';
 
 interface PropertyModalProps {
   onClose: () => void;
@@ -20,20 +20,21 @@ interface PropertyModalProps {
   currentCollectionId: string;
 }
 
-const PropertyTypeLabels = {
-  text: 'Texte',
-  number: 'Nombre',
-  select: 'Sélection',
-  multi_select: 'Multi-sélection',
-  date: 'Date',
-  date_range: 'Période',
-  checkbox: 'Case à cocher',
-  url: 'URL',
-  email: 'Email',
-  phone: 'Téléphone',
-  relation: 'Relation',
-  rich_text: 'Texte enrichi'
-};
+
+const BUILTIN_PROPERTY_TYPES = [
+  { value: 'text',         label: 'Texte',       icon: Type },
+  { value: 'number',       label: 'Nombre',      icon: Hash },
+  { value: 'select',       label: 'Sélection',   icon: ChevronDown },
+  { value: 'multi_select', label: 'Multi-sel.',  icon: ListChecks },
+  { value: 'date',         label: 'Date',        icon: Calendar },
+  { value: 'date_range',   label: 'Période',     icon: CalendarRange },
+  { value: 'checkbox',     label: 'Checkbox',    icon: ToggleLeft },
+  { value: 'url',          label: 'URL',         icon: Link },
+  { value: 'email',        label: 'Email',       icon: Mail },
+  { value: 'phone',        label: 'Téléphone',   icon: Phone },
+  { value: 'relation',     label: 'Relation',    icon: GitMerge },
+  { value: 'rich_text',    label: 'Texte riche', icon: AlignLeft },
+];
 
 const PropertyModal: React.FC<PropertyModalProps> = ({
   onClose,
@@ -66,8 +67,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const [relationFilterValue, setRelationFilterValue] = useState(property?.relation?.filter?.value || '');
   const [showContextMenu, setShowContextMenu] = useState(property?.showContextMenu || false);
   const [defaultTemplates, setDefaultTemplates] = useState<any[]>(property?.defaultTemplates || []);
-  const [showIconPopover, setShowIconPopover] = useState(false);
-  const [showColorPopover, setShowColorPopover] = useState(false);
+  const [showTypeGrid, setShowTypeGrid] = useState(false);
   const [dateGranularity, setDateGranularity] = useState(property?.dateGranularity || 'full');
   const [includeDuration, setIncludeDuration] = useState(property?.includeDuration !== false);
   const [numberPrefix, setNumberPrefix] = useState(property?.numberPrefix || '');
@@ -101,11 +101,6 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
     return () => { cancelled = true; };
   }, [activeOrganizationId]);
 
-  const availablePropertyTypeEntries = (() => {
-    const merged: [string, string][] = Object.entries({ ...PropertyTypeLabels, ...pluginPropertyTypeLabels });
-    if (type && !merged.some(([value]) => value === type)) merged.push([type, type]);
-    return merged;
-  })();
 
   const targetCollection = (collections || []).find((c: any) => c.id === relationTarget);
   const filterProp = targetCollection?.properties?.find((p: any) => p.id === relationFilterField);
@@ -197,68 +192,78 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
       onClose={onClose}
       onSave={handleSave}
       saveLabel={isEditing ? 'Enregistrer' : 'Créer'}
+      size="lg"
     >
       <div className="space-y-6">
 
-        {/* Nom */}
-        <FormField label="Nom *">
-          <FormInput
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Nom de la propriété"
-            autoFocus
-          />
-        </FormField>
+        {/* Nom + icône + couleur */}
+        <FormNameInput
+          label="Nom"
+          required
+          value={name}
+          onChange={setName}
+          icon={icon}
+          onIconChange={setIcon}
+          color={color}
+          onColorChange={setColor}
+          placeholder="Nom de la propriété"
+          autoFocus
+        />
 
-        {/* Type et icône/couleur */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <FormField label="Type">
-            <FormSelect value={type} onChange={(e) => setType(e.target.value)}>
-              {availablePropertyTypeEntries.map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
+        {/* Type */}
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Type</label>
+          {(() => {
+            const current = BUILTIN_PROPERTY_TYPES.find(t => t.value === type);
+            const Icon = current?.icon;
+            return (
+              <button
+                type="button"
+                onClick={() => setShowTypeGrid(v => !v)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-black/10 dark:border-white/10 hover:border-violet-500/50 transition-colors text-left"
+              >
+                {Icon && <Icon size={16} className="text-violet-500 shrink-0" />}
+                <span className="flex-1 text-sm text-neutral-700 dark:text-white">
+                  {current?.label ?? type}
+                </span>
+                <Icons.ChevronDown size={14} className={cn('text-neutral-400 transition-transform', showTypeGrid && 'rotate-180')} />
+              </button>
+            );
+          })()}
+          {showTypeGrid && (
+            <div className="mt-2 grid grid-cols-4 gap-1.5">
+              {BUILTIN_PROPERTY_TYPES.map(({ value: v, label: l, icon: Icon }) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => { setType(v); setShowTypeGrid(false); }}
+                  className={cn(
+                    'flex flex-col items-center gap-1.5 px-2 py-3 rounded-lg border text-xs transition-all',
+                    type === v
+                      ? 'border-violet-500 bg-violet-500/15 text-violet-600 dark:text-violet-400'
+                      : 'border-black/10 hover:border-black/20 dark:border-white/10 dark:hover:border-white/20 text-neutral-500 dark:text-neutral-400'
+                  )}
+                >
+                  <Icon size={16} />
+                  <span className="text-neutral-700 dark:text-white leading-tight text-center">{l}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {Object.keys(pluginPropertyTypeLabels).length > 0 && (
+            <FormSelect value={type} onChange={(e) => setType(e.target.value)} className="mt-2">
+              <option value="">Types plugins…</option>
+              {Object.entries(pluginPropertyTypeLabels).map(([key, label]) => (
+                <option key={key} value={key}>{label as string}</option>
               ))}
             </FormSelect>
-          </FormField>
-
-          <FormField label="Icône et couleur">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowIconPopover(!showIconPopover)}
-                  className="w-9 h-9 rounded-lg border border-white/10 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5"
-                  title="Choisir une icône"
-                >
-                  {icon === 'Tag' ? <Icons.Tag size={16} /> : icon === 'Star' ? <Icons.Star size={16} /> : icon === 'Zap' ? <Icons.Zap size={16} /> : <Icons.Tag size={16} />}
-                </button>
-                {showIconPopover && (
-                  <div className="absolute top-full left-0 mt-2 z-50">
-                    <IconPicker value={icon} onChange={(val) => { setIcon(val); setShowIconPopover(false); }} />
-                  </div>
-                )}
-              </div>
-              <div className="relative leading-none">
-                <button
-                  type="button"
-                  onClick={() => setShowColorPopover(!showColorPopover)}
-                  className="w-9 h-9 rounded-lg border border-white/10"
-                  style={{ backgroundColor: color }}
-                  title="Choisir une couleur"
-                />
-                {showColorPopover && (
-                  <div className="absolute top-full left-0 mt-2 z-50">
-                    <ColorPicker value={color} onChange={setColor} />
-                  </div>
-                )}
-              </div>
-            </div>
-          </FormField>
+          )}
         </div>
 
         {/* Templates conditionnels */}
-        <div className="space-y-3 border-t border-black/10 dark:border-white/10 pt-4">
+        <div className="bg-black/5 dark:bg-white/5 rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Templates conditionnels</span>
+            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Templates conditionnels</p>
             <button
               type="button"
               onClick={() => setDefaultTemplates((prev) => ([
@@ -285,109 +290,111 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
               };
 
               return (
-                <div key={tpl.id || index} className="rounded-lg border border-black/10 dark:border-white/10 p-3 space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-2 items-end">
-                    <div>
-                      <TinyLabel>Si le champ</TinyLabel>
-                      <FormSelect
-                        value={tpl.when?.fieldId || ''}
-                        onChange={(e) => updateWhen({ fieldId: e.target.value })}
-                        className="rounded text-sm"
-                      >
-                        <option value="">Sélectionner...</option>
-                        {templateSourceOptions.map((p: any) => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                      </FormSelect>
-                    </div>
-                    <div>
-                      <TinyLabel>Vaut</TinyLabel>
-                      {sourceType === 'select' || sourceType === 'multi_select' ? (
-                        <FormSelect value={tpl.when?.value ?? ''} onChange={(e) => updateWhen({ value: e.target.value })} className="rounded text-sm">
+                <div key={tpl.id || index} className="rounded-lg border border-black/10 dark:border-white/10 bg-white/50 dark:bg-black/20 p-3 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 space-y-2">
+                      <div>
+                        <TinyLabel>Si le champ</TinyLabel>
+                        <FormSelect
+                          value={tpl.when?.fieldId || ''}
+                          onChange={(e) => updateWhen({ fieldId: e.target.value })}
+                          className="rounded text-sm"
+                        >
                           <option value="">Sélectionner...</option>
-                          {(sourceProp?.options || []).map((opt: any) => {
-                            const optValue = typeof opt === 'string' ? opt : opt.value;
-                            const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
-                            return <option key={optValue} value={optValue}>{optLabel}</option>;
-                          })}
+                          {templateSourceOptions.map((p: any) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
                         </FormSelect>
-                      ) : sourceType === 'checkbox' ? (
-                        <FormSelect value={tpl.when?.value === true ? 'true' : tpl.when?.value === false ? 'false' : ''} onChange={(e) => updateWhen({ value: e.target.value === 'true' })} className="rounded text-sm">
-                          <option value="">Sélectionner...</option>
-                          <option value="true">Oui</option>
-                          <option value="false">Non</option>
-                        </FormSelect>
-                      ) : sourceType === 'number' ? (
-                        <FormInput type="number" value={tpl.when?.value ?? ''} onChange={(e) => updateWhen({ value: e.target.value === '' ? '' : Number(e.target.value) })} className="rounded text-sm" />
-                      ) : (
-                        <FormInput type="text" value={tpl.when?.value ?? ''} onChange={(e) => updateWhen({ value: e.target.value })} className="rounded text-sm" />
-                      )}
+                      </div>
+                      <div>
+                        <TinyLabel>Vaut</TinyLabel>
+                        {sourceType === 'select' || sourceType === 'multi_select' ? (
+                          <FormSelect value={tpl.when?.value ?? ''} onChange={(e) => updateWhen({ value: e.target.value })} className="rounded text-sm">
+                            <option value="">Sélectionner...</option>
+                            {(sourceProp?.options || []).map((opt: any) => {
+                              const optValue = typeof opt === 'string' ? opt : opt.value;
+                              const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
+                              return <option key={optValue} value={optValue}>{optLabel}</option>;
+                            })}
+                          </FormSelect>
+                        ) : sourceType === 'checkbox' ? (
+                          <FormSelect value={tpl.when?.value === true ? 'true' : tpl.when?.value === false ? 'false' : ''} onChange={(e) => updateWhen({ value: e.target.value === 'true' })} className="rounded text-sm">
+                            <option value="">Sélectionner...</option>
+                            <option value="true">Oui</option>
+                            <option value="false">Non</option>
+                          </FormSelect>
+                        ) : sourceType === 'number' ? (
+                          <FormInput type="number" value={tpl.when?.value ?? ''} onChange={(e) => updateWhen({ value: e.target.value === '' ? '' : Number(e.target.value) })} className="rounded text-sm" />
+                        ) : (
+                          <FormInput type="text" value={tpl.when?.value ?? ''} onChange={(e) => updateWhen({ value: e.target.value })} className="rounded text-sm" />
+                        )}
+                      </div>
+                      <div>
+                        <TinyLabel>Alors définir à</TinyLabel>
+                        {type === 'rich_text' ? (
+                          <RichTextEditor value={tpl.value} onChange={(val) => updateTemplate({ value: val })} className="bg-gray-200 dark:bg-neutral-800/50" />
+                        ) : type === 'date' || type === 'date_range' ? (
+                          <div className="space-y-2">
+                            <FormInput type="text" value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: e.target.value })} className="rounded text-sm" placeholder="Ex: {{now:month}}, {{now:year}}, {{now}}" />
+                            <FormHint>Templates: <code>{'{{now:month}}'}</code>, <code>{'{{now:year}}'}</code>, <code>{'{{now}}'}</code></FormHint>
+                          </div>
+                        ) : type === 'relation' ? (
+                          <div className="space-y-2">
+                            <FormCheckbox
+                              label={<><span className="text-neutral-700 dark:text-neutral-300">Groupage actuel</span><span className="text-xs text-neutral-500 ml-1">(rempli automatiquement si créé depuis un groupe)</span></>}
+                              checked={tpl.isCurrentGroupTemplate === true}
+                              onChange={(checked) => updateTemplate({ isCurrentGroupTemplate: checked, value: checked ? null : tpl.value })}
+                            />
+                            {!tpl.isCurrentGroupTemplate && (
+                              <EditableProperty
+                                property={{
+                                  name,
+                                  type,
+                                  relation: relationTarget ? {
+                                    targetCollectionId: relationTarget,
+                                    type: relationType,
+                                    displayFieldIds: relationDisplayFieldIds,
+                                    filter: relationFilterField && relationFilterValue ? { fieldId: relationFilterField, value: relationFilterValue } : undefined
+                                  } : undefined
+                                }}
+                                value={tpl.value}
+                                onChange={(val: any) => updateTemplate({ value: val })}
+                                onRelationChange={(_prop: any, _item: any, val: any) => updateTemplate({ value: val })}
+                                collections={collections}
+                                currentItem={{}}
+                                size="md"
+                                readOnly={false}
+                              />
+                            )}
+                          </div>
+                        ) : type === 'select' || type === 'multi_select' ? (
+                          <FormSelect value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: e.target.value })} className="rounded text-sm">
+                            <option value="">Sélectionner...</option>
+                            {(options || []).map((opt: any) => {
+                              const optValue = typeof opt === 'string' ? opt : opt.value;
+                              const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
+                              return <option key={optValue} value={optValue}>{optLabel}</option>;
+                            })}
+                          </FormSelect>
+                        ) : type === 'checkbox' ? (
+                          <FormSelect value={tpl.value === true ? 'true' : tpl.value === false ? 'false' : ''} onChange={(e) => updateTemplate({ value: e.target.value === 'true' })} className="rounded text-sm">
+                            <option value="">Sélectionner...</option>
+                            <option value="true">Coché</option>
+                            <option value="false">Décoché</option>
+                          </FormSelect>
+                        ) : (
+                          <FormInput type={type === 'number' ? 'number' : 'text'} value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: type === 'number' ? Number(e.target.value) : e.target.value })} className="rounded text-sm" />
+                        )}
+                      </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setDefaultTemplates((prev) => prev.filter((_, i) => i !== index))}
-                      className="px-2 py-2 rounded bg-red-500/10 text-red-600 hover:bg-red-500/20"
+                      className="mt-1 px-2 py-2 rounded bg-red-500/10 text-red-600 hover:bg-red-500/20 shrink-0"
                       title="Supprimer"
                     >
                       <Icons.Trash2 size={14} />
                     </button>
-                  </div>
-                  <div>
-                    <TinyLabel>Alors définir à</TinyLabel>
-                    {type === 'rich_text' ? (
-                      <RichTextEditor value={tpl.value} onChange={(val) => updateTemplate({ value: val })} className="bg-gray-200 dark:bg-neutral-800/50" />
-                    ) : type === 'date' || type === 'date_range' ? (
-                      <div className="space-y-2">
-                        <FormInput type="text" value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: e.target.value })} className="rounded text-sm" placeholder="Ex: {{now:month}}, {{now:year}}, {{now}}" />
-                        <FormHint>Templates: <code>{'{{now:month}}'}</code>, <code>{'{{now:year}}'}</code>, <code>{'{{now}}'}</code></FormHint>
-                      </div>
-                    ) : type === 'relation' ? (
-                      <div className="space-y-2">
-                        <FormCheckbox
-                          label={<><span className="text-neutral-700 dark:text-neutral-300">Groupage actuel</span><span className="text-xs text-neutral-500 ml-1">(rempli automatiquement si créé depuis un groupe)</span></>}
-                          checked={tpl.isCurrentGroupTemplate === true}
-                          onChange={(checked) => updateTemplate({ isCurrentGroupTemplate: checked, value: checked ? null : tpl.value })}
-                        />
-                        {!tpl.isCurrentGroupTemplate && (
-                          <EditableProperty
-                            property={{
-                              name,
-                              type,
-                              relation: relationTarget ? {
-                                targetCollectionId: relationTarget,
-                                type: relationType,
-                                displayFieldIds: relationDisplayFieldIds,
-                                filter: relationFilterField && relationFilterValue ? { fieldId: relationFilterField, value: relationFilterValue } : undefined
-                              } : undefined
-                            }}
-                            value={tpl.value}
-                            onChange={(val: any) => updateTemplate({ value: val })}
-                            onRelationChange={(_prop: any, _item: any, val: any) => updateTemplate({ value: val })}
-                            collections={collections}
-                            currentItem={{}}
-                            size="md"
-                            readOnly={false}
-                          />
-                        )}
-                      </div>
-                    ) : type === 'select' || type === 'multi_select' ? (
-                      <FormSelect value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: e.target.value })} className="rounded text-sm">
-                        <option value="">Sélectionner...</option>
-                        {(options || []).map((opt: any) => {
-                          const optValue = typeof opt === 'string' ? opt : opt.value;
-                          const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
-                          return <option key={optValue} value={optValue}>{optLabel}</option>;
-                        })}
-                      </FormSelect>
-                    ) : type === 'checkbox' ? (
-                      <FormSelect value={tpl.value === true ? 'true' : tpl.value === false ? 'false' : ''} onChange={(e) => updateTemplate({ value: e.target.value === 'true' })} className="rounded text-sm">
-                        <option value="">Sélectionner...</option>
-                        <option value="true">Coché</option>
-                        <option value="false">Décoché</option>
-                      </FormSelect>
-                    ) : (
-                      <FormInput type={type === 'number' ? 'number' : 'text'} value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: type === 'number' ? Number(e.target.value) : e.target.value })} className="rounded text-sm" />
-                    )}
                   </div>
                 </div>
               );
@@ -395,9 +402,18 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
           </div>
         </div>
 
+        {/* Configuration par type — Select / Multi-select */}
+        {(type === 'select' || type === 'multi_select') && (
+          <div className="bg-black/5 dark:bg-white/5 rounded-xl p-4">
+            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-3">Options</p>
+            <OptionListEditor options={options} onChange={setOptions} />
+          </div>
+        )}
+
         {/* Configuration par type — Date */}
         {(type === 'date' || type === 'date_range') && (
-          <div className="space-y-4 border-t border-black/10 dark:border-white/10 pt-4">
+          <div className="bg-black/5 dark:bg-white/5 rounded-xl p-4 space-y-4">
+            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Date</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <FormField label="Granularité d'affichage">
                 <FormSelect value={dateGranularity} onChange={(e) => setDateGranularity(e.target.value)}>
@@ -415,7 +431,8 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
 
         {/* Configuration par type — Relation */}
         {type === 'relation' && (
-          <div className="space-y-4 border-t border-black/10 dark:border-white/10 pt-4">
+          <div className="bg-black/5 dark:bg-white/5 rounded-xl p-4 space-y-4">
+            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Relation</p>
             <FormField label="Collection liée">
               <FormSelect
                 value={relationTarget}
@@ -510,17 +527,11 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
           </div>
         )}
 
-        {/* Configuration par type — Select / Multi-select */}
-        {(type === 'select' || type === 'multi_select') && (
-          <div className="border-t border-black/10 dark:border-white/10 pt-4">
-            <OptionListEditor options={options} onChange={setOptions} />
-          </div>
-        )}
-
         {/* Configuration par type — Nombre */}
         {type === 'number' && (
-          <div className="space-y-4 border-t border-black/10 dark:border-white/10 pt-4">
-            <FormField label="Mode du champ nombre">
+          <div className="bg-black/5 dark:bg-white/5 rounded-xl p-4 space-y-4">
+            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Nombre</p>
+            <FormField label="Mode">
               <FormSelect value={numberMode} onChange={(e) => setNumberMode(e.target.value as 'classic' | 'calculated')}>
                 <option value="classic">Classique (saisie manuelle)</option>
                 <option value="calculated">Calculé (formule)</option>
@@ -563,10 +574,11 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
           </div>
         )}
 
-        {/* Menu contextuel */}
-        <div className="border-t border-black/10 dark:border-white/10 pt-4">
+        {/* Options avancées */}
+        <div className="bg-black/5 dark:bg-white/5 rounded-xl p-4">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-3">Options avancées</p>
           <FormCheckbox label="Afficher dans le menu contextuel" checked={showContextMenu} onChange={setShowContextMenu} />
-          <FormHint className="ml-6">Au clic droit sur les objets</FormHint>
+          <FormHint className="ml-6 mt-1">Au clic droit sur les objets</FormHint>
         </div>
 
       </div>
