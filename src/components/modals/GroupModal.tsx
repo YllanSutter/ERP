@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import ModalWrapper from '@/components/ui/ModalWrapper';
-import { TableGroupDisplayMode, TableGroupColumnCount } from '@/lib/types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import ModalWrapper, { FormSelect, FormCheckbox } from '@/components/ui/ModalWrapper';
+import {
+  type TableGroupDisplayMode, type TableGroupColumnCount,
+  normalizeGroupMode, normalizeColumnCount,
+  GROUP_MODE_OPTIONS, GROUP_COLUMN_COUNT_OPTIONS,
+} from '@/components/modals/modalLib';
 
 type GroupTotalPosition = 'top' | 'bottom' | 'both';
 
@@ -107,31 +110,16 @@ const GroupModal: React.FC<GroupModalProps> = ({
       ...prev,
       [groupId]: {
         enabled: prev[groupId]?.enabled ?? true,
-        position:
-          prev[groupId]?.position === 'top'
-            ? 'top'
-            : prev[groupId]?.position === 'both'
-              ? 'both'
-              : 'bottom',
+        position: prev[groupId]?.position === 'top' ? 'top' : prev[groupId]?.position === 'both' ? 'both' : 'bottom',
         ...patch,
       },
     }));
   };
 
-  const normalizeMode = (mode?: string): TableGroupDisplayMode => {
-    if (mode === 'columns' || mode === 'tabs' || mode === 'select' || mode === 'accordion') return mode;
-    return 'accordion';
-  };
-
-  const normalizeColumnCount = (count?: number): TableGroupColumnCount => {
-    if (count === 1 || count === 2 || count === 3) return count;
-    return 3;
-  };
-
   const getGroupMode = (groupId: string, idx: number): TableGroupDisplayMode => {
     const specific = groupDisplayModes[groupId];
     if (specific) return specific;
-    if (idx === 0) return normalizeMode(initialDefaultGroupDisplayMode);
+    if (idx === 0) return normalizeGroupMode(initialDefaultGroupDisplayMode);
     return 'accordion';
   };
 
@@ -140,24 +128,15 @@ const GroupModal: React.FC<GroupModalProps> = ({
   };
 
   const updateGroupMode = (groupId: string, mode: TableGroupDisplayMode) => {
-    setGroupDisplayModes((prev) => ({
-      ...prev,
-      [groupId]: normalizeMode(mode),
-    }));
+    setGroupDisplayModes((prev) => ({ ...prev, [groupId]: normalizeGroupMode(mode) }));
   };
 
   const updateGroupColumnCount = (groupId: string, count: TableGroupColumnCount) => {
-    setGroupDisplayColumnCounts((prev) => ({
-      ...prev,
-      [groupId]: normalizeColumnCount(count),
-    }));
+    setGroupDisplayColumnCounts((prev) => ({ ...prev, [groupId]: normalizeColumnCount(count) }));
   };
 
   const handleSave = () => {
-    const normalizedGroups = rows
-      .map((row) => row.propertyId)
-      .filter((id) => Boolean(id));
-
+    const normalizedGroups = rows.map((row) => row.propertyId).filter(Boolean);
     const seen = new Set<string>();
     const uniqueGroups = normalizedGroups.filter((id) => {
       if (seen.has(id)) return false;
@@ -176,15 +155,11 @@ const GroupModal: React.FC<GroupModalProps> = ({
         enabled: cfg.enabled !== false,
         position: cfg.position === 'top' ? 'top' : cfg.position === 'both' ? 'both' : 'bottom',
       };
-
       const index = uniqueGroups.indexOf(groupId);
       nextDisplayModes[groupId] = getGroupMode(groupId, index);
       nextDisplayColumnCounts[groupId] = getGroupColumnCount(groupId);
-
       const configuredStyleField = groupTabStyleFieldIds[groupId];
-      if (configuredStyleField) {
-        nextTabStyleFieldIds[groupId] = configuredStyleField;
-      }
+      if (configuredStyleField) nextTabStyleFieldIds[groupId] = configuredStyleField;
     });
 
     onSave(uniqueGroups, nextTotalsByGroupId, nextDisplayModes, nextDisplayColumnCounts, nextTabStyleFieldIds);
@@ -204,206 +179,149 @@ const GroupModal: React.FC<GroupModalProps> = ({
       onSave={handleSave}
       className="p-6 min-w-[42rem] max-w-[90vw] max-h-[85vh]"
     >
-        <div className="space-y-3 mb-5">
-          {rows.map((row, idx) => {
-            const groupId = row.propertyId;
-            const cfg = (groupId && groupTotalsByGroupId[groupId]) || { enabled: true, position: 'bottom' };
-            const mode = groupId ? getGroupMode(groupId, idx) : 'accordion';
-            const columnCount = groupId ? getGroupColumnCount(groupId) : 3;
-            const groupProp = groupableProperties.find((p: any) => p.id === groupId);
-            const sourceRelationProp = groupProp?.isRelationLinkedColumn && groupProp?.sourceRelationPropertyId
-              ? properties.find((p: any) => p.id === groupProp.sourceRelationPropertyId)
-              : null;
-            const relationTargetCollectionId =
-              groupProp?.type === 'relation'
-                ? groupProp?.relation?.targetCollectionId
-                : groupProp?.isRelationLinkedColumn
-                  ? (groupProp?.sourceTargetCollectionId || sourceRelationProp?.relation?.targetCollectionId || '')
-                  : '';
-            const relationTargetCollection = relationTargetCollectionId
-              ? (collections || []).find((c: any) => c.id === relationTargetCollectionId)
-              : null;
-            const relationStyleFieldOptions = (relationTargetCollection?.properties || [])
-              .filter((p: any) => p.type === 'select' || p.type === 'multi_select');
-            return (
-              <div key={row.uid} className="rounded-lg border border-black/10 dark:border-white/10 p-3 bg-black/[0.03] dark:bg-white/[0.03]">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Niveau {idx + 1}</span>
-                  <div className="ml-auto flex items-center gap-1">
-                    <button
-                      onClick={() => moveRow(row.uid, -1)}
-                      disabled={idx === 0}
-                      className="px-2 py-1 rounded text-xs bg-black/5 dark:bg-white/5 disabled:opacity-40"
-                    >
-                      ↑
-                    </button>
-                    <button
-                      onClick={() => moveRow(row.uid, 1)}
-                      disabled={idx === rows.length - 1}
-                      className="px-2 py-1 rounded text-xs bg-black/5 dark:bg-white/5 disabled:opacity-40"
-                    >
-                      ↓
-                    </button>
-                    <button
-                      onClick={() => removeRow(row.uid)}
-                      className="px-2 py-1 rounded text-xs bg-red-500/10 text-red-600 dark:text-red-300"
-                    >
-                      Supprimer
-                    </button>
-                  </div>
+      <div className="space-y-3 mb-5">
+        {rows.map((row, idx) => {
+          const groupId = row.propertyId;
+          const cfg = (groupId && groupTotalsByGroupId[groupId]) || { enabled: true, position: 'bottom' };
+          const mode = groupId ? getGroupMode(groupId, idx) : 'accordion';
+          const columnCount = groupId ? getGroupColumnCount(groupId) : 3;
+          const groupProp = groupableProperties.find((p: any) => p.id === groupId);
+          const sourceRelationProp = groupProp?.isRelationLinkedColumn && groupProp?.sourceRelationPropertyId
+            ? properties.find((p: any) => p.id === groupProp.sourceRelationPropertyId)
+            : null;
+          const relationTargetCollectionId =
+            groupProp?.type === 'relation'
+              ? groupProp?.relation?.targetCollectionId
+              : groupProp?.isRelationLinkedColumn
+                ? (groupProp?.sourceTargetCollectionId || sourceRelationProp?.relation?.targetCollectionId || '')
+                : '';
+          const relationTargetCollection = relationTargetCollectionId
+            ? (collections || []).find((c: any) => c.id === relationTargetCollectionId)
+            : null;
+          const relationStyleFieldOptions = (relationTargetCollection?.properties || [])
+            .filter((p: any) => p.type === 'select' || p.type === 'multi_select');
+
+          return (
+            <div key={row.uid} className="rounded-lg border border-black/10 dark:border-white/10 p-3 bg-black/[0.03] dark:bg-white/[0.03]">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Niveau {idx + 1}</span>
+                <div className="ml-auto flex items-center gap-1">
+                  <button
+                    onClick={() => moveRow(row.uid, -1)}
+                    disabled={idx === 0}
+                    className="px-2 py-1 rounded text-xs bg-black/5 dark:bg-white/5 disabled:opacity-40"
+                  >↑</button>
+                  <button
+                    onClick={() => moveRow(row.uid, 1)}
+                    disabled={idx === rows.length - 1}
+                    className="px-2 py-1 rounded text-xs bg-black/5 dark:bg-white/5 disabled:opacity-40"
+                  >↓</button>
+                  <button
+                    onClick={() => removeRow(row.uid)}
+                    className="px-2 py-1 rounded text-xs bg-red-500/10 text-red-600 dark:text-red-300"
+                  >Supprimer</button>
                 </div>
+              </div>
 
-                <Select
-                  value={row.propertyId || '__none__'}
-                  onValueChange={(value) => updateRowProperty(row.uid, value === '__none__' ? '' : value)}
-                >
-                  <SelectTrigger className="w-full bg-gray-300 dark:bg-neutral-800/50 border-white/10 text-neutral-700 dark:text-white">
-                    <SelectValue placeholder="Sélectionner un champ..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sélectionner un champ...</SelectItem>
-                    {groupableProperties.map((prop: any) => (
-                      <SelectItem key={prop.id} value={prop.id}>
-                        {prop.name}{prop.isRelationLinkedColumn ? ' (lié)' : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <FormSelect
+                value={row.propertyId}
+                onChange={(v) => updateRowProperty(row.uid, v)}
+                options={[
+                  { value: '', label: 'Sélectionner un champ...' },
+                  ...groupableProperties.map((prop: any) => ({
+                    value: prop.id,
+                    label: prop.name + (prop.isRelationLinkedColumn ? ' (lié)' : ''),
+                  })),
+                ]}
+              />
 
-                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Select
-                    value={mode}
-                    onValueChange={(value) => {
-                      if (!groupId) return;
-                      updateGroupMode(groupId, normalizeMode(value));
-                    }}
-                    disabled={!groupId}
-                  >
-                    <SelectTrigger className="w-full bg-gray-300 dark:bg-neutral-800/50 border-white/10 text-neutral-700 dark:text-white disabled:opacity-50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="accordion">Type: Chevron (accordéon)</SelectItem>
-                      <SelectItem value="columns">Type: Colonnes</SelectItem>
-                      <SelectItem value="tabs">Type: Onglets</SelectItem>
-                      <SelectItem value="select">Type: Select</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormSelect
+                  value={mode}
+                  onChange={(v) => { if (groupId) updateGroupMode(groupId, normalizeGroupMode(v)); }}
+                  disabled={!groupId}
+                  options={GROUP_MODE_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+                />
 
-                  <Select
-                    value={String(columnCount)}
-                    onValueChange={(value) => {
-                      if (!groupId) return;
-                      const raw = Number(value);
-                      const nextCount: TableGroupColumnCount = raw === 1 || raw === 2 || raw === 3 ? raw : 3;
-                      updateGroupColumnCount(groupId, nextCount);
-                    }}
-                    disabled={!groupId || mode !== 'columns'}
-                  >
-                    <SelectTrigger className="w-full bg-gray-300 dark:bg-neutral-800/50 border-white/10 text-neutral-700 dark:text-white disabled:opacity-50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">Colonnes: 1</SelectItem>
-                      <SelectItem value="2">Colonnes: 2</SelectItem>
-                      <SelectItem value="3">Colonnes: 3</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <FormSelect
+                  value={String(columnCount)}
+                  onChange={(v) => {
+                    if (!groupId) return;
+                    const raw = Number(v);
+                    updateGroupColumnCount(groupId, (raw === 1 || raw === 2 || raw === 3 ? raw : 3) as TableGroupColumnCount);
+                  }}
+                  disabled={!groupId || mode !== 'columns'}
+                  options={GROUP_COLUMN_COUNT_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+                />
 
-                  <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-200">
-                    <input
-                      type="checkbox"
-                      checked={cfg.enabled !== false}
-                      onChange={(e) => {
-                        if (!groupId) return;
-                        updateGroupTotalConfig(groupId, { enabled: e.target.checked });
-                      }}
-                      disabled={!groupId}
-                    />
-                    Afficher le total
+                <FormCheckbox
+                  label="Afficher le total"
+                  checked={cfg.enabled !== false}
+                  disabled={!groupId}
+                  onChange={(checked) => { if (groupId) updateGroupTotalConfig(groupId, { enabled: checked }); }}
+                />
+
+                <FormSelect
+                  value={cfg.position === 'top' ? 'top' : cfg.position === 'both' ? 'both' : 'bottom'}
+                  onChange={(v) => {
+                    if (!groupId) return;
+                    updateGroupTotalConfig(groupId, { position: v === 'top' ? 'top' : v === 'both' ? 'both' : 'bottom' });
+                  }}
+                  disabled={!groupId || cfg.enabled === false}
+                  options={[
+                    { value: 'bottom', label: 'Total en bas' },
+                    { value: 'top',    label: 'Total en haut' },
+                    { value: 'both',   label: 'Total en haut et en bas' },
+                  ]}
+                />
+              </div>
+
+              <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+                {mode === 'columns'
+                  ? `Affichage en colonnes (${columnCount} colonne${columnCount > 1 ? 's' : ''}).`
+                  : mode === 'tabs'   ? 'Affichage par onglets.'
+                  : mode === 'select' ? 'Affichage via menu déroulant (select).'
+                  : 'Affichage en accordéon (chevrons).'}
+              </p>
+
+              {groupId && mode === 'tabs' && (groupProp?.type === 'relation' || groupProp?.isRelationLinkedColumn) && (
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-1">
+                    Modèle visuel des onglets
                   </label>
-
-                  <Select
-                    value={cfg.position === 'top' ? 'top' : cfg.position === 'both' ? 'both' : 'bottom'}
-                    onValueChange={(value) => {
-                      if (!groupId) return;
-                      updateGroupTotalConfig(groupId, {
-                        position: value === 'top' ? 'top' : value === 'both' ? 'both' : 'bottom',
+                  <FormSelect
+                    value={groupTabStyleFieldIds[groupId] || ''}
+                    onChange={(v) => {
+                      setGroupTabStyleFieldIds((prev) => {
+                        const next = { ...prev };
+                        if (!v) delete next[groupId]; else next[groupId] = v;
+                        return next;
                       });
                     }}
-                    disabled={!groupId || cfg.enabled === false}
-                  >
-                    <SelectTrigger className="w-full bg-gray-300 dark:bg-neutral-800/50 border-white/10 text-neutral-700 dark:text-white disabled:opacity-50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bottom">Total en bas</SelectItem>
-                      <SelectItem value="top">Total en haut</SelectItem>
-                      <SelectItem value="both">Total en haut et en bas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">
-                  {mode === 'columns'
-                    ? `Affichage en colonnes (${columnCount} colonne${columnCount > 1 ? 's' : ''}).`
-                    : mode === 'tabs'
-                      ? 'Affichage par onglets.'
-                      : mode === 'select'
-                        ? 'Affichage via menu déroulant (select).'
-                      : 'Affichage en accordéon (chevrons).'}
-                </p>
-
-                {groupId && mode === 'tabs' && (groupProp?.type === 'relation' || groupProp?.isRelationLinkedColumn) && (
-                  <div className="mt-3">
-                    <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-1">
-                      Modèle visuel des onglets
-                    </label>
-                    <Select
-                      value={groupTabStyleFieldIds[groupId] || '__none__'}
-                      onValueChange={(value) => {
-                        const nextValue = value === '__none__' ? '' : value;
-                        setGroupTabStyleFieldIds((prev) => {
-                          const next = { ...prev };
-                          if (!nextValue) {
-                            delete next[groupId];
-                          } else {
-                            next[groupId] = nextValue;
-                          }
-                          return next;
-                        });
-                      }}
-                      disabled={relationStyleFieldOptions.length === 0}
-                    >
-                      <SelectTrigger className="w-full bg-gray-300 dark:bg-neutral-800/50 border-white/10 text-neutral-700 dark:text-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Aucun style spécial</SelectItem>
-                        {relationStyleFieldOptions.map((p: any) => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
-                      Choisis un champ select/multi-select de la collection liée pour reprendre icône + couleur dans les onglets de ce niveau.
+                    disabled={relationStyleFieldOptions.length === 0}
+                    options={[
+                      { value: '', label: 'Aucun style spécial' },
+                      ...relationStyleFieldOptions.map((p: any) => ({ value: p.id, label: p.name })),
+                    ]}
+                  />
+                  <p className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Choisis un champ select/multi-select de la collection liée pour reprendre icône + couleur dans les onglets de ce niveau.
+                  </p>
+                  {relationStyleFieldOptions.length === 0 && (
+                    <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                      Aucun champ select/multi-select trouvé dans la collection liée.
                     </p>
-                    {relationStyleFieldOptions.length === 0 && (
-                      <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-                        Aucun champ select/multi-select trouvé dans la collection liée.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
-        <button onClick={addRow} className="w-full mb-5 px-4 py-2 rounded-lg border border-dashed border-black/20 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/5">
-          + Ajouter un niveau
-        </button>
-
+      <button onClick={addRow} className="w-full mb-5 px-4 py-2 rounded-lg border border-dashed border-black/20 dark:border-white/20 hover:bg-black/5 dark:hover:bg-white/5">
+        + Ajouter un niveau
+      </button>
     </ModalWrapper>
   );
 };

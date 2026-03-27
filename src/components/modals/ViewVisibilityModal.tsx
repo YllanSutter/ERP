@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Shield, Users } from 'lucide-react';
-import ModalWrapper from '@/components/ui/ModalWrapper';
+import ModalWrapper, { FormRadioGroup, FormCheckbox } from '@/components/ui/ModalWrapper';
 
 interface ViewVisibilityModalProps {
   view: any;
@@ -40,11 +40,8 @@ const ViewVisibilityModal: React.FC<ViewVisibilityModalProps> = ({ view, roles, 
   };
 
   const handleSave = () => {
-    if (mode === 'all') {
-      onSave([], []);
-    } else {
-      onSave(selectedRoles, selectedUsers);
-    }
+    if (mode === 'all') onSave([], []);
+    else onSave(selectedRoles, selectedUsers);
   };
 
   const canSubmit = mode === 'all' || selectedRoles.length + selectedUsers.length > 0;
@@ -67,91 +64,71 @@ const ViewVisibilityModal: React.FC<ViewVisibilityModalProps> = ({ view, roles, 
       canSave={canSubmit}
       className="w-full max-w-lg bg-neutral-900/90 border-white/10 p-6 shadow-2xl min-w-0"
     >
+      <div className="space-y-4 mb-4">
+        <FormRadioGroup
+          value={mode}
+          onChange={(v) => setMode(v as 'all' | 'custom')}
+          accentClass="accent-cyan-500"
+          options={[
+            {
+              value: 'all',
+              label: 'Visible par tout le monde',
+              description: 'Par défaut, tous les rôles peuvent ouvrir la vue.',
+            },
+            {
+              value: 'custom',
+              label: 'Limiter à certains rôles ou utilisateurs',
+              description: "La vue sera visible si le rôle OU l'utilisateur est autorisé.",
+            },
+          ]}
+        />
+      </div>
 
-        <div className="space-y-4 mb-4">
-          <label className="flex items-center gap-3 p-3 rounded-lg border border-black/10 hover:border-black/20 dark:border-white/10 dark:hover:border-white/20 cursor-pointer">
-            <input
-              type="radio"
-              className="accent-cyan-500"
-              checked={mode === 'all'}
-              onChange={() => setMode('all')}
-            />
-            <div>
-              <div className="font-medium">Visible par tout le monde</div>
-              <div className="text-sm text-neutral-500">Par défaut, tous les rôles peuvent ouvrir la vue.</div>
-            </div>
-          </label>
-
-          <label className="flex items-center gap-3 p-3 rounded-lg border border-black/10 hover:border-black/20 dark:border-white/10 dark:hover:border-white/20 cursor-pointer">
-            <input
-              type="radio"
-              className="accent-cyan-500"
-              checked={mode === 'custom'}
-              onChange={() => setMode('custom')}
-            />
-            <div>
-              <div className="font-medium">Limiter à certains rôles ou utilisateurs</div>
-              <div className="text-sm text-neutral-500">La vue sera visible si le rôle OU l'utilisateur est autorisé.</div>
-            </div>
-          </label>
-        </div>
-
-        {mode === 'custom' && (
-          <div className="space-y-4">
-            <div className="bg-white/5 border border-white/10 rounded-xl p-3 max-h-48 overflow-auto space-y-2">
-              <div className="text-sm font-medium text-neutral-600 dark:text-neutral-200 mb-1">Rôles autorisés</div>
-              {roles.length === 0 && (
-                <div className="text-sm text-neutral-500">Aucun rôle disponible.</div>
-              )}
-              {roles.map((role) => (
-                <label
-                  key={role.id}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    className="accent-cyan-500"
-                    checked={selectedRoles.includes(role.id)}
-                    onChange={() => toggleRole(role.id)}
-                  />
-                  <div className="flex items-center gap-2">
-                    <Users size={14} className="text-neutral-400" />
-                    <span className="text-sm text-neutral-600 dark:text-neutral-200">{role.name}</span>
-                  </div>
-                </label>
-              ))}
-            </div>
-
-            <div className="bg-white/5 border border-white/10 rounded-xl p-3 max-h-48 overflow-auto space-y-2">
-              <div className="text-sm font-medium text-neutral-600 dark:text-neutral-200 mb-1">Utilisateurs autorisés</div>
-              {users.length === 0 && (
-                <div className="text-sm text-neutral-500">Aucun utilisateur chargé.</div>
-              )}
-              {users.map((u) => (
-                <label
-                  key={u.id}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    className="accent-cyan-500"
-                    checked={selectedUsers.includes(u.id)}
-                    onChange={() => toggleUser(u.id)}
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-sm text-neutral-600 dark:text-neutral-200">{u.email || u.name || u.id}</span>
-                    {u.name && <span className="text-xs text-neutral-500">{u.name}</span>}
-                  </div>
-                </label>
-              ))}
-            </div>
+      {mode === 'custom' && (
+        <div className="space-y-4">
+          <div className="bg-white/5 border border-white/10 rounded-xl p-3 max-h-48 overflow-auto space-y-2">
+            <div className="text-sm font-medium text-neutral-600 dark:text-neutral-200 mb-1">Rôles autorisés</div>
+            {roles.length === 0 && <div className="text-sm text-neutral-500">Aucun rôle disponible.</div>}
+            {roles.map((role) => (
+              <div key={role.id} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5">
+                <FormCheckbox
+                  label={
+                    <div className="flex items-center gap-2">
+                      <Users size={14} className="text-neutral-400" />
+                      <span className="text-sm text-neutral-600 dark:text-neutral-200">{role.name}</span>
+                    </div>
+                  }
+                  checked={selectedRoles.includes(role.id)}
+                  onChange={() => toggleRole(role.id)}
+                />
+              </div>
+            ))}
           </div>
-        )}
 
-        {mode === 'custom' && selectedRoles.length + selectedUsers.length === 0 && (
-          <p className="text-xs text-amber-400 mt-2">Sélectionnez au moins un rôle ou utilisateur pour ne pas masquer la vue à tout le monde.</p>
-        )}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-3 max-h-48 overflow-auto space-y-2">
+            <div className="text-sm font-medium text-neutral-600 dark:text-neutral-200 mb-1">Utilisateurs autorisés</div>
+            {users.length === 0 && <div className="text-sm text-neutral-500">Aucun utilisateur chargé.</div>}
+            {users.map((u) => (
+              <div key={u.id} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5">
+                <FormCheckbox
+                  label={
+                    <div className="flex flex-col">
+                      <span className="text-sm text-neutral-600 dark:text-neutral-200">{u.email || u.name || u.id}</span>
+                      {u.name && <span className="text-xs text-neutral-500">{u.name}</span>}
+                    </div>
+                  }
+                  checked={selectedUsers.includes(u.id)}
+                  onChange={() => toggleUser(u.id)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
+      {mode === 'custom' && selectedRoles.length + selectedUsers.length === 0 && (
+        <p className="text-xs text-amber-400 mt-2">Sélectionnez au moins un rôle ou utilisateur pour ne pas masquer la vue à tout le monde.</p>
+      )}
     </ModalWrapper>
   );
 };

@@ -22,9 +22,6 @@ import { motion } from 'framer-motion';
 import { Star, Trash2, Clock, Edit2, History, ChevronLeft } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import EditableProperty from '@/components/fields/EditableProperty';
-import { calculateSegmentsClient, formatSegmentDisplay } from '@/lib/calculateSegmentsClient';
-import { isEmptyValue } from '@/lib/utils/valueUtils';
-import { getRoundedNow } from '@/lib/utils/dateUtils';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -47,8 +44,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { workDayStart, workDayEnd } from '@/lib/calendarUtils';
 import { useAuth } from '@/auth/AuthProvider';
+import {
+  getRoundedNow, workDayStart, workDayEnd,
+  calculateSegmentsClient, formatSegmentDisplay,
+  isEmptyValue,
+  extractTextFromTiptap, serializeTiptapLines, isRichTextValue,
+  diffLines, areValuesEqual, computePatch, applyPatch, buildSnapshotAt,
+} from '@/components/modals/modalLib';
 
 
 interface NewItemModalProps {
@@ -201,31 +204,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
 
-  const areValuesEqual = (a: any, b: any) => {
-    if (a === b) return true;
-    try {
-      return JSON.stringify(a) === JSON.stringify(b);
-    } catch {
-      return false;
-    }
-  };
 
-  const extractTextFromTiptap = (doc: any): string => {
-    if (!doc || doc.type !== 'doc') return '';
-    let text = '';
-    const walk = (node: any) => {
-      if (!node || text.includes('\n')) return;
-      if (typeof node.text === 'string') text += node.text;
-      if (Array.isArray(node.content)) node.content.forEach((child: any) => walk(child));
-      if (node.type && text && !text.endsWith('\n')) {
-        if (node.type === 'paragraph' || node.type === 'heading' || node.type === 'listItem' || node.type === 'taskItem') {
-          text += '\n';
-        }
-      }
-    };
-    walk(doc);
-    return (text.split('\n').find((line) => line.trim() !== '') || '').trim();
-  };
 
   const formatValueForDialog = (val: any) => {
     if (val === null || val === undefined) return '—';
@@ -388,137 +367,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     return rest;
   };
 
-  const computePatch = (prev: any, next: any) => {
-    const set: Record<string, any> = {};
-    const unset: string[] = [];
-    const prevObj = prev || {};
-    const nextObj = next || {};
-    const prevKeys = Object.keys(prevObj);
-    const nextKeys = Object.keys(nextObj);
 
-    nextKeys.forEach((key) => {
-      if (!areValuesEqual(prevObj[key], nextObj[key])) {
-        set[key] = nextObj[key];
-      }
-    });
-
-    prevKeys.forEach((key) => {
-      if (!(key in nextObj)) unset.push(key);
-    });
-
-    return { set, unset };
-  };
-
-  const applyPatch = (base: any, patch: { set: Record<string, any>; unset: string[] }) => {
-    const next = { ...(base || {}) } as any;
-    Object.entries(patch.set || {}).forEach(([key, value]) => {
-      next[key] = value;
-    });
-    (patch.unset || []).forEach((key) => {
-      delete next[key];
-    });
-    return next;
-  };
-
-  const buildSnapshotAt = (base: any, versions: any[], index: number) => {
-    let snapshot = { ...(base || {}) } as any;
-    for (let i = 0; i <= index; i += 1) {
-      snapshot = applyPatch(snapshot, versions[i].patch || { set: {}, unset: [] });
-    }
-    return snapshot;
-  };
-
-  const isRichTextValue = (val: any) => {
-    if (!val) return false;
-    if (typeof val === 'string') {
-      const trimmed = val.trim();
-      if (!trimmed) return false;
-      try {
-        const parsed = JSON.parse(trimmed);
-        return parsed && typeof parsed === 'object' && parsed.type === 'doc';
-      } catch {
-        return false;
-      }
-    }
-    return typeof val === 'object' && val.type === 'doc';
-  };
-
-  const diffLines = (before: string, after: string) => {
-    const a = (before || '').split('\n');
-    const b = (after || '').split('\n');
-    const m = a.length;
-    const n = b.length;
-    const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
-    for (let i = 1; i <= m; i += 1) {
-      for (let j = 1; j <= n; j += 1) {
-        dp[i][j] = a[i - 1] === b[j - 1]
-          ? dp[i - 1][j - 1] + 1
-          : Math.max(dp[i - 1][j], dp[i][j - 1]);
-      }
-    }
-    const result: { type: 'add' | 'remove'; text: string }[] = [];
-    let i = m;
-    let j = n;
-    while (i > 0 || j > 0) {
-      if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
-        i -= 1;
-        j -= 1;
-      } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-        result.push({ type: 'add', text: b[j - 1] });
-        j -= 1;
-      } else if (i > 0) {
-        result.push({ type: 'remove', text: a[i - 1] });
-        i -= 1;
-      }
-    }
-    return result.reverse().filter((entry) => entry.text.trim() !== '');
-  };
-
-  const serializeTiptapLines = (doc: any): string => {
-    if (!doc || doc.type !== 'doc') return '';
-    const lines: string[] = [];
-
-    const extractNodeText = (node: any): string => {
-      if (!node) return '';
-      if (typeof node.text === 'string') return node.text;
-      if (Array.isArray(node.content)) {
-        return node.content.map((child: any) => extractNodeText(child)).join('');
-      }
-      return '';
-    };
-
-    const walk = (node: any) => {
-      if (!node) return;
-      if (node.type === 'taskItem') {
-        const checked = node.attrs?.checked ? '[x] ' : '[ ] ';
-        const text = extractNodeText(node);
-        lines.push(`${checked}${text}`.trimEnd());
-        return;
-      }
-      if (node.type === 'listItem') {
-        const text = extractNodeText(node);
-        lines.push(`- ${text}`.trimEnd());
-        return;
-      }
-      if (node.type === 'heading') {
-        const level = node.attrs?.level || 1;
-        const text = extractNodeText(node);
-        lines.push(`${'#'.repeat(level)} ${text}`.trimEnd());
-        return;
-      }
-      if (node.type === 'paragraph') {
-        const text = extractNodeText(node);
-        lines.push(text.trimEnd());
-        return;
-      }
-      if (Array.isArray(node.content)) {
-        node.content.forEach((child: any) => walk(child));
-      }
-    };
-
-    walk(doc);
-    return lines.filter((line) => line.trim() !== '').join('\n');
-  };
 
   // Fusionne l'item prérempli (editingItem) avec les valeurs par défaut
   function getInitialFormData(col = selectedCollection, prefill: any = editingItem) {

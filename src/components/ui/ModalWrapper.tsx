@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
 import IconPicker from '@/components/inputs/IconPicker';
 import ColorPicker from '@/components/inputs/ColorPicker';
 import { cn } from '@/lib/utils';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Type, Hash, ChevronDown, ListChecks, Calendar, CalendarRange, ToggleLeft, Link, Mail, Phone, GitMerge, AlignLeft } from 'lucide-react';
 
 // ─── Modal shell ──────────────────────────────────────────────────────────────
 
@@ -90,8 +93,28 @@ export default ModalWrapper;
 
 // ─── Form primitives ──────────────────────────────────────────────────────────
 
+export const BUILTIN_PROPERTY_TYPES = [
+  { value: 'text',         label: 'Texte',       icon: Type },
+  { value: 'number',       label: 'Nombre',      icon: Hash },
+  { value: 'select',       label: 'Sélection',   icon: ChevronDown },
+  { value: 'multi_select', label: 'Multi-sel.',  icon: ListChecks },
+  { value: 'date',         label: 'Date',        icon: Calendar },
+  { value: 'date_range',   label: 'Période',     icon: CalendarRange },
+  { value: 'checkbox',     label: 'Checkbox',    icon: ToggleLeft },
+  { value: 'url',          label: 'URL',         icon: Link },
+  { value: 'email',        label: 'Email',       icon: Mail },
+  { value: 'phone',        label: 'Téléphone',   icon: Phone },
+  { value: 'relation',     label: 'Relation',    icon: GitMerge },
+  { value: 'rich_text',    label: 'Texte riche', icon: AlignLeft },
+];
+
+export interface FormSelectOption {
+  value: string;
+  label: string;
+  icon?: React.ComponentType<{ size?: number; className?: string }>;
+}
+
 const INPUT_CLS = 'w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none';
-const SELECT_CLS = 'w-full px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none';
 const LABEL_CLS = 'block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2';
 
 interface FormFieldProps {
@@ -115,16 +138,72 @@ export const FormInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = 
   <input {...props} className={cn(INPUT_CLS, className)} />
 );
 
-/** Select natif stylisé */
-export const FormSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { children: React.ReactNode }> = ({ className, children, ...props }) => (
-  <select {...props} className={cn(SELECT_CLS, className)}>
-    {children}
-  </select>
-);
+const SELECT_TRIGGER_CLS = 'w-full h-9 px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white text-sm shadow-none focus:ring-1 focus:ring-violet-500';
+
+const EMPTY_SENTINEL = '__FORM_SELECT_EMPTY__';
+
+interface FormSelectProps {
+  value: string | number;
+  onChange: (value: string) => void;
+  options: FormSelectOption[];
+  className?: string;
+  disabled?: boolean;
+}
+
+/** Select Radix UI stylisé — remplace le select natif dans toutes les modales */
+export const FormSelect: React.FC<FormSelectProps> = ({ value, onChange, options, className, disabled }) => {
+  const strVal = String(value ?? '');
+  const radixVal = strVal === '' ? EMPTY_SENTINEL : strVal;
+  const currentOpt = options.find(o => o.value === strVal);
+  const Icon = currentOpt?.icon;
+
+  return (
+    <Select value={radixVal} onValueChange={(v) => onChange(v === EMPTY_SENTINEL ? '' : v)} disabled={disabled}>
+      <SelectTrigger className={cn(SELECT_TRIGGER_CLS, className)}>
+        <span className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+          {Icon && <Icon size={13} className="shrink-0 opacity-70" />}
+          <SelectValue />
+        </span>
+      </SelectTrigger>
+      <SelectContent>
+        {options.map(({ value: v, label, icon: OptIcon }) => (
+          <SelectItem key={v === '' ? EMPTY_SENTINEL : v} value={v === '' ? EMPTY_SENTINEL : v}>
+            <span className="flex items-center gap-2">
+              {OptIcon && <OptIcon size={13} className="opacity-70" />}
+              {label}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
 
 /** Texte d'aide sous un champ */
 export const FormHint: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
   <p className={cn('text-xs text-neutral-500 mt-1', className)}>{children}</p>
+);
+
+/** Input date stylisé */
+export const FormDateInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = ({ className, ...props }) => (
+  <input type="date" {...props} className={cn(INPUT_CLS, className)} />
+);
+
+/** Bloc de section avec titre */
+interface FormSectionProps {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+  action?: React.ReactNode;
+}
+export const FormSection: React.FC<FormSectionProps> = ({ title, children, className, action }) => (
+  <div className={cn('bg-black/5 dark:bg-white/5 rounded-xl p-4', className)}>
+    <div className="flex items-center justify-between mb-3">
+      <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{title}</p>
+      {action}
+    </div>
+    {children}
+  </div>
 );
 
 interface FormCheckboxProps {
@@ -137,16 +216,52 @@ interface FormCheckboxProps {
 
 /** Checkbox avec label inline */
 export const FormCheckbox: React.FC<FormCheckboxProps> = ({ label, checked, onChange, disabled, className }) => (
-  <label className={cn('flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300', className)}>
+  <label className={cn('flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300 cursor-pointer', className)}>
     <input
       type="checkbox"
-      className="accent-violet-500"
+      className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
       checked={checked}
       onChange={(e) => onChange(e.target.checked)}
       disabled={disabled}
     />
     {label}
   </label>
+);
+
+interface FormRadioOption {
+  value: string;
+  label: React.ReactNode;
+  description?: React.ReactNode;
+}
+interface FormRadioGroupProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: FormRadioOption[];
+  accentClass?: string;
+  className?: string;
+}
+
+/** Groupe de boutons radio stylisés */
+export const FormRadioGroup: React.FC<FormRadioGroupProps> = ({ value, onChange, options, accentClass = 'accent-violet-500', className }) => (
+  <div className={cn('space-y-2', className)}>
+    {options.map(opt => (
+      <label
+        key={opt.value}
+        className="flex items-center gap-3 p-3 rounded-lg border border-black/10 hover:border-black/20 dark:border-white/10 dark:hover:border-white/20 cursor-pointer transition-colors"
+      >
+        <input
+          type="radio"
+          className={cn('w-4 h-4', accentClass)}
+          checked={value === opt.value}
+          onChange={() => onChange(opt.value)}
+        />
+        <div>
+          <div className="font-medium text-sm text-neutral-800 dark:text-neutral-100">{opt.label}</div>
+          {opt.description && <div className="text-xs text-neutral-500">{opt.description}</div>}
+        </div>
+      </label>
+    ))}
+  </div>
 );
 
 interface FormNameInputProps {
@@ -224,3 +339,66 @@ export const FormNameInput: React.FC<FormNameInputProps> = ({
     </div>
   );
 };
+
+interface DeleteConfirmButtonProps {
+  onDelete: () => void;
+  className?: string;
+  title?: string;
+}
+
+/** Bouton suppression deux étapes — 1er clic : demande confirmation, 2e clic : supprime */
+export const DeleteConfirmButton: React.FC<DeleteConfirmButtonProps> = ({ onDelete, className, title = 'Supprimer' }) => {
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <div className={cn('flex items-center gap-2', className)}>
+      {confirming && (
+        <button
+          onClick={() => setConfirming(false)}
+          className="px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-sm"
+        >
+          Confirmer suppression ?
+        </button>
+      )}
+      <button
+        onClick={confirming ? onDelete : () => setConfirming(true)}
+        className={cn(
+          'px-4 py-2 rounded-lg transition-colors',
+          confirming ? 'bg-red-600/80 hover:bg-red-600 text-white' : 'bg-white/5 hover:bg-white/10'
+        )}
+        title={title}
+      >
+        <Trash2 size={18} />
+      </button>
+    </div>
+  );
+};
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+
+interface FormTabsProps {
+  tabs: { id: string; label: string }[];
+  active: string;
+  onChange: (id: string) => void;
+  className?: string;
+}
+
+/** Barre d'onglets pour les modales multi-sections */
+export const FormTabs: React.FC<FormTabsProps> = ({ tabs, active, onChange, className }) => (
+  <div className={cn('flex gap-0.5 border-b border-black/10 dark:border-white/10 -mx-6 px-6 mb-5', className)}>
+    {tabs.map(tab => (
+      <button
+        key={tab.id}
+        type="button"
+        onClick={() => onChange(tab.id)}
+        className={cn(
+          'px-3 py-1.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+          active === tab.id
+            ? 'border-violet-500 text-violet-600 dark:text-violet-400'
+            : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+        )}
+      >
+        {tab.label}
+      </button>
+    ))}
+  </div>
+);

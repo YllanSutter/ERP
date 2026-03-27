@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import ModalWrapper, { FormField, FormInput, FormSelect, FormCheckbox } from '@/components/ui/ModalWrapper';
-import { TableGroupColumnCount, TableGroupDisplayMode } from '@/lib/types';
+import { VIEW_TYPES, type TableGroupColumnCount, type TableGroupDisplayMode } from '@/components/modals/modalLib';
 import { cn } from '@/lib/utils';
-import { LayoutList, Columns, CalendarDays, LayoutDashboard } from 'lucide-react';
 
 interface NewViewModalProps {
   onClose: () => void;
@@ -41,13 +40,6 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
       : 3
   );
   const [layoutPanels, setLayoutPanels] = useState<any[]>(() => Array.isArray(view?.layoutPanels) ? view.layoutPanels : []);
-
-  const viewTypes = [
-    { value: 'table', label: 'Tableau', icon: LayoutList },
-    { value: 'kanban', label: 'Kanban', icon: Columns },
-    { value: 'calendar', label: 'Calendrier', icon: CalendarDays },
-    { value: 'layout', label: 'Multi-vues', icon: LayoutDashboard },
-  ];
 
   const selectProps = collection?.properties.filter((p: any) => p.type === 'select') || [];
   const collectionOptions = collections.length ? collections : (collection ? [collection] : []);
@@ -89,7 +81,7 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
         <FormInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom de la vue" />
 
         <div className="grid grid-cols-2 gap-2">
-          {viewTypes.map(vt => (
+          {VIEW_TYPES.map(vt => (
             <button
               key={vt.value}
               onClick={() => setType(vt.value)}
@@ -108,18 +100,26 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
 
         {type === 'table' && (
           <FormField label="Affichage du groupage" hint="S'applique quand la vue tableau utilise au moins un groupage.">
-            <FormSelect value={groupDisplayMode} onChange={(e) => setGroupDisplayMode(e.target.value as TableGroupDisplayMode)}>
-              <option value="accordion">Chevrons</option>
-              <option value="columns">Colonnes</option>
-              <option value="tabs">Onglets</option>
-            </FormSelect>
+            <FormSelect
+              value={groupDisplayMode}
+              onChange={(v) => setGroupDisplayMode(v as TableGroupDisplayMode)}
+              options={[
+                { value: 'accordion', label: 'Chevrons' },
+                { value: 'columns',   label: 'Colonnes' },
+                { value: 'tabs',      label: 'Onglets' },
+              ]}
+            />
             {groupDisplayMode === 'columns' && (
               <div className="mt-3">
-                <FormSelect value={groupDisplayColumnCount} onChange={(e) => setGroupDisplayColumnCount(Number(e.target.value) as TableGroupColumnCount)}>
-                  <option value={1}>1 colonne</option>
-                  <option value={2}>2 colonnes</option>
-                  <option value={3}>3 colonnes</option>
-                </FormSelect>
+                <FormSelect
+                  value={String(groupDisplayColumnCount)}
+                  onChange={(v) => setGroupDisplayColumnCount(Number(v) as TableGroupColumnCount)}
+                  options={[
+                    { value: '1', label: '1 colonne' },
+                    { value: '2', label: '2 colonnes' },
+                    { value: '3', label: '3 colonnes' },
+                  ]}
+                />
               </div>
             )}
           </FormField>
@@ -127,12 +127,14 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
 
         {type === 'kanban' && selectProps.length > 0 && (
           <FormField label="Grouper par">
-            <FormSelect value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
-              <option value="">Sélectionner une propriété...</option>
-              {selectProps.map((prop: any) => (
-                <option key={prop.id} value={prop.id}>{prop.name}</option>
-              ))}
-            </FormSelect>
+            <FormSelect
+              value={groupBy}
+              onChange={setGroupBy}
+              options={[
+                { value: '', label: 'Sélectionner une propriété...' },
+                ...selectProps.map((prop: any) => ({ value: prop.id, label: prop.name })),
+              ]}
+            />
             <FormCheckbox
               label="Afficher les champs des cartes seulement au survol"
               checked={kanbanShowFieldsOnHover}
@@ -149,60 +151,52 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
               <div key={panel.id || idx} className="flex items-center gap-2">
                 <FormSelect
                   value={panel.collectionId || collection?.id || ''}
-                  onChange={(e) => {
+                  onChange={(v) => {
                     const next = [...layoutPanels];
-                    next[idx] = { ...next[idx], collectionId: e.target.value, viewId: '' };
+                    next[idx] = { ...next[idx], collectionId: v, viewId: '' };
                     setLayoutPanels(next);
                   }}
                   className="w-40"
-                >
-                  <option value="">Collection…</option>
-                  {collectionOptions.map((col: any) => (
-                    <option key={col.id} value={col.id}>{col.name}</option>
-                  ))}
-                </FormSelect>
+                  options={[
+                    { value: '', label: 'Collection…' },
+                    ...collectionOptions.map((col: any) => ({ value: col.id, label: col.name })),
+                  ]}
+                />
                 <FormSelect
                   value={panel.viewId || ''}
-                  onChange={(e) => {
+                  onChange={(v) => {
                     const next = [...layoutPanels];
-                    next[idx] = { ...next[idx], viewId: e.target.value };
+                    next[idx] = { ...next[idx], viewId: v };
                     setLayoutPanels(next);
                   }}
                   className="flex-1"
-                >
-                  <option value="">Choisir une vue…</option>
-                  {(allViews[panel.collectionId || collection?.id || ''] || availableViews)
-                    .filter((v: any) => v.type !== 'layout')
-                    .map((v: any) => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
-                </FormSelect>
+                  options={[
+                    { value: '', label: 'Choisir une vue…' },
+                    ...(allViews[panel.collectionId || collection?.id || ''] || availableViews)
+                      .filter((v: any) => v.type !== 'layout')
+                      .map((v: any) => ({ value: v.id, label: v.name })),
+                  ]}
+                />
                 <FormSelect
-                  value={panel.colSpan || 6}
-                  onChange={(e) => {
+                  value={String(panel.colSpan || 6)}
+                  onChange={(v) => {
                     const next = [...layoutPanels];
-                    next[idx] = { ...next[idx], colSpan: Number(e.target.value) };
+                    next[idx] = { ...next[idx], colSpan: Number(v) };
                     setLayoutPanels(next);
                   }}
                   className="w-20"
-                >
-                  {[3, 4, 6, 8, 12].map((n) => (
-                    <option key={n} value={n}>{n}/12</option>
-                  ))}
-                </FormSelect>
+                  options={[3, 4, 6, 8, 12].map((n) => ({ value: String(n), label: `${n}/12` }))}
+                />
                 <FormSelect
-                  value={panel.rowSpan || 2}
-                  onChange={(e) => {
+                  value={String(panel.rowSpan || 2)}
+                  onChange={(v) => {
                     const next = [...layoutPanels];
-                    next[idx] = { ...next[idx], rowSpan: Number(e.target.value) };
+                    next[idx] = { ...next[idx], rowSpan: Number(v) };
                     setLayoutPanels(next);
                   }}
                   className="w-20"
-                >
-                  {[1, 2, 3, 4].map((n) => (
-                    <option key={n} value={n}>{n}L</option>
-                  ))}
-                </FormSelect>
+                  options={[1, 2, 3, 4].map((n) => ({ value: String(n), label: `${n}L` }))}
+                />
                 <button
                   type="button"
                   onClick={() => setLayoutPanels((prev) => prev.filter((_, i) => i !== idx))}

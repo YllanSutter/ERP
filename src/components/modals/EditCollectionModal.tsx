@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2 } from 'lucide-react';
-import ModalWrapper, { FormField, FormCheckbox, FormHint, FormNameInput } from '@/components/ui/ModalWrapper';
+import ModalWrapper, { FormField, FormCheckbox, FormHint, FormNameInput, DeleteConfirmButton } from '@/components/ui/ModalWrapper';
 
 interface EditCollectionModalProps {
   onClose: () => void;
@@ -21,7 +20,6 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
     }
     return props[0] ? [props[0].id] : [];
   });
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleSave = () => {
     const props = collection.properties || [];
@@ -31,44 +29,12 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
     onSave({ ...collection, name, icon, color, isPrimary, defaultVisibleFieldIds: normalizedDefaultVisible });
   };
 
-  const handleDelete = () => {
-    if (showDeleteConfirm) {
-      onDelete(collection.id);
-    } else {
-      setShowDeleteConfirm(true);
-    }
-  };
-
-  const deleteActions = (
-    <>
-      {showDeleteConfirm && (
-        <button
-          onClick={() => setShowDeleteConfirm(false)}
-          className="flex-1 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg"
-        >
-          Confirmer suppression ?
-        </button>
-      )}
-      <button
-        onClick={handleDelete}
-        className={`px-4 py-2 rounded-lg transition-colors ${
-          showDeleteConfirm
-            ? 'bg-red-600/80 hover:bg-red-600 text-white'
-            : 'bg-white/5 hover:bg-white/10'
-        }`}
-        title="Supprimer la collection"
-      >
-        <Trash2 size={18} />
-      </button>
-    </>
-  );
-
   return (
     <ModalWrapper
       title="Modifier la collection"
       onClose={onClose}
       onSave={handleSave}
-      extraActions={deleteActions}
+      extraActions={<DeleteConfirmButton onDelete={() => onDelete(collection.id)} title="Supprimer la collection" />}
     >
       <div className="space-y-6">
         <FormNameInput
