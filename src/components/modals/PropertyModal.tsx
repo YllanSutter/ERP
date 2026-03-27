@@ -68,6 +68,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const [showContextMenu, setShowContextMenu] = useState(property?.showContextMenu || false);
   const [defaultTemplates, setDefaultTemplates] = useState<any[]>(property?.defaultTemplates || []);
   const [showTypeGrid, setShowTypeGrid] = useState(false);
+  const [selectedTplIndex, setSelectedTplIndex] = useState(0);
   const [dateGranularity, setDateGranularity] = useState(property?.dateGranularity || 'full');
   const [includeDuration, setIncludeDuration] = useState(property?.includeDuration !== false);
   const [numberPrefix, setNumberPrefix] = useState(property?.numberPrefix || '');
@@ -261,145 +262,177 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
         </div>
 
         {/* Templates conditionnels */}
-        <div className="bg-black/5 dark:bg-white/5 rounded-xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
+        <div className="bg-black/5 dark:bg-white/5 rounded-xl overflow-hidden">
+          {/* En-tête */}
+          <div className="flex items-center justify-between px-4 pt-3 pb-2">
             <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">Templates conditionnels</p>
             <button
               type="button"
-              onClick={() => setDefaultTemplates((prev) => ([
-                ...prev,
-                { id: `tpl_${Date.now()}`, when: { fieldId: '', value: '' }, value: '' }
-              ]))}
+              onClick={() => {
+                const newIndex = defaultTemplates.length;
+                setDefaultTemplates((prev) => ([...prev, { id: `tpl_${Date.now()}`, when: { fieldId: '', value: '' }, value: '' }]));
+                setSelectedTplIndex(newIndex);
+              }}
               className="text-xs px-2 py-1 rounded bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10"
             >
               + Ajouter
             </button>
           </div>
-          {defaultTemplates.length === 0 && (
-            <FormHint>Aucun template défini.</FormHint>
-          )}
-          <div className="space-y-3">
-            {defaultTemplates.map((tpl, index) => {
-              const sourceProp = templateSourceOptions.find((p: any) => p.id === tpl.when?.fieldId);
-              const sourceType = sourceProp?.type;
-              const updateTemplate = (patch: any) => {
-                setDefaultTemplates((prev) => prev.map((t, i) => i === index ? { ...t, ...patch } : t));
-              };
-              const updateWhen = (patch: any) => {
-                setDefaultTemplates((prev) => prev.map((t, i) => i === index ? { ...t, when: { ...(t.when || {}), ...patch } } : t));
-              };
 
-              return (
-                <div key={tpl.id || index} className="rounded-lg border border-black/10 dark:border-white/10 bg-white/50 dark:bg-black/20 p-3 space-y-3">
-                  <div className="flex items-start gap-2">
-                    <div className="flex-1 space-y-2">
-                      <div>
-                        <TinyLabel>Si le champ</TinyLabel>
-                        <FormSelect
-                          value={tpl.when?.fieldId || ''}
-                          onChange={(e) => updateWhen({ fieldId: e.target.value })}
-                          className="rounded text-sm"
-                        >
-                          <option value="">Sélectionner...</option>
-                          {templateSourceOptions.map((p: any) => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
-                        </FormSelect>
-                      </div>
-                      <div>
-                        <TinyLabel>Vaut</TinyLabel>
-                        {sourceType === 'select' || sourceType === 'multi_select' ? (
-                          <FormSelect value={tpl.when?.value ?? ''} onChange={(e) => updateWhen({ value: e.target.value })} className="rounded text-sm">
+          {defaultTemplates.length === 0 ? (
+            <div className="px-4 pb-4"><FormHint>Aucun template défini.</FormHint></div>
+          ) : (
+            <>
+              {/* Barre de tabs */}
+              <div className="flex items-center gap-1 px-3 overflow-x-auto">
+                {defaultTemplates.map((tpl, index) => {
+                  const fieldName = templateSourceOptions.find((p: any) => p.id === tpl.when?.fieldId)?.name;
+                  const label = fieldName ? fieldName : `Règle ${index + 1}`;
+                  const isActive = index === selectedTplIndex;
+                  return (
+                    <div
+                      key={tpl.id || index}
+                      className={cn(
+                        'flex items-center gap-1 px-2.5 py-1.5 rounded-t-lg text-xs cursor-pointer whitespace-nowrap transition-colors border-b-2',
+                        isActive
+                          ? 'bg-white/60 dark:bg-black/30 text-neutral-800 dark:text-white border-violet-500'
+                          : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 border-transparent hover:bg-black/5 dark:hover:bg-white/5'
+                      )}
+                      onClick={() => setSelectedTplIndex(index)}
+                    >
+                      <span>{label}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDefaultTemplates((prev) => prev.filter((_, i) => i !== index));
+                          setSelectedTplIndex((prev) => Math.min(prev, defaultTemplates.length - 2));
+                        }}
+                        className="ml-0.5 rounded hover:text-red-500 transition-colors"
+                        title="Supprimer"
+                      >
+                        <Icons.X size={11} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Contenu du tab actif */}
+              {(() => {
+                const index = Math.min(selectedTplIndex, defaultTemplates.length - 1);
+                const tpl = defaultTemplates[index];
+                if (!tpl) return null;
+                const sourceProp = templateSourceOptions.find((p: any) => p.id === tpl.when?.fieldId);
+                const sourceType = sourceProp?.type;
+                const updateTemplate = (patch: any) =>
+                  setDefaultTemplates((prev) => prev.map((t, i) => i === index ? { ...t, ...patch } : t));
+                const updateWhen = (patch: any) =>
+                  setDefaultTemplates((prev) => prev.map((t, i) => i === index ? { ...t, when: { ...(t.when || {}), ...patch } } : t));
+
+                return (
+                  <div className="rounded-b-xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-black/20 overflow-hidden mx-0">
+                    {/* Condition */}
+                    <div className="px-3 pt-3 pb-2">
+                      <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block mb-2">Condition</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <TinyLabel>Si le champ</TinyLabel>
+                          <FormSelect value={tpl.when?.fieldId || ''} onChange={(e) => updateWhen({ fieldId: e.target.value })} className="rounded text-sm">
                             <option value="">Sélectionner...</option>
-                            {(sourceProp?.options || []).map((opt: any) => {
-                              const optValue = typeof opt === 'string' ? opt : opt.value;
-                              const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
-                              return <option key={optValue} value={optValue}>{optLabel}</option>;
-                            })}
+                            {templateSourceOptions.map((p: any) => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
                           </FormSelect>
-                        ) : sourceType === 'checkbox' ? (
-                          <FormSelect value={tpl.when?.value === true ? 'true' : tpl.when?.value === false ? 'false' : ''} onChange={(e) => updateWhen({ value: e.target.value === 'true' })} className="rounded text-sm">
-                            <option value="">Sélectionner...</option>
-                            <option value="true">Oui</option>
-                            <option value="false">Non</option>
-                          </FormSelect>
-                        ) : sourceType === 'number' ? (
-                          <FormInput type="number" value={tpl.when?.value ?? ''} onChange={(e) => updateWhen({ value: e.target.value === '' ? '' : Number(e.target.value) })} className="rounded text-sm" />
-                        ) : (
-                          <FormInput type="text" value={tpl.when?.value ?? ''} onChange={(e) => updateWhen({ value: e.target.value })} className="rounded text-sm" />
-                        )}
-                      </div>
-                      <div>
-                        <TinyLabel>Alors définir à</TinyLabel>
-                        {type === 'rich_text' ? (
-                          <RichTextEditor value={tpl.value} onChange={(val) => updateTemplate({ value: val })} className="bg-gray-200 dark:bg-neutral-800/50" />
-                        ) : type === 'date' || type === 'date_range' ? (
-                          <div className="space-y-2">
-                            <FormInput type="text" value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: e.target.value })} className="rounded text-sm" placeholder="Ex: {{now:month}}, {{now:year}}, {{now}}" />
-                            <FormHint>Templates: <code>{'{{now:month}}'}</code>, <code>{'{{now:year}}'}</code>, <code>{'{{now}}'}</code></FormHint>
-                          </div>
-                        ) : type === 'relation' ? (
-                          <div className="space-y-2">
-                            <FormCheckbox
-                              label={<><span className="text-neutral-700 dark:text-neutral-300">Groupage actuel</span><span className="text-xs text-neutral-500 ml-1">(rempli automatiquement si créé depuis un groupe)</span></>}
-                              checked={tpl.isCurrentGroupTemplate === true}
-                              onChange={(checked) => updateTemplate({ isCurrentGroupTemplate: checked, value: checked ? null : tpl.value })}
-                            />
-                            {!tpl.isCurrentGroupTemplate && (
-                              <EditableProperty
-                                property={{
-                                  name,
-                                  type,
-                                  relation: relationTarget ? {
-                                    targetCollectionId: relationTarget,
-                                    type: relationType,
-                                    displayFieldIds: relationDisplayFieldIds,
-                                    filter: relationFilterField && relationFilterValue ? { fieldId: relationFilterField, value: relationFilterValue } : undefined
-                                  } : undefined
-                                }}
-                                value={tpl.value}
-                                onChange={(val: any) => updateTemplate({ value: val })}
-                                onRelationChange={(_prop: any, _item: any, val: any) => updateTemplate({ value: val })}
-                                collections={collections}
-                                currentItem={{}}
-                                size="md"
-                                readOnly={false}
-                              />
-                            )}
-                          </div>
-                        ) : type === 'select' || type === 'multi_select' ? (
-                          <FormSelect value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: e.target.value })} className="rounded text-sm">
-                            <option value="">Sélectionner...</option>
-                            {(options || []).map((opt: any) => {
-                              const optValue = typeof opt === 'string' ? opt : opt.value;
-                              const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
-                              return <option key={optValue} value={optValue}>{optLabel}</option>;
-                            })}
-                          </FormSelect>
-                        ) : type === 'checkbox' ? (
-                          <FormSelect value={tpl.value === true ? 'true' : tpl.value === false ? 'false' : ''} onChange={(e) => updateTemplate({ value: e.target.value === 'true' })} className="rounded text-sm">
-                            <option value="">Sélectionner...</option>
-                            <option value="true">Coché</option>
-                            <option value="false">Décoché</option>
-                          </FormSelect>
-                        ) : (
-                          <FormInput type={type === 'number' ? 'number' : 'text'} value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: type === 'number' ? Number(e.target.value) : e.target.value })} className="rounded text-sm" />
-                        )}
+                        </div>
+                        <div>
+                          <TinyLabel>Vaut</TinyLabel>
+                          {sourceType === 'select' || sourceType === 'multi_select' ? (
+                            <FormSelect value={tpl.when?.value ?? ''} onChange={(e) => updateWhen({ value: e.target.value })} className="rounded text-sm">
+                              <option value="">Sélectionner...</option>
+                              {(sourceProp?.options || []).map((opt: any) => {
+                                const optValue = typeof opt === 'string' ? opt : opt.value;
+                                const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
+                                return <option key={optValue} value={optValue}>{optLabel}</option>;
+                              })}
+                            </FormSelect>
+                          ) : sourceType === 'checkbox' ? (
+                            <FormSelect value={tpl.when?.value === true ? 'true' : tpl.when?.value === false ? 'false' : ''} onChange={(e) => updateWhen({ value: e.target.value === 'true' })} className="rounded text-sm">
+                              <option value="">Sélectionner...</option>
+                              <option value="true">Oui</option>
+                              <option value="false">Non</option>
+                            </FormSelect>
+                          ) : sourceType === 'number' ? (
+                            <FormInput type="number" value={tpl.when?.value ?? ''} onChange={(e) => updateWhen({ value: e.target.value === '' ? '' : Number(e.target.value) })} className="rounded text-sm" />
+                          ) : (
+                            <FormInput type="text" value={tpl.when?.value ?? ''} onChange={(e) => updateWhen({ value: e.target.value })} className="rounded text-sm" />
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setDefaultTemplates((prev) => prev.filter((_, i) => i !== index))}
-                      className="mt-1 px-2 py-2 rounded bg-red-500/10 text-red-600 hover:bg-red-500/20 shrink-0"
-                      title="Supprimer"
-                    >
-                      <Icons.Trash2 size={14} />
-                    </button>
+                    {/* Résultat */}
+                    <div className="px-3 pb-3 pt-2 border-t border-black/10 dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.03]">
+                      <span className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider block mb-2">→ Définir à</span>
+                      {type === 'rich_text' ? (
+                        <RichTextEditor value={tpl.value} onChange={(val) => updateTemplate({ value: val })} className="bg-gray-200 dark:bg-neutral-800/50" />
+                      ) : type === 'date' || type === 'date_range' ? (
+                        <div className="space-y-2">
+                          <FormInput type="text" value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: e.target.value })} className="rounded text-sm" placeholder="Ex: {{now:month}}, {{now:year}}, {{now}}" />
+                          <FormHint>Templates: <code>{'{{now:month}}'}</code>, <code>{'{{now:year}}'}</code>, <code>{'{{now}}'}</code></FormHint>
+                        </div>
+                      ) : type === 'relation' ? (
+                        <div className="space-y-2">
+                          <FormCheckbox
+                            label={<><span className="text-neutral-700 dark:text-neutral-300">Groupage actuel</span><span className="text-xs text-neutral-500 ml-1">(rempli auto. si créé depuis un groupe)</span></>}
+                            checked={tpl.isCurrentGroupTemplate === true}
+                            onChange={(checked) => updateTemplate({ isCurrentGroupTemplate: checked, value: checked ? null : tpl.value })}
+                          />
+                          {!tpl.isCurrentGroupTemplate && (
+                            <EditableProperty
+                              property={{
+                                name,
+                                type,
+                                relation: relationTarget ? {
+                                  targetCollectionId: relationTarget,
+                                  type: relationType,
+                                  displayFieldIds: relationDisplayFieldIds,
+                                  filter: relationFilterField && relationFilterValue ? { fieldId: relationFilterField, value: relationFilterValue } : undefined
+                                } : undefined
+                              }}
+                              value={tpl.value}
+                              onChange={(val: any) => updateTemplate({ value: val })}
+                              onRelationChange={(_prop: any, _item: any, val: any) => updateTemplate({ value: val })}
+                              collections={collections}
+                              currentItem={{}}
+                              size="md"
+                              readOnly={false}
+                            />
+                          )}
+                        </div>
+                      ) : type === 'select' || type === 'multi_select' ? (
+                        <FormSelect value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: e.target.value })} className="rounded text-sm">
+                          <option value="">Sélectionner...</option>
+                          {(options || []).map((opt: any) => {
+                            const optValue = typeof opt === 'string' ? opt : opt.value;
+                            const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.value);
+                            return <option key={optValue} value={optValue}>{optLabel}</option>;
+                          })}
+                        </FormSelect>
+                      ) : type === 'checkbox' ? (
+                        <FormSelect value={tpl.value === true ? 'true' : tpl.value === false ? 'false' : ''} onChange={(e) => updateTemplate({ value: e.target.value === 'true' })} className="rounded text-sm">
+                          <option value="">Sélectionner...</option>
+                          <option value="true">Coché</option>
+                          <option value="false">Décoché</option>
+                        </FormSelect>
+                      ) : (
+                        <FormInput type={type === 'number' ? 'number' : 'text'} value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: type === 'number' ? Number(e.target.value) : e.target.value })} className="rounded text-sm" />
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })()}
+            </>
+          )}
         </div>
 
         {/* Configuration par type — Select / Multi-select */}
