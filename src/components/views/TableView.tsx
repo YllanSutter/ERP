@@ -280,7 +280,6 @@ const TableView: React.FC<TableViewProps> = ({
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [dragItemId, setDragItemId] = useState<string | null>(null);
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
-  const [performanceMode, setPerformanceMode] = useState<boolean>(items.length >= 600);
   const [rowsPerPage, setRowsPerPage] = useState<number>(50);
   const [page, setPage] = useState<number>(1);
   const [activeSubGroupPathByRoot, setActiveSubGroupPathByRoot] = useState<Record<string, string>>({});
@@ -748,10 +747,16 @@ const TableView: React.FC<TableViewProps> = ({
     setSelectedItemIds(new Set());
   }, [showSelectionColumn]);
 
-  const canReorderRows = canEdit && !sortState.column && !performanceMode;
+  const canReorderRows = canEdit && !sortState.column;
 
   const sortedFlatItems = useMemo(() => sortItems(items), [items, sortItems]);
-  const totalPages = Math.max(1, Math.ceil(sortedFlatItems.length / rowsPerPage));
+  const maxGroupItemCount = useMemo(() => {
+    if (!groupedStructure || groups.length === 0) return 0;
+    return Math.max(1, ...Object.values(groupedStructure.structure).map((g: any) => g.itemIds.length));
+  }, [groupedStructure, groups]);
+  const totalPages = Math.max(1, Math.ceil(
+    groups.length > 0 ? maxGroupItemCount / rowsPerPage : sortedFlatItems.length / rowsPerPage
+  ));
   const effectivePage = Math.min(page, totalPages);
   const paginatedFlatItems = useMemo(() => {
     const start = (effectivePage - 1) * rowsPerPage;
@@ -761,7 +766,7 @@ const TableView: React.FC<TableViewProps> = ({
 
   useEffect(() => {
     setPage(1);
-  }, [collection?.id, rowsPerPage, sortState.column, sortState.direction]);
+  }, [collection?.id, rowsPerPage, sortState.column, sortState.direction, groups.join(','), groups.length]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -985,15 +990,6 @@ const TableView: React.FC<TableViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className={`px-2 py-1 rounded text-xs border ${performanceMode ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-white dark:bg-neutral-900 border-black/10 dark:border-white/10'}`}
-              onClick={() => setPerformanceMode((prev) => !prev)}
-              title="Réduit les coûts d'affichage sur les gros datasets (pagination + rendu simplifié)"
-            >
-              {performanceMode ? 'Mode performance ON' : 'Mode performance OFF'}
-            </button>
-
             <label className="text-xs text-neutral-600 dark:text-neutral-300">Lignes/page</label>
             <select
               className="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900"
@@ -1164,6 +1160,7 @@ const TableView: React.FC<TableViewProps> = ({
               depthOffset={hideCurrentHeader ? -1 : 0}
               topTotalRenderMode={topTotalRenderMode}
               groupRowLimit={groups.length > 0 ? rowsPerPage : undefined}
+              groupRowOffset={groups.length > 0 ? (effectivePage - 1) * rowsPerPage : 0}
               onCreateItemInGroup={(groupPath) => {
                 const prefill = buildGroupPrefill(groupPath, groups, collection.properties || []);
                 onShowNewItemModal?.(prefill);
@@ -1348,7 +1345,7 @@ const TableView: React.FC<TableViewProps> = ({
           );
           const rootGroupColumnsClassName = getGroupColumnsClassName(rootGroupColumnCount);
 
-          if (!groupedStructure || (performanceMode && groups.length === 0)) {
+          if (!groupedStructure) {
             return renderTableShell(
               renderFlatRows(paginatedFlatItems),
               paginatedFlatItems,
