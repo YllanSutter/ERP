@@ -298,7 +298,7 @@ const App = () => {
     const props = currentCollection.properties || [];
     const nameField = props.find((p: any) => p.name === 'Nom' || p.id === 'name') || props[0];
     const baseName = currentCollection.name ? `Nouveau ${currentCollection.name}` : 'Nouvel élément';
-    let item: any = { ...(prefill || {}) };
+    let item: any = { ...(groupContext || {}), ...(prefill || {}) };
     if (nameField && !item[nameField.id]) item[nameField.id] = baseName;
 
     props.forEach((prop: any) => {

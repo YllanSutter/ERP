@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import ShinyButton from '@/components/ui/ShinyButton';
+import ModalWrapper from '@/components/ui/ModalWrapper';
 import { TableGroupDisplayMode, TableGroupColumnCount } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -192,18 +191,19 @@ const GroupModal: React.FC<GroupModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]" onClick={onClose}>
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-6 min-w-[42rem] max-w-[90vw] max-h-[85vh] overflow-y-auto backdrop-blur"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-xl font-bold mb-2">Groupage</h3>
-        <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-4">
-          Configure les niveaux de groupage et les totaux par niveau.
-        </p>
-
+    <ModalWrapper
+      title={
+        <>
+          <h3 className="text-xl font-bold mb-2">Groupage</h3>
+          <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-4">
+            Configure les niveaux de groupage et les totaux par niveau.
+          </p>
+        </>
+      }
+      onClose={onClose}
+      onSave={handleSave}
+      className="p-6 min-w-[42rem] max-w-[90vw] max-h-[85vh]"
+    >
         <div className="space-y-3 mb-5">
           {rows.map((row, idx) => {
             const groupId = row.propertyId;
@@ -404,16 +404,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
           + Ajouter un niveau
         </button>
 
-        <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg">
-            Annuler
-          </button>
-          <ShinyButton onClick={handleSave} className="flex-1">
-            Enregistrer
-          </ShinyButton>
-        </div>
-      </motion.div>
-    </div>
+    </ModalWrapper>
   );
 };
 

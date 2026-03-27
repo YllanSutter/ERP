@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import ShinyButton from '@/components/ui/ShinyButton';
+import ModalWrapper from '@/components/ui/ModalWrapper';
 import { LightSelect } from '@/components/inputs/LightSelect';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -52,6 +51,24 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
   }, [selectedCollection, collections]);
   const isEditing = Boolean(initialFilter);
   const selectedProp = currentProperties.find((p: any) => p.id === property);
+
+  const handleSave = () => {
+    if (!property) return;
+    onAdd(
+      property,
+      operator,
+      prepareFilterValue(),
+      selectedCollection?.id,
+      selectedProp
+        ? {
+            isRelationLinkedColumn: Boolean(selectedProp.isRelationLinkedColumn),
+            sourceRelationPropertyId: selectedProp.sourceRelationPropertyId,
+            sourceDisplayFieldId: selectedProp.sourceDisplayFieldId,
+            sourceTargetCollectionId: selectedProp.sourceTargetCollectionId,
+          }
+        : undefined
+    );
+  };
   const nativeProperties = React.useMemo(
     () => currentProperties.filter((p: any) => !p?.isRelationLinkedColumn),
     [currentProperties]
@@ -476,9 +493,14 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
   };
 
   return (
-     <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[10]" onClick={onClose}>
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl p-8 min-w-96 max-w-3xl max-h-[80vh] overflow-y-auto backdrop-blur" onClick={e => e.stopPropagation()} >
-        <h3 className="text-xl font-bold mb-6">{isEditing ? 'Modifier un filtre' : 'Ajouter un filtre'}</h3>
+    <ModalWrapper
+      title={isEditing ? 'Modifier un filtre' : 'Ajouter un filtre'}
+      onClose={onClose}
+      onSave={handleSave}
+      saveLabel={isEditing ? 'Enregistrer' : 'Ajouter'}
+      canSave={Boolean(property)}
+      className="max-w-3xl"
+    >
         {/* Onglets collections */}
         <div className="flex flex-wrap gap-2 mb-5">
           {collections.map((col, idx) => (
@@ -544,33 +566,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
             {renderValueEditor()}
           </div>
         </div>
-        <div className="flex gap-3 mt-8">
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg">Annuler</button>
-          <ShinyButton
-            onClick={() =>
-              property &&
-              onAdd(
-                property,
-                operator,
-                prepareFilterValue(),
-                selectedCollection?.id,
-                selectedProp
-                  ? {
-                      isRelationLinkedColumn: Boolean(selectedProp.isRelationLinkedColumn),
-                      sourceRelationPropertyId: selectedProp.sourceRelationPropertyId,
-                      sourceDisplayFieldId: selectedProp.sourceDisplayFieldId,
-                      sourceTargetCollectionId: selectedProp.sourceTargetCollectionId,
-                    }
-                  : undefined
-              )
-            }
-            className="flex-1"
-          >
-            {isEditing ? 'Enregistrer' : 'Ajouter'}
-          </ShinyButton>
-        </div>
-      </motion.div>
-    </div>
+    </ModalWrapper>
   );
 };
 

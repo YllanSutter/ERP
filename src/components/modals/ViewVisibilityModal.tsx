@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Shield, Users } from 'lucide-react';
-import ShinyButton from '@/components/ui/ShinyButton';
+import ModalWrapper from '@/components/ui/ModalWrapper';
 
 interface ViewVisibilityModalProps {
   view: any;
@@ -50,20 +49,24 @@ const ViewVisibilityModal: React.FC<ViewVisibilityModalProps> = ({ view, roles, 
 
   const canSubmit = mode === 'all' || selectedRoles.length + selectedUsers.length > 0;
 
+  const header = (
+    <div className="flex items-center gap-3 mb-4">
+      <Shield size={18} className="text-cyan-400" />
+      <div>
+        <h3 className="text-lg font-semibold">Visibilité de la vue</h3>
+        <p className="text-sm text-neutral-500">{view.name}</p>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur flex items-center justify-center z-[200] px-4">
-      <motion.div
-        initial={{ scale: 0.96, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="w-full max-w-lg bg-neutral-900/90 border border-white/10 rounded-2xl shadow-2xl p-6 backdrop-blur"
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <Shield size={18} className="text-cyan-400" />
-          <div>
-            <h3 className="text-lg font-semibold">Visibilité de la vue</h3>
-            <p className="text-sm text-neutral-500">{view.name}</p>
-          </div>
-        </div>
+    <ModalWrapper
+      title={header}
+      onClose={onClose}
+      onSave={handleSave}
+      canSave={canSubmit}
+      className="w-full max-w-lg bg-neutral-900/90 border-white/10 p-6 shadow-2xl min-w-0"
+    >
 
         <div className="space-y-4 mb-4">
           <label className="flex items-center gap-3 p-3 rounded-lg border border-black/10 hover:border-black/20 dark:border-white/10 dark:hover:border-white/20 cursor-pointer">
@@ -149,19 +152,7 @@ const ViewVisibilityModal: React.FC<ViewVisibilityModalProps> = ({ view, roles, 
           <p className="text-xs text-amber-400 mt-2">Sélectionnez au moins un rôle ou utilisateur pour ne pas masquer la vue à tout le monde.</p>
         )}
 
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg transition"
-          >
-            Annuler
-          </button>
-          <ShinyButton onClick={handleSave} className={!canSubmit ? 'opacity-60 pointer-events-none' : ''}>
-            Enregistrer
-          </ShinyButton>
-        </div>
-      </motion.div>
-    </div>
+    </ModalWrapper>
   );
 };
 
