@@ -599,7 +599,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute top-full  -mt-2 right-0 w-72 bg-gray-200 dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-lg shadow-xl backdrop-blur z-[140] p-4"
+                  className="absolute top-full -mt-2 right-0 w-[420px] bg-gray-200 dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-lg shadow-xl backdrop-blur z-[140] p-4"
                 >
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold text-black dark:text-white">Colonnes visibles</h4>
@@ -610,7 +610,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                       <X size={14} />
                     </button>
                   </div>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                  <div className="max-h-80 overflow-y-auto">
                     {currentViewConfig?.type === 'calendar' && calendarCollections.length > 0 ? (
                       <div className="space-y-4">
                         {calendarCollections.map((col) => {
@@ -624,43 +624,55 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                           return (
                             <div key={col.id} className="rounded-lg border border-black/10 dark:border-white/10 p-2">
                               <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-2">{col.name}</div>
-                              <div className="space-y-2">
+                              <div className="grid grid-cols-2 gap-1">
                                 {viewable.map((prop: any) => {
                                   const isVisible = visibleIds.includes(prop.id);
+                                  const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
                                   return (
                                     <label
                                       key={prop.id}
-                                      className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300"
+                                      className="flex items-center gap-1.5 justify-between text-xs text-neutral-700 dark:text-neutral-300 p-1.5 rounded-md hover:bg-white/5 group cursor-pointer select-none"
                                     >
-                                      <input
-                                        type="checkbox"
-                                        checked={isVisible}
-                                        onChange={(e) => {
-                                          const next = e.target.checked
-                                            ? Array.from(new Set([...visibleIds, prop.id]))
-                                            : visibleIds.filter((id: string) => id !== prop.id);
-                                          const normalized = next.length ? next : (props[0] ? [props[0].id] : []);
-                                          onUpdateCollectionVisibleFields(col.id, normalized);
-                                        }}
-                                        className="accent-violet-500"
-                                      />
-                                      <span className="flex-1">{prop.name}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          if (!canEdit) return;
-                                          onEditProperty(prop);
-                                        }}
-                                        className="text-neutral-700 dark:text-neutral-300 hover:text-cyan-400 p-1 rounded hover:bg-dark/10 dark:hover:bg-white/10"
-                                        title="Modifier la propriété"
-                                      >
-                                        <Icons.Edit2 size={14} />
-                                      </button>
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <PropIcon size={13} className="text-neutral-400 shrink-0" />
+                                        <span className="truncate">{prop.name}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.preventDefault(); if (!canEdit) return; onEditProperty(prop); }}
+                                          className="opacity-0 group-hover:opacity-100 text-neutral-500 hover:text-cyan-400 p-0.5 rounded transition-opacity"
+                                          title="Modifier la propriété"
+                                        >
+                                          <Icons.Edit2 size={11} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          role="checkbox"
+                                          aria-checked={isVisible}
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            const next = isVisible
+                                              ? visibleIds.filter((id: string) => id !== prop.id)
+                                              : Array.from(new Set([...visibleIds, prop.id]));
+                                            const normalized = next.length ? next : (props[0] ? [props[0].id] : []);
+                                            onUpdateCollectionVisibleFields(col.id, normalized);
+                                          }}
+                                          className={cn(
+                                            'size-4 shrink-0 rounded-[4px] border flex items-center justify-center transition-colors',
+                                            isVisible
+                                              ? 'bg-violet-500 border-violet-500 text-white'
+                                              : 'border-neutral-400 dark:border-neutral-600 text-transparent'
+                                          )}
+                                        >
+                                          <Icons.Check size={10} strokeWidth={3} />
+                                        </button>
+                                      </div>
                                     </label>
                                   );
                                 })}
                                 {viewable.length === 0 && (
-                                  <div className="text-sm text-neutral-700 dark:text-neutral-300">Aucun champ visible.</div>
+                                  <div className="col-span-2 text-xs text-neutral-500">Aucun champ visible.</div>
                                 )}
                               </div>
                             </div>
@@ -677,57 +689,49 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                             .filter((id: string) => id !== ROW_SELECTION_FIELD_ID);
                           onUpdateViewFieldOrder(nextOrder);
                         }}
+                        renderContainer={(children) => (
+                          <div className="grid grid-cols-2 gap-1">{children}</div>
+                        )}
                         renderItem={(prop: any, { isDragging }) => {
                           const isHidden = currentViewConfig?.hiddenFields?.includes(prop.id);
                           const isSystemOption = prop.id === ROW_SELECTION_FIELD_ID;
+                          const PropIcon = isSystemOption ? Icons.Square : ((Icons as any)[prop.icon] || Icons.Tag);
                           return (
                             <div
                               className={cn(
-                                'flex items-center gap-3 text-sm text-neutral-700 dark:text-neutral-300 p-2 transition-colors hover:bg-white/5  border-b border-[#ffffff20]',
-                                isDragging && 'border border-cyan-500/60'
+                                'flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300 p-1.5 rounded-md transition-colors hover:bg-white/5 group select-none',
+                                isDragging && 'opacity-50'
                               )}
                             >
                               {!isSystemOption ? (
-                                <div className="text-neutral-700 dark:text-neutral-300 cursor-grab">
-                                  <Icons.GripVertical size={16} />
-                                </div>
+                                <Icons.GripVertical size={13} className="text-neutral-500 shrink-0" />
                               ) : (
-                                <div className="text-neutral-400 dark:text-neutral-500">
-                                  <Icons.Square size={16} />
-                                </div>
+                                <div className="w-[13px] shrink-0" />
                               )}
-                              <div className="relative flex items-center">
-                                <input
-                                  type="checkbox"
-                                  checked={!isHidden}
-                                  onChange={() => onToggleFieldVisibility(prop.id)}
-                                  className="peer h-4 w-4 appearance-none rounded border-2 border-black/20 dark:border-white/20 bg-background dark:bg-neutral-800 checked:bg-neutral-100  checked:border-transparent transition-all cursor-pointer"
-                                />
-                                <svg
-                                  className="absolute left-0.5 top-0.5 h-3 w-3 text-neutral-700 dark:text-neutral-300 pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                  strokeWidth={3}
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span>{prop.name}</span>
-                              </div>
+                              <PropIcon size={13} className="text-neutral-400 shrink-0" />
+                              <span className="flex-1 truncate">{prop.name}</span>
                               {!isSystemOption && (
                                 <button
-                                  onClick={() => {
-                                    if (!canEdit) return;
-                                    onEditProperty(prop);
-                                  }}
-                                  className="ml-auto text-neutral-700 dark:text-neutral-300 hover:text-cyan-400 p-1 rounded hover:bg-white/10"
+                                  onClick={(e) => { e.stopPropagation(); if (!canEdit) return; onEditProperty(prop); }}
+                                  className="opacity-0 group-hover:opacity-100 text-neutral-500 hover:text-cyan-400 p-0.5 rounded transition-opacity shrink-0"
                                   title="Modifier la propriété"
                                 >
-                                  <Icons.Edit2 size={14} />
+                                  <Icons.Edit2 size={11} />
                                 </button>
                               )}
+                              <button
+                                role="checkbox"
+                                aria-checked={!isHidden}
+                                onClick={(e) => { e.stopPropagation(); onToggleFieldVisibility(prop.id); }}
+                                className={cn(
+                                  'size-4 shrink-0 rounded-[4px] border flex items-center justify-center transition-colors',
+                                  !isHidden
+                                    ? 'bg-violet-500 border-violet-500 text-white'
+                                    : 'border-neutral-400 dark:border-neutral-600 text-transparent'
+                                )}
+                              >
+                                <Icons.Check size={10} strokeWidth={3} />
+                              </button>
                             </div>
                           );
                         }}
