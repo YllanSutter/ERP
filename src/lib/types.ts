@@ -108,4 +108,5 @@ export interface TableViewProps {
   onSetTotalField?: (fieldId: string, totalType: string | null) => void;
   onBulkImportItad?: (itemIds: string[]) => Promise<void>;
   onGroupContextChange?: (prefill: Record<string, any> | null) => void;
+  onReorderField?: (newOrder: string[]) => void;
 }

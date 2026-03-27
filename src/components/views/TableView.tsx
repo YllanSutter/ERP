@@ -73,6 +73,7 @@ const TableView: React.FC<TableViewProps> = ({
   onSetTotalField,
   onBulkImportItad,
   onGroupContextChange,
+  onReorderField,
 }) => {
     const normalizeGroupColumnCount = useCallback((count: any): 1 | 2 | 3 => {
       return count === 1 || count === 2 || count === 3 ? count : 3;
@@ -83,6 +84,18 @@ const TableView: React.FC<TableViewProps> = ({
       if (count === 2) return 'grid-cols-1 lg:grid-cols-2';
       return 'grid-cols-1 md:grid-cols-2 2xl:grid-cols-3';
     }, []);
+
+  const handleReorderField = useCallback((fromId: string, toId: string) => {
+    if (!onReorderField) return;
+    const ids = orderedProperties.map((p) => p.id);
+    const fromIdx = ids.indexOf(fromId);
+    const toIdx = ids.indexOf(toId);
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+    const next = [...ids];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    onReorderField(next);
+  }, [orderedProperties, onReorderField]);
 
   // Guard: si pas de collection, ne rien afficher
   if (!collection) {
@@ -1130,6 +1143,7 @@ const TableView: React.FC<TableViewProps> = ({
               onDeleteProperty={onDeleteProperty}
               onDuplicateProperty={onDuplicateProperty}
               onToggleTotalField={onSetTotalField}
+              onReorderField={onReorderField ? handleReorderField : undefined}
               canEdit={canEdit}
               canEditField={canEditFieldFn}
               sortItems={sortItems}
@@ -1256,6 +1270,7 @@ const TableView: React.FC<TableViewProps> = ({
                   onToggleSelectAll={handleScopedToggleSelectAll}
                   totalFields={totalFields}
                   onToggleTotalField={onSetTotalField}
+                  onReorderField={onReorderField ? handleReorderField : undefined}
                 />
                 <tbody className="divide-y divide-white/5">{body}</tbody>
                 {showBottomTotalsByDefault && Object.keys(totalFields).length > 0 && (footerItems || items).length > 0 && (
@@ -1550,6 +1565,7 @@ const TableView: React.FC<TableViewProps> = ({
                           onDeleteProperty={onDeleteProperty}
                           onDuplicateProperty={onDuplicateProperty}
                           onToggleTotalField={onSetTotalField}
+                          onReorderField={onReorderField ? handleReorderField : undefined}
                           canEdit={canEdit}
                           canEditField={canEditFieldFn}
                           sortItems={sortItems}

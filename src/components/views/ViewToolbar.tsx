@@ -624,14 +624,14 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                           return (
                             <div key={col.id} className="rounded-lg border border-black/10 dark:border-white/10 p-2">
                               <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-2">{col.name}</div>
-                              <div className="grid grid-cols-2 gap-1">
+                              <div className="columns-2 gap-1">
                                 {viewable.map((prop: any) => {
                                   const isVisible = visibleIds.includes(prop.id);
                                   const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
                                   return (
                                     <label
                                       key={prop.id}
-                                      className="flex items-center gap-1.5 justify-between text-xs text-neutral-700 dark:text-neutral-300 p-1.5 rounded-md hover:bg-white/5 group cursor-pointer select-none"
+                                      className="break-inside-avoid mb-1 flex items-center gap-1.5 justify-between text-xs text-neutral-700 dark:text-neutral-300 p-1.5 rounded-md hover:bg-white/5 group cursor-pointer select-none"
                                     >
                                       <div className="flex items-center gap-1.5 min-w-0">
                                         <PropIcon size={13} className="text-neutral-400 shrink-0" />
@@ -690,7 +690,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                           onUpdateViewFieldOrder(nextOrder);
                         }}
                         renderContainer={(children) => (
-                          <div className="grid grid-cols-2 gap-1">{children}</div>
+                          <div className="columns-2 gap-1">{children}</div>
                         )}
                         renderItem={(prop: any, { isDragging }) => {
                           const isHidden = currentViewConfig?.hiddenFields?.includes(prop.id);
@@ -699,7 +699,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                           return (
                             <div
                               className={cn(
-                                'flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300 p-1.5 rounded-md transition-colors hover:bg-white/5 group select-none',
+                                'break-inside-avoid flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300 p-1.5 rounded-md transition-colors hover:bg-white/5 group select-none mb-1',
                                 isDragging && 'opacity-50'
                               )}
                             >

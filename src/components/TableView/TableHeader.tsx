@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import * as Icons from 'lucide-react';
 import { Property } from '@/lib/types';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
@@ -33,6 +33,7 @@ export interface TableHeaderProps {
   enableDragReorder?: boolean;
   totalFields?: Record<string, string>;
   onToggleTotalField?: (fieldId: string, totalType: string | null) => void;
+  onReorderField?: (fromId: string, toId: string) => void;
 }
 
 const TableHeader: React.FC<TableHeaderProps> = ({
@@ -54,8 +55,11 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   enableDragReorder = false,
   totalFields = {},
   onToggleTotalField,
+  onReorderField,
 }) => {
   const canEdit = useCanEdit(collectionId);
+  const [dragColId, setDragColId] = useState<string | null>(null);
+  const [overColId, setOverColId] = useState<string | null>(null);
   // Exclure les propriétés en menu contextuel de l'affichage du header
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
   const numberProperties = (allProperties || visibleProperties).filter((p: any) => p.type === 'number');
@@ -275,11 +279,24 @@ const TableHeader: React.FC<TableHeaderProps> = ({
             <ContextMenu key={prop.id}>
               <ContextMenuTrigger asChild>
                 <th
+                  draggable={!!onReorderField}
                   className={
                     "px-3 py-2 text-left text-[11px] font-medium text-neutral-600 dark:text-white uppercase tracking-wider border-b border-r border-[#ffffff10] cursor-pointer select-none transition hover:bg-violet-100/30 dark:hover:bg-violet-900/10" +
-                    (isSorted ? ' bg-violet-200/40 dark:bg-violet-900/30' : '')
+                    (isSorted ? ' bg-violet-200/40 dark:bg-violet-900/30' : '') +
+                    (overColId === prop.id && dragColId !== prop.id ? ' border-l-2 border-l-violet-500' : '')
                   }
                   onClick={() => onSort && onSort(prop.id)}
+                  onDragStart={() => setDragColId(prop.id)}
+                  onDragEnter={() => setOverColId(prop.id)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => {
+                    if (dragColId && dragColId !== prop.id && onReorderField) {
+                      onReorderField(dragColId, prop.id);
+                    }
+                    setDragColId(null);
+                    setOverColId(null);
+                  }}
+                  onDragEnd={() => { setDragColId(null); setOverColId(null); }}
                 >
                   <div className="flex items-center gap-1.5 font-black leading-tight">
                     <PropIcon size={12} />

@@ -39,6 +39,7 @@ interface GroupRendererProps {
   onDeleteProperty: (propId: string) => void;
   onDuplicateProperty?: (propId: string, options?: { copyValues?: boolean }) => void;
   onToggleTotalField?: (fieldId: string, totalType: string | null) => void;
+  onReorderField?: (fromId: string, toId: string) => void;
   canEdit: boolean;
   canEditField: (fieldId: string) => boolean;
   sortItems?: (arr: any[]) => any[];
@@ -94,6 +95,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   onDeleteProperty,
   onDuplicateProperty,
   onToggleTotalField,
+  onReorderField,
   canEdit,
   canEditField,
   sortItems,
@@ -367,6 +369,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               onToggleSelectAll={handleNestedToggleSelectAll}
               totalFields={totalFields}
               onToggleTotalField={onToggleTotalField}
+              onReorderField={onReorderField}
             />
           )}
           <tbody className="divide-y divide-white/5">
@@ -400,6 +403,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               onDeleteProperty={onDeleteProperty}
               onDuplicateProperty={onDuplicateProperty}
               onToggleTotalField={onToggleTotalField}
+              onReorderField={onReorderField}
               canEdit={canEdit}
               canEditField={canEditField}
               sortItems={sortItems}

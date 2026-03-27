@@ -904,6 +904,7 @@ const App = () => {
                       viewHooks.updateView(activeView, { totalFields: nextTotalFields });
                     }}
                     onBulkImportItad={isSteamPluginActive ? handleBulkImportItad : undefined}
+                    onReorderField={viewHooks.updateViewFieldOrder}
                   />
                 )}
                 {activeViewConfig?.type === 'kanban' && (
