@@ -923,24 +923,7 @@ const TableView: React.FC<TableViewProps> = ({
     <>
       {/* ─── Section totaux (globaux + par groupe) ────────────────────────── */}
       {Object.keys(totalFields).length > 0 && items.length > 0 && (() => {
-        const rootGroupId = groups[0];
-        const rootGroupTotalConfig = rootGroupId ? (groupTotalsByGroupId[rootGroupId] ?? {}) : {};
-        const topRootGroupMode: 'accordion' | 'columns' | 'tabs' | 'select' =
-          (groups[0] && (groupDisplayModes as any)?.[groups[0]]) || groupDisplayMode || 'accordion';
-        const topActiveRootPath =
-          topRootGroupMode === 'select'
-            ? (activeGroupSelectByDepth[0] || rootGroups[0] || '')
-            : (activeGroupTab || rootGroups[0] || '');
-        const topActiveSubPath =
-          topRootGroupMode === 'select'
-            ? (activeGroupSelectByDepth[1] || '')
-            : (activeSubGroupPathByRoot[topActiveRootPath] || '');
-        const shouldShowTopTotalsSection =
-          groups.length === 0
-            ? true
-            : rootGroupTotalConfig.enabled !== false && rootGroupTotalConfig.position !== 'bottom';
-
-        if (!shouldShowTopTotalsSection && !showTotalsWidget) return null;
+        if (!showTotalsWidget) return null;
 
         // Traverser récursivement tous les niveaux de groupes
         const buildGroupedSections = () => {
@@ -953,15 +936,12 @@ const TableView: React.FC<TableViewProps> = ({
             if (!node) return;
             const groupPropertyId = groups[depth];
             const groupProp = orderedProperties.find((p: any) => p.id === groupPropertyId);
-            const groupTotalConfig = groupPropertyId ? (groupTotalsByGroupId[groupPropertyId] ?? {}) : {};
-            const shouldShowThisLevelInTop =
-              groupTotalConfig.enabled !== false && groupTotalConfig.position !== 'bottom';
             const rawValue = path.split('/').pop() || path;
             const label = groupProp
               ? String(getGroupLabel(groupProp, rawValue === '(vide)' ? undefined : rawValue, collections))
               : rawValue;
             const groupItems = getItemsForGroupPath(path);
-            if (groupItems.length > 0 && shouldShowThisLevelInTop) {
+            if (groupItems.length > 0) {
               sections.push({ path, label, items: groupItems, depth, propertyName: groupProp?.name ?? '' });
             }
             node.subGroups.forEach((subPath: string) => traverse(subPath, depth + 1));
@@ -974,35 +954,15 @@ const TableView: React.FC<TableViewProps> = ({
         const groupedSections = buildGroupedSections();
 
         return (
-          <>
-            {showTotalsWidget && (
-              <TotalsWidget
-                displayProperties={displayProperties}
-                items={items}
-                totalFields={totalFields}
-                calculateTotal={calculateTotal}
-                formatTotal={formatTotal}
-                groupedSections={groupedSections}
-                persistKey={`table-view:${collection?.id || 'unknown'}`}
-              />
-            )}
-            {shouldShowTopTotalsSection && (
-              <TotalsBar
-                displayProperties={displayProperties}
-                items={items}
-                totalFields={totalFields}
-                calculateTotal={calculateTotal}
-                formatTotal={formatTotal}
-                variant="section"
-                groupedSections={groupedSections}
-                activeRootPath={topActiveRootPath}
-                activeSubPath={topActiveSubPath}
-                hideGroupSelectors={groups.length > 0}
-                allowGroupSelectorToggle={groups.length > 0}
-                persistKey={`table-view:${collection?.id || 'unknown'}`}
-              />
-            )}
-          </>
+          <TotalsWidget
+            displayProperties={displayProperties}
+            items={items}
+            totalFields={totalFields}
+            calculateTotal={calculateTotal}
+            formatTotal={formatTotal}
+            groupedSections={groupedSections}
+            persistKey={`table-view:${collection?.id || 'unknown'}`}
+          />
         );
       })()}
 

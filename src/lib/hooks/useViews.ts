@@ -39,22 +39,33 @@ export const useViews = (
 
   const addFilter = (property: string, operator: string, value: any, sourceCollectionId?: string, filterMeta?: any) => {
     if (!activeCollection) return;
-    const updatedViews = { ...views } as Record<string, any[]>;
-    const viewIndex = updatedViews[activeCollection].findIndex((v: any) => v.id === activeView);
-    updatedViews[activeCollection][viewIndex].filters.push({ property, operator, value, sourceCollectionId, ...(filterMeta || {}) });
-    setViews(updatedViews);
+    const collectionViews = views[activeCollection] || [];
+    const viewIndex = collectionViews.findIndex((v: any) => v.id === activeView);
+    if (viewIndex === -1) return;
+    const view = collectionViews[viewIndex];
+    const updatedView = {
+      ...view,
+      filters: [...(view.filters || []), { property, operator, value, sourceCollectionId, ...(filterMeta || {}) }],
+    };
+    const updatedCollection = [...collectionViews];
+    updatedCollection[viewIndex] = updatedView;
+    setViews({ ...views, [activeCollection]: updatedCollection });
   };
 
   const updateFilter = (index: number, property: string, operator: string, value: any, sourceCollectionId?: string, filterMeta?: any) => {
     if (!activeCollection) return;
-    const updatedViews = { ...views } as Record<string, any[]>;
-    const viewIndex = updatedViews[activeCollection].findIndex((v: any) => v.id === activeView);
+    const collectionViews = views[activeCollection] || [];
+    const viewIndex = collectionViews.findIndex((v: any) => v.id === activeView);
     if (viewIndex === -1) return;
-    const filters = updatedViews[activeCollection][viewIndex].filters || [];
+    const view = collectionViews[viewIndex];
+    const filters = view.filters || [];
     if (!filters[index]) return;
-    filters[index] = { property, operator, value, sourceCollectionId, ...(filterMeta || {}) };
-    updatedViews[activeCollection][viewIndex].filters = filters;
-    setViews(updatedViews);
+    const updatedFilters = [...filters];
+    updatedFilters[index] = { property, operator, value, sourceCollectionId, ...(filterMeta || {}) };
+    const updatedView = { ...view, filters: updatedFilters };
+    const updatedCollection = [...collectionViews];
+    updatedCollection[viewIndex] = updatedView;
+    setViews({ ...views, [activeCollection]: updatedCollection });
   };
 
   const updateViewVisibility = (viewId: string, roleIds: string[], userIds: string[]) => {
@@ -72,10 +83,15 @@ export const useViews = (
 
   const removeFilter = (index: number) => {
     if (!activeCollection) return;
-    const updatedViews = { ...views } as Record<string, any[]>;
-    const viewIndex = updatedViews[activeCollection].findIndex((v: any) => v.id === activeView);
-    updatedViews[activeCollection][viewIndex].filters.splice(index, 1);
-    setViews(updatedViews);
+    const collectionViews = views[activeCollection] || [];
+    const viewIndex = collectionViews.findIndex((v: any) => v.id === activeView);
+    if (viewIndex === -1) return;
+    const view = collectionViews[viewIndex];
+    const updatedFilters = (view.filters || []).filter((_: any, i: number) => i !== index);
+    const updatedView = { ...view, filters: updatedFilters };
+    const updatedCollection = [...collectionViews];
+    updatedCollection[viewIndex] = updatedView;
+    setViews({ ...views, [activeCollection]: updatedCollection });
   };
 
   const addGroup = (property: string) => {

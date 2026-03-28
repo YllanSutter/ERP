@@ -1,5 +1,9 @@
 import React from 'react';
 import {
+  BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer,
+  PieChart, Pie, Tooltip as RechartsTooltip,
+} from 'recharts';
+import {
   Sigma,
   Hash,
   BarChart2,
@@ -8,50 +12,63 @@ import {
   SquareCheck,
   Square,
   Link2,
-  PieChart,
+  PieChart as PieIcon,
   Fingerprint,
+  BarChart3,
+  Donut,
+  TableProperties,
+  ChevronDown,
+  Settings2,
   type LucideIcon,
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { Property } from '@/lib/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Méta-données (identiques à TotalsBar)
+// Palette de couleurs pour les groupes
+// ─────────────────────────────────────────────────────────────────────────────
+const CHART_PALETTE = [
+  '#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626',
+  '#0891b2', '#9333ea', '#65a30d', '#c2410c', '#0f766e',
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Méta-données par type de total
 // ─────────────────────────────────────────────────────────────────────────────
 interface TotalMeta {
   Icon: LucideIcon;
   label: string;
   iconColorClass: string;
   valueColorClass: string;
+  accentHex: string;
 }
 
 const TOTAL_META: Record<string, TotalMeta> = {
-  sum:          { Icon: Sigma,        label: 'Somme',      iconColorClass: 'text-violet-500 dark:text-violet-400', valueColorClass: 'text-violet-700 dark:text-violet-300' },
-  avg:          { Icon: BarChart2,    label: 'Moyenne',    iconColorClass: 'text-blue-500 dark:text-blue-400',     valueColorClass: 'text-blue-700 dark:text-blue-300' },
-  min:          { Icon: TrendingDown, label: 'Minimum',    iconColorClass: 'text-emerald-500 dark:text-emerald-400', valueColorClass: 'text-emerald-700 dark:text-emerald-300' },
-  max:          { Icon: TrendingUp,   label: 'Maximum',    iconColorClass: 'text-orange-500 dark:text-orange-400', valueColorClass: 'text-orange-700 dark:text-orange-300' },
-  count:        { Icon: Hash,         label: 'Nb lignes',  iconColorClass: 'text-neutral-400 dark:text-neutral-500', valueColorClass: 'text-neutral-700 dark:text-neutral-300' },
-  unique:       { Icon: Fingerprint,  label: 'Uniques',    iconColorClass: 'text-teal-500 dark:text-teal-400',     valueColorClass: 'text-teal-700 dark:text-teal-300' },
-  'count-true': { Icon: SquareCheck,  label: 'Cochés',     iconColorClass: 'text-green-500 dark:text-green-400',   valueColorClass: 'text-green-700 dark:text-green-300' },
-  'count-false':{ Icon: Square,       label: 'Non cochés', iconColorClass: 'text-rose-400 dark:text-rose-400',     valueColorClass: 'text-rose-600 dark:text-rose-300' },
-  'count-linked':{ Icon: Link2,       label: 'Liés',       iconColorClass: 'text-indigo-500 dark:text-indigo-400', valueColorClass: 'text-indigo-700 dark:text-indigo-300' },
+  sum:          { Icon: Sigma,        label: 'Somme',      iconColorClass: 'text-violet-400', valueColorClass: 'text-violet-300', accentHex: '#7c3aed' },
+  avg:          { Icon: BarChart2,    label: 'Moyenne',    iconColorClass: 'text-blue-400',   valueColorClass: 'text-blue-300',   accentHex: '#2563eb' },
+  min:          { Icon: TrendingDown, label: 'Minimum',    iconColorClass: 'text-emerald-400',valueColorClass: 'text-emerald-300',accentHex: '#059669' },
+  max:          { Icon: TrendingUp,   label: 'Maximum',    iconColorClass: 'text-orange-400', valueColorClass: 'text-orange-300', accentHex: '#d97706' },
+  count:        { Icon: Hash,         label: 'Nb lignes',  iconColorClass: 'text-neutral-400',valueColorClass: 'text-neutral-300',accentHex: '#6b7280' },
+  unique:       { Icon: Fingerprint,  label: 'Uniques',    iconColorClass: 'text-teal-400',   valueColorClass: 'text-teal-300',   accentHex: '#0891b2' },
+  'count-true': { Icon: SquareCheck,  label: 'Cochés',     iconColorClass: 'text-green-400',  valueColorClass: 'text-green-300',  accentHex: '#16a34a' },
+  'count-false':{ Icon: Square,       label: 'Non cochés', iconColorClass: 'text-rose-400',   valueColorClass: 'text-rose-300',   accentHex: '#dc2626' },
+  'count-linked':{ Icon: Link2,       label: 'Liés',       iconColorClass: 'text-indigo-400', valueColorClass: 'text-indigo-300', accentHex: '#4f46e5' },
 };
 
 const LINKED_PROGRESS_META: TotalMeta = {
-  Icon: PieChart, label: 'Payé / Reste',
-  iconColorClass: 'text-violet-500 dark:text-violet-400',
-  valueColorClass: 'text-violet-700 dark:text-violet-300',
+  Icon: PieIcon, label: 'Payé / Reste',
+  iconColorClass: 'text-violet-400', valueColorClass: 'text-violet-300', accentHex: '#7c3aed',
 };
 
 const DEFAULT_META: TotalMeta = {
   Icon: Hash, label: 'Total',
-  iconColorClass: 'text-neutral-400 dark:text-neutral-500',
-  valueColorClass: 'text-neutral-700 dark:text-neutral-300',
+  iconColorClass: 'text-neutral-400', valueColorClass: 'text-neutral-300', accentHex: '#6b7280',
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Props
+// Props (rétrocompatibles)
 // ─────────────────────────────────────────────────────────────────────────────
 export interface TotalsWidgetProps {
   displayProperties: Property[];
@@ -60,7 +77,6 @@ export interface TotalsWidgetProps {
   calculateTotal: (fieldId: string, items: any[], totalType: string) => any;
   formatTotal: (fieldId: string, total: any, totalType: string) => string;
   groupedSections?: Array<{ path?: string; label: string; items: any[]; depth: number; propertyName: string }>;
-  /** Clé de persistance pour expand/collapse */
   persistKey?: string;
   className?: string;
 }
@@ -77,8 +93,92 @@ function flattenTree(nodes: any[], depth = 0): FlatRow[] {
   ]);
 }
 
+function buildGroupedTree(groupedSections: Array<any>) {
+  type Node = { id: string; label: string; items: any[]; depth: number; propertyName: string; children: Node[] };
+  const roots: Node[] = [];
+  const stack: Node[] = [];
+  groupedSections.forEach((section, index) => {
+    const node: Node = {
+      id: section.path || `section-${index}`,
+      label: section.label,
+      items: section.items,
+      depth: section.depth,
+      propertyName: section.propertyName,
+      children: [],
+    };
+    while (stack.length > section.depth) stack.pop();
+    const parent = section.depth > 0 ? stack[section.depth - 1] : undefined;
+    if (parent) parent.children.push(node);
+    else roots.push(node);
+    stack[section.depth] = node;
+  });
+  return roots;
+}
+
+function normalizeTotalType(rawType: string): string {
+  if (typeof rawType !== 'string') return rawType;
+  if (!rawType.startsWith('number-filter:')) return rawType;
+  return rawType.split(':')[1] || rawType;
+}
+
+function splitFilterHint(text: string): { visible: string; hint: string } {
+  const match = String(text || '').match(/^(.*)\s\((hors .+)\)$/i);
+  if (!match) return { visible: text, hint: '' };
+  return { visible: match[1], hint: match[2] };
+}
+
+function getMeta(totalType: string): TotalMeta {
+  if (typeof totalType === 'string' && totalType.startsWith('linked-progress:')) return LINKED_PROGRESS_META;
+  return TOTAL_META[normalizeTotalType(totalType)] ?? DEFAULT_META;
+}
+
+function toRawNumber(val: any): number {
+  let n: number;
+  if (typeof val === 'number') {
+    n = val;
+  } else if (typeof val === 'string') {
+    n = parseFloat(val.replace(/[^\d.,-]/g, '').replace(',', '.'));
+    if (isNaN(n)) return 0;
+  } else {
+    return 0;
+  }
+  // Arrondi à 2 décimales max
+  return Math.round(n * 100) / 100;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Composant
+// Module types
+// ─────────────────────────────────────────────────────────────────────────────
+type ModuleKey = 'stats' | 'bar' | 'donut' | 'table';
+
+interface DepthLevel { depth: number; propertyName: string }
+
+const MODULE_META: Record<ModuleKey, { Icon: LucideIcon; label: string }> = {
+  stats:  { Icon: BarChart3 as LucideIcon,      label: 'Cartes'       },
+  bar:    { Icon: BarChart2,       label: 'Barres'       },
+  donut:  { Icon: Donut as LucideIcon,           label: 'Répartition'  },
+  table:  { Icon: TableProperties, label: 'Tableau'      },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Custom Tooltip recharts
+// ─────────────────────────────────────────────────────────────────────────────
+const DarkTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-[#1a1a1f] border border-white/[0.08] rounded-lg px-3 py-2 shadow-2xl text-xs">
+      <p className="text-neutral-300 font-medium mb-1 truncate max-w-[180px]">{label}</p>
+      {payload.map((entry: any, i: number) => (
+        <p key={i} className="tabular-nums" style={{ color: entry.fill || entry.color }}>
+          {entry.name}: <span className="font-bold">{entry.value}</span>
+        </p>
+      ))}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Composant principal
 // ─────────────────────────────────────────────────────────────────────────────
 const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   displayProperties,
@@ -92,223 +192,534 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 }) => {
   const activeTotals = displayProperties.filter((p: any) => totalFields[p.id]);
 
-  const normalizeTotalType = React.useCallback((rawType: string) => {
-    if (typeof rawType !== 'string') return rawType;
-    if (!rawType.startsWith('number-filter:')) return rawType;
-    return rawType.split(':')[1] || rawType;
-  }, []);
-
-  const splitFilterHint = React.useCallback((text: string) => {
-    const match = String(text || '').match(/^(.*)\s\((hors .+)\)$/i);
-    if (!match) return { visible: text, hint: '' };
-    return { visible: match[1], hint: match[2] };
-  }, []);
-
-  const getMeta = React.useCallback(
-    (totalType: string): TotalMeta => {
-      if (typeof totalType === 'string' && totalType.startsWith('linked-progress:')) return LINKED_PROGRESS_META;
-      return TOTAL_META[normalizeTotalType(totalType)] ?? DEFAULT_META;
-    },
-    [normalizeTotalType]
+  // ── Groupes aplatis ───────────────────────────────────────────────────────
+  const groupedTree = React.useMemo(
+    () => buildGroupedTree(groupedSections || []),
+    [groupedSections]
   );
-
-  // ── Persist expand/collapse ───────────────────────────────────────────────
-  const [expanded, setExpanded] = React.useState(true);
-
-  React.useEffect(() => {
-    if (!persistKey) return;
-    try {
-      const raw = localStorage.getItem(`totalswidget:${persistKey}:expanded`);
-      if (raw === '0') setExpanded(false);
-      if (raw === '1') setExpanded(true);
-    } catch { /* no-op */ }
-  }, [persistKey]);
-
-  React.useEffect(() => {
-    if (!persistKey) return;
-    try {
-      localStorage.setItem(`totalswidget:${persistKey}:expanded`, expanded ? '1' : '0');
-    } catch { /* no-op */ }
-  }, [persistKey, expanded]);
-
-  // ── Arbre de groupes ──────────────────────────────────────────────────────
-  const groupedTree = React.useMemo(() => {
-    const raw = groupedSections || [];
-    type Node = { id: string; label: string; items: any[]; depth: number; propertyName: string; children: Node[] };
-    const roots: Node[] = [];
-    const stack: Node[] = [];
-
-    raw.forEach((section, index) => {
-      const node: Node = {
-        id: section.path || `section-${index}`,
-        label: section.label,
-        items: section.items,
-        depth: section.depth,
-        propertyName: section.propertyName,
-        children: [],
-      };
-      while (stack.length > section.depth) stack.pop();
-      const parent = section.depth > 0 ? stack[section.depth - 1] : undefined;
-      if (parent) parent.children.push(node);
-      else roots.push(node);
-      stack[section.depth] = node;
-    });
-
-    return roots;
-  }, [groupedSections]);
-
   const flatRows = React.useMemo(() => flattenTree(groupedTree), [groupedTree]);
   const hasGroups = flatRows.length > 0;
 
+  // ── Niveaux de groupage disponibles ──────────────────────────────────────
+  const depthLevels = React.useMemo<DepthLevel[]>(() => {
+    if (!groupedSections?.length) return [];
+    const seen = new Map<number, string>();
+    groupedSections.forEach((s) => {
+      if (!seen.has(s.depth)) seen.set(s.depth, s.propertyName);
+    });
+    return Array.from(seen.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([depth, propertyName]) => ({ depth, propertyName }));
+  }, [groupedSections]);
+
+  // ── État persisté ─────────────────────────────────────────────────────────
+  const [expanded, setExpanded] = React.useState(true);
+  const [modules, setModules] = React.useState<Record<ModuleKey, boolean>>({
+    stats: true,
+    bar: true,
+    donut: hasGroups,
+    table: false,
+  });
+  const [activeMetricId, setActiveMetricId] = React.useState<string>('');
+  const [activeDepth, setActiveDepth] = React.useState<number>(0);
+
+  // Initialisation activeMetricId
+  React.useEffect(() => {
+    if (!activeMetricId && activeTotals.length > 0) {
+      setActiveMetricId(activeTotals[0].id);
+    }
+  }, [activeTotals, activeMetricId]);
+
+  // Restore depuis localStorage
+  React.useEffect(() => {
+    if (!persistKey) return;
+    try {
+      const raw = localStorage.getItem(`totalswidget2:${persistKey}`);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved.expanded !== undefined) setExpanded(saved.expanded);
+      if (saved.modules) setModules((prev) => ({ ...prev, ...saved.modules }));
+      if (saved.activeMetricId) setActiveMetricId(saved.activeMetricId);
+      if (saved.activeDepth !== undefined) setActiveDepth(saved.activeDepth);
+    } catch { /* no-op */ }
+  }, [persistKey]);
+
+  // Persister
+  React.useEffect(() => {
+    if (!persistKey) return;
+    try {
+      localStorage.setItem(
+        `totalswidget2:${persistKey}`,
+        JSON.stringify({ expanded, modules, activeMetricId, activeDepth })
+      );
+    } catch { /* no-op */ }
+  }, [persistKey, expanded, modules, activeMetricId, activeDepth]);
+
+  // ── Garde ─────────────────────────────────────────────────────────────────
   if (activeTotals.length === 0 || items.length === 0) return null;
 
-  // ── Rendu d'une valeur ────────────────────────────────────────────────────
-  const renderValue = (prop: any, sourceItems: any[]) => {
+  // Lignes du niveau sélectionné
+  const levelRows = React.useMemo(
+    () => flatRows.filter((r) => r.depth === activeDepth),
+    [flatRows, activeDepth]
+  );
+
+  // ── Données cartes ────────────────────────────────────────────────────────
+  const statCards = activeTotals.map((prop: any) => {
     const totalType = totalFields[prop.id];
     const meta = getMeta(totalType);
-    const total = calculateTotal(prop.id, sourceItems, totalType);
+    const total = calculateTotal(prop.id, items, totalType);
     const formatted = formatTotal(prop.id, total, totalType);
-    const { visible, hint } = splitFilterHint(formatted || '');
-    const accentColor = prop?.color;
-    const valueStyle = accentColor ? { color: accentColor } : undefined;
+    const { visible } = splitFilterHint(formatted || '');
+    const PropIcon = (Icons as any)[prop.icon] || meta.Icon;
+    const accent = prop?.color || meta.accentHex;
 
-    const el = (
-      <span className={`font-semibold tabular-nums text-xs ${meta.valueColorClass}`} style={valueStyle}>
-        {visible || '—'}
-      </span>
-    );
+    // Sparkbar : valeurs du niveau actif
+    const groupValues = hasGroups
+      ? levelRows.map((r) => toRawNumber(calculateTotal(prop.id, r.items, totalType)))
+      : [];
+    const maxGroupVal = groupValues.length ? Math.max(...groupValues, 0.001) : 1;
 
-    if (!hint) return el;
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{el}</TooltipTrigger>
-        <TooltipContent side="top">{hint}</TooltipContent>
-      </Tooltip>
-    );
+    return { prop, meta, total, visible, PropIcon, accent, groupValues, maxGroupVal, totalType };
+  });
+
+  // ── Données bar chart ─────────────────────────────────────────────────────
+  const activeProp = activeTotals.find((p: any) => p.id === activeMetricId) || activeTotals[0];
+  const barData = React.useMemo(() => {
+    if (!activeProp || !hasGroups) return [];
+    const totalType = totalFields[activeProp.id];
+    return levelRows
+      .map((row, i) => {
+        const raw = calculateTotal(activeProp.id, row.items, totalType);
+        const numVal = toRawNumber(raw);
+        const formatted = formatTotal(activeProp.id, raw, totalType);
+        const { visible } = splitFilterHint(formatted || '');
+        return {
+          name: row.label,
+          value: numVal,
+          displayValue: visible,
+          fill: CHART_PALETTE[i % CHART_PALETTE.length],
+        };
+      })
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 12);
+  }, [activeProp, levelRows, totalFields, calculateTotal, formatTotal, hasGroups]);
+
+  // ── Données donut (suit la métrique active) ───────────────────────────────
+  const donutData = React.useMemo(() => {
+    if (!hasGroups || !activeProp) return [];
+    const totalType = totalFields[activeProp.id];
+    const isNumericMetric = ['sum', 'avg', 'min', 'max'].includes(normalizeTotalType(totalType));
+    return levelRows
+      .map((row, i) => {
+        const value = isNumericMetric
+          ? toRawNumber(calculateTotal(activeProp.id, row.items, totalType))
+          : row.items.length;
+        return { name: row.label, value, fill: CHART_PALETTE[i % CHART_PALETTE.length] };
+      })
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+  }, [levelRows, hasGroups, activeProp, totalFields, calculateTotal]);
+
+  // ── Toggle module ─────────────────────────────────────────────────────────
+  const toggleModule = (key: ModuleKey) => {
+    setModules((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const activeModuleCount = Object.values(modules).filter(Boolean).length;
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div
-      className={`rounded-xl border border-black/8 dark:border-white/8 bg-white/70 dark:bg-neutral-900/60 shadow-sm overflow-hidden mb-3 ${className}`}
-    >
-      {/* En-tête */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-black/6 dark:border-white/6 bg-neutral-50/80 dark:bg-neutral-800/50">
-        <Sigma size={12} className="text-neutral-400 dark:text-neutral-500 shrink-0" />
-        <span className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-400 select-none">
-          Vue d'ensemble
-        </span>
-        <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
-          — {items.length} élément{items.length > 1 ? 's' : ''}
-        </span>
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="ml-auto inline-flex items-center justify-center h-5 w-5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-          aria-label={expanded ? 'Réduire' : 'Développer'}
-        >
-          <svg
-            width="12" height="12" viewBox="0 0 12 12" fill="none"
-            className={`text-neutral-400 transition-transform duration-150 ${expanded ? '' : '-rotate-90'}`}
+    <div className={cn('rounded-xl overflow-hidden mb-3 border border-white/[0.07] bg-[#0d0d10] shadow-2xl', className)}>
+
+      {/* ── En-tête ─────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/[0.06]">
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          <Sigma size={12} className="text-violet-400 shrink-0" />
+          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400 select-none whitespace-nowrap">
+            Vue d'ensemble
+          </span>
+          <span className="text-[10px] text-neutral-600 whitespace-nowrap">
+            · {items.length} ligne{items.length > 1 ? 's' : ''}
+          </span>
+
+          {/* Onglets niveaux de groupage */}
+          {depthLevels.length > 1 && (
+            <div className="flex items-center gap-0.5 ml-2 bg-white/[0.04] rounded-lg p-0.5">
+              {depthLevels.map(({ depth, propertyName }) => (
+                <button
+                  key={depth}
+                  type="button"
+                  onClick={() => setActiveDepth(depth)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-md text-[10px] font-medium transition-all whitespace-nowrap',
+                    activeDepth === depth
+                      ? 'bg-violet-600/30 text-violet-300 border border-violet-500/20'
+                      : 'text-neutral-500 hover:text-neutral-300 border border-transparent'
+                  )}
+                >
+                  {propertyName || `Niveau ${depth + 1}`}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1 ml-auto shrink-0">
+          {/* Toggles de modules */}
+          <div className="flex items-center gap-0.5 bg-white/[0.04] rounded-lg p-1 mr-1">
+            {(Object.entries(MODULE_META) as [ModuleKey, typeof MODULE_META[ModuleKey]][]).map(([key, { Icon, label }]) => {
+              if ((key === 'bar' || key === 'donut') && !hasGroups) return null;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleModule(key)}
+                  title={label}
+                  className={cn(
+                    'p-1.5 rounded-md transition-all',
+                    modules[key]
+                      ? 'bg-violet-600/30 text-violet-300'
+                      : 'text-neutral-600 hover:text-neutral-400'
+                  )}
+                >
+                  <Icon size={12} />
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="p-1.5 rounded-md text-neutral-600 hover:text-neutral-300 hover:bg-white/[0.05] transition-all"
           >
-            <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
+            <ChevronDown
+              size={13}
+              className={cn('transition-transform duration-200', expanded ? '' : '-rotate-90')}
+            />
+          </button>
+        </div>
       </div>
 
       {expanded && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
-            {/* En-têtes colonnes */}
-            <thead>
-              <tr className="border-b border-black/6 dark:border-white/6">
-                {hasGroups && (
-                  <th className="px-4 py-2 text-left font-medium text-neutral-400 dark:text-neutral-500 w-48 min-w-[130px] bg-neutral-50/80 dark:bg-neutral-800/40">
-                    Groupe
-                  </th>
-                )}
-                <TooltipProvider>
-                  {activeTotals.map((prop: any) => {
-                    const meta = getMeta(totalFields[prop.id]);
-                    const { Icon, iconColorClass } = meta;
-                    const PropIcon = (Icons as any)[prop.icon] || Icon;
-                    const accentStyle = prop?.color ? { color: prop.color } : undefined;
-                    return (
-                      <th
-                        key={prop.id}
-                        className="px-3 py-2 text-left font-medium min-w-[90px] bg-neutral-50/80 dark:bg-neutral-800/40"
-                      >
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center gap-1.5 cursor-default">
-                              <PropIcon size={11} className={iconColorClass} style={accentStyle} />
-                              <span className="text-neutral-600 dark:text-neutral-300 truncate max-w-[100px]">
-                                {prop.name}
-                              </span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">{meta.label}</TooltipContent>
-                        </Tooltip>
-                      </th>
-                    );
-                  })}
-                </TooltipProvider>
-              </tr>
-            </thead>
+        <div className="p-4 space-y-4">
 
-            <tbody>
-              {/* Ligne Total général */}
-              <tr className="border-b border-black/6 dark:border-white/6 bg-neutral-50/40 dark:bg-neutral-800/20">
-                {hasGroups && (
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <Sigma size={9} className="text-neutral-400 dark:text-neutral-500 shrink-0" />
-                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">Total</span>
-                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500">({items.length})</span>
-                    </div>
-                  </td>
-                )}
-                <TooltipProvider>
-                  {activeTotals.map((prop: any) => (
-                    <td key={prop.id} className="px-3 py-2.5">
-                      {renderValue(prop, items)}
-                    </td>
-                  ))}
-                </TooltipProvider>
-              </tr>
-
-              {/* Lignes par groupe */}
-              {flatRows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-black/[0.04] dark:border-white/[0.04] hover:bg-neutral-50/60 dark:hover:bg-white/[0.02] transition-colors"
+          {/* ── Module 1 : Cartes de stats ─────────────────────────────── */}
+          {modules.stats && (
+            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(190px, 1fr))` }}>
+              {statCards.map(({ prop, meta, visible, PropIcon, accent, groupValues, maxGroupVal }) => (
+                <button
+                  key={prop.id}
+                  type="button"
+                  onClick={() => setActiveMetricId(prop.id)}
+                  className={cn(
+                    'relative overflow-hidden rounded-xl border text-left transition-all group',
+                    activeMetricId === prop.id
+                      ? 'border-white/[0.12] bg-white/[0.05] ring-1 ring-violet-500/30'
+                      : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.1] hover:bg-white/[0.04]'
+                  )}
                 >
-                  <td
-                    className="py-2 text-neutral-600 dark:text-neutral-300"
-                    style={{ paddingLeft: `${16 + row.depth * 18}px` }}
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      {row.depth > 0 && (
-                        <span className="text-neutral-300 dark:text-neutral-600 select-none shrink-0" style={{ fontSize: 10 }}>
-                          └
-                        </span>
-                      )}
-                      <span className="truncate max-w-[160px]">{row.label}</span>
-                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500 shrink-0">
-                        ({row.items.length})
+                  {/* Bande colorée gauche */}
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-[3px]"
+                    style={{ backgroundColor: accent }}
+                  />
+
+                  <div className="pl-4 pr-3 py-3">
+                    {/* Label */}
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <PropIcon size={11} style={{ color: accent }} />
+                      <span className="text-[10px] font-medium uppercase tracking-widest text-neutral-500 truncate">
+                        {prop.name}
+                      </span>
+                      <span
+                        className="ml-auto text-[9px] uppercase tracking-widest shrink-0"
+                        style={{ color: accent + 'aa' }}
+                      >
+                        {meta.label}
                       </span>
                     </div>
-                  </td>
-                  <TooltipProvider>
-                    {activeTotals.map((prop: any) => (
-                      <td key={prop.id} className="px-3 py-2">
-                        {renderValue(prop, row.items)}
-                      </td>
-                    ))}
-                  </TooltipProvider>
-                </tr>
+
+                    {/* Valeur */}
+                    <div className="text-xl font-bold tabular-nums text-white truncate">
+                      {visible || '—'}
+                    </div>
+
+                    {/* Mini sparkbars */}
+                    {groupValues.length > 1 && (
+                      <div className="flex items-end gap-0.5 mt-2.5 h-5">
+                        {groupValues.slice(0, 12).map((v, i) => (
+                          <div
+                            key={i}
+                            className="flex-1 rounded-sm min-w-[3px] transition-opacity"
+                            style={{
+                              height: `${Math.max(10, (v / maxGroupVal) * 100)}%`,
+                              backgroundColor: accent,
+                              opacity: activeMetricId === prop.id ? 0.7 : 0.3,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </button>
               ))}
-            </tbody>
-          </table>
+            </div>
+          )}
+
+          {/* ── Modules graphiques (si groupes) ───────────────────────── */}
+          {hasGroups && (modules.bar || modules.donut) && (
+            <div className={cn('grid gap-4', modules.bar && modules.donut ? 'grid-cols-1 xl:grid-cols-[2fr_1fr]' : 'grid-cols-1')}>
+
+              {/* Bar chart */}
+              {modules.bar && barData.length > 0 && (
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                  {/* Sélecteur de métrique */}
+                  <div className="flex items-center gap-2 mb-4 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-widest text-neutral-600">Métrique :</span>
+                    {activeTotals.map((prop: any) => {
+                      const meta = getMeta(totalFields[prop.id]);
+                      const accent = prop?.color || meta.accentHex;
+                      return (
+                        <button
+                          key={prop.id}
+                          type="button"
+                          onClick={() => setActiveMetricId(prop.id)}
+                          className={cn(
+                            'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border transition-all',
+                            activeMetricId === prop.id
+                              ? 'border-white/10 text-white'
+                              : 'border-white/[0.05] text-neutral-500 hover:text-neutral-300'
+                          )}
+                          style={activeMetricId === prop.id ? { backgroundColor: accent + '22', borderColor: accent + '55', color: accent } : undefined}
+                        >
+                          {prop.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <ResponsiveContainer width="100%" height={Math.min(240, Math.max(120, barData.length * 28))}>
+                    <BarChart
+                      data={barData}
+                      layout="vertical"
+                      margin={{ top: 0, right: 48, bottom: 0, left: 0 }}
+                      barCategoryGap="30%"
+                    >
+                      <XAxis
+                        type="number"
+                        tick={{ fill: '#4b5563', fontSize: 10 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={120}
+                        tick={{ fill: '#9ca3af', fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 14) + '…' : v}
+                      />
+                      <RechartsTooltip
+                        content={<DarkTooltip />}
+                        cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                      />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={20}>
+                        {barData.map((entry, i) => (
+                          <Cell key={i} fill={entry.fill} fillOpacity={0.85} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* Donut */}
+              {modules.donut && donutData.length > 0 && (
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                  <p className="text-[10px] uppercase tracking-widest text-neutral-600 mb-3">
+                    Répartition
+                    {activeProp && (
+                      <span className="ml-1.5 normal-case tracking-normal text-neutral-700">
+                        — {activeProp.name}
+                      </span>
+                    )}
+                  </p>
+                  <div className="flex flex-col xl:flex-row items-center gap-4">
+                    <ResponsiveContainer width={140} height={140}>
+                      <PieChart>
+                        <Pie
+                          data={donutData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={42}
+                          outerRadius={65}
+                          paddingAngle={2}
+                          dataKey="value"
+                          strokeWidth={0}
+                        >
+                          {donutData.map((entry, i) => (
+                            <Cell key={i} fill={entry.fill} fillOpacity={0.85} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip
+                          content={<DarkTooltip />}
+                          cursor={false}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+
+                    {/* Légende */}
+                    <div className="flex-1 space-y-1.5 min-w-0 w-full xl:w-auto">
+                      {(() => {
+                        const totalDonutValue = donutData.reduce((acc, d) => acc + d.value, 0);
+                        const isNumericMetric = activeProp && ['sum', 'avg', 'min', 'max'].includes(
+                          normalizeTotalType(totalFields[activeProp.id])
+                        );
+                        return donutData.slice(0, 8).map((entry) => {
+                          const pct = totalDonutValue > 0 ? Math.round((entry.value / totalDonutValue) * 100) : 0;
+                          const displayValue = isNumericMetric
+                            ? formatTotal(activeProp!.id, entry.value, totalFields[activeProp!.id])
+                            : String(entry.value);
+                          const { visible: visibleVal } = splitFilterHint(displayValue || '');
+                          return (
+                            <div key={entry.name} className="flex items-center gap-2 text-[11px]">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entry.fill }} />
+                              <span className="text-neutral-400 truncate flex-1 min-w-0">{entry.name}</span>
+                              <span className="text-neutral-500 tabular-nums shrink-0">{visibleVal}</span>
+                              <span className="text-neutral-600 tabular-nums shrink-0 w-8 text-right">{pct}%</span>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Module 4 : Tableau ─────────────────────────────────────── */}
+          {modules.table && (
+            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+              <TooltipProvider>
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                      {hasGroups && (
+                        <th className="px-4 py-2.5 text-left font-medium text-neutral-500 w-40 min-w-[120px]">
+                          Groupe
+                        </th>
+                      )}
+                      {activeTotals.map((prop: any) => {
+                        const meta = getMeta(totalFields[prop.id]);
+                        const PropIcon = (Icons as any)[prop.icon] || meta.Icon;
+                        const accentStyle = prop?.color ? { color: prop.color } : undefined;
+                        return (
+                          <th key={prop.id} className="px-3 py-2.5 text-left font-medium min-w-[90px]">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-1.5 cursor-default">
+                                  <PropIcon size={11} className={meta.iconColorClass} style={accentStyle} />
+                                  <span className="text-neutral-400 truncate max-w-[90px]">{prop.name}</span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">{meta.label}</TooltipContent>
+                            </Tooltip>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {/* Ligne Total */}
+                    <tr className="border-b border-white/[0.04] bg-white/[0.015]">
+                      {hasGroups && (
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <Sigma size={9} className="text-neutral-500 shrink-0" />
+                            <span className="font-semibold text-neutral-200">Total</span>
+                            <span className="text-[10px] text-neutral-600">({items.length})</span>
+                          </div>
+                        </td>
+                      )}
+                      {activeTotals.map((prop: any) => {
+                        const totalType = totalFields[prop.id];
+                        const meta = getMeta(totalType);
+                        const total = calculateTotal(prop.id, items, totalType);
+                        const formatted = formatTotal(prop.id, total, totalType);
+                        const { visible, hint } = splitFilterHint(formatted || '');
+                        const accentColor = prop?.color;
+                        const valStyle = accentColor ? { color: accentColor } : undefined;
+                        const el = (
+                          <span className={cn('font-semibold tabular-nums', meta.valueColorClass)} style={valStyle}>
+                            {visible || '—'}
+                          </span>
+                        );
+                        return (
+                          <td key={prop.id} className="px-3 py-2.5">
+                            {hint ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>{el}</TooltipTrigger>
+                                <TooltipContent side="top">{hint}</TooltipContent>
+                              </Tooltip>
+                            ) : el}
+                          </td>
+                        );
+                      })}
+                    </tr>
+
+                    {/* Lignes par groupe */}
+                    {flatRows.map((row) => (
+                      <tr
+                        key={row.id}
+                        className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors"
+                      >
+                        <td className="py-2 text-neutral-400" style={{ paddingLeft: `${16 + row.depth * 18}px` }}>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {row.depth > 0 && (
+                              <span className="text-neutral-700 shrink-0 text-[10px]">└</span>
+                            )}
+                            <span className="truncate max-w-[150px]">{row.label}</span>
+                            <span className="text-[10px] text-neutral-600 shrink-0">({row.items.length})</span>
+                          </div>
+                        </td>
+                        {activeTotals.map((prop: any) => {
+                          const totalType = totalFields[prop.id];
+                          const meta = getMeta(totalType);
+                          const total = calculateTotal(prop.id, row.items, totalType);
+                          const formatted = formatTotal(prop.id, total, totalType);
+                          const { visible, hint } = splitFilterHint(formatted || '');
+                          const accentColor = prop?.color;
+                          const valStyle = accentColor ? { color: accentColor } : undefined;
+                          const el = (
+                            <span className={cn('tabular-nums text-xs', meta.valueColorClass)} style={valStyle}>
+                              {visible || '—'}
+                            </span>
+                          );
+                          return (
+                            <td key={prop.id} className="px-3 py-2">
+                              {hint ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>{el}</TooltipTrigger>
+                                  <TooltipContent side="top">{hint}</TooltipContent>
+                                </Tooltip>
+                              ) : el}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TooltipProvider>
+            </div>
+          )}
+
         </div>
       )}
     </div>
