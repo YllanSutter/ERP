@@ -372,8 +372,25 @@ export function useErpSync({
             });
             if (res.ok) {
               console.log(`[useErpSync] Full POST succeeded`);
-              lastSavedPayloadRef.current = fullPayloadStr;
-              lastSavedCollectionsRef.current = cleanedCollections;
+              const result = await res.json().catch(() => ({}));
+
+              // Si des automations ont créé de nouveaux items côté serveur,
+              // le serveur renvoie les collections complètes mises à jour.
+              // On les applique directement pour que le client les voie aussitôt
+              // (le client filtre son propre event socket stateUpdated, donc sans
+              // ce mécanisme les items automation ne seraient jamais affichés).
+              if (result?.automationCollections) {
+                console.log(`[useErpSync] Applying automation-created collections from server`);
+                setCollections(result.automationCollections);
+                lastSavedCollectionsRef.current = result.automationCollections;
+                lastSavedPayloadRef.current = JSON.stringify({
+                  ...fullPayload,
+                  collections: result.automationCollections,
+                });
+              } else {
+                lastSavedPayloadRef.current = fullPayloadStr;
+                lastSavedCollectionsRef.current = cleanedCollections;
+              }
               lastSavedStructureRef.current = currentStructureStr;
             } else {
               console.error(`[useErpSync] Full POST failed with status ${res.status}`);

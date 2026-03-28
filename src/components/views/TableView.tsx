@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Plus, Zap } from 'lucide-react';
+import { Plus, Zap, Sigma } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useGrouping } from '@/lib/hooks/useGrouping';
 import { TableViewProps } from '@/lib/types';
@@ -7,6 +7,7 @@ import GroupRenderer from '@/components/TableView/GroupRenderer';
 import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
 import TotalsBar from '@/components/TableView/TotalsBar';
+import TotalsWidget from '@/components/TableView/TotalsWidget';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
@@ -314,6 +315,9 @@ const TableView: React.FC<TableViewProps> = ({
     [orderedProperties, groups]
   );
   const [activeGroupTab, setActiveGroupTab] = useState('');
+  const [showTotalsWidget, setShowTotalsWidget] = useState(() => {
+    try { return localStorage.getItem(`totalswidget:show:${collection?.id || 'unknown'}`) === '1'; } catch { return false; }
+  });
   const [activeGroupSelectByDepth, setActiveGroupSelectByDepth] = useState<Record<number, string>>({});
   const rootTabsStorageKey = useMemo(
     () => `erp:table:root-tabs:${collection?.id || 'unknown'}:${groups.join('|')}`,
@@ -929,7 +933,7 @@ const TableView: React.FC<TableViewProps> = ({
             ? true
             : rootGroupTotalConfig.enabled !== false && rootGroupTotalConfig.position !== 'bottom';
 
-        if (!shouldShowTopTotalsSection) return null;
+        if (!shouldShowTopTotalsSection && !showTotalsWidget) return null;
 
         // Traverser récursivement tous les niveaux de groupes
         const buildGroupedSections = () => {
@@ -960,21 +964,38 @@ const TableView: React.FC<TableViewProps> = ({
           return sections.length > 0 ? sections : undefined;
         };
 
+        const groupedSections = buildGroupedSections();
+
         return (
-          <TotalsBar
-            displayProperties={displayProperties}
-            items={items}
-            totalFields={totalFields}
-            calculateTotal={calculateTotal}
-            formatTotal={formatTotal}
-            variant="section"
-            groupedSections={buildGroupedSections()}
-            activeRootPath={topActiveRootPath}
-            activeSubPath={topActiveSubPath}
-            hideGroupSelectors={groups.length > 0}
-            allowGroupSelectorToggle={groups.length > 0}
-            persistKey={`table-view:${collection?.id || 'unknown'}`}
-          />
+          <>
+            {showTotalsWidget && (
+              <TotalsWidget
+                displayProperties={displayProperties}
+                items={items}
+                totalFields={totalFields}
+                calculateTotal={calculateTotal}
+                formatTotal={formatTotal}
+                groupedSections={groupedSections}
+                persistKey={`table-view:${collection?.id || 'unknown'}`}
+              />
+            )}
+            {shouldShowTopTotalsSection && (
+              <TotalsBar
+                displayProperties={displayProperties}
+                items={items}
+                totalFields={totalFields}
+                calculateTotal={calculateTotal}
+                formatTotal={formatTotal}
+                variant="section"
+                groupedSections={groupedSections}
+                activeRootPath={topActiveRootPath}
+                activeSubPath={topActiveSubPath}
+                hideGroupSelectors={groups.length > 0}
+                allowGroupSelectorToggle={groups.length > 0}
+                persistKey={`table-view:${collection?.id || 'unknown'}`}
+              />
+            )}
+          </>
         );
       })()}
 
@@ -990,6 +1011,21 @@ const TableView: React.FC<TableViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {Object.keys(totalFields).length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowTotalsWidget((v) => {
+                  const next = !v;
+                  try { localStorage.setItem(`totalswidget:show:${collection?.id || 'unknown'}`, next ? '1' : '0'); } catch { /* no-op */ }
+                  return next;
+                })}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs border transition-colors ${showTotalsWidget ? 'bg-violet-50 border-violet-200 text-violet-700 dark:bg-violet-900/20 dark:border-violet-800/60 dark:text-violet-300' : 'border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'}`}
+                title={showTotalsWidget ? 'Masquer le tableau de totaux' : 'Afficher le tableau de totaux'}
+              >
+                <Sigma size={11} />
+                <span>Tableau</span>
+              </button>
+            )}
             <label className="text-xs text-neutral-600 dark:text-neutral-300">Lignes/page</label>
             <select
               className="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900"

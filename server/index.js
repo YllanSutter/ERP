@@ -29,10 +29,12 @@ import {
 import { bootstrapDatabase } from './services/dbBootstrap.js';
 import { setupSocketPresence } from './services/socketPresence.js';
 import {
+  DEFAULT_CALENDAR_CONFIG,
   getCalendarConfigForUser,
   shouldRecalculateSegments,
   calculateEventSegments,
 } from './services/calendarSegmentsService.js';
+import { registerAutomationRoutes } from './routes/automationRoutes.js';
 import { createAuditLogger } from './services/auditService.js';
 import { createAuthAccessService } from './services/authAccessService.js';
 import { createUserOrganizationService } from './services/userOrganizationService.js';
@@ -381,7 +383,10 @@ registerStateRoutes({
   shouldRecalculateSegments,
   calculateEventSegments,
   logAudit,
+  defaultCalendarConfig: DEFAULT_CALENDAR_CONFIG,
 });
+
+registerAutomationRoutes({ app, requireAuth, requirePermission, pool });
 
 // Serve static files from the dist folder
 app.use(express.static(path.join(__dirname, '../dist')));

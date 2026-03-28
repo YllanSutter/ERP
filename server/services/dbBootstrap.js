@@ -247,6 +247,21 @@ export const bootstrapDatabase = async ({ pool, ensureDefaultOrganization }) => 
     );
   `);
 
+  // Automations
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS automations (
+      id UUID PRIMARY KEY,
+      organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+      name TEXT NOT NULL DEFAULT 'Nouvelle automation',
+      enabled BOOLEAN DEFAULT TRUE,
+      trigger_data JSONB NOT NULL DEFAULT '{}',
+      actions_data JSONB NOT NULL DEFAULT '[]',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS automations_org_idx ON automations (organization_id);');
+
   const firstUser = await pool.query('SELECT id FROM users ORDER BY created_at ASC, id ASC LIMIT 1');
   if (firstUser.rowCount > 0) {
     await ensureDefaultOrganization(firstUser.rows[0].id);

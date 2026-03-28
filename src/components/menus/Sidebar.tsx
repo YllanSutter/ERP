@@ -8,7 +8,8 @@ import {
   LayoutDashboard,
   Plus,
   Copy,
-  Trash
+  Trash,
+  Zap,
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -47,6 +48,8 @@ interface SidebarProps {
   onCreateCollection: () => void;
   onDeleteDashboard: (dashboardId: string) => void;
   onDuplicateDashboard: (dashboardId: string) => void;
+  onShowAutomations: () => void;
+  showAutomations?: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -66,6 +69,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onCreateCollection,
   onDeleteDashboard,
   onDuplicateDashboard,
+  onShowAutomations,
+  showAutomations,
 }) => {
   const [expandedFavorites, setExpandedFavorites] = useState(true);
   const { state } = useSidebar();
@@ -434,6 +439,30 @@ const Sidebar: React.FC<SidebarProps> = ({
             )}
           </SidebarGroup>
         ))}
+        {/* ── Automations ── */}
+        <SidebarGroup className="mt-auto pt-2 border-t border-black/5 dark:border-white/5">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={onShowAutomations}
+                  isActive={showAutomations}
+                  tooltip="Automations"
+                  size="default"
+                  className={cn(
+                    sharedButtonClass,
+                    showAutomations && 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400'
+                  )}
+                >
+                  <Zap size={16} className={showAutomations ? 'text-yellow-500' : 'text-neutral-500 dark:text-white'} />
+                  {!collapsed && (
+                    <span className="text-[13px] font-medium">Automations</span>
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
     </SidebarRoot>
   );

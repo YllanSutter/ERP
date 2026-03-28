@@ -154,14 +154,15 @@ export const useItems = (
 
     let updatedCollections = collections.map((col) => {
       if (col.id === targetCollectionId) {
-        const exists = col.items.some((i: any) => i.id === newItem.id);
+        const colItems = col.items || [];
+        const exists = colItems.some((i: any) => i.id === newItem.id);
         if (isEdition || exists) {
           return {
             ...col,
-            items: col.items.map((i: any) => (i.id === newItem.id ? newItem : i))
+            items: colItems.map((i: any) => (i.id === newItem.id ? newItem : i))
           };
         }
-        return { ...col, items: [...col.items, newItem] };
+        return { ...col, items: [...colItems, newItem] };
       }
       return col;
     });

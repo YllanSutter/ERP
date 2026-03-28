@@ -147,11 +147,11 @@ export interface TotalsBarProps {
    * Chaque entrée donne un label + les items du groupe.
    */
   groupedSections?: Array<{ path?: string; label: string; items: any[]; depth: number; propertyName: string }>;
-  /** Chemin de groupe racine actif (lié à l’onglet de la vue du bas) */
+  /** Chemin de groupe racine actif (lié à l'onglet de la vue du bas) */
   activeRootPath?: string;
   /** Chemin de sous-groupe actif (lié au sous-onglet imbriqué de la vue du bas) */
   activeSubPath?: string;
-  /** Masquer les sélecteurs d’onglets en haut et suivre la vue du bas */
+  /** Masquer les sélecteurs d'onglets en haut et suivre la vue du bas */
   hideGroupSelectors?: boolean;
   /** Autoriser l'utilisateur à afficher/masquer les onglets en haut */
   allowGroupSelectorToggle?: boolean;
@@ -237,7 +237,6 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
           <div className="min-w-0">
             <span className="block text-[11px] leading-none whitespace-nowrap overflow-hidden text-ellipsis">
               <span className="font-semibold text-neutral-600 dark:text-neutral-300">{prop.name}</span>
-              <span className="mx-1 text-neutral-400 dark:text-neutral-500">·</span>
               <span className="mx-1 text-neutral-400 dark:text-neutral-500">·</span>
               <span className={`font-extrabold ${valueColorClass}`} style={accentStyle}>{visibleFormatted || '—'}</span>
             </span>
@@ -483,7 +482,6 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
                     {root.id === activeRoot?.id && (
                       <div className="mt-3 rounded-xl border border-black/8 dark:border-white/8 bg-white/60 dark:bg-neutral-900/40 p-3">
                         <div className="mb-2 flex items-center gap-1.5 -mt-[20px]">
-                        
                           <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 truncate">
                             {root.label}
                           </span>
@@ -500,7 +498,6 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
                     {root.id === activeRoot?.id && activeSub && activeSub.children.length > 0 && (
                       <div className="mt-3 rounded-xl border border-black/8 dark:border-white/8 bg-white/60 dark:bg-neutral-900/40 p-3">
                         <div className="mb-2 flex items-center gap-1.5 -mt-[20px]">
-                        
                           <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 truncate">
                             {activeSub.label}
                           </span>
@@ -521,7 +518,6 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
                           className="rounded-xl border border-black/8 dark:border-white/8 bg-white/60 dark:bg-neutral-900/40 p-3"
                         >
                           <div className="mb-2 flex items-center gap-1.5 -mt-[20px]">
-                          
                             <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 truncate">
                               {leaf.label}
                             </span>

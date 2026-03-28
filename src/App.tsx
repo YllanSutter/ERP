@@ -11,6 +11,7 @@ import CalendarView from '@/components/views/CalendarView';
 import TableView from '@/components/views/TableView';
 import ShinyButton from '@/components/ui/ShinyButton';
 import LoginPage from '@/components/pages/LoginPage';
+import AutomationsPage from '@/components/pages/AutomationsPage';
 import AccessManager from '@/components/admin/AccessManager';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/menus/Sidebar';
@@ -191,6 +192,7 @@ const App = () => {
     return stored ? stored === '1' : true;
   });
   const [showAccessManager, setShowAccessManager] = useState(false);
+  const [showAutomations, setShowAutomations] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<any[]>([]);
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
   const [favorites, setFavorites] = useState<{ views: string[]; items: string[] }>({ views: [], items: [] });
@@ -576,6 +578,7 @@ const App = () => {
           userRoleIds={userRoleIds}
           userId={user?.id || null}
           onSelectCollection={(collectionId) => {
+            setShowAutomations(false);
             setActiveDashboard(null);
             setActiveCollection(collectionId);
             const lastViewId = localStorage.getItem(`erp_lastView_${collectionId}`);
@@ -620,6 +623,7 @@ const App = () => {
             }
           }}
           onSelectDashboard={(dashboardId: string) => {
+            setShowAutomations(false);
             setActiveDashboard(dashboardId);
             setActiveCollection(null);
             setActiveView(null);
@@ -629,6 +633,12 @@ const App = () => {
           onCreateCollection={() => setShowNewCollectionModal(true)}
           onDeleteDashboard={handleDeleteDashboard}
           onDuplicateDashboard={handleDuplicateDashboard}
+          onShowAutomations={() => {
+            setShowAutomations(true);
+            setActiveDashboard(null);
+            setActiveCollection(null);
+          }}
+          showAutomations={showAutomations}
         />
 
         <SidebarInset className="flex-1 flex flex-col overflow-hidden">
@@ -646,7 +656,9 @@ const App = () => {
             theme={theme}
             setTheme={setTheme}
           />
-          {activeDashboard ? (
+          {showAutomations ? (
+            <AutomationsPage collections={collections} />
+          ) : activeDashboard ? (
             <DashboardShell
               dashboard={activeDashboardConfig}
               collections={collections}

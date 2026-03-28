@@ -1,3 +1,5 @@
+import { loadAutomations, triggerAutomations } from '../services/automationService.js';
+
 const filterStateForUser = (data, ctx, hasPermission) => {
   if (!data || !data.collections) return data;
   const filteredCollections = (data.collections || []).map((col) => {
@@ -46,6 +48,7 @@ export const registerStateRoutes = ({
   shouldRecalculateSegments,
   calculateEventSegments,
   logAudit,
+  defaultCalendarConfig,
 }) => {
   // PATCH /api/state/item
   app.patch('/api/state/item', requireAuth, async (req, res) => {
@@ -94,7 +97,30 @@ export const registerStateRoutes = ({
         idx === colIdx ? { ...c, items: newItems } : c
       );
 
-      const newState = { ...state, collections: newCollections };
+      let newState = { ...state, collections: newCollections };
+
+      // ── Automation triggers: item_updated ──────────────────────────────────
+      try {
+        const automations = await loadAutomations(pool, organizationId);
+        if (automations.length > 0) {
+          newState = await triggerAutomations({
+            eventType: 'item_updated',
+            collectionId,
+            triggerItem: processedItem,
+            prevItem,
+            state: newState,
+            automations,
+            pool,
+            organizationId,
+            calculateEventSegments,
+            getDefaultCalendarConfig: () => defaultCalendarConfig,
+          });
+        }
+      } catch (autoErr) {
+        console.error('[Automation] item_updated trigger error', autoErr);
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
       const stateStr = JSON.stringify(newState);
 
       const updateRes = await pool.query(
@@ -266,7 +292,7 @@ export const registerStateRoutes = ({
       }
 
       const nextFavorites = stateData.favorites || { views: [], items: [] };
-      const stateDataWithSegments = {
+      let stateDataWithSegments = {
         ...INITIAL_APP_STATE,
         ...stateData,
         collections: processedCollections,
@@ -275,6 +301,78 @@ export const registerStateRoutes = ({
           items: Array.isArray(nextFavorites.items) ? nextFavorites.items : [],
         },
       };
+
+      // ── Automation triggers: item_created / item_deleted ──────────────────
+      // Snapshot du nombre total d'items avant automations, pour détecter si
+      // elles ont créé de nouveaux items (nécessaire pour sync client).
+      const preAutoItemCount = processedCollections.reduce(
+        (acc, c) => acc + (c.items?.length || 0), 0
+      );
+
+      try {
+        const automations = await loadAutomations(pool, organizationId);
+        if (automations.length > 0) {
+          // Détecter les items créés et supprimés collection par collection
+          const createdEvents = [];
+          const deletedEvents = [];
+
+          for (const col of processedCollections) {
+            const prevCol = prevCollectionsById.get(col.id);
+            const prevIds = new Set((prevCol?.items || []).map((i) => i.id));
+            const newIds = new Set((col.items || []).map((i) => i.id));
+
+            for (const item of (col.items || [])) {
+              if (!prevIds.has(item.id)) {
+                createdEvents.push({ collectionId: col.id, item });
+              }
+            }
+            for (const item of (prevCol?.items || [])) {
+              if (!newIds.has(item.id)) {
+                deletedEvents.push({ collectionId: col.id, item });
+              }
+            }
+          }
+
+          for (const { collectionId: cId, item } of createdEvents) {
+            stateDataWithSegments = await triggerAutomations({
+              eventType: 'item_created',
+              collectionId: cId,
+              triggerItem: item,
+              prevItem: null,
+              state: stateDataWithSegments,
+              automations,
+              pool,
+              organizationId,
+              calculateEventSegments,
+              getDefaultCalendarConfig: () => defaultCalendarConfig,
+            });
+          }
+
+          for (const { collectionId: cId, item } of deletedEvents) {
+            stateDataWithSegments = await triggerAutomations({
+              eventType: 'item_deleted',
+              collectionId: cId,
+              triggerItem: item,
+              prevItem: item,
+              state: stateDataWithSegments,
+              automations,
+              pool,
+              organizationId,
+              calculateEventSegments,
+              getDefaultCalendarConfig: () => defaultCalendarConfig,
+            });
+          }
+        }
+      } catch (autoErr) {
+        console.error('[Automation] state.post trigger error', autoErr);
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
+      // Détecter si les automations ont créé de nouveaux items
+      const postAutoItemCount = stateDataWithSegments.collections.reduce(
+        (acc, c) => acc + (c.items?.length || 0), 0
+      );
+
       const stateStr = JSON.stringify(stateDataWithSegments);
 
       const updateRes = await pool.query('UPDATE app_state SET data = $1 WHERE organization_id = $2', [stateStr, organizationId]);
@@ -287,6 +385,15 @@ export const registerStateRoutes = ({
 
       if (global.io) {
         global.io.emit('stateUpdated', { userId, organizationId });
+      }
+
+      // Si des automations ont créé de nouveaux items, renvoyer les collections
+      // modifiées au client pour qu'il puisse les appliquer immédiatement —
+      // le client ignore son propre event socket (userId filter), donc sans ça
+      // il ne verrait jamais les items créés côté serveur.
+      const hasAutomationChanges = postAutoItemCount > preAutoItemCount;
+      if (hasAutomationChanges) {
+        return res.json({ ok: true, automationCollections: stateDataWithSegments.collections });
       }
 
       return res.json({ ok: true });
