@@ -262,8 +262,8 @@ const App = () => {
 
   const getMatchingTemplate = (prop: any, data: any) => {
     const templates = Array.isArray(prop.defaultTemplates) ? prop.defaultTemplates : [];
-    const defaultTemplate = templates.find((template: any) => template?.isDefault);
 
+    // Priorité 1 : template conditionnel dont la condition est vérifiée
     for (const template of templates) {
       const when = template?.when || {};
       if (!when.fieldId) continue;
@@ -276,7 +276,13 @@ const App = () => {
       }
     }
 
-    return defaultTemplate || null;
+    // Priorité 2 : template marqué isDefault (rétro-compat)
+    // OU template sans condition (when.fieldId vide) — un template sans condition
+    // est traité comme valeur par défaut, même sans le flag isDefault explicite.
+    const fallback = templates.find(
+      (t: any) => t?.isDefault || !t?.when?.fieldId
+    );
+    return fallback || null;
   };
 
   const applyDefaultTemplates = (data: any, props: any[]) => {

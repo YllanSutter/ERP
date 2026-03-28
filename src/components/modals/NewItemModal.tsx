@@ -236,8 +236,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   const getMatchingTemplate = (prop: any, data: any, sourceFieldId?: string) => {
     const templates = Array.isArray(prop.defaultTemplates) ? prop.defaultTemplates : [];
-    const defaultTemplate = templates.find((template: any) => template?.isDefault);
 
+    // Priorité 1 : template conditionnel dont la condition est vérifiée
     for (const template of templates) {
       const when = template?.when || {};
       if (!when.fieldId) continue;
@@ -251,7 +251,12 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       }
     }
 
-    if (!sourceFieldId) return defaultTemplate || null;
+    // Priorité 2 : fallback — template marqué isDefault OU sans condition
+    // (un template sans when.fieldId = valeur par défaut inconditionnelle)
+    if (!sourceFieldId) {
+      const fallback = templates.find((t: any) => t?.isDefault || !t?.when?.fieldId);
+      return fallback || null;
+    }
     return null;
   };
 
@@ -1104,7 +1109,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200]"
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200]"
         onClick={onClose}
       >
       {/* Style global pour masquer les flèches des input[type=number] */}
@@ -1119,93 +1124,111 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         }
       `}</style>
       <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="bg-white text-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 border border-black/10 dark:border-white/10 rounded-none w-screen h-screen max-w-[1600px] max-h-[90%] overflow-hidden backdrop-blur flex flex-col"
+        initial={{ scale: 0.97, opacity: 0, y: 12 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        className="bg-[#0c0c0e] text-neutral-100 border border-white/[0.07] rounded-2xl w-screen h-screen max-w-[1600px] max-h-[93vh] overflow-hidden flex flex-col shadow-[0_32px_80px_-8px_rgba(0,0,0,0.8)]"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-8 py-5 border-b border-black/10 dark:border-white/10 bg-white/90 dark:bg-neutral-950/80 backdrop-blur">
-          <div className="flex-1 max-w-3xl">
+        <div className="flex items-start gap-4 px-8 py-5 border-b border-white/[0.06] shrink-0">
+          {/* Titre + badge collection */}
+          <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+            <div className="flex items-center gap-3">
+              {!isReallyEditing ? (
+                <>
+                  <span className="text-[10px] tracking-widest uppercase text-neutral-600 font-medium shrink-0">Collection</span>
+                  <select
+                    className="text-[11px] px-2 py-0.5 rounded-md bg-white/[0.06] text-violet-300 border border-violet-500/20 focus:border-violet-500/60 focus:outline-none transition-colors"
+                    value={selectedCollectionId}
+                    onChange={handleCollectionChange}
+                  >
+                    {writableCollections.map((col: any) => (
+                      <option key={col.id} value={col.id} className="bg-[#1a1a1e] text-neutral-100">{col.name}</option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] tracking-widest uppercase font-semibold bg-violet-500/10 text-violet-400 border border-violet-500/20">
+                  {selectedCollection?.name || 'Collection'}
+                </span>
+              )}
+            </div>
             {classicPropsSansRichText.length > 0 && (
-              <EditableProperty
-                property={classicPropsSansRichText[0]}
-                value={formData[classicPropsSansRichText[0].id]}
-                onChange={(val) => handleChange(classicPropsSansRichText[0].id, val)}
-                size="xl"
-                collections={readableCollections}
-                collection={selectedCollection}
-                currentItem={formData}
-                onRelationChange={(property, item, value) => {
-                  if (!canWriteField(selectedCollection?.id, property.id)) return;
-                  if (property.type === 'relation' || property.type === 'multi_select') {
-                    setFormData({ ...formData, [property.id]: value });
-                  } else {
-                    setFormData(item);
-                  }
-                }}
-                readOnly={!canWriteField(selectedCollection?.id, classicPropsSansRichText[0].id)}
-                forceRichEditor={true}
-              />
+              <div className="[&_input]:text-[22px] [&_input]:font-semibold [&_input]:tracking-tight [&_input]:text-neutral-50 [&_input]:placeholder:text-neutral-700 [&_input]:bg-transparent [&_input]:border-0 [&_input]:outline-none [&_input]:w-full [&_input]:p-0 [&_textarea]:text-[22px] [&_textarea]:font-semibold [&_textarea]:text-neutral-50">
+                <EditableProperty
+                  property={classicPropsSansRichText[0]}
+                  value={formData[classicPropsSansRichText[0].id]}
+                  onChange={(val) => handleChange(classicPropsSansRichText[0].id, val)}
+                  size="xl"
+                  collections={readableCollections}
+                  collection={selectedCollection}
+                  currentItem={formData}
+                  onRelationChange={(property, item, value) => {
+                    if (!canWriteField(selectedCollection?.id, property.id)) return;
+                    if (property.type === 'relation' || property.type === 'multi_select') {
+                      setFormData({ ...formData, [property.id]: value });
+                    } else {
+                      setFormData(item);
+                    }
+                  }}
+                  readOnly={!canWriteField(selectedCollection?.id, classicPropsSansRichText[0].id)}
+                  forceRichEditor={true}
+                />
+              </div>
             )}
           </div>
-          {!isReallyEditing && (
-            <div className="gap-3 flex items-center">
-              <label className="block text-xs font-medium text-neutral-500">Collection</label>
-              <select
-                className="px-3 py-1 rounded-lg bg-background dark:bg-neutral-800 text-neutral-700 dark:text-white border border-black/10 dark:border-white/10 focus:border-violet-500"
-                value={selectedCollectionId}
-                onChange={handleCollectionChange}
+          {/* Actions droite */}
+          <div className="flex items-center gap-2 pt-1 shrink-0">
+            {hasLocalDraft && (
+              <div className="px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wide bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                Brouillon
+              </div>
+            )}
+            {historyData?.versions?.length ? (
+              <button
+                onClick={() => setHistoryOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-white/[0.05] text-neutral-500 border border-white/[0.08] hover:text-neutral-200 hover:border-white/20 transition-all"
+                title="Historique des versions"
               >
-                {writableCollections.map((col: any) => (
-                  <option key={col.id} value={col.id}>{col.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-          {(hasLocalDraft || historyData?.versions?.length) && (
-            <div className="ml-3 flex items-center gap-2">
-              {hasLocalDraft && (
-                <div className="px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                  Brouillon local
-                </div>
-              )}
-              {historyData?.versions?.length ? (
-                <button
-                  onClick={() => setHistoryOpen(true)}
-                  className="flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide bg-slate-500/10 text-slate-600 dark:text-slate-300 border border-slate-500/20"
-                  title="Historique des versions"
-                >
-                  <History size={12} />
-                  {historyData.versions.length} version{historyData.versions.length > 1 ? 's' : ''}
-                </button>
-              ) : null}
-            </div>
-          )}
-          {editingItem && onToggleFavoriteItem && (
+                <History size={11} />
+                {historyData.versions.length}v
+              </button>
+            ) : null}
+            {editingItem && onToggleFavoriteItem && (
+              <button
+                onClick={() => onToggleFavoriteItem(editingItem.id)}
+                className={cn(
+                  "p-2 rounded-lg transition-all",
+                  isFavorite
+                    ? "text-amber-400 bg-amber-500/10"
+                    : "text-neutral-600 hover:text-amber-400 hover:bg-amber-500/10"
+                )}
+                title={isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+              >
+                <Star size={16} fill={isFavorite ? "currentColor" : "none"} />
+              </button>
+            )}
             <button
-              onClick={() => onToggleFavoriteItem(editingItem.id)}
-              className={cn(
-                "p-2 rounded-lg transition-all",
-                isFavorite 
-                  ? "text-yellow-500 hover:text-yellow-400 bg-yellow-500/10" 
-                  : "text-neutral-500 hover:text-yellow-500 hover:bg-yellow-500/10"
-              )}
-              title={isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+              onClick={onClose}
+              className="p-2 rounded-lg text-neutral-600 hover:text-neutral-300 hover:bg-white/[0.06] transition-all ml-1"
+              title="Fermer"
             >
-              <Star size={20} fill={isFavorite ? "currentColor" : "none"} />
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 1L12 12M12 1L1 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+              </svg>
             </button>
-          )}
+          </div>
         </div>
-        <div className="flex-1 px-8 py-6 pt-10 z-10 relative overflow-y-auto bg-white dark:bg-transparent">
+        <div className="flex-1 px-8 py-7 z-10 relative overflow-y-auto">
           {currentSubItem ? (
             /* Panneau sous-item : drill-down relation */
             <div className="space-y-4">
               {/* Breadcrumb */}
-              <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400 mb-6">
+              <div className="flex items-center gap-2 text-sm mb-6">
                 <button
                   type="button"
                   onClick={navigateBack}
-                  className="flex items-center gap-1 text-indigo-500 hover:text-indigo-400 transition-colors font-medium"
+                  className="flex items-center gap-1.5 text-violet-400 hover:text-violet-300 transition-colors font-medium"
                 >
                   <ChevronLeft size={16} />
                   Retour
@@ -1213,7 +1236,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 <span>/</span>
                 <span>{currentSubItem.propName}</span>
                 <span>/</span>
-                <span className="font-medium text-neutral-700 dark:text-neutral-200 truncate max-w-[200px]">
+                <span className="font-medium text-neutral-200 truncate max-w-[200px]">
                   {(() => {
                     const titleProp = (currentSubItem.collection.properties || [])[0];
                     return titleProp ? currentSubItem.formData[titleProp.id] || 'Sans titre' : 'Sans titre';
@@ -1222,15 +1245,17 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               </div>
 
               {/* Champs classiques */}
-              <div className="space-y-2">
+              <div className="space-y-0.5">
                 {(currentSubItem.collection.properties || [])
                   .filter((p: any) => p.type !== 'relation')
                   .map((prop: any) => (
-                    <div className="flex items-start gap-3 py-1" key={prop.id}>
-                      <label className="text-sm font-medium text-neutral-500 dark:text-neutral-400 w-[130px] shrink-0 pt-1 truncate">
-                        {prop.name}
-                      </label>
-                      <div className="flex-1 min-w-0">
+                    <div className="group/sub flex items-stretch rounded-lg hover:bg-white/[0.025] focus-within:bg-white/[0.03] transition-colors" key={prop.id}>
+                      <div className="w-[150px] shrink-0 flex items-center px-3 py-2.5">
+                        <label className="text-[10px] font-mono tracking-widest uppercase text-neutral-600 group-hover/sub:text-neutral-500 truncate transition-colors">
+                          {prop.name}
+                        </label>
+                      </div>
+                      <div className="flex-1 min-w-0 border-l border-white/[0.06] group-focus-within/sub:border-violet-500/40 transition-colors px-3 py-1.5 flex items-center">
                         <EditableProperty
                           property={prop}
                           value={currentSubItem.formData[prop.id]}
@@ -1248,26 +1273,33 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
               {/* Relations du sous-item */}
               {(currentSubItem.collection.properties || []).some((p: any) => p.type === 'relation') && (
-                <div className="pt-4 border-t border-black/10 dark:border-white/10 space-y-3">
-                  <h4 className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Relations</h4>
+                <div className="pt-4 space-y-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-[10px] tracking-widest uppercase font-medium text-neutral-600 shrink-0">Relations</span>
+                    <div className="flex-1 h-px bg-white/[0.06]" />
+                  </div>
                   {(currentSubItem.collection.properties || [])
                     .filter((p: any) => p.type === 'relation')
                     .map((prop: any) => {
                       const targetCol = readableCollections.find((c: any) => c.id === prop.relation?.targetCollectionId);
                       return (
-                        <div key={prop.id} className="flex items-center gap-3">
-                          <label className="text-sm font-medium text-neutral-500 dark:text-neutral-400 whitespace-nowrap w-[130px] shrink-0">{prop.name}</label>
-                          <EditableProperty
-                            property={prop}
-                            value={currentSubItem.formData[prop.id]}
-                            onChange={(val) => updateSubFormData(prop.id, val)}
-                            size="md"
-                            collections={readableCollections}
-                            collection={currentSubItem.collection}
-                            currentItem={currentSubItem.formData}
-                            onRelationChange={(property, _item, value) => updateSubFormData(property.id, value)}
-                            onNavigateToRelatedItem={(item) => navigateToRelatedItem(prop.name, targetCol, item)}
-                          />
+                        <div key={prop.id} className="group/rel flex items-stretch rounded-lg hover:bg-white/[0.025] transition-colors">
+                          <div className="w-[150px] shrink-0 flex items-center px-3 py-2.5">
+                            <label className="text-[10px] font-mono tracking-widest uppercase text-neutral-600 truncate">{prop.name}</label>
+                          </div>
+                          <div className="flex-1 min-w-0 border-l border-white/[0.06] px-3 py-1.5 flex items-center">
+                            <EditableProperty
+                              property={prop}
+                              value={currentSubItem.formData[prop.id]}
+                              onChange={(val) => updateSubFormData(prop.id, val)}
+                              size="md"
+                              collections={readableCollections}
+                              collection={currentSubItem.collection}
+                              currentItem={currentSubItem.formData}
+                              onRelationChange={(property, _item, value) => updateSubFormData(property.id, value)}
+                              onNavigateToRelatedItem={(item) => navigateToRelatedItem(prop.name, targetCol, item)}
+                            />
+                          </div>
                         </div>
                       );
                     })}
@@ -1280,7 +1312,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   <button
                     type="button"
                     onClick={saveSubItem}
-                    className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+                    className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
                   >
                     Enregistrer
                   </button>
@@ -1288,19 +1320,20 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               )}
             </div>
           ) : (
-          <div className="space-y-6">
+          <div className="space-y-8">
 
           {/* Relations en haut sur toute la largeur */}
           {relationPropsForDisplay.length > 0 && (
-            <div className="pb-10 border-b border-black/10 dark:border-white/10">
-              <div className="border-t border-black/10 dark:border-white/10 pt-8 relative">
-                <h4 className="absolute -top-[15px] left-0 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-background  dark:bg-neutral-900 border border-white/10 transition cursor-pointer group">Relations</h4>
+            <div className="pb-8 mb-2">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-[10px] tracking-widest uppercase font-medium text-neutral-600 shrink-0">Relations</span>
+                <div className="flex-1 h-px bg-white/[0.06]" />
               </div>
-              <div className="flex gap-4 items-center flex-wrap pl-4">
+              <div className="flex gap-x-8 gap-y-3 items-center flex-wrap pl-2">
                 {relationPropsForDisplay.map((prop: any) => (
                   <div className="flex items-center gap-3" key={prop.id}>
-                    <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
-                      {prop.name} {prop.required && <span className="text-red-500">*</span>}
+                    <label className="text-[10px] font-mono tracking-widest uppercase text-neutral-500 whitespace-nowrap">
+                      {prop.name}{prop.required && <span className="text-red-400 ml-0.5">*</span>}
                     </label>
                     <EditableProperty
                       property={prop}
@@ -1324,82 +1357,36 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           )}
 
           {/* Grid à 2 colonnes : champs classiques à gauche, horaires à droite */}
-          <div className={`grid grid-cols-1 ${datePropsForDisplay.length > 0 ? 'xl:grid-cols-[1.6fr_0.6fr]' : ''} gap-6 relative`}>
+          <div className={`grid grid-cols-1 ${datePropsForDisplay.length > 0 ? 'xl:grid-cols-[1.6fr_0.55fr]' : ''} gap-8 relative`}>
           
           {/* Partie gauche : champs classiques */}
           {(detailsPropsForDisplay.length > 0 || !isReallyEditing) && (
           <div className="min-w-[0]">
             {detailsPropsForDisplay.length > 0 && (
-              <h4 className="absolute -top-[35px] left-0 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-background  dark:bg-neutral-900 border border-white/10 transition cursor-pointer group">Détails</h4>
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-[10px] tracking-widest uppercase font-medium text-neutral-600 shrink-0">Détails</span>
+                <div className="flex-1 h-px bg-white/[0.06]" />
+              </div>
             )}
-
-            {/* Grande barre verticale à droite des labels */}
-            <div
-              className="pointer-events-none absolute top-0 left-[130px] w-[1px] h-full rounded bg-black/10 dark:bg-white/10 transition-colors duration-100 z-10"
-              id="big-label-bar"
-            >
-              {/* Petites barres alignées à chaque label (calcul dynamique) */}
-              {detailsPropsForDisplay.map((prop: any) => (
-                <div
-                  key={prop.id}
-                  id={`mini-bar-${prop.id}`}
-                  className="absolute left-0 w-full h-[32px] rounded bg-black/0 dark:bg-white/0 transition-colors duration-100"
-                  style={{ top: 0 }}
-                  ref={el => {
-                    if (!el) return;
-                    const label = document.getElementById(`label-${prop.id}`);
-                    if (label) {
-                      const parent = el.parentElement?.parentElement;
-                      const parentRect = parent?.getBoundingClientRect();
-                      const rect = label.getBoundingClientRect();
-                      if (parentRect) {
-                        el.style.top = `${rect.top - parentRect.top}px`;
-                        el.style.height = `${rect.height}px`;
-                      }
-                    }
-                  }}
-                />
-              ))}
-            </div>
             {detailsPropsForDisplay.length === 0 && !isReallyEditing && (
-              <div className="text-neutral-500 text-sm">Aucun champ classique supplémentaire</div>
+              <div className="text-neutral-600 text-sm">Aucun champ supplémentaire</div>
             )}
-            <div
-              className="flex flex-col space-y-3 group/classic-fields"
-            >
+            <div className="flex flex-col space-y-0.5">
               {detailsPropsForDisplay.map((prop: any) => (
                 <div
                   key={prop.id}
-                  className="flex gap-0 items-stretch group/item focus-within:z-10 py-2 border-b border-black/10 dark:border-white/10 last:border-b-0"
-                  onMouseOver={() => {
-                    const mini = document.getElementById(`mini-bar-${prop.id}`);
-                    if (mini) mini.style.background = 'rgba(255,255,255,0.15)';
-                  }}
-                  onMouseOut={() => {
-                    const mini = document.getElementById(`mini-bar-${prop.id}`);
-                    if (mini) mini.style.background = 'rgba(255,255,255,0)';
-                  }}
-                  onFocusCapture={() => {
-                    const mini = document.getElementById(`mini-bar-${prop.id}`);
-                    if (mini) mini.style.background = 'rgba(255,255,255,0.15)';
-                  }}
-                  onBlurCapture={() => {
-                    const mini = document.getElementById(`mini-bar-${prop.id}`);
-                    if (mini) mini.style.background = 'rgba(255,255,255,0)';
-                  }}
+                  className="group/row flex items-stretch rounded-lg hover:bg-white/[0.025] focus-within:bg-white/[0.03] transition-colors duration-100"
                 >
-                  <div className="flex items-center w-[130px] overflow-hidden">
+                  <div className="flex items-center w-[150px] shrink-0 overflow-hidden">
                     <label
                       id={`label-${prop.id}`}
-                      className={
-                        "block text-sm font-medium text-neutral-700 dark:text-neutral-300 whitespace-nowrap w-full px-3 py-2 transition-colors duration-100"
-                      }
+                      className="block text-[10px] font-mono tracking-widest uppercase text-neutral-600 group-hover/row:text-neutral-500 whitespace-nowrap w-full px-3 py-2.5 transition-colors duration-100 truncate"
                       htmlFor={`field-${prop.id}`}
                     >
                       {prop.name}
                     </label>
                   </div>
-                  <div className="flex-1 pl-4 flex items-center">
+                  <div className="flex-1 min-w-0 border-l border-white/[0.06] group-focus-within/row:border-violet-500/50 transition-colors duration-150 pl-3 pr-1 flex items-center">
                     <EditableProperty
                       property={prop}
                       value={formData[prop.id]}
@@ -1428,11 +1415,12 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
           {/* Colonne droite : Plages horaires */}
           {datePropsForDisplay.length > 0 && (
-          <div className="min-w-[0] relative">
-            <div className="mb-4">
-              <h4 className="absolute -top-[35px] left-0 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-background  dark:bg-neutral-900 border border-white/10 transition cursor-pointer group">Horaires</h4>
+          <div className="min-w-[0]">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-[10px] tracking-widest uppercase font-medium text-neutral-600 shrink-0">Horaires</span>
+              <div className="flex-1 h-px bg-white/[0.06]" />
             </div>
-            <div className="space-y-6">
+            <div className="space-y-4">
               {datePropsForDisplay.map((dateProp: any) => {
                 const canWriteDateProp = canWriteField(selectedCollection?.id, dateProp.id);
                 const segments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
@@ -1454,36 +1442,34 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 const totalDuration = segments.reduce((acc: number, seg: any) => acc + getSegmentHours(seg), 0);
 
                 return (
-                  <div key={`_eventSegments_${dateProp.id}`} className="pb-4 mb-4 border-b border-black/5 dark:border-white/5 last:border-0 last:pb-0 last:mb-0">
+                  <div key={`_eventSegments_${dateProp.id}`} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <label className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">{dateProp.name}</label>
+                      <span className="text-xs font-semibold text-neutral-300">{dateProp.name}</span>
                       <button
                         onClick={() => {
                           if (!canWriteDateProp) return;
                           setEditingDateProp(dateProp);
                         }}
                         disabled={!canWriteDateProp}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1 px-2 py-1 text-[11px] text-neutral-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        <Edit2 size={12} />
+                        <Edit2 size={11} />
                         Modifier
                       </button>
                     </div>
-                    
-                    {/* Résumé lisible */}
-                    <div className="flex items-center gap-3 text-sm text-neutral-600 dark:text-neutral-400">
-                      <div className="relative group">
-                        <div className="flex items-center gap-1 cursor-default">
-                          <Clock size={14} />
-                          <span>{segments.length || 0} plage{segments.length > 1 ? 's' : ''}</span>
+                    <div className="flex items-center gap-3 text-xs text-neutral-500">
+                      <div className="relative group/seg">
+                        <div className="flex items-center gap-1.5">
+                          <Clock size={12} className="text-violet-400" />
+                          <span className="text-neutral-400">{segments.length || 0} plage{segments.length > 1 ? 's' : ''}</span>
                         </div>
                         {segments.length > 0 && (
-                          <div className="absolute left-0 top-full mt-2 w-72 rounded-md border border-neutral-200 dark:border-neutral-700 bg-background dark:bg-neutral-900 p-3 text-xs text-neutral-700 dark:text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none group-hover:pointer-events-auto">
-                            <div className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-100 mb-2">Plages personnalisées</div>
-                            <div className="space-y-1">
+                          <div className="absolute left-0 top-full mt-2 w-72 rounded-xl border border-white/[0.08] bg-[#111113] p-3 text-xs text-neutral-300 opacity-0 group-hover/seg:opacity-100 transition-opacity z-20 pointer-events-none group-hover/seg:pointer-events-auto shadow-xl">
+                            <div className="text-[10px] tracking-widest uppercase text-neutral-600 mb-2">Plages personnalisées</div>
+                            <div className="space-y-1.5">
                               {segments.map((seg: any, idx: number) => (
                                 <div key={idx} className="flex items-center gap-2">
-                                  <span className="text-blue-400">▸</span>
+                                  <span className="text-violet-400">▸</span>
                                   {formatSegmentDisplay(seg)}
                                 </div>
                               ))}
@@ -1492,37 +1478,35 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                         )}
                       </div>
                       {segments.length > 0 && (
-                        <span className="text-neutral-500">·</span>
-                      )}
-                      {segments.length > 0 && (
-                        <span>{totalDuration.toFixed(1)}h au total</span>
+                        <>
+                          <span className="text-neutral-700">·</span>
+                          <span className="text-neutral-400">{totalDuration.toFixed(1)}h</span>
+                        </>
                       )}
                     </div>
-
-                    {/* Popover avec aperçu automatique au survol */}
                     {autoSegments.length > 0 && (
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className="mt-2 text-xs text-blue-500 hover:text-blue-400 flex items-center gap-1">
-                            <span>Plages de base ({autoSegments.length})</span>
+                          <button className="mt-3 flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
+                            <span>Plages auto ({autoSegments.length})</span>
                             {segmentsHaveChanged && isReallyEditing && (
-                              <span className="px-1.5 py-0.5 bg-orange-500/80 text-white dark:bg-orange-500/30 dark:text-orange-300 rounded text-[10px]">Modifié</span>
+                              <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-300 rounded text-[10px]">Modifié</span>
                             )}
                           </button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-80 bg-background dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700">
+                        <PopoverContent className="w-80 bg-[#111113] border-white/[0.08] text-neutral-200">
                           <div className="space-y-2">
-                            <div className="text-xs font-semibold text-blue-400 mb-2">Plages calculées automatiquement</div>
+                            <div className="text-[10px] tracking-widest uppercase text-violet-400 mb-3">Plages calculées auto</div>
                             {autoSegments.map((seg: any, idx: number) => (
-                              <div key={idx} className="text-xs text-neutral-700 dark:text-neutral-300 flex items-center gap-2">
-                                <span className="text-blue-400">▸</span>
+                              <div key={idx} className="text-xs text-neutral-400 flex items-center gap-2">
+                                <span className="text-violet-400">▸</span>
                                 {formatSegmentDisplay(seg)}
                               </div>
                             ))}
                             {isReallyEditing && segmentsHaveChanged && (
                               <button
                                 type="button"
-                                className="mt-3 w-full px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
+                                className="mt-3 w-full px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors"
                                 disabled={!canWriteDateProp}
                                 onClick={() => {
                                   if (!canWriteDateProp) return;
@@ -1547,61 +1531,64 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
           {/* Rich text en pleine largeur sur les deux colonnes */}
           {richTextPropsForDisplay.length > 0 && (
-            <div className="pt-6 relative">
-              <div className="relative space-y-4 border border-black/5 p-3 pt-7">
+            <div className="pt-2">
+              <div className="relative space-y-4">
                 {richTextTabs.length > 1 ? (
-                  <div className="absolute top-7 left-5 flex flex-wrap gap-2 z-10">
+                  <div className="flex items-center gap-0 border-b border-white/[0.06] mb-1">
                     {richTextTabs.map((tab: { id: string; label: string }) => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveRichTextTab(tab.id)}
-                        className={
-                          "px-2 py-1 rounded-full text-xs font-medium bg-background  dark:bg-neutral-900/10 border border-white/10  cursor-pointer group transition-all duration-200 " +
-                          (activeRichTextTab === tab.id
-                            ? "bg-neutral-800 text-white"
-                            : "bg-background dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 border border-black/10 dark:border-white/10 hover:text-neutral-900 dark:hover:text-neutral-200")
-                        }
+                        className={cn(
+                          "px-3 py-2 text-xs font-medium transition-all border-b-2 -mb-px",
+                          activeRichTextTab === tab.id
+                            ? "border-violet-500 text-violet-300"
+                            : "border-transparent text-neutral-600 hover:text-neutral-300"
+                        )}
                       >
                         {tab.label}
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <div className="absolute top-[30px] z-[20] left-5 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-background  dark:bg-neutral-900 border border-white/10 transition cursor-pointer group">
-                    {richTextTabs[0]?.label || 'Tâches'}
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-[10px] tracking-widest uppercase font-medium text-neutral-600 shrink-0">{richTextTabs[0]?.label || 'Notes'}</span>
+                    <div className="flex-1 h-px bg-white/[0.06]" />
                   </div>
                 )}
-                {richTextPropsForDisplay
-                  .filter((prop: any) => !activeRichTextTab || prop.id === activeRichTextTab)
-                  .map((prop: any) => (
-                    <div key={prop.id} className="pb-10 last:border-0 last:pb-0 relative">
-                      <EditableProperty
-                        property={prop}
-                        value={formData[prop.id]}
-                        onChange={(val) => handleChange(prop.id, val)}
-                        size="md"
-                        collections={readableCollections}
-                        collection={selectedCollection}
-                        currentItem={formData}
-                        readOnly={!canWriteField(selectedCollection?.id, prop.id)}
-                        forceRichEditor={true}
-                      />
-                    </div>
-                  ))}
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] px-4 py-3 min-h-[180px]">
+                  {richTextPropsForDisplay
+                    .filter((prop: any) => !activeRichTextTab || prop.id === activeRichTextTab)
+                    .map((prop: any) => (
+                      <div key={prop.id} className="pb-6 last:pb-0">
+                        <EditableProperty
+                          property={prop}
+                          value={formData[prop.id]}
+                          onChange={(val) => handleChange(prop.id, val)}
+                          size="md"
+                          collections={readableCollections}
+                          collection={selectedCollection}
+                          currentItem={formData}
+                          readOnly={!canWriteField(selectedCollection?.id, prop.id)}
+                          forceRichEditor={true}
+                        />
+                      </div>
+                    ))}
+                </div>
               </div>
             </div>
           )}
           </div>
           )}
         </div>
-        <div className="flex items-center justify-between gap-3 px-8 py-4 border-t border-black/10 dark:border-white/10 bg-white/90 dark:bg-neutral-950/80 backdrop-blur">
+        <div className="flex items-center justify-between gap-3 px-8 py-4 border-t border-white/[0.06] shrink-0">
           <div className="flex items-center gap-3">
             {isReallyEditing && onDelete && editingItem?.id && (
               <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogTrigger asChild>
                   <button
                     type="button"
-                    className="px-4 py-2 text-sm text-red-600 dark:text-red-300 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors"
+                    className="px-3 py-2 text-xs font-medium text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/10 hover:border-red-500/40 transition-all"
                   >
                     Supprimer
                   </button>
@@ -1628,10 +1615,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               </AlertDialog>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
+              className="px-4 py-2 text-sm text-neutral-500 hover:text-neutral-200 rounded-lg hover:bg-white/[0.05] transition-all"
             >
               Annuler
             </button>
@@ -1639,14 +1626,18 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleSave(onSaveAndStay || onSave)}
-                className="px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 border border-black/10 dark:border-white/10 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-neutral-300 border border-white/[0.1] rounded-lg hover:bg-white/[0.05] hover:border-white/20 transition-all"
               >
                 Enregistrer
               </button>
             )}
-            <ShinyButton onClick={() => handleSave(onSave)}>
+            <button
+              type="button"
+              onClick={() => handleSave(onSave)}
+              className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-all shadow-lg shadow-violet-500/20"
+            >
               {isReallyEditing ? 'Enregistrer et quitter' : 'Créer'}
-            </ShinyButton>
+            </button>
           </div>
         </div>
       </motion.div>
@@ -1660,23 +1651,26 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           onClick={() => setEditingDateProp(null)}
         >
           <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-background dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col"
+            initial={{ scale: 0.97, opacity: 0, y: 4 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{ duration: 0.18 }}
+            className="bg-[#111113] border border-white/[0.08] rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
-            <div className="px-6 py-4 border-b border-neutral-300 dark:border-neutral-700 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-neutral-700 dark:text-neutral-100">Modifier les plages - {editingDateProp.name}</h3>
+            <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between shrink-0">
+              <h3 className="text-sm font-semibold text-neutral-100">Modifier les plages · {editingDateProp.name}</h3>
               <button
                 onClick={() => setEditingDateProp(null)}
-                className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-100 transition-colors"
+                className="p-1.5 rounded-lg text-neutral-600 hover:text-neutral-200 hover:bg-white/[0.06] transition-all"
               >
-                ✕
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              <div className="mb-4">
-                <ShinyButton
+              <div className="mb-5">
+                <button
                   onClick={() => {
                     const segs = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
                     const now = new Date();
@@ -1685,9 +1679,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     segs.push({ start, end, label: editingDateProp.name });
                     setManualSegments(segs);
                   }}
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-violet-400 border border-violet-500/30 rounded-lg hover:bg-violet-500/10 hover:border-violet-500/50 transition-all"
                 >
                   + Ajouter une plage
-                </ShinyButton>
+                </button>
               </div>
 
               {(() => {
@@ -1715,11 +1710,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                             const currentTime = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
 
                             return (
-                              <li key={idx} className="p-3 border-b border-neutral-300 dark:border-neutral-700">
+                              <li key={idx} className="p-3 rounded-xl border border-white/[0.06] bg-white/[0.02]">
                                 <div className="flex items-center gap-3">
-                                  <div className="flex-1 grid grid-cols-1 md:grid-cols-[1fr_140px_140px] gap-3 items-center">
-                                    <div className="flex flex-col">
-                                      <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">Date</label>
+                                  <div className="flex-1 grid grid-cols-1 md:grid-cols-[1fr_130px_130px] gap-3 items-end">
+                                    <div>
+                                      <label className="block text-[10px] tracking-widest uppercase text-neutral-600 mb-1.5">Date</label>
                                       <input
                                         type="date"
                                         value={startDate.toISOString().slice(0, 10)}
@@ -1735,12 +1730,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setManualSegments(segsCopy);
                                           }
                                         }}
-                                        className="w-full px-2 py-1.5 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-100 text-sm rounded focus:border-violet-500 focus:outline-none"
+                                        className="w-full px-2.5 py-1.5 bg-white/[0.04] border border-white/[0.08] text-neutral-200 text-xs rounded-lg focus:border-violet-500/60 focus:outline-none transition-colors"
                                       />
                                     </div>
-
-                                    <div className="flex flex-col">
-                                      <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">Heure</label>
+                                    <div>
+                                      <label className="block text-[10px] tracking-widest uppercase text-neutral-600 mb-1.5">Heure</label>
                                       <select
                                         value={currentTime}
                                         onChange={e => {
@@ -1755,18 +1749,17 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setManualSegments(segsCopy);
                                           }
                                         }}
-                                        className="w-full px-2 py-1.5 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-100 text-sm rounded focus:border-violet-500 focus:outline-none"
+                                        className="w-full px-2.5 py-1.5 bg-white/[0.04] border border-white/[0.08] text-neutral-200 text-xs rounded-lg focus:border-violet-500/60 focus:outline-none transition-colors"
                                       >
                                         {timeOptions.map(opt => (
-                                          <option key={opt} value={opt}>
+                                          <option key={opt} value={opt} className="bg-[#111113]">
                                             {opt}
                                           </option>
                                         ))}
                                       </select>
                                     </div>
-
-                                    <div className="flex flex-col">
-                                      <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">Durée</label>
+                                    <div>
+                                      <label className="block text-[10px] tracking-widest uppercase text-neutral-600 mb-1.5">Durée</label>
                                       <select
                                         value={durationHoursValue}
                                         onChange={e => {
@@ -1780,14 +1773,14 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setManualSegments(segsCopy);
                                           }
                                         }}
-                                        className="w-full px-2 py-1.5 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-100 text-sm rounded focus:border-violet-500 focus:outline-none"
+                                        className="w-full px-2.5 py-1.5 bg-white/[0.04] border border-white/[0.08] text-neutral-200 text-xs rounded-lg focus:border-violet-500/60 focus:outline-none transition-colors"
                                       >
                                         {durationOptions.map(dur => {
                                           const hours = Math.floor(dur);
                                           const mins = Math.round((dur % 1) * 60);
                                           const label = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
                                           return (
-                                            <option key={dur} value={dur}>
+                                            <option key={dur} value={dur} className="bg-[#111113]">
                                               {label}
                                             </option>
                                           );
@@ -1795,9 +1788,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                       </select>
                                     </div>
                                   </div>
-
                                   <button
-                                    className="p-1 hover:bg-red-500/20 rounded transition-colors"
+                                    className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors shrink-0"
                                     onClick={() => {
                                       const segsCopy = Array.isArray(formData._eventSegments) ? [...formData._eventSegments] : [];
                                       const globalIdx = formData._eventSegments.findIndex((s: any) => s === seg);
@@ -1809,7 +1801,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                     type="button"
                                     title="Supprimer la plage"
                                   >
-                                    <Trash2 size={16} className="text-red-400" />
+                                    <Trash2 size={14} className="text-red-400" />
                                   </button>
                                 </div>
                               </li>
@@ -1822,13 +1814,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 );
               })()}
             </div>
-            <div className="px-6 py-4 border-t border-neutral-300 dark:border-neutral-700 flex justify-end">
-              <ShinyButton
+            <div className="px-6 py-4 border-t border-white/[0.06] flex justify-end shrink-0">
+              <button
                 onClick={() => setEditingDateProp(null)}
-                className=""
+                className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
               >
                 Fermer
-              </ShinyButton>
+              </button>
             </div>
           </motion.div>
         </motion.div>
