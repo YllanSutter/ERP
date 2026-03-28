@@ -296,7 +296,8 @@ const App = () => {
   };
 
   const handleQuickCreateItem = (prefill?: Record<string, any>) => {
-    if (!currentCollection) return;
+    console.log('[QuickCreate] triggered — currentCollection:', currentCollection?.id, 'activeCollection:', activeCollection, 'collections count:', collections.length);
+    if (!currentCollection) { console.warn('[QuickCreate] ABORT: no currentCollection'); return; }
     const props = currentCollection.properties || [];
     const nameField = props.find((p: any) => p.name === 'Nom' || p.id === 'name') || props[0];
     const baseName = currentCollection.name ? `Nouveau ${currentCollection.name}` : 'Nouvel élément';
@@ -304,8 +305,21 @@ const App = () => {
     if (nameField && !item[nameField.id]) item[nameField.id] = baseName;
 
     props.forEach((prop: any) => {
-      if (item[prop.id] === undefined && prop.type === 'date') {
-        item[prop.id] = getRoundedNow().toISOString();
+      if (prop.type === 'date') {
+        const existing = item[prop.id];
+        const existingDate = existing ? new Date(existing) : null;
+        const isValidIso = existingDate && !isNaN(existingDate.getTime());
+        if (!isValidIso) {
+          // Si la valeur existante ressemble à une année (ex: "2026" venant du
+          // groupContext d'un champ date/year), on place la date au 1er janvier
+          // de cette année pour rester dans le bon groupe de groupage.
+          const yearMatch = typeof existing === 'string' && /^\d{4}$/.test(existing.trim());
+          if (yearMatch) {
+            item[prop.id] = new Date(`${existing.trim()}-01-01T12:00:00.000Z`).toISOString();
+          } else {
+            item[prop.id] = getRoundedNow().toISOString();
+          }
+        }
       }
     });
 
@@ -323,7 +337,9 @@ const App = () => {
       item = next;
     }
 
+    console.log('[QuickCreate] calling saveItem with collectionId:', currentCollection.id, 'item keys:', Object.keys(item));
     itemHooks.saveItem(item, null, currentCollection.id);
+    console.log('[QuickCreate] saveItem returned');
   };
 
   const userRoleIds = (userRoles || []).map((r: any) => r.id);

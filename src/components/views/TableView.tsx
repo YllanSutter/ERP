@@ -406,7 +406,14 @@ const TableView: React.FC<TableViewProps> = ({
       console.log('[GroupContext] root tab change:', activeGroupTab, '→', ctx);
       onGroupContextChangeRef.current(ctx);
     } else if (rootGroupMode === 'select') {
-      const deepestPath = Object.values(activeGroupSelectByDepth).filter(Boolean).join('/');
+      // Chaque valeur de activeGroupSelectByDepth est déjà un chemin COMPLET
+      // (ex: depth 0 = "2026", depth 1 = "2026/Mars"). On prend le niveau le
+      // plus profond car il contient toute la hiérarchie — les joindre avec '/'
+      // dupliquerait les segments parents ("2026" + "2026/Mars" → "2026/2026/Mars").
+      const depthKeys = Object.keys(activeGroupSelectByDepth).map(Number).sort((a, b) => a - b);
+      const deepestPath = depthKeys.length > 0
+        ? (activeGroupSelectByDepth[depthKeys[depthKeys.length - 1]] || '')
+        : '';
       if (deepestPath) {
         const prefill = buildGroupPrefill(deepestPath, groups, collection.properties || []);
         const ctx = Object.keys(prefill).length > 0 ? prefill : null;

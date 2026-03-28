@@ -1043,7 +1043,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     };
 
     const timeOptions = getTimeOptions();
-    const currentTime = value ? format(new Date(value), 'HH:mm') : `${String(workDayStart).padStart(2, '0')}:00`;
+    // Utiliser selectedDate (déjà validé) pour éviter le crash si value est une
+    // string non-ISO comme "2026" (venant du groupContext d'un champ date/year)
+    const currentTime = selectedDate ? format(selectedDate, 'HH:mm') : `${String(workDayStart).padStart(2, '0')}:00`;
 
     return (
       <Popover open={open} onOpenChange={setOpen}>

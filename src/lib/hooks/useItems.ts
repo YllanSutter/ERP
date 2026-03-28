@@ -118,6 +118,7 @@ export const useItems = (
     const targetCollection = collections.find((col) => col.id === targetCollectionId);
     const targetItems = targetCollection?.items || [];
     const isEdition = Boolean(editingItem && editingItem.id);
+    console.log('[saveItem] targetCollectionId:', targetCollectionId, '| found:', !!targetCollection, '| isEdition:', isEdition, '| collections available:', collections.map(c => c.id));
 
     // Générer un id robuste si absent
     if (!newItem.id) {
