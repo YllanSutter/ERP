@@ -18,6 +18,7 @@ import {
   Donut,
   TableProperties,
   ChevronDown,
+  ChevronRight,
   Settings2,
   type LucideIcon,
 } from 'lucide-react';
@@ -200,6 +201,25 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   const flatRows = React.useMemo(() => flattenTree(groupedTree), [groupedTree]);
   const hasGroups = flatRows.length > 0;
 
+  // ── Relations parent/enfant dans la table ─────────────────────────────────
+  const parentMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    const depthStack: string[] = [];
+    flatRows.forEach((row) => {
+      depthStack[row.depth] = row.id;
+      if (row.depth > 0 && depthStack[row.depth - 1]) {
+        map.set(row.id, depthStack[row.depth - 1]);
+      }
+    });
+    return map;
+  }, [flatRows]);
+
+  const rowsWithChildren = React.useMemo(() => {
+    const set = new Set<string>();
+    parentMap.forEach((parentId) => set.add(parentId));
+    return set;
+  }, [parentMap]);
+
   // ── Niveaux de groupage disponibles ──────────────────────────────────────
   const depthLevels = React.useMemo<DepthLevel[]>(() => {
     if (!groupedSections?.length) return [];
@@ -222,6 +242,14 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   });
   const [activeMetricId, setActiveMetricId] = React.useState<string>('');
   const [activeDepth, setActiveDepth] = React.useState<number>(0);
+  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(
+    () => new Set<string>()
+  );
+
+  // Initialiser avec toutes les rangées qui ont des enfants (fermées par défaut)
+  React.useEffect(() => {
+    setCollapsedGroups(new Set(rowsWithChildren));
+  }, [rowsWithChildren]);
 
   // Initialisation activeMetricId
   React.useEffect(() => {
@@ -257,6 +285,26 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
   // ── Garde ─────────────────────────────────────────────────────────────────
   if (activeTotals.length === 0 || items.length === 0) return null;
+
+  // ── Visibilité des rangées (respect du collapse) ───────────────────────
+  const isRowVisible = (rowId: string): boolean => {
+    let currentId = rowId;
+    while (true) {
+      const parentId = parentMap.get(currentId);
+      if (!parentId) return true;
+      if (collapsedGroups.has(parentId)) return false;
+      currentId = parentId;
+    }
+  };
+
+  const toggleCollapse = (rowId: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) next.delete(rowId);
+      else next.add(rowId);
+      return next;
+    });
+  };
 
   // Lignes du niveau sélectionné
   const levelRows = React.useMemo(
@@ -674,46 +722,111 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                     </tr>
 
                     {/* Lignes par groupe */}
-                    {flatRows.map((row) => (
-                      <tr
-                        key={row.id}
-                        className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors"
-                      >
-                        <td className="py-2 text-neutral-400" style={{ paddingLeft: `${16 + row.depth * 18}px` }}>
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            {row.depth > 0 && (
-                              <span className="text-neutral-700 shrink-0 text-[10px]">└</span>
-                            )}
-                            <span className="truncate max-w-[150px]">{row.label}</span>
-                            <span className="text-[10px] text-neutral-600 shrink-0">({row.items.length})</span>
-                          </div>
-                        </td>
-                        {activeTotals.map((prop: any) => {
-                          const totalType = totalFields[prop.id];
-                          const meta = getMeta(totalType);
-                          const total = calculateTotal(prop.id, row.items, totalType);
-                          const formatted = formatTotal(prop.id, total, totalType);
-                          const { visible, hint } = splitFilterHint(formatted || '');
-                          const accentColor = prop?.color;
-                          const valStyle = accentColor ? { color: accentColor } : undefined;
-                          const el = (
-                            <span className={cn('tabular-nums text-xs', meta.valueColorClass)} style={valStyle}>
-                              {visible || '—'}
-                            </span>
-                          );
-                          return (
-                            <td key={prop.id} className="px-3 py-2">
-                              {hint ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>{el}</TooltipTrigger>
-                                  <TooltipContent side="top">{hint}</TooltipContent>
-                                </Tooltip>
-                              ) : el}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
+                    {flatRows.map((row) => {
+                      if (!isRowVisible(row.id)) return null;
+
+                      const isActiveDepth = row.depth === activeDepth;
+                      const hasKids = rowsWithChildren.has(row.id);
+                      const isCollapsed = collapsedGroups.has(row.id);
+                      const depthColors = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626'];
+                      const depthColor = depthColors[row.depth % depthColors.length];
+
+                      return (
+                        <tr
+                          key={row.id}
+                          className={cn(
+                            'border-b transition-colors',
+                            row.depth === 0
+                              ? 'border-white/[0.06] hover:bg-white/[0.025]'
+                              : 'border-white/[0.025] hover:bg-white/[0.015]',
+                            isActiveDepth && 'bg-white/[0.02]',
+                          )}
+                        >
+                          <td
+                            className="py-2 pr-2"
+                            style={{ paddingLeft: `${12 + row.depth * 20}px` }}
+                          >
+                            <div className="flex items-center gap-1 min-w-0">
+                              {/* Chevron collapse/expand */}
+                              {hasKids ? (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCollapse(row.id)}
+                                  className="shrink-0 text-neutral-500 hover:text-neutral-200 transition-colors p-0.5 -ml-0.5 rounded"
+                                >
+                                  <ChevronRight
+                                    size={12}
+                                    className={cn(
+                                      'transition-transform duration-150',
+                                      !isCollapsed && 'rotate-90',
+                                    )}
+                                  />
+                                </button>
+                              ) : (
+                                /* Enfant sans sous-groupes : tiret d'indentation */
+                                <span className="shrink-0 w-4 flex justify-center text-neutral-700 text-[10px]">
+                                  ╴
+                                </span>
+                              )}
+
+                              {/* Pastille colorée par niveau */}
+                              <div
+                                className="shrink-0 rounded-sm"
+                                style={{
+                                  width: 3,
+                                  height: row.depth === 0 ? 14 : 10,
+                                  backgroundColor: depthColor,
+                                  opacity: isActiveDepth ? 1 : 0.4,
+                                }}
+                              />
+
+                              <span
+                                className={cn(
+                                  'truncate max-w-[160px] ml-0.5',
+                                  row.depth === 0 ? 'text-neutral-200 font-medium text-xs' : 'text-neutral-400 text-[11px]',
+                                )}
+                              >
+                                {row.label}
+                              </span>
+                              <span className="text-[10px] text-neutral-600 shrink-0 tabular-nums ml-1">
+                                {row.items.length}
+                              </span>
+                            </div>
+                          </td>
+                          {activeTotals.map((prop: any) => {
+                            const totalType = totalFields[prop.id];
+                            const meta = getMeta(totalType);
+                            const total = calculateTotal(prop.id, row.items, totalType);
+                            const formatted = formatTotal(prop.id, total, totalType);
+                            const { visible, hint } = splitFilterHint(formatted || '');
+                            const accentColor = prop?.color;
+                            const valStyle = accentColor ? { color: accentColor } : undefined;
+                            const el = (
+                              <span
+                                className={cn(
+                                  'tabular-nums',
+                                  row.depth === 0 ? 'text-xs font-medium' : 'text-[11px]',
+                                  meta.valueColorClass,
+                                )}
+                                style={valStyle}
+                              >
+                                {visible || '—'}
+                              </span>
+                            );
+                            return (
+                              <td key={prop.id} className="px-3 py-2">
+                                {hint ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>{el}</TooltipTrigger>
+                                    <TooltipContent side="top">{hint}</TooltipContent>
+                                  </Tooltip>
+                                ) : el}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </TooltipProvider>
