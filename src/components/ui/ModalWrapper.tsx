@@ -28,6 +28,8 @@ interface ModalWrapperProps {
   canSave?: boolean;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  /** z-index du backdrop (défaut 200, utiliser 300+ pour un overlay sur une autre modale) */
+  zIndex?: number;
 }
 
 const ModalWrapper: React.FC<ModalWrapperProps> = ({
@@ -40,6 +42,7 @@ const ModalWrapper: React.FC<ModalWrapperProps> = ({
   canSave = true,
   size = 'md',
   className,
+  zIndex = 200,
 }) => {
   const titleEl = typeof title === 'string'
     ? <h3 className="text-lg font-semibold">{title}</h3>
@@ -47,7 +50,8 @@ const ModalWrapper: React.FC<ModalWrapperProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[200] px-4"
+      className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center px-4"
+      style={{ zIndex }}
       onClick={onClose}
     >
       <motion.div

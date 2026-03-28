@@ -179,7 +179,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
       return <LightSelect options={opts} value={typeof value === 'string' ? value : ''} onChange={setValue} />;
     }
 
-    if (selectedProp?.type === 'multiselect') {
+    if (selectedProp?.type === 'multiselect' || selectedProp?.type === 'multi_select') {
       const opts = (selectedProp.options || []).map((opt: any) =>
         typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
       );

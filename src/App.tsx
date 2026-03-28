@@ -160,7 +160,9 @@ const App = () => {
     activeView,
     setActiveView,
     activeDashboard,
-    setActiveDashboard
+    setActiveDashboard,
+    showViewSettings,
+    setShowViewSettings,
   } = useErpState(activeOrganizationId);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -181,7 +183,6 @@ const App = () => {
   const [editingProperty, setEditingProperty] = useState<any>(null);
   const [editingCollection, setEditingCollection] = useState<any>(null);
   const [showEditCollectionModal, setShowEditCollectionModal] = useState(false);
-  const [showViewSettings, setShowViewSettings] = useState(false);
   const [relationFilter, setRelationFilter] = useState<{ collectionId: string | null; ids: string[] }>({
     collectionId: null,
     ids: []
@@ -829,6 +830,10 @@ const App = () => {
                     defaultVisibleFieldIds: visibleFieldIds
                   });
                 }}
+                onUpdateFieldGroups={(groups) => {
+                  if (!activeView) return;
+                  viewHooks.updateView(activeView, { fieldGroups: groups });
+                }}
                 onOpenItemFromSearch={(collection, item) => {
                   setEditingItem(item);
                   setModalCollection(collection || null);
@@ -1215,6 +1220,12 @@ const App = () => {
           }}
           editingItem={editingItem}
           groupContext={groupContext}
+          fieldGroups={(() => {
+            const col = modalCollection || currentCollection;
+            if (!col) return [];
+            const view = views[col.id]?.find((v: any) => v.id === activeView);
+            return view?.fieldGroups || [];
+          })()}
           onToggleFavoriteItem={(itemId: string) => {
             setFavorites((prev) => ({
               ...prev,

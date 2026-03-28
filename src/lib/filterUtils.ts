@@ -31,9 +31,18 @@ export const getFilteredItems = (
     return rawValue;
   };
 
+  // Normalise une valeur multiselect : aplatit les tableaux imbriqués, convertit en strings
+  const normalizeMultiselectVal = (val: any): string[] => {
+    if (!Array.isArray(val)) return val != null && val !== '' ? [String(val)] : [];
+    return val.flatMap((v: any) => Array.isArray(v) ? v.map(String) : [String(v)]);
+  };
+
   const matchesFilterValue = (itemVal: any, filter: any, prop: any) => {
     const fVal = filter.value;
-    const normalizedVal = normalizeValueByProp(itemVal, prop);
+    const isMultiSelectProp = prop?.type === 'multiselect' || prop?.type === 'multi_select';
+    const rawNormalized = normalizeValueByProp(itemVal, prop);
+    // Pour les champs multiselect, on normalise en tableau plat de strings
+    const normalizedVal = isMultiSelectProp ? normalizeMultiselectVal(rawNormalized) : rawNormalized;
     const isArrayVal = Array.isArray(normalizedVal);
 
     switch (filter.operator) {

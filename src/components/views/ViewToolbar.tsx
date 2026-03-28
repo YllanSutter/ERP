@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { FieldGroup } from '@/lib/types';
 import {
   Plus,
   Filter,
@@ -68,6 +69,8 @@ interface ViewToolbarProps {
   onUpdateCollectionVisibleFields: (collectionId: string, visibleFieldIds: string[]) => void;
   onDuplicateView: (viewId: string) => void;
   onOpenItemFromSearch: (collection: any, item: any) => void;
+  /** Met à jour les groupes de champs de la vue courante */
+  onUpdateFieldGroups: (groups: FieldGroup[]) => void;
 }
 
 const ViewToolbar: React.FC<ViewToolbarProps> = ({
@@ -105,7 +108,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onEditView,
   onUpdateCollectionVisibleFields,
   onDuplicateView,
-  onOpenItemFromSearch
+  onOpenItemFromSearch,
+  onUpdateFieldGroups,
 }) => {
   const settingsRef = useRef<HTMLDivElement>(null);
   
@@ -204,6 +208,11 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchCollectionId, setSearchCollectionId] = useState<string | null>(null);
   const [showToolbarTools, setShowToolbarTools] = useState(false);
+  // État pour la gestion des groupes de champs dans le panneau Paramètres
+  const [newGroupLabel, setNewGroupLabel] = useState('');
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editingGroupLabel, setEditingGroupLabel] = useState('');
+  const [groupFieldPickerOpen, setGroupFieldPickerOpen] = useState<string | null>(null);
 
   const activeCollections = calendarCollections.length > 0 ? calendarCollections : currentCollection ? [currentCollection] : [];
   const normalizeSearchText = (input: any): string => {
@@ -575,15 +584,6 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                 <Layers size={14} />
                 Grouper
               </button>
-              <button
-                onClick={() => canEdit && onShowNewPropertyModal()}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 lg:text-sm text-xs transition-all duration-300"
-                disabled={!canEdit}
-              >
-                <Plus size={14} />
-                Propriété
-              </button>
-
               <div className="relative" ref={settingsRef}>
                 <button
                   onClick={() => onSetShowViewSettings(!showViewSettings)}
@@ -599,16 +599,28 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute top-full -mt-2 right-0 w-[420px] bg-gray-200 dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-lg shadow-xl backdrop-blur z-[140] p-4"
+                  className="absolute top-full -mt-2 left-0 w-[420px] max-w-[calc(100vw-1rem)] bg-gray-200 dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-lg shadow-xl backdrop-blur z-[140] p-4"
                 >
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold text-black dark:text-white">Colonnes visibles</h4>
-                    <button
-                      onClick={() => onSetShowViewSettings(false)}
-                      className="text-neutral-700 dark:text-neutral-500 hover:text-black dark:hover:text-white"
-                    >
-                      <X size={14} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {canEdit && (
+                        <button
+                          onClick={() => { onSetShowViewSettings(false); onShowNewPropertyModal(); }}
+                          className="flex items-center gap-1 px-2 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-colors"
+                          title="Ajouter une propriété"
+                        >
+                          <Plus size={12} />
+                          Propriété
+                        </button>
+                      )}
+                      <button
+                        onClick={() => onSetShowViewSettings(false)}
+                        className="text-neutral-700 dark:text-neutral-500 hover:text-black dark:hover:text-white"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
                     {currentViewConfig?.type === 'calendar' && calendarCollections.length > 0 ? (
@@ -738,6 +750,168 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                       />
                     )}
                   </div>
+
+                  {/* ── Groupes de champs ───────────────────────────────── */}
+                  {currentViewConfig?.type !== 'calendar' && (
+                    <div className="mt-4 pt-3 border-t border-black/10 dark:border-white/10">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide">Groupes de champs</span>
+                      </div>
+
+                      {/* Liste des groupes existants */}
+                      {(currentViewConfig?.fieldGroups || []).map((group: FieldGroup) => {
+                        const isEditing = editingGroupId === group.id;
+                        const isPickerOpen = groupFieldPickerOpen === group.id;
+                        return (
+                          <div key={group.id} className="mb-2 rounded-lg border border-black/10 dark:border-white/10 p-2">
+                            {/* En-tête du groupe */}
+                            <div className="flex items-center gap-1 mb-1.5">
+                              {isEditing ? (
+                                <input
+                                  autoFocus
+                                  value={editingGroupLabel}
+                                  onChange={(e) => setEditingGroupLabel(e.target.value)}
+                                  onBlur={() => {
+                                    const trimmed = editingGroupLabel.trim();
+                                    if (trimmed) {
+                                      const next = (currentViewConfig?.fieldGroups || []).map((g: FieldGroup) =>
+                                        g.id === group.id ? { ...g, label: trimmed } : g
+                                      );
+                                      onUpdateFieldGroups(next);
+                                    }
+                                    setEditingGroupId(null);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') e.currentTarget.blur();
+                                    if (e.key === 'Escape') { setEditingGroupId(null); }
+                                  }}
+                                  className="flex-1 text-xs bg-transparent border-b border-violet-500 outline-none text-neutral-800 dark:text-neutral-200 py-0.5"
+                                />
+                              ) : (
+                                <button
+                                  onClick={() => { setEditingGroupId(group.id); setEditingGroupLabel(group.label); }}
+                                  className="flex-1 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:text-black dark:hover:text-white truncate"
+                                  title="Cliquer pour renommer"
+                                >
+                                  {group.label}
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  const next = (currentViewConfig?.fieldGroups || []).filter((g: FieldGroup) => g.id !== group.id);
+                                  onUpdateFieldGroups(next);
+                                  if (groupFieldPickerOpen === group.id) setGroupFieldPickerOpen(null);
+                                }}
+                                className="p-0.5 text-neutral-500 hover:text-red-500 transition-colors"
+                                title="Supprimer le groupe"
+                              >
+                                <Icons.X size={12} />
+                              </button>
+                            </div>
+
+                            {/* Champs du groupe */}
+                            <div className="flex flex-wrap gap-1 min-h-[22px]">
+                              {group.fieldIds.map((fid) => {
+                                const prop = viewableProperties.find((p) => p.id === fid);
+                                if (!prop) return null;
+                                return (
+                                  <span key={fid} className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300">
+                                    {prop.name}
+                                    <button
+                                      onClick={() => {
+                                        const next = (currentViewConfig?.fieldGroups || []).map((g: FieldGroup) =>
+                                          g.id === group.id ? { ...g, fieldIds: g.fieldIds.filter((id) => id !== fid) } : g
+                                        );
+                                        onUpdateFieldGroups(next);
+                                      }}
+                                      className="text-neutral-400 hover:text-red-400 transition-colors"
+                                    >
+                                      <Icons.X size={9} />
+                                    </button>
+                                  </span>
+                                );
+                              })}
+                              {/* Bouton + ajouter un champ */}
+                              <button
+                                onClick={() => setGroupFieldPickerOpen(isPickerOpen ? null : group.id)}
+                                className="text-[10px] px-1.5 py-0.5 rounded border border-dashed border-neutral-400 dark:border-neutral-600 text-neutral-500 hover:border-violet-500 hover:text-violet-500 transition-colors"
+                              >
+                                + champ
+                              </button>
+                            </div>
+
+                            {/* Picker de champs — exclut relations, titre et champs déjà dans un groupe */}
+                            {isPickerOpen && (() => {
+                              const allAssignedIds = new Set(
+                                (currentViewConfig?.fieldGroups || []).flatMap((g: FieldGroup) => g.fieldIds)
+                              );
+                              const titleFieldId = (currentCollection?.properties || [])[0]?.id;
+                              const available = viewableProperties.filter((p) =>
+                                !allAssignedIds.has(p.id) &&
+                                p.type !== 'relation' &&
+                                p.id !== titleFieldId
+                              );
+                              return (
+                                <div className="mt-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-gray-100 dark:bg-neutral-800 p-1.5 max-h-32 overflow-y-auto">
+                                  {available.map((prop) => (
+                                    <button
+                                      key={prop.id}
+                                      onClick={() => {
+                                        const next = (currentViewConfig?.fieldGroups || []).map((g: FieldGroup) =>
+                                          g.id === group.id ? { ...g, fieldIds: [...g.fieldIds, prop.id] } : g
+                                        );
+                                        onUpdateFieldGroups(next);
+                                        setGroupFieldPickerOpen(null);
+                                      }}
+                                      className="w-full text-left text-xs px-2 py-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-neutral-700 dark:text-neutral-300 truncate transition-colors"
+                                    >
+                                      {prop.name}
+                                    </button>
+                                  ))}
+                                  {available.length === 0 && (
+                                    <div className="text-xs text-neutral-500 px-2 py-1">Tous les champs sont déjà assignés</div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        );
+                      })}
+
+                      {/* Créer un nouveau groupe */}
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <input
+                          type="text"
+                          value={newGroupLabel}
+                          onChange={(e) => setNewGroupLabel(e.target.value)}
+                          placeholder="Nom du groupe…"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const trimmed = newGroupLabel.trim();
+                              if (!trimmed) return;
+                              const newGroup: FieldGroup = { id: `group_${Date.now()}`, label: trimmed, fieldIds: [] };
+                              onUpdateFieldGroups([...(currentViewConfig?.fieldGroups || []), newGroup]);
+                              setNewGroupLabel('');
+                            }
+                          }}
+                          className="flex-1 text-xs px-2 py-1.5 bg-transparent border border-black/10 dark:border-white/10 rounded-lg outline-none focus:border-violet-500 text-neutral-700 dark:text-neutral-300 placeholder-neutral-400"
+                        />
+                        <button
+                          onClick={() => {
+                            const trimmed = newGroupLabel.trim();
+                            if (!trimmed) return;
+                            const newGroup: FieldGroup = { id: `group_${Date.now()}`, label: trimmed, fieldIds: [] };
+                            onUpdateFieldGroups([...(currentViewConfig?.fieldGroups || []), newGroup]);
+                            setNewGroupLabel('');
+                          }}
+                          disabled={!newGroupLabel.trim()}
+                          className="px-2 py-1.5 text-xs bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                        >
+                          <Icons.Plus size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>

@@ -1,26 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
-// Mini composant Tabs local
-function Tabs({ tabs, active, onTab, className = "" }: { tabs: { id: string; label: string }[], active: string, onTab: (tabId: string) => void, className?: string }) {
-  return (
-    <div className={"flex gap-2 border-b border-black/10 dark:border-white/10 mb-4 flex-wrap " + className}>
-      {tabs.map(tab => (
-        <button
-          key={tab.id}
-          onClick={() => onTab(tab.id)}
-          className={
-            "px-3 py-1 rounded-t text-sm font-medium transition-all duration-300 " +
-            (active === tab.id ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-black dark:hover:text-white")
-          }
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 import { motion } from 'framer-motion';
 import { Star, Trash2, Clock, Edit2, History, ChevronLeft } from 'lucide-react';
-import ShinyButton from '@/components/ui/ShinyButton';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { Button } from '@/components/ui/button';
 import {
@@ -51,6 +31,8 @@ import {
   isEmptyValue,
   extractTextFromTiptap, serializeTiptapLines, isRichTextValue,
   diffLines, areValuesEqual, computePatch, applyPatch, buildSnapshotAt,
+  formatValueForDisplay,
+  type FieldGroup,
 } from '@/components/modals/modalLib';
 
 
@@ -67,6 +49,8 @@ interface NewItemModalProps {
   orderedProperties?: any[];
   onSaveRelatedItem?: (collectionId: string, item: any) => void;
   groupContext?: Record<string, any> | null;
+  /** Groupes de champs configurés dans les paramètres de la vue (section Détails) */
+  fieldGroups?: FieldGroup[];
 }
 
 interface SubItemEntry {
@@ -96,6 +80,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   orderedProperties,
   onSaveRelatedItem,
   groupContext,
+  fieldGroups = [],
 }) => {
   const { user, isAdmin, isEditor, permissions } = useAuth();
 
@@ -205,34 +190,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
 
 
-
-  const formatValueForDialog = (val: any) => {
-    if (val === null || val === undefined) return '—';
-    if (typeof val === 'number') return `${val}`;
-    if (typeof val === 'boolean') return val ? 'Oui' : 'Non';
-    if (typeof val === 'string') {
-      const trimmed = val.trim();
-      if (!trimmed) return '—';
-      try {
-        const parsed = JSON.parse(trimmed);
-        const tiptapText = extractTextFromTiptap(parsed);
-        if (tiptapText) return tiptapText;
-      } catch {
-        // ignore JSON parse errors
-      }
-      return trimmed.length > 80 ? `${trimmed.slice(0, 80)}…` : trimmed;
-    }
-    if (typeof val === 'object' && val.type === 'doc') {
-      const tiptapText = extractTextFromTiptap(val);
-      return tiptapText || '—';
-    }
-    try {
-      const str = JSON.stringify(val);
-      return str.length > 80 ? `${str.slice(0, 80)}…` : str;
-    } catch {
-      return '—';
-    }
-  };
 
   const getMatchingTemplate = (prop: any, data: any, sourceFieldId?: string) => {
     const templates = Array.isArray(prop.defaultTemplates) ? prop.defaultTemplates : [];
@@ -897,49 +854,21 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const relationProps = propsList.filter((p: any) => p.type === 'relation');
   const dateProps = propsList.filter((p: any) => p.type === 'date');
 
-  const propHasMeaningfulValue = React.useCallback((prop: any) => {
-    const raw = formData[prop.id];
-    if (!isEmptyValue(raw)) return true;
-    if (prop.type === 'date' || prop.type === 'date_range') {
-      const durationKey = `${prop.id}_duration`;
-      if (!isEmptyValue(formData[durationKey])) return true;
-    }
-    return false;
-  }, [formData]);
-
-  const detailsPropsForDisplay = isReallyEditing
-    ? classicPropsSansRichText.slice(1).filter((p: any) => propHasMeaningfulValue(p))
-    : classicPropsSansRichText.slice(1);
-
-  const relationPropsForDisplay = isReallyEditing
-    ? relationProps.filter((p: any) => propHasMeaningfulValue(p))
-    : relationProps;
+  // On affiche toujours tous les champs si la collection en possède —
+  // masquer uniquement quand la collection n'a aucun champ de ce type.
+  const detailsPropsForDisplay = classicPropsSansRichText.slice(1);
+  const relationPropsForDisplay = relationProps;
 
   // Calcule les segments prégénérés côté client (pour aperçu dans le modal)
   const previewSegments = useMemo(() => {
     return calculateSegmentsClient(formData, selectedCollection);
   }, [formData, selectedCollection]);
 
-  const datePropsForDisplay = useMemo(() => {
-    if (!isReallyEditing) return dateProps;
-    return dateProps.filter((dateProp: any) => {
-      const manualSegments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
-      const autoSegments = previewSegments.filter((seg: { label: any; }) => seg.label === dateProp.name);
-      if (manualSegments.length > 0 || autoSegments.length > 0) return true;
-      if (!isEmptyValue(formData[dateProp.id])) return true;
-      if (!isEmptyValue(formData[`${dateProp.id}_duration`])) return true;
-      return false;
-    });
-  }, [isReallyEditing, dateProps, formData, previewSegments]);
+  // Toujours afficher tous les champs date si la collection en a — même vides.
+  const datePropsForDisplay = dateProps;
 
-  const richTextPropsForDisplay = useMemo(() => {
-    if (!isReallyEditing) return richTextProps;
-    // Important UX: s'il y a plusieurs champs rich text,
-    // on les affiche tous en onglets (même vides) pour pouvoir naviguer/remplir.
-    if (richTextProps.length > 1) return richTextProps;
-    // Sinon (un seul rich text), on garde la logique "afficher seulement s'il y a du contenu".
-    return richTextProps.filter((p: any) => propHasMeaningfulValue(p));
-  }, [isReallyEditing, richTextProps, propHasMeaningfulValue]);
+  // Toujours afficher tous les champs rich text si la collection en a.
+  const richTextPropsForDisplay = richTextProps;
 
   const richTextTabs = useMemo(
     () => richTextPropsForDisplay.map((prop: any, index: number) => ({
@@ -1371,8 +1300,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             {detailsPropsForDisplay.length === 0 && !isReallyEditing && (
               <div className="text-neutral-600 text-sm">Aucun champ supplémentaire</div>
             )}
-            <div className="flex flex-col space-y-0.5">
-              {detailsPropsForDisplay.map((prop: any) => (
+            {/* Rendu d'une ligne de champ — factorisé pour usage dans les groupes et hors-groupe */}
+            {(() => {
+              const renderFieldRow = (prop: any) => (
                 <div
                   key={prop.id}
                   className="group/row flex items-stretch rounded-lg hover:bg-white/[0.025] focus-within:bg-white/[0.03] transition-colors duration-100"
@@ -1408,8 +1338,38 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     />
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+
+              // IDs de tous les champs affectés à au moins un groupe
+              const allGroupedIds = new Set(fieldGroups.flatMap((g) => g.fieldIds));
+              const ungroupedProps = detailsPropsForDisplay.filter((p: any) => !allGroupedIds.has(p.id));
+
+              return (
+                <div className="flex flex-col space-y-0.5">
+                  {/* Champs non-groupés */}
+                  {ungroupedProps.map(renderFieldRow)}
+
+                  {/* Groupes de champs */}
+                  {fieldGroups.map((group) => {
+                    const groupProps = group.fieldIds
+                      .map((fid) => detailsPropsForDisplay.find((p: any) => p.id === fid))
+                      .filter(Boolean);
+                    if (groupProps.length === 0) return null;
+                    return (
+                      <div key={group.id} className="pt-2">
+                        <div className="flex items-center gap-2 mb-1 px-1">
+                          <span className="text-[9px] tracking-widest uppercase font-semibold text-neutral-700 shrink-0">{group.label}</span>
+                          <div className="flex-1 h-px bg-white/[0.04]" />
+                        </div>
+                        <div className="flex flex-col space-y-0.5">
+                          {groupProps.map(renderFieldRow)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
           )}
 
@@ -1853,10 +1813,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     {item.propName}
                   </div>
                   <div className="text-xs text-neutral-500 mt-1">
-                    <span className="font-semibold">Actuel :</span> {formatValueForDialog(item.currentValue)}
+                    <span className="font-semibold">Actuel :</span> {formatValueForDisplay(item.currentValue)}
                   </div>
                   <div className="text-xs text-neutral-500">
-                    <span className="font-semibold">Nouveau :</span> {formatValueForDialog(item.desiredValue)}
+                    <span className="font-semibold">Nouveau :</span> {formatValueForDisplay(item.desiredValue)}
                   </div>
                 </div>
               </label>
@@ -2025,13 +1985,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                 <div className="bg-red-500/10 border border-red-500/20 rounded px-2 py-1">
                                   <div className="text-[10px] uppercase text-red-500 mb-1">Avant</div>
                                   <div className="text-neutral-600 dark:text-neutral-300">
-                                    {formatValueForDialog(before)}
+                                    {formatValueForDisplay(before)}
                                   </div>
                                 </div>
                                 <div className="bg-green-500/10 border border-green-500/20 rounded px-2 py-1">
                                   <div className="text-[10px] uppercase text-green-500 mb-1">Après</div>
                                   <div className="text-neutral-600 dark:text-neutral-300">
-                                    {formatValueForDialog(after)}
+                                    {formatValueForDisplay(after)}
                                   </div>
                                 </div>
                               </div>

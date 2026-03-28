@@ -5,7 +5,7 @@
  */
 
 // ─── Re-exports lib/* ─────────────────────────────────────────────────────────
-export type { TableGroupDisplayMode, TableGroupColumnCount } from '@/lib/types';
+export type { TableGroupDisplayMode, TableGroupColumnCount, FieldGroup } from '@/lib/types';
 export { DATE_GRANULARITIES } from '@/lib/types';
 export { MONTH_NAMES, workDayStart, workDayEnd } from '@/lib/calendarUtils';
 export { getOrderedProperties } from '@/lib/filterUtils';
@@ -121,7 +121,7 @@ export const getValueLabels = (
     return values.map((v: any) => opts.find((o: any) => o.value === v)?.label ?? v);
   }
 
-  if (selectedProp?.type === 'multiselect') {
+  if (selectedProp?.type === 'multiselect' || selectedProp?.type === 'multi_select') {
     const opts = (selectedProp.options || []).map((opt: any) =>
       typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value }
     );
@@ -283,4 +283,33 @@ export const buildSnapshotAt = (base: any, versions: any[], index: number): any 
     snapshot = applyPatch(snapshot, versions[i].patch || { set: {}, unset: [] });
   }
   return snapshot;
+};
+
+/** Formate une valeur quelconque en texte lisible pour les dialogues de comparaison */
+export const formatValueForDisplay = (val: any): string => {
+  if (val === null || val === undefined) return '—';
+  if (typeof val === 'number') return `${val}`;
+  if (typeof val === 'boolean') return val ? 'Oui' : 'Non';
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return '—';
+    try {
+      const parsed = JSON.parse(trimmed);
+      const tiptapText = extractTextFromTiptap(parsed);
+      if (tiptapText) return tiptapText;
+    } catch {
+      // ignore JSON parse errors
+    }
+    return trimmed.length > 80 ? `${trimmed.slice(0, 80)}…` : trimmed;
+  }
+  if (typeof val === 'object' && val.type === 'doc') {
+    const tiptapText = extractTextFromTiptap(val);
+    return tiptapText || '—';
+  }
+  try {
+    const str = JSON.stringify(val);
+    return str.length > 80 ? `${str.slice(0, 80)}…` : str;
+  } catch {
+    return '—';
+  }
 };

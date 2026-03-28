@@ -64,6 +64,14 @@ export interface Item {
 
 export type TableGroupDisplayMode = 'accordion' | 'columns' | 'tabs' | 'select';
 export type TableGroupColumnCount = 1 | 2 | 3;
+
+/** Groupe de champs dans la section Détails de NewItemModal */
+export interface FieldGroup {
+  id: string;
+  label: string;
+  /** IDs des champs (classicPropsSansRichText seulement) appartenant à ce groupe */
+  fieldIds: string[];
+}
 export type GroupTotalPosition = 'top' | 'bottom' | 'both';
 
 export interface GroupTotalConfig {

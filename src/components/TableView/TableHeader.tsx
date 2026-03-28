@@ -164,7 +164,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
     const filterProp = (allProperties || visibleProperties).find((p: any) => p.id === fieldId);
     const optionLabelMap = new Map<string, string>();
 
-    if (filterProp && (filterProp.type === 'select' || filterProp.type === 'multi_select')) {
+    if (filterProp && (filterProp.type === 'select' || filterProp.type === 'multi_select' || filterProp.type === 'multiselect')) {
       (filterProp.options || []).forEach((opt: any) => {
         const raw = typeof opt === 'string' ? opt : opt?.value;
         const label = typeof opt === 'string' ? opt : (opt?.label || opt?.value);
