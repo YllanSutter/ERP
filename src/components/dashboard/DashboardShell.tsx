@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, Suspense } from 'react';
 const FilterModal = React.lazy(() => import('@/components/modals/FilterModal'));
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
-import { DashboardColumnNode, MonthlyDashboardConfig } from '@/lib/dashboardTypes';
+import { DashboardColumnNode, DashboardModule, MonthlyDashboardConfig } from '@/lib/dashboardTypes';
 import DashboardColumnConfig from './DashboardColumnConfig';
 import DashboardTableView from './DashboardTableView';
 import DashboardRecapView from './DashboardRecapView';
@@ -48,6 +48,13 @@ interface DashboardShellProps {
 
 
 const months = MONTH_NAMES;
+
+const MODULE_TYPE_LABELS: Record<string, string> = {
+  week_table: 'Tableau hebdomadaire',
+  month_totals: 'Totaux mensuels',
+  year_table: 'Vue annuelle',
+  table: 'Liste des items',
+};
 
 const classNames = {
   headerWrap:
@@ -153,6 +160,13 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     const userOk = hasUserRestriction ? allowedUsers.includes(user?.id) : false;
     return roleOk || userOk;
   }, [dashboard, isAdmin, roles, user]);
+
+  // Modules actifs : dérivé direct sans useMemo pour ne pas modifier l'ordre des hooks
+  // (la liste de modules est toujours courte — pas besoin de mémo)
+  const activeModules: DashboardModule[] =
+    dashboard?.modules && dashboard.modules.length > 0
+      ? dashboard.modules.filter((m) => m.enabled)
+      : [];
 
   const canReadCollection = React.useCallback((collectionId?: string | null) => {
     if (!collectionId) return false;
@@ -753,30 +767,6 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     return { daily, spansByLeaf, spansByLeafDay, dailyObjectDurations };
   }, [dashboard, collection, readableCollections, properties, filteredItems, leafColumns, resolvedTypeField, periodStart, periodEnd]);
 
-
-  if (!dashboard) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-neutral-400">
-        Aucun dashboard sélectionné
-      </div>
-    );
-  }
-
-  if (!canSeeDashboard) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-neutral-400">
-        Vous n'avez pas accès à ce dashboard
-      </div>
-    );
-  }
-
-  if (!collection) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-neutral-400">
-        Collection source du dashboard non accessible
-      </div>
-    );
-  }
 
   const getDisplayCountForDay = (leafId: string, key: string) => {
     if (!aggregates) return 0;
@@ -1443,8 +1433,8 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     const remainingCols = leafColumns.length * metricsPerLeaf;
     const totalColSpan = Math.max(1, Math.ceil(remainingCols / 2));
     const perCollectionColSpan = Math.max(1, remainingCols - totalColSpan);
-    const yearLabel = dashboard.year;
-    const rootGroups = (dashboard.columnTree || []).map((rootNode: any) => {
+    const yearLabel = dashboard!.year;
+    const rootGroups = (dashboard!.columnTree || []).map((rootNode: any) => {
       const leaves = getLeavesWithPath([rootNode]);
       return {
         node: rootNode,
@@ -1617,7 +1607,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
                       Total {month.label}
                     </td>
                     {rootGroups.map((group) => {
-                      const groupCollectionId = group.node?.collectionId || dashboard.sourceCollectionId;
+                      const groupCollectionId = group.node?.collectionId || dashboard!.sourceCollectionId;
                       const groupCollectionName = readableCollections.find((c: any) => c.id === groupCollectionId)?.name || 'Collection';
                       const totals = totalsByMonthAndRoot(month.month, group.leafIds);
                       const summaryParts = [] as string[];
@@ -1688,6 +1678,84 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
     );
   };
 
+  /**
+   * Rendu d'un module unique du dashboard.
+   * Chaque type de module mappe vers un bloc de rendu existant.
+   */
+  const renderModule = (mod: DashboardModule) => {
+    const moduleLabel = mod.title || MODULE_TYPE_LABELS[mod.type] || mod.type;
+    const wrapper = (children: React.ReactNode) => (
+      <div key={mod.id} className="space-y-2">
+        {mod.title && (
+          <h3 className="text-sm font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider px-1">
+            {moduleLabel}
+          </h3>
+        )}
+        {children}
+      </div>
+    );
+
+    switch (mod.type) {
+      case 'week_table':
+        return wrapper(
+          groupedWeeks.length > 0 ? (
+            <div className="space-y-6">
+              {groupedWeeks.map((week) => (
+                <div key={week.week}>{renderWeekTable(week)}</div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-neutral-400 text-sm p-4">
+              Aucune semaine pour la période sélectionnée
+            </div>
+          )
+        );
+      case 'month_totals':
+        return wrapper(renderMonthTotals());
+      case 'year_table':
+        return wrapper(renderYearTable());
+      case 'table':
+        return wrapper(
+          <DashboardTableView
+            sections={tableSections}
+            collections={readableCollections}
+            hiddenBySection={dashboard!.tableHiddenFieldsBySection || {}}
+            onChangeHiddenBySection={(next) => onUpdate({ tableHiddenFieldsBySection: next })}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onViewDetail={onViewDetail}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  // ⚠️ Tous les hooks sont appelés au-dessus — les early returns arrivent APRÈS
+  if (!dashboard) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-neutral-400">
+        Aucun dashboard sélectionné
+      </div>
+    );
+  }
+
+  if (!canSeeDashboard) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-neutral-400">
+        Vous n'avez pas accès à ce dashboard
+      </div>
+    );
+  }
+
+  if (!collection) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-neutral-400">
+        Collection source du dashboard non accessible
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col gap-4 p-4 overflow-auto bg-gradient-to-b from-white/70 via-white/50 to-transparent dark:from-neutral-950/40 dark:via-neutral-950/20">
       <div className={classNames.headerWrap}>
@@ -1720,47 +1788,84 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="inline-flex rounded-full bg-white/60 dark:bg-white/5 p-1 border border-black/10 dark:border-white/10">
-            {([
-              { key: 'recap', label: 'Récap complet' },
-              { key: 'table', label: 'Tableau' },
-            ] as const).map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => handleViewTypeChange(option.key)}
-                className={
-                  'px-3 py-1 text-xs rounded-full transition-all ' +
-                  (viewType === option.key
-                    ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
-                }
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <div className="inline-flex rounded-full bg-white/60 dark:bg-white/5 p-1 border border-black/10 dark:border-white/10">
-            {([
-              { key: 'month', label: 'Mensuel' },
-              { key: 'year', label: 'Annuel' },
-            ] as const).map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => onUpdate({ periodScope: option.key })}
-                className={
-                  'px-3 py-1 text-xs rounded-full transition-all ' +
-                  (periodScope === option.key
-                    ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
-                }
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          {viewType === 'recap' && (
+          {/* Toggles vue/période : masqués si le dashboard utilise des modules */}
+          {activeModules.length === 0 && (
+            <>
+              <div className="inline-flex rounded-full bg-white/60 dark:bg-white/5 p-1 border border-black/10 dark:border-white/10">
+                {([
+                  { key: 'recap', label: 'Récap complet' },
+                  { key: 'table', label: 'Tableau' },
+                ] as const).map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => handleViewTypeChange(option.key)}
+                    className={
+                      'px-3 py-1 text-xs rounded-full transition-all ' +
+                      (viewType === option.key
+                        ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                        : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <div className="inline-flex rounded-full bg-white/60 dark:bg-white/5 p-1 border border-black/10 dark:border-white/10">
+                {([
+                  { key: 'month', label: 'Mensuel' },
+                  { key: 'year', label: 'Annuel' },
+                ] as const).map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => onUpdate({ periodScope: option.key })}
+                    className={
+                      'px-3 py-1 text-xs rounded-full transition-all ' +
+                      (periodScope === option.key
+                        ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                        : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              {viewType === 'recap' && (
+                <div className="inline-flex rounded-full bg-white/60 dark:bg-white/5 p-1 border border-black/10 dark:border-white/10">
+                  {([
+                    { key: 'count', label: 'Nombre' },
+                    { key: 'duration', label: 'Durée' },
+                  ] as const).map((option) => {
+                    const isActive = activeRecapMetrics.includes(option.key);
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => {
+                          if (isActive && activeRecapMetrics.length === 1) return;
+                          const next = (isActive
+                            ? activeRecapMetrics.filter((m) => m !== option.key)
+                            : [...activeRecapMetrics, option.key]) as Array<'count' | 'duration'>;
+                          onUpdate({ recapMetrics: next });
+                        }}
+                        className={
+                          'px-3 py-1 text-xs rounded-full transition-all ' +
+                          (isActive
+                            ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                            : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
+                        }
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+          {/* En mode modules : seul le toggle métriques reste disponible */}
+          {activeModules.length > 0 && (
             <div className="inline-flex rounded-full bg-white/60 dark:bg-white/5 p-1 border border-black/10 dark:border-white/10">
               {([
                 { key: 'count', label: 'Nombre' },
@@ -1820,7 +1925,9 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
       <div className="flex-1 min-h-0 overflow-auto text-neutral-700 dark:text-neutral-200">
         <div className="space-y-10 rounded-xl p-4">
-          {viewType === 'recap' ? (
+          {activeModules.length > 0 ? (
+            activeModules.map((mod) => renderModule(mod))
+          ) : viewType === 'recap' ? (
             periodScope === 'year' ? (
               renderYearTable()
             ) : (

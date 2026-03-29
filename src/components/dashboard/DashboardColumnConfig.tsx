@@ -2,6 +2,19 @@
 import React, { useState } from 'react';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 import { LightSelect } from '@/components/inputs/LightSelect';
+import { DashboardModule, DashboardModuleType } from '@/lib/dashboardTypes';
+
+// Labels lisibles pour chaque type de module
+const MODULE_TYPE_LABELS: Record<DashboardModuleType, string> = {
+  week_table: 'Tableau hebdomadaire',
+  month_totals: 'Totaux mensuels',
+  year_table: 'Vue annuelle',
+  table: 'Liste des items',
+};
+const MODULE_TYPE_OPTIONS = (Object.keys(MODULE_TYPE_LABELS) as DashboardModuleType[]).map((key) => ({
+  value: key,
+  label: MODULE_TYPE_LABELS[key],
+}));
 
 // ─── Icons ──────────────────────────────────────────────────────────────────
 const IconGroup = () => (
@@ -229,6 +242,44 @@ const DashboardColumnConfig = ({ dashboard, collections, onUpdate }: any) => {
 
   const toggleNode = (nodeId: string) =>
     setExpandedGroups((prev) => ({ ...prev, [nodeId]: !prev[nodeId] }));
+
+  // ─── Module handlers ─────────────────────────────────────────────────────────
+  const currentModules: DashboardModule[] = Array.isArray(dashboard.modules) ? dashboard.modules : [];
+
+  const handleAddModule = (type: DashboardModuleType) => {
+    const newModule: DashboardModule = {
+      id: Date.now().toString(),
+      type,
+      enabled: true,
+    };
+    onUpdate({ modules: [...currentModules, newModule] });
+  };
+
+  const handleToggleModule = (id: string) => {
+    onUpdate({
+      modules: currentModules.map((m) => m.id === id ? { ...m, enabled: !m.enabled } : m),
+    });
+  };
+
+  const handleRemoveModule = (id: string) => {
+    onUpdate({ modules: currentModules.filter((m) => m.id !== id) });
+  };
+
+  const handleMoveModule = (id: string, dir: -1 | 1) => {
+    const idx = currentModules.findIndex((m) => m.id === id);
+    if (idx < 0) return;
+    const next = [...currentModules];
+    const target = idx + dir;
+    if (target < 0 || target >= next.length) return;
+    [next[idx], next[target]] = [next[target], next[idx]];
+    onUpdate({ modules: next });
+  };
+
+  const handleUpdateModuleTitle = (id: string, title: string) => {
+    onUpdate({
+      modules: currentModules.map((m) => m.id === id ? { ...m, title: title || undefined } : m),
+    });
+  };
 
   const applyAutoChildren = (nodeId: string, field: string, values: string[], options: any[]) => {
     const labels = new Map(options.map((opt: any) => [opt.value, opt.label ?? opt.value]));
@@ -565,15 +616,20 @@ const DashboardColumnConfig = ({ dashboard, collections, onUpdate }: any) => {
           </span>
           <div>
             <h3 className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
-              Structure des colonnes
-              {columnCount > 0 && (
+              Configuration du dashboard
+              {currentModules.length > 0 && (
+                <span className="ml-2 text-[11px] font-normal text-indigo-500">
+                  {currentModules.filter(m => m.enabled).length} module{currentModules.filter(m => m.enabled).length > 1 ? 's' : ''} actif{currentModules.filter(m => m.enabled).length > 1 ? 's' : ''}
+                </span>
+              )}
+              {currentModules.length === 0 && columnCount > 0 && (
                 <span className="ml-2 text-[11px] font-normal text-neutral-400">
                   {columnCount} groupe{columnCount > 1 ? 's' : ''}
                 </span>
               )}
             </h3>
             {!isPanelOpen && (
-              <p className="text-[11px] text-neutral-400">Cliquer pour configurer les colonnes du dashboard</p>
+              <p className="text-[11px] text-neutral-400">Modules · colonnes · structure</p>
             )}
           </div>
         </div>
@@ -589,9 +645,121 @@ const DashboardColumnConfig = ({ dashboard, collections, onUpdate }: any) => {
         )}
       </div>
 
+      {/* ── Modules section ── */}
+      {isPanelOpen && (
+        <div className="p-4 border-t border-black/8 dark:border-white/8">
+          {/* Section header */}
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h4 className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 uppercase tracking-wider">
+                Modules affichés
+              </h4>
+              <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+                {currentModules.length === 0
+                  ? 'Sans modules : utilise la vue classique (Récap / Tableau)'
+                  : `${currentModules.filter(m => m.enabled).length} module(s) actif(s)`}
+              </p>
+            </div>
+            {/* Add module dropdown */}
+            <div className="relative">
+              <select
+                className="appearance-none pl-2 pr-7 py-1.5 text-xs rounded-md border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/80 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                value=""
+                onChange={(e) => {
+                  const v = e.target.value as DashboardModuleType;
+                  if (v) handleAddModule(v);
+                  e.target.value = '';
+                }}
+              >
+                <option value="">+ Ajouter un module</option>
+                {MODULE_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Module list */}
+          {currentModules.length > 0 && (
+            <div className="space-y-1.5 mb-4">
+              {currentModules.map((mod, idx) => (
+                <div
+                  key={mod.id}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+                    mod.enabled
+                      ? 'bg-indigo-50/80 dark:bg-indigo-950/20 border-indigo-200/50 dark:border-indigo-500/20'
+                      : 'bg-neutral-50/80 dark:bg-neutral-900/40 border-black/8 dark:border-white/8 opacity-60'
+                  }`}
+                >
+                  {/* Drag handle / reorder */}
+                  <div className="flex flex-col gap-0.5 shrink-0">
+                    <button
+                      onClick={() => handleMoveModule(mod.id, -1)}
+                      disabled={idx === 0}
+                      className="w-4 h-4 flex items-center justify-center text-neutral-300 hover:text-neutral-600 dark:hover:text-neutral-300 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 15l-6-6-6 6"/></svg>
+                    </button>
+                    <button
+                      onClick={() => handleMoveModule(mod.id, 1)}
+                      disabled={idx === currentModules.length - 1}
+                      className="w-4 h-4 flex items-center justify-center text-neutral-300 hover:text-neutral-600 dark:hover:text-neutral-300 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                  </div>
+
+                  {/* Type badge */}
+                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-500/15 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300">
+                    {MODULE_TYPE_LABELS[mod.type]}
+                  </span>
+
+                  {/* Title override */}
+                  <input
+                    type="text"
+                    value={mod.title || ''}
+                    onChange={(e) => handleUpdateModuleTitle(mod.id, e.target.value)}
+                    placeholder="Titre (optionnel)"
+                    className="flex-1 min-w-0 text-xs px-2 py-1 rounded border border-black/8 dark:border-white/8 bg-white/70 dark:bg-neutral-800/50 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-neutral-700 dark:text-neutral-200 placeholder-neutral-300 dark:placeholder-neutral-600"
+                  />
+
+                  {/* Enable/disable toggle */}
+                  <button
+                    onClick={() => handleToggleModule(mod.id)}
+                    title={mod.enabled ? 'Désactiver' : 'Activer'}
+                    className={`shrink-0 w-7 h-4 rounded-full transition-colors relative ${
+                      mod.enabled ? 'bg-indigo-500' : 'bg-neutral-200 dark:bg-neutral-700'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${
+                        mod.enabled ? 'translate-x-3.5' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+
+                  {/* Delete */}
+                  <button
+                    onClick={() => handleRemoveModule(mod.id)}
+                    className="shrink-0 w-6 h-6 flex items-center justify-center text-neutral-300 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded"
+                  >
+                    <IconTrash />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Tree (conditionnel) ── */}
       {isPanelOpen && (
         <div className="p-4 border-t border-black/8 dark:border-white/8">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-xs font-semibold text-neutral-700 dark:text-neutral-200 uppercase tracking-wider">
+              Structure des colonnes
+            </h4>
+          </div>
           {columnCount === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-2 text-neutral-400">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
