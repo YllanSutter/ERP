@@ -91,16 +91,10 @@ function itemMatchesTypeValues(itemValue: any, typeValues: string[], fieldType?:
 
 
 const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections, onUpdate, onEdit, onViewDetail, onDelete, dashboardFilters, setDashboardFilters, onShowNewItemModalForCollection }) => {
-      if (!dashboard) {
-        return (
-          <div className="flex items-center justify-center h-full text-neutral-500">
-            <p>Dashboard non accessible</p>
-          </div>
-        );
-      }
+      // ⚠️ Tous les hooks AVANT tout return conditionnel (règle des hooks React)
       const [showFilterModal, setShowFilterModal] = useState(false);
-      const periodScope = dashboard.periodScope || 'month';
-      const activeRecapMetrics = (dashboard.recapMetrics && dashboard.recapMetrics.length > 0)
+      const periodScope = dashboard?.periodScope || 'month';
+      const activeRecapMetrics = (dashboard?.recapMetrics && dashboard.recapMetrics.length > 0)
         ? dashboard.recapMetrics.filter((m) => m === 'count' || m === 'duration')
         : ['count', 'duration'];
       const metricsPerLeaf = Math.max(1, activeRecapMetrics.length);
@@ -124,20 +118,20 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
   const { isAdmin, isEditor, permissions, user, roles, activeOrganizationId } = useAuth();
 
   const dashboardViewStorageKey = useMemo(
-    () => getDashboardViewStorageKey(dashboard.id, activeOrganizationId),
-    [dashboard.id, activeOrganizationId]
+    () => getDashboardViewStorageKey(dashboard?.id ?? '', activeOrganizationId),
+    [dashboard?.id, activeOrganizationId]
   );
 
   const [viewType, setViewType] = useState<DashboardViewType>(() =>
     getStoredDashboardViewType(
-      getDashboardViewStorageKey(dashboard.id, activeOrganizationId),
-      dashboard.viewType || 'recap'
+      getDashboardViewStorageKey(dashboard?.id ?? '', activeOrganizationId),
+      dashboard?.viewType || 'recap'
     )
   );
 
   useEffect(() => {
-    setViewType(getStoredDashboardViewType(dashboardViewStorageKey, dashboard.viewType || 'recap'));
-  }, [dashboardViewStorageKey, dashboard.viewType]);
+    setViewType(getStoredDashboardViewType(dashboardViewStorageKey, dashboard?.viewType || 'recap'));
+  }, [dashboardViewStorageKey, dashboard?.viewType]);
 
   const handleViewTypeChange = (nextViewType: DashboardViewType) => {
     setViewType(nextViewType);
@@ -1824,7 +1818,7 @@ const DashboardShell: React.FC<DashboardShellProps> = ({ dashboard, collections,
 
 
 
-      <div className="flex-1 text-neutral-700 dark:text-neutral-200">
+      <div className="flex-1 min-h-0 overflow-auto text-neutral-700 dark:text-neutral-200">
         <div className="space-y-10 rounded-xl p-4">
           {viewType === 'recap' ? (
             periodScope === 'year' ? (
