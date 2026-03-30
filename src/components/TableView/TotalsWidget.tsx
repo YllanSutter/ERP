@@ -80,6 +80,8 @@ export interface TotalsWidgetProps {
   groupedSections?: Array<{ path?: string; label: string; items: any[]; depth: number; propertyName: string }>;
   persistKey?: string;
   className?: string;
+  /** Chemin actif du tableau (ex: "2026/2026-03/testbundle") pour pré-sélectionner */
+  contextPath?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -190,6 +192,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   groupedSections,
   persistKey,
   className = '',
+  contextPath,
 }) => {
   const activeTotals = displayProperties.filter((p: any) => totalFields[p.id]);
 
@@ -220,6 +223,16 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     return set;
   }, [parentMap]);
 
+  // Map rowId → childIds
+  const childrenMap = React.useMemo(() => {
+    const map = new Map<string, string[]>();
+    parentMap.forEach((parentId, childId) => {
+      if (!map.has(parentId)) map.set(parentId, []);
+      map.get(parentId)!.push(childId);
+    });
+    return map;
+  }, [parentMap]);
+
   // ── Niveaux de groupage disponibles ──────────────────────────────────────
   const depthLevels = React.useMemo<DepthLevel[]>(() => {
     if (!groupedSections?.length) return [];
@@ -232,59 +245,87 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
       .map(([depth, propertyName]) => ({ depth, propertyName }));
   }, [groupedSections]);
 
-  // ── État persisté ─────────────────────────────────────────────────────────
+  // ── État ─────────────────────────────────────────────────────────────────
   const [expanded, setExpanded] = React.useState(true);
   const [modules, setModules] = React.useState<Record<ModuleKey, boolean>>({
-    stats: true,
-    bar: true,
-    donut: hasGroups,
-    table: false,
+    stats: true, bar: true, donut: hasGroups, table: false,
   });
   const [activeMetricId, setActiveMetricId] = React.useState<string>('');
-  const [activeDepth, setActiveDepth] = React.useState<number>(0);
-  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(
-    () => new Set<string>()
-  );
+  const [activeLevelDepth, setActiveLevelDepth] = React.useState<'overview' | number>('overview');
+  // Groupe sélectionné par profondeur : { 0: "2026", 1: "2026/2026-03", ... }
+  const [selectedByDepth, setSelectedByDepth] = React.useState<Record<number, string | null>>({});
+  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(() => new Set());
 
-  // Initialiser avec toutes les rangées qui ont des enfants (fermées par défaut)
+  React.useEffect(() => { setCollapsedGroups(new Set(rowsWithChildren)); }, [rowsWithChildren]);
   React.useEffect(() => {
-    setCollapsedGroups(new Set(rowsWithChildren));
-  }, [rowsWithChildren]);
-
-  // Initialisation activeMetricId
-  React.useEffect(() => {
-    if (!activeMetricId && activeTotals.length > 0) {
-      setActiveMetricId(activeTotals[0].id);
-    }
+    if (!activeMetricId && activeTotals.length > 0) setActiveMetricId(activeTotals[0].id);
   }, [activeTotals, activeMetricId]);
 
-  // Restore depuis localStorage
+  // Pré-sélection depuis le chemin actif du tableau
+  React.useEffect(() => {
+    if (!contextPath || !flatRows.length) return;
+    const segments = contextPath.split('/');
+    const newSelected: Record<number, string | null> = {};
+    let cumPath = '';
+    segments.forEach((seg) => {
+      cumPath = cumPath ? `${cumPath}/${seg}` : seg;
+      const row = flatRows.find((r) => r.id === cumPath);
+      if (row) newSelected[row.depth] = row.id;
+    });
+    if (Object.keys(newSelected).length > 0) setSelectedByDepth(newSelected);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextPath]);
+
+  // Restore localStorage
   React.useEffect(() => {
     if (!persistKey) return;
     try {
-      const raw = localStorage.getItem(`totalswidget2:${persistKey}`);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
+      const saved = JSON.parse(localStorage.getItem(`totalswidget2:${persistKey}`) || '{}');
       if (saved.expanded !== undefined) setExpanded(saved.expanded);
-      if (saved.modules) setModules((prev) => ({ ...prev, ...saved.modules }));
+      if (saved.modules) setModules((p) => ({ ...p, ...saved.modules }));
       if (saved.activeMetricId) setActiveMetricId(saved.activeMetricId);
-      if (saved.activeDepth !== undefined) setActiveDepth(saved.activeDepth);
+      if (saved.activeLevelDepth !== undefined) setActiveLevelDepth(saved.activeLevelDepth);
     } catch { /* no-op */ }
   }, [persistKey]);
 
-  // Persister
   React.useEffect(() => {
     if (!persistKey) return;
     try {
-      localStorage.setItem(
-        `totalswidget2:${persistKey}`,
-        JSON.stringify({ expanded, modules, activeMetricId, activeDepth })
-      );
+      localStorage.setItem(`totalswidget2:${persistKey}`,
+        JSON.stringify({ expanded, modules, activeMetricId, activeLevelDepth }));
     } catch { /* no-op */ }
-  }, [persistKey, expanded, modules, activeMetricId, activeDepth]);
+  }, [persistKey, expanded, modules, activeMetricId, activeLevelDepth]);
 
   // ── Garde ─────────────────────────────────────────────────────────────────
   if (activeTotals.length === 0 || items.length === 0) return null;
+
+  // ── Entonnoir : lignes filtrées par la sélection du niveau parent ──────────
+  const getFilteredRowsAtDepth = (depth: number): FlatRow[] => {
+    const all = flatRows.filter((r) => r.depth === depth);
+    if (depth === 0) return all;
+    const parentSel = selectedByDepth[depth - 1];
+    if (!parentSel) return all;
+    return all.filter((r) => parentMap.get(r.id) === parentSel);
+  };
+
+  // ── Contexte selon onglet niveau + groupe sélectionné ────────────────────
+  const levelDepthNum = activeLevelDepth === 'overview' ? 0 : (activeLevelDepth as number);
+  const levelRows = getFilteredRowsAtDepth(levelDepthNum);
+  const currentGroupId = activeLevelDepth === 'overview' ? null : (selectedByDepth[levelDepthNum] ?? null);
+  const selectedGroupRow = currentGroupId ? (flatRows.find((r) => r.id === currentGroupId) ?? null) : null;
+
+  // Items du contexte : groupe sélectionné → ses items ; sinon global
+  const contextItems = selectedGroupRow ? selectedGroupRow.items : items;
+
+  // Lignes enfants pour les graphiques
+  const contextChildRows: FlatRow[] = selectedGroupRow
+    ? (() => {
+        const kids = (childrenMap.get(selectedGroupRow.id) || [])
+          .map((id) => flatRows.find((r) => r.id === id)!)
+          .filter(Boolean);
+        return kids.length > 0 ? kids : levelRows;
+      })()
+    : levelRows;
 
   // ── Visibilité des rangées (respect du collapse) ───────────────────────
   const isRowVisible = (rowId: string): boolean => {
@@ -306,25 +347,19 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     });
   };
 
-  // Lignes du niveau sélectionné
-  const levelRows = React.useMemo(
-    () => flatRows.filter((r) => r.depth === activeDepth),
-    [flatRows, activeDepth]
-  );
-
-  // ── Données cartes ────────────────────────────────────────────────────────
+  // ── Données cartes ─────────────────────────────────────────────────────
   const statCards = activeTotals.map((prop: any) => {
     const totalType = totalFields[prop.id];
     const meta = getMeta(totalType);
-    const total = calculateTotal(prop.id, items, totalType);
+    const total = calculateTotal(prop.id, contextItems, totalType);
     const formatted = formatTotal(prop.id, total, totalType);
     const { visible } = splitFilterHint(formatted || '');
     const PropIcon = (Icons as any)[prop.icon] || meta.Icon;
     const accent = prop?.color || meta.accentHex;
 
-    // Sparkbar : valeurs du niveau actif
+    // Sparkbar : distribution des groupes de l'onglet
     const groupValues = hasGroups
-      ? levelRows.map((r) => toRawNumber(calculateTotal(prop.id, r.items, totalType)))
+      ? contextChildRows.map((r) => toRawNumber(calculateTotal(prop.id, r.items, totalType)))
       : [];
     const maxGroupVal = groupValues.length ? Math.max(...groupValues, 0.001) : 1;
 
@@ -336,7 +371,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   const barData = React.useMemo(() => {
     if (!activeProp || !hasGroups) return [];
     const totalType = totalFields[activeProp.id];
-    return levelRows
+    return contextChildRows
       .map((row, i) => {
         const raw = calculateTotal(activeProp.id, row.items, totalType);
         const numVal = toRawNumber(raw);
@@ -351,14 +386,14 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
       })
       .sort((a, b) => b.value - a.value)
       .slice(0, 12);
-  }, [activeProp, levelRows, totalFields, calculateTotal, formatTotal, hasGroups]);
+  }, [activeProp, contextChildRows, totalFields, calculateTotal, formatTotal, hasGroups]);
 
   // ── Données donut (suit la métrique active) ───────────────────────────────
   const donutData = React.useMemo(() => {
     if (!hasGroups || !activeProp) return [];
     const totalType = totalFields[activeProp.id];
     const isNumericMetric = ['sum', 'avg', 'min', 'max'].includes(normalizeTotalType(totalType));
-    return levelRows
+    return contextChildRows
       .map((row, i) => {
         const value = isNumericMetric
           ? toRawNumber(calculateTotal(activeProp.id, row.items, totalType))
@@ -368,7 +403,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
       .filter((d) => d.value > 0)
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
-  }, [levelRows, hasGroups, activeProp, totalFields, calculateTotal]);
+  }, [contextChildRows, hasGroups, activeProp, totalFields, calculateTotal]);
 
   // ── Toggle module ─────────────────────────────────────────────────────────
   const toggleModule = (key: ModuleKey) => {
@@ -381,42 +416,19 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   return (
     <div className={cn('rounded-xl overflow-hidden mb-3 border border-white/[0.07] bg-[#0d0d10] shadow-2xl', className)}>
 
-      {/* ── En-tête ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/[0.06]">
-        <div className="flex items-center gap-2 min-w-0 flex-wrap">
-          <Sigma size={12} className="text-violet-400 shrink-0" />
-          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400 select-none whitespace-nowrap">
-            Vue d'ensemble
-          </span>
-          <span className="text-[10px] text-neutral-600 whitespace-nowrap">
-            · {items.length} ligne{items.length > 1 ? 's' : ''}
-          </span>
+      {/* ── En-tête ligne 1 : titre + toggles modules + collapse ──────── */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.04]">
+        <Sigma size={12} className="text-violet-400 shrink-0" />
+        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400 select-none">
+          Totaux
+        </span>
+        <span className="text-[10px] text-neutral-600">
+          · {contextItems.length} ligne{contextItems.length > 1 ? 's' : ''}
+        </span>
 
-          {/* Onglets niveaux de groupage */}
-          {depthLevels.length > 1 && (
-            <div className="flex items-center gap-0.5 ml-2 bg-white/[0.04] rounded-lg p-0.5">
-              {depthLevels.map(({ depth, propertyName }) => (
-                <button
-                  key={depth}
-                  type="button"
-                  onClick={() => setActiveDepth(depth)}
-                  className={cn(
-                    'px-2.5 py-1 rounded-md text-[10px] font-medium transition-all whitespace-nowrap',
-                    activeDepth === depth
-                      ? 'bg-violet-600/30 text-violet-300 border border-violet-500/20'
-                      : 'text-neutral-500 hover:text-neutral-300 border border-transparent'
-                  )}
-                >
-                  {propertyName || `Niveau ${depth + 1}`}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1 ml-auto shrink-0">
+        <div className="flex items-center gap-1 ml-auto">
           {/* Toggles de modules */}
-          <div className="flex items-center gap-0.5 bg-white/[0.04] rounded-lg p-1 mr-1">
+          <div className="flex items-center gap-0.5 bg-white/[0.04] rounded-lg p-0.5 mr-1">
             {(Object.entries(MODULE_META) as [ModuleKey, typeof MODULE_META[ModuleKey]][]).map(([key, { Icon, label }]) => {
               if ((key === 'bar' || key === 'donut') && !hasGroups) return null;
               return (
@@ -437,7 +449,6 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
               );
             })}
           </div>
-
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
@@ -450,6 +461,76 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
           </button>
         </div>
       </div>
+
+      {/* ── Onglet niveau (Vue d'ensemble / Année / Mois / Bundle…) ─────── */}
+      {hasGroups && (
+        <div className="border-b border-white/[0.05]">
+          {/* Rangée 1 : onglets de niveau */}
+          <div className="flex items-center gap-0 px-3 overflow-x-auto bg-white/[0.01]">
+            {/* Onglet Vue d'ensemble */}
+            {[{ id: 'overview' as const, label: "Vue d'ensemble" }, ...depthLevels.map(({ depth, propertyName }) => ({ id: depth as 'overview' | number, label: propertyName || `Niveau ${depth + 1}` }))].map(({ id, label }) => {
+              const isActive = activeLevelDepth === id;
+              return (
+                <button
+                  key={String(id)}
+                  type="button"
+                  onClick={() => setActiveLevelDepth(id)}
+                  className={cn(
+                    'relative px-3 py-2 text-[11px] font-medium whitespace-nowrap transition-colors shrink-0',
+                    isActive ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
+                  )}
+                >
+                  {label}
+                  {isActive && (
+                    <span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-t-full bg-violet-500" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Rangée 2 : groupes du niveau sélectionné (sauf Vue d'ensemble) */}
+          {activeLevelDepth !== 'overview' && levelRows.length > 0 && (
+            <div className="flex items-center gap-1 px-3 py-1.5 overflow-x-auto bg-black/10 border-t border-white/[0.03]">
+              {/* Bouton "Tous" */}
+              <button
+                type="button"
+                onClick={() => setSelectedByDepth((p) => ({ ...p, [levelDepthNum]: null }))}
+                className={cn(
+                  'shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-medium border transition-all whitespace-nowrap',
+                  currentGroupId === null
+                    ? 'bg-violet-600/25 border-violet-500/30 text-violet-300'
+                    : 'border-white/[0.07] text-neutral-500 hover:text-neutral-300 hover:border-white/10'
+                )}
+              >
+                Tous
+              </button>
+              {levelRows.map((row, i) => {
+                const isActive = currentGroupId === row.id;
+                const color = CHART_PALETTE[i % CHART_PALETTE.length];
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => setSelectedByDepth((p) => ({ ...p, [levelDepthNum]: isActive ? null : row.id }))}
+                    className={cn(
+                      'shrink-0 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium border transition-all whitespace-nowrap',
+                      isActive
+                        ? 'text-white border-transparent'
+                        : 'border-white/[0.07] text-neutral-400 hover:text-neutral-200 hover:border-white/10'
+                    )}
+                    style={isActive ? { backgroundColor: color + '33', borderColor: color + '66', color } : undefined}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color, opacity: isActive ? 1 : 0.5 }} />
+                    {row.label}
+                    <span className="text-[9px] opacity-60 tabular-nums">({row.items.length})</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {expanded && (
         <div className="p-4 space-y-4">
@@ -691,14 +772,14 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                           <div className="flex items-center gap-1.5">
                             <Sigma size={9} className="text-neutral-500 shrink-0" />
                             <span className="font-semibold text-neutral-200">Total</span>
-                            <span className="text-[10px] text-neutral-600">({items.length})</span>
+                            <span className="text-[10px] text-neutral-600">({contextItems.length})</span>
                           </div>
                         </td>
                       )}
                       {activeTotals.map((prop: any) => {
                         const totalType = totalFields[prop.id];
                         const meta = getMeta(totalType);
-                        const total = calculateTotal(prop.id, items, totalType);
+                        const total = calculateTotal(prop.id, contextItems, totalType);
                         const formatted = formatTotal(prop.id, total, totalType);
                         const { visible, hint } = splitFilterHint(formatted || '');
                         const accentColor = prop?.color;
@@ -725,7 +806,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                     {flatRows.map((row) => {
                       if (!isRowVisible(row.id)) return null;
 
-                      const isActiveDepth = row.depth === activeDepth;
+                      const isActiveDepth = row.depth === levelDepthNum;
                       const hasKids = rowsWithChildren.has(row.id);
                       const isCollapsed = collapsedGroups.has(row.id);
                       const depthColors = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626'];

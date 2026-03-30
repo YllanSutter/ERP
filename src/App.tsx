@@ -27,7 +27,7 @@ import FilterModal from '@/components/modals/FilterModal';
 import GroupModal from '@/components/modals/GroupModal';
 import NewViewModal from '@/components/modals/NewViewModal';
 import ViewVisibilityModal from '@/components/modals/ViewVisibilityModal';
-import DashboardShell from '@/components/dashboard/DashboardShell';
+import DashboardView from '@/components/dashboard/DashboardView';
 import { API_URL, defaultCollections, defaultDashboards, defaultViews } from '@/lib/constants';
 import { useErpState } from '@/lib/useErpState';
 import { useCanEdit, useCanEditField, useCanManagePermissions } from '@/lib/hooks/useCanEdit';
@@ -35,7 +35,7 @@ import { useCollections } from '@/lib/hooks/useCollections';
 import { useItems } from '@/lib/hooks/useItems';
 import { useViews } from '@/lib/hooks/useViews';
 import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
-import { MonthlyDashboardConfig } from '@/lib/dashboardTypes';
+import { DashboardConfig } from '@/lib/dashboardTypes';
 import { applyCalculatedFieldsToCollections, stripCalculatedNumberFieldsFromItem } from '@/lib/calculatedFields';
 import { applyUserCalendarPreferences } from '@/lib/calendarUtils';
 import { importPricesFromItad } from '@/lib/itadUtils';
@@ -151,7 +151,7 @@ const App = () => {
   const [collections, setCollections] = useState<any[]>(defaultCollections);
   // console.log(collections);
   const [views, setViews] = useState<Record<string, any[]>>(defaultViews);
-  const [dashboards, setDashboards] = useState<MonthlyDashboardConfig[]>(defaultDashboards);
+  const [dashboards, setDashboards] = useState<DashboardConfig[]>(defaultDashboards);
   const [dashboardSort, setDashboardSort] = useState<'created' | 'name-asc' | 'name-desc'>('created');
   // State ERP global (activeCollection, activeView, activeDashboard)
   const {
@@ -485,18 +485,10 @@ const App = () => {
 
   const handleCreateDashboard = () => {
     const now = new Date();
-    const newDashboard: MonthlyDashboardConfig = {
+    const newDashboard: DashboardConfig = {
       id: Date.now().toString(),
       name: `Dashboard ${dashboards.length + 1}`,
-      sourceCollectionId: collections[0]?.id || null,
-      year: now.getFullYear(),
-      month: now.getMonth() + 1,
-      includeWeekends: false,
-      typeField: null,
-      globalDateField: null,
-      globalDateRange: { startField: null, endField: null },
-      globalDurationField: null,
-      columnTree: [],
+      modules: [],
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()
     };
@@ -507,7 +499,7 @@ const App = () => {
     setRelationFilter({ collectionId: null, ids: [] });
   };
 
-  const handleUpdateDashboard = (dashboardId: string, patch: Partial<MonthlyDashboardConfig>) => {
+  const handleUpdateDashboard = (dashboardId: string, patch: Partial<DashboardConfig>) => {
     setDashboards((prev) =>
       prev.map((db) =>
         db.id === dashboardId
@@ -528,7 +520,7 @@ const App = () => {
     const source = dashboards.find((d) => d.id === dashboardId);
     if (!source) return;
     const now = new Date();
-    const clone: MonthlyDashboardConfig = {
+    const clone: DashboardConfig = {
       ...source,
       id: Date.now().toString(),
       name: `${source.name} (copie)`,
@@ -682,27 +674,27 @@ const App = () => {
           {showAutomations ? (
             <AutomationsPage collections={collections} />
           ) : activeDashboard ? (
-            <DashboardShell
+            <DashboardView
               dashboard={activeDashboardConfig}
               collections={collections}
               onUpdate={(patch) => activeDashboard && handleUpdateDashboard(activeDashboard, patch)}
-              onEdit={(item: any) => itemHooks.updateItem(item)}
+              onEdit={(item: any) => {
+                const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
+                setEditingItem(item);
+                setModalCollection(itemCollection || null);
+                setShowNewItemModal(true);
+              }}
               onViewDetail={(item: any) => {
                 const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
                 setEditingItem(item);
                 setModalCollection(itemCollection || null);
                 setShowNewItemModal(true);
               }}
-              onDelete={(id: string) => {
-                // Optionnel : suppression d'un item depuis le dashboard
-              }}
-              onShowNewItemModalForCollection={(collection, item) => {
+              onShowNewItemModal={(collection, item) => {
                 setModalCollection(collection || null);
                 setEditingItem(item || null);
                 setShowNewItemModal(true);
               }}
-              dashboardFilters={dashboardFilters}
-              setDashboardFilters={setDashboardFilters}
             />
           ) : !activeCollection ? (
             <motion.div

@@ -1,4 +1,4 @@
-import { MonthlyDashboardConfig } from './dashboardTypes';
+import { DashboardConfig } from './dashboardTypes';
 
 export const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -20,4 +20,4 @@ export const defaultCollections: any[] = [];
 
 export const defaultViews: Record<string, any[]> = {};
 
-export const defaultDashboards: MonthlyDashboardConfig[] = [];
+export const defaultDashboards: DashboardConfig[] = [];
