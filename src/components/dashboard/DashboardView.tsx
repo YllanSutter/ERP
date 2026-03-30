@@ -46,6 +46,7 @@ const ModuleWithData: React.FC<{
   onDelete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  onUpdateModule?: (patch: Partial<DashboardModuleConfig>) => void;
 }> = (props) => {
   const data = useDashboardItemData(props.module, props.collections, props.globalFilter);
 
@@ -63,6 +64,7 @@ const ModuleWithData: React.FC<{
       onDelete={props.onDelete}
       onMoveUp={props.onMoveUp}
       onMoveDown={props.onMoveDown}
+      onUpdateModule={props.onUpdateModule}
     />
   );
 };
@@ -317,6 +319,7 @@ const DashboardView: React.FC<Props> = ({
                   onDelete={() => handleDeleteModule(module.id)}
                   onMoveUp={() => handleMoveModule(module.id, 'up')}
                   onMoveDown={() => handleMoveModule(module.id, 'down')}
+                  onUpdateModule={(patch) => handleUpdateModule(module.id, patch)}
                 />
               </div>
             ))}

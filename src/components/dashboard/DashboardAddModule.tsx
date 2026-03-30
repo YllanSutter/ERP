@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import { X, BarChart2, Table2, Columns, CalendarDays, List, Gauge } from 'lucide-react';
+import { X, BarChart2, Table2, Columns, CalendarDays, List, Gauge, LayoutGrid } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -19,6 +19,7 @@ const MODULE_TYPE_ICONS: Record<ModuleType, React.ReactNode> = {
   chart:    <BarChart2 size={24} />,
   metric:   <Gauge size={24} />,
   list:     <List size={24} />,
+  recap:    <LayoutGrid size={24} />,
 };
 
 const MODULE_TYPE_DESC: Record<ModuleType, string> = {
@@ -28,6 +29,7 @@ const MODULE_TYPE_DESC: Record<ModuleType, string> = {
   chart:    'Graphique configurable (barres, lignes, camembert…)',
   metric:   'Valeur KPI unique (comptage, somme, moyenne…)',
   list:     "Liste compacte d'éléments avec champs clés",
+  recap:    'Tableau croisé semaines × colonnes ou mois × colonnes',
 };
 
 const MODULE_COLORS: Record<ModuleType, string> = {
@@ -37,6 +39,7 @@ const MODULE_COLORS: Record<ModuleType, string> = {
   chart:    '#f97316',
   metric:   '#6366f1',
   list:     '#ec4899',
+  recap:    '#0ea5e9',
 };
 
 interface Props {
@@ -60,7 +63,7 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
       filters: [],
       layout: {
         w: selectedType === 'metric' ? 3 : selectedType === 'chart' ? 6 : 12,
-        h: selectedType === 'metric' ? 200 : selectedType === 'chart' ? 400 : 400,
+        h: selectedType === 'metric' ? 200 : selectedType === 'chart' ? 400 : selectedType === 'recap' ? 500 : 400,
         order: currentOrder,
       },
       // Valeurs par défaut selon le type
@@ -72,6 +75,10 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
       } : {}),
       ...(selectedType === 'metric' ? {
         metricAggregation: 'count',
+      } : {}),
+      ...(selectedType === 'recap' ? {
+        recapMode: 'month' as const,
+        recapColumns: [],
       } : {}),
     };
 

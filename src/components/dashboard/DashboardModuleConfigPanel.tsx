@@ -6,21 +6,24 @@
 import React, { useState, useCallback } from 'react';
 import {
   X, Plus, Trash2, ChevronDown, BarChart2, LineChart, PieChart, AreaChart,
-  Table2, Columns, CalendarDays, List, Gauge
+  Table2, Columns, CalendarDays, List, Gauge, LayoutGrid, GitBranch
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   DashboardModuleConfig,
   ModuleType,
   ChartType,
   AggregationType,
   DateGrouping,
+  RecapDisplayType,
   MODULE_WIDTH_OPTIONS,
   MODULE_HEIGHT_OPTIONS,
   AGGREGATION_LABELS,
   DATE_GROUPING_LABELS,
   MODULE_TYPE_LABELS,
+  RecapColumn,
 } from '@/lib/dashboardTypes';
+import { getPropOptions } from '@/lib/utils/recapColumnUtils';
 import { Property, Collection } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -39,6 +42,7 @@ const MODULE_TYPE_ICONS: Record<ModuleType, React.ReactNode> = {
   chart:    <BarChart2 size={16} />,
   metric:   <Gauge size={16} />,
   list:     <List size={16} />,
+  recap:    <LayoutGrid size={16} />,
 };
 
 const CHART_TYPE_OPTIONS: { value: ChartType; label: string; icon: React.ReactNode }[] = [
@@ -87,6 +91,387 @@ const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     {children}
   </div>
 );
+
+// ---------------------------------------------------------------------------
+// Éditeur de colonnes Recap – version récursive avec sous-colonnes
+// ---------------------------------------------------------------------------
+
+const PRESET_COLORS = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
+  '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7',
+];
+
+const DISPLAY_TYPE_OPTIONS: { value: RecapDisplayType; label: string }[] = [
+  { value: 'count',    label: 'Nombre' },
+  { value: 'sum',      label: 'Somme' },
+  { value: 'duration', label: 'Durée (Xh Ym)' },
+];
+
+interface RecapColumnsEditorProps {
+  columns: RecapColumn[];
+  properties: Property[];
+  onChange: (cols: RecapColumn[]) => void;
+}
+
+// ── Éditeur récursif d'un nœud de colonne ──────────────────────────────────
+
+interface RecapColumnItemEditorProps {
+  col: RecapColumn;
+  properties: Property[];
+  depth: number;      // 0 = top, 1 = sub, 2 = sub-sub (feuille forcée)
+  onUpdate: (updated: RecapColumn) => void;
+  onRemove: () => void;
+}
+
+const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
+  col, properties, depth, onUpdate, onRemove,
+}) => {
+  const [open, setOpen] = useState(false);
+
+  const selectProps  = properties.filter((p) =>
+    p.type === 'select' || p.type === 'multiselect' || (p.type as string) === 'multi_select'
+  );
+  const numericProps = properties.filter((p) => p.type === 'number');
+
+  // Mode sous-colonnes : state LOCAL (pas dérivé) pour piloter l'UI du toggle
+  // On l'initialise depuis les données puis il vit sa vie indépendamment
+  const initSubMode = (): 'none' | 'auto' | 'manual' =>
+    col.autoSubFieldId ? 'auto' :
+    (col.children?.length ?? 0) > 0 ? 'manual' :
+    'none';
+  const [subMode, setSubModeState] = useState<'none' | 'auto' | 'manual'>(initSubMode);
+
+  const isLeaf  = subMode === 'none';
+  const canNest = depth < 2;
+
+  const autoSubProp    = selectProps.find((p) => p.id === col.autoSubFieldId);
+  const autoSubOptions = autoSubProp ? getPropOptions(autoSubProp) : [];
+
+  const getFieldOptions = (fid: string) => {
+    const p = properties.find((pp) => pp.id === fid);
+    return p ? getPropOptions(p) : [];
+  };
+
+  const setSubMode = (mode: 'none' | 'auto' | 'manual') => {
+    setSubModeState(mode);
+    if (mode === 'none') {
+      onUpdate({ ...col, autoSubFieldId: undefined, children: [] });
+    } else if (mode === 'manual') {
+      // Efface autoSubFieldId mais garde les children existants (ou [] si vide)
+      onUpdate({ ...col, autoSubFieldId: undefined, autoSubDisplayType: undefined });
+    }
+    // Pour 'auto' on ne touche pas aux données tant que l'utilisateur n'a pas
+    // sélectionné un champ — le picker le fera lui-même
+  };
+
+  const addChild = () => {
+    const child: RecapColumn = {
+      id:          uuidv4(),
+      label:       `Sous-col ${(col.children?.length ?? 0) + 1}`,
+      color:       col.color,
+      displayType: 'count',
+    };
+    onUpdate({ ...col, children: [...(col.children ?? []), child] });
+  };
+
+  return (
+    <div
+      className="border border-border rounded-lg overflow-hidden"
+      style={{ marginLeft: depth > 0 ? '10px' : undefined }}
+    >
+      {/* ─ En-tête ─ */}
+      <div
+        className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-accent/50 select-none"
+        onClick={() => setOpen(!open)}
+      >
+        <div
+          className="w-3 h-3 rounded-full flex-shrink-0 ring-1 ring-black/10"
+          style={{ background: col.color ?? '#6366f1' }}
+        />
+        <span className="flex-1 text-sm font-medium text-foreground truncate">
+          {col.label || '–'}
+        </span>
+        {subMode === 'auto' && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">Auto</span>
+        )}
+        {subMode === 'manual' && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground">
+            {col.children?.length ?? 0} sous-col.
+          </span>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="p-0.5 text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 size={12} />
+        </button>
+        <ChevronDown
+          size={12}
+          className={`text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </div>
+
+      {/* ─ Détail ─ */}
+      {open && (
+        <div className="px-2 pb-2 pt-1 border-t border-border space-y-2.5 bg-background/50">
+
+          {/* Nom */}
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">Nom</div>
+            <input
+              type="text"
+              value={col.label}
+              onChange={(e) => onUpdate({ ...col, label: e.target.value })}
+              placeholder="Nom de la colonne…"
+              className="w-full bg-background border border-border rounded-md px-2 py-1.5 text-sm"
+            />
+          </div>
+
+          {/* Couleur */}
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">Couleur</div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {PRESET_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => onUpdate({ ...col, color: c })}
+                  className={`w-5 h-5 rounded-full ring-1 ring-black/10 transition-transform ${col.color === c ? 'scale-125 ring-2 ring-offset-1' : 'hover:scale-110'}`}
+                  style={{ background: c }}
+                />
+              ))}
+              <input
+                type="color"
+                value={col.color ?? '#6366f1'}
+                onChange={(e) => onUpdate({ ...col, color: e.target.value })}
+                className="w-5 h-5 rounded-full border-0 p-0 cursor-pointer"
+                title="Couleur personnalisée"
+              />
+            </div>
+          </div>
+
+          {/* Filtre */}
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">Filtrer par champ</div>
+            <Sel
+              value={col.filterFieldId ?? ''}
+              onChange={(v) => onUpdate({ ...col, filterFieldId: v || undefined, filterValues: [] })}
+              options={properties.map((p) => ({ value: p.id, label: p.name }))}
+              placeholder="Aucun filtre (tout afficher)"
+            />
+          </div>
+
+          {/* Valeurs du filtre */}
+          {col.filterFieldId && (
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Valeurs à inclure</div>
+              {getFieldOptions(col.filterFieldId).length > 0 ? (
+                <div className="space-y-1 max-h-28 overflow-y-auto">
+                  {getFieldOptions(col.filterFieldId).map((opt) => {
+                    const checked = col.filterValues?.includes(opt) ?? false;
+                    return (
+                      <label key={opt} className="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const cur = new Set(col.filterValues ?? []);
+                            if (e.target.checked) cur.add(opt); else cur.delete(opt);
+                            onUpdate({ ...col, filterValues: Array.from(cur) });
+                          }}
+                          className="rounded"
+                        />
+                        {opt}
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={(col.filterValues ?? []).join(', ')}
+                  onChange={(e) => onUpdate({ ...col, filterValues: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+                  placeholder="Valeurs séparées par des virgules"
+                  className="w-full bg-background border border-border rounded-md px-2 py-1.5 text-sm"
+                />
+              )}
+            </div>
+          )}
+
+          {/* Type d'affichage (uniquement si feuille) */}
+          {isLeaf && (
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Afficher</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <Sel
+                  value={col.displayType ?? 'count'}
+                  onChange={(v) => onUpdate({ ...col, displayType: v as RecapDisplayType })}
+                  options={DISPLAY_TYPE_OPTIONS}
+                />
+                {(col.displayType === 'sum' || col.displayType === 'duration') && numericProps.length > 0 && (
+                  <Sel
+                    value={col.aggregationField ?? ''}
+                    onChange={(v) => onUpdate({ ...col, aggregationField: v || undefined })}
+                    options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
+                    placeholder="Champ numérique"
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ─ Sous-colonnes (max depth 2) ─ */}
+          {canNest && (
+            <div className="pt-1 border-t border-border/50">
+              <div className="flex items-center gap-1.5 mb-2">
+                <GitBranch size={11} className="text-muted-foreground" />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Sous-colonnes
+                </span>
+              </div>
+
+              {/* Toggle mode */}
+              <div className="flex rounded-md border border-border overflow-hidden text-xs mb-2">
+                {(['none', 'auto', 'manual'] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setSubMode(m)}
+                    className={`flex-1 py-1 transition-colors ${
+                      subMode === m
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-accent text-muted-foreground'
+                    }`}
+                  >
+                    {m === 'none' ? 'Aucune' : m === 'auto' ? 'Auto' : 'Manuel'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Mode Auto */}
+              {subMode === 'auto' && (
+                <div className="space-y-1.5">
+                  <Sel
+                    value={col.autoSubFieldId ?? ''}
+                    onChange={(v) => onUpdate({ ...col, autoSubFieldId: v || undefined })}
+                    options={selectProps.map((p) => ({ value: p.id, label: p.name }))}
+                    placeholder="Champ select/multiselect…"
+                  />
+                  {col.autoSubFieldId && (
+                    <>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <Sel
+                          value={col.autoSubDisplayType ?? 'count'}
+                          onChange={(v) => onUpdate({ ...col, autoSubDisplayType: v as RecapDisplayType })}
+                          options={DISPLAY_TYPE_OPTIONS}
+                        />
+                        {(col.autoSubDisplayType === 'sum' || col.autoSubDisplayType === 'duration') && numericProps.length > 0 && (
+                          <Sel
+                            value={col.autoSubAggregationField ?? ''}
+                            onChange={(v) => onUpdate({ ...col, autoSubAggregationField: v || undefined })}
+                            options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
+                            placeholder="Champ numérique"
+                          />
+                        )}
+                      </div>
+                      {/* Aperçu des sous-colonnes */}
+                      {autoSubOptions.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {autoSubOptions.map((opt) => (
+                            <span
+                              key={opt}
+                              className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                              style={{
+                                background: col.color ? `${col.color}18` : 'hsl(var(--accent))',
+                                color: col.color ?? 'hsl(var(--primary))',
+                              }}
+                            >
+                              {opt}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Mode Manuel */}
+              {subMode === 'manual' && (
+                <div className="space-y-1">
+                  {(col.children ?? []).map((child, ci) => (
+                    <RecapColumnItemEditor
+                      key={child.id}
+                      col={child}
+                      properties={properties}
+                      depth={depth + 1}
+                      onUpdate={(updated) => {
+                        const next = [...(col.children ?? [])];
+                        next[ci] = updated;
+                        onUpdate({ ...col, children: next });
+                      }}
+                      onRemove={() => {
+                        const next = (col.children ?? []).filter((_, i) => i !== ci);
+                        onUpdate({ ...col, children: next });
+                      }}
+                    />
+                  ))}
+                  <button
+                    onClick={addChild}
+                    className="w-full flex items-center justify-center gap-1 py-1 border border-dashed border-border rounded-md text-xs text-muted-foreground hover:text-primary hover:border-primary"
+                  >
+                    <Plus size={11} /> Ajouter une sous-colonne
+                  </button>
+                </div>
+              )}
+
+              {/* Mode None : rien à afficher, mais on montre le type d'affichage si la colonne était déjà une feuille */}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Éditeur de liste de colonnes (niveau racine) ───────────────────────────
+
+const RecapColumnsEditor: React.FC<RecapColumnsEditorProps> = ({ columns, properties, onChange }) => {
+  const addColumn = () => {
+    const newCol: RecapColumn = {
+      id:          uuidv4(),
+      label:       `Colonne ${columns.length + 1}`,
+      color:       PRESET_COLORS[columns.length % PRESET_COLORS.length],
+      displayType: 'count',
+    };
+    onChange([...columns, newCol]);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {columns.map((col, idx) => (
+        <RecapColumnItemEditor
+          key={col.id}
+          col={col}
+          properties={properties}
+          depth={0}
+          onUpdate={(updated) => {
+            const next = [...columns];
+            next[idx] = updated;
+            onChange(next);
+          }}
+          onRemove={() => onChange(columns.filter((_, i) => i !== idx))}
+        />
+      ))}
+      <button
+        onClick={addColumn}
+        className="w-full flex items-center justify-center gap-1.5 py-1.5 border border-dashed border-border rounded-lg text-xs text-muted-foreground hover:text-primary hover:border-primary transition-colors"
+      >
+        <Plus size={13} /> Ajouter une colonne
+      </button>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
 
 const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUpdate, onClose }) => {
   const collection = collections.find((c) => c.id === module.collectionId) ?? null;
@@ -470,8 +855,44 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
           </>
         )}
 
+        {/* ---- Options spécifiques : RECAP ---- */}
+        {module.type === 'recap' && (
+          <>
+            <SectionLabel>Champ date</SectionLabel>
+            <Sel
+              value={module.recapDateField ?? ''}
+              onChange={(v) => patch({ recapDateField: v })}
+              options={dateProps.map((p) => ({ value: p.id, label: p.name }))}
+              placeholder="Premier champ date détecté"
+            />
+
+            <SectionLabel>Mode par défaut</SectionLabel>
+            <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+              <button
+                onClick={() => patch({ recapMode: 'month' })}
+                className={`flex-1 py-1.5 ${module.recapMode !== 'year' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'}`}
+              >
+                Mois
+              </button>
+              <button
+                onClick={() => patch({ recapMode: 'year' })}
+                className={`flex-1 py-1.5 ${module.recapMode === 'year' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'}`}
+              >
+                Année
+              </button>
+            </div>
+
+            <SectionLabel>Colonnes</SectionLabel>
+            <RecapColumnsEditor
+              columns={module.recapColumns ?? []}
+              properties={allProps}
+              onChange={(cols) => patch({ recapColumns: cols })}
+            />
+          </>
+        )}
+
         {/* ---- Filtres ---- */}
-        {collection && (
+        {collection && module.type !== 'recap' && (
           <>
             <SectionLabel>Filtres</SectionLabel>
             <div className="space-y-2">

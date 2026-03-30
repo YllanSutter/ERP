@@ -10,7 +10,8 @@ export type ModuleType =
   | 'calendar'   // Vue calendrier (réutilise CalendarView)
   | 'chart'      // Graphique (recharts)
   | 'metric'     // Carte KPI / métrique
-  | 'list';      // Liste simple d'items
+  | 'list'       // Liste simple d'items
+  | 'recap';     // Tableau récap semaines × colonnes (ou mois × colonnes)
 
 export type ChartType = 'bar' | 'line' | 'area' | 'pie';
 
@@ -28,6 +29,53 @@ export type GlobalDatePreset =
   | 'this_quarter'
   | 'this_year'
   | 'custom';
+
+/**
+ * Type d'affichage pour une cellule récap.
+ * - count    : nombre d'items
+ * - sum      : somme d'un champ numérique
+ * - duration : somme d'un champ numérique formatée en Xh Ym
+ */
+export type RecapDisplayType = 'count' | 'sum' | 'duration';
+
+/**
+ * Nœud de colonne récap (structure récursive).
+ * Un nœud peut être une feuille (displayType) ou avoir des sous-colonnes
+ * (automatiques depuis un champ select/multiselect, ou manuelles).
+ */
+export interface RecapColumn {
+  id: string;
+  /** Label affiché dans l'en-tête */
+  label: string;
+  /** Couleur de la colonne */
+  color?: string;
+
+  // ── Filtrage ─────────────────────────────────────────────────────
+  /** Champ sur lequel filtrer */
+  filterFieldId?: string;
+  /** Valeurs à inclure (vide = tout) */
+  filterValues?: string[];
+
+  // ── Affichage (feuille — utilisé quand pas de sous-colonnes) ─────
+  /** Type d'affichage (défaut : count) */
+  displayType?: RecapDisplayType;
+  /** Champ numérique à sommer pour sum/duration */
+  aggregationField?: string;
+  /** @deprecated utiliser displayType */
+  aggregation?: 'count' | 'sum' | 'avg';
+
+  // ── Sous-colonnes automatiques ────────────────────────────────────
+  /** Champ select/multiselect → génère une sous-colonne par option */
+  autoSubFieldId?: string;
+  /** Type d'affichage pour chaque sous-colonne auto (défaut : count) */
+  autoSubDisplayType?: RecapDisplayType;
+  /** Champ numérique pour les sous-colonnes auto si sum/duration */
+  autoSubAggregationField?: string;
+
+  // ── Sous-colonnes manuelles ───────────────────────────────────────
+  /** Sous-colonnes définies manuellement (mutuellement exclusif avec autoSubFieldId) */
+  children?: RecapColumn[];
+}
 
 export interface ModuleFilter {
   id: string;
@@ -108,6 +156,20 @@ export interface DashboardModuleConfig {
   // --- List ---
   listLimit?: number;
 
+  // --- Recap ---
+  /** 'month' : tableau par semaines du mois | 'year' : tableau par mois de l'année */
+  recapMode?: 'month' | 'year';
+  /** Année à afficher (défaut : année courante) */
+  recapYear?: number;
+  /** Mois à afficher 1-12 (défaut : mois courant, utilisé seulement en mode 'month') */
+  recapMonth?: number;
+  /** Champ date/date_range utilisé pour la plage */
+  recapDateField?: string;
+  /** Colonnes configurées par l'utilisateur */
+  recapColumns?: RecapColumn[];
+  /** Inclure les week-ends dans les lignes (mode mois) */
+  recapIncludeWeekends?: boolean;
+
   // Layout
   layout: ModuleLayout;
 }
@@ -159,6 +221,7 @@ export const MODULE_TYPE_LABELS: Record<ModuleType, string> = {
   chart: 'Graphique',
   metric: 'Métrique',
   list: 'Liste',
+  recap: 'Récap',
 };
 
 /** Labels lisibles pour les agrégations */

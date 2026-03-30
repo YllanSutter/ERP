@@ -6,7 +6,7 @@
 import React, { useMemo } from 'react';
 import {
   Settings2, Trash2, GripVertical, ChevronUp, ChevronDown,
-  BarChart2, Table2, Columns, CalendarDays, List, Gauge
+  BarChart2, Table2, Columns, CalendarDays, List, Gauge, LayoutGrid
 } from 'lucide-react';
 import {
   DashboardModuleConfig,
@@ -20,6 +20,7 @@ import ListModule from './modules/ListModule';
 import TableModule from './modules/TableModule';
 import KanbanModule from './modules/KanbanModule';
 import CalendarModule from './modules/CalendarModule';
+import RecapModule from './modules/RecapModule';
 
 const MODULE_ICONS: Record<ModuleType, React.ReactNode> = {
   table:    <Table2 size={14} />,
@@ -28,6 +29,7 @@ const MODULE_ICONS: Record<ModuleType, React.ReactNode> = {
   chart:    <BarChart2 size={14} />,
   metric:   <Gauge size={14} />,
   list:     <List size={14} />,
+  recap:    <LayoutGrid size={14} />,
 };
 
 interface Props {
@@ -43,6 +45,7 @@ interface Props {
   onDelete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  onUpdateModule?: (patch: Partial<DashboardModuleConfig>) => void;
 }
 
 const DashboardModuleWrapper: React.FC<Props> = ({
@@ -58,6 +61,7 @@ const DashboardModuleWrapper: React.FC<Props> = ({
   onDelete,
   onMoveUp,
   onMoveDown,
+  onUpdateModule,
 }) => {
   const title = module.title ?? (data.collection?.name
     ? `${data.collection.name} · ${MODULE_TYPE_LABELS[module.type]}`
@@ -162,6 +166,13 @@ const DashboardModuleWrapper: React.FC<Props> = ({
             collections={collections}
             onEdit={onEdit}
             onViewDetail={onViewDetail}
+          />
+        )}
+        {module.type === 'recap' && (
+          <RecapModule
+            module={module}
+            data={data}
+            onUpdate={onUpdateModule}
           />
         )}
       </div>
