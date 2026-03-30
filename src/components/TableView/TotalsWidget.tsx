@@ -273,8 +273,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
       if (row) newSelected[row.depth] = row.id;
     });
     if (Object.keys(newSelected).length > 0) setSelectedByDepth(newSelected);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextPath]);
+  }, [contextPath, flatRows]);
 
   // Restore localStorage
   React.useEffect(() => {
@@ -314,8 +313,25 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   const currentGroupId = activeLevelDepth === 'overview' ? null : (selectedByDepth[levelDepthNum] ?? null);
   const selectedGroupRow = currentGroupId ? (flatRows.find((r) => r.id === currentGroupId) ?? null) : null;
 
-  // Items du contexte : groupe sélectionné → ses items ; sinon global
-  const contextItems = selectedGroupRow ? selectedGroupRow.items : items;
+  // Items du contexte :
+  //   - groupe sélectionné → ses items
+  //   - "Tous" sur un niveau → union des items des levelRows filtrées (entonnoir)
+  //   - vue d'ensemble → global
+  const contextItems: any[] = React.useMemo(() => {
+    if (selectedGroupRow) return selectedGroupRow.items;
+    if (activeLevelDepth !== 'overview' && levelRows.length > 0) {
+      const seen = new Set<string>();
+      const merged: any[] = [];
+      levelRows.forEach((row) => {
+        row.items.forEach((it: any) => {
+          const id = it.id ?? it._id ?? JSON.stringify(it);
+          if (!seen.has(id)) { seen.add(id); merged.push(it); }
+        });
+      });
+      return merged;
+    }
+    return items;
+  }, [selectedGroupRow, activeLevelDepth, levelRows, items]);
 
   // Lignes enfants pour les graphiques
   const contextChildRows: FlatRow[] = selectedGroupRow
