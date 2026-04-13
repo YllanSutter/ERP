@@ -88,6 +88,8 @@ export interface RecapColumn {
   autoSubDisplayTypes?: RecapDisplayType[];
   /** @deprecated utiliser autoSubDisplayTypes */
   autoSubDisplayType?: RecapDisplayType;
+  /** Limite les options utilisées en mode auto (vide = toutes les options) */
+  autoSubFilterValues?: string[];
   /** Champ numérique pour les sous-colonnes auto si sum/duration */
   autoSubAggregationField?: string;
 
@@ -188,6 +190,8 @@ export interface DashboardModuleConfig {
   recapColumns?: RecapColumn[];
   /** Inclure les week-ends dans les lignes (mode mois) */
   recapIncludeWeekends?: boolean;
+  /** Jours à masquer en mode mois (0 = dimanche, 6 = samedi) */
+  recapHiddenWeekDays?: number[];
   /**
    * Types d'affichage par défaut. Si plusieurs sont sélectionnés, chaque colonne
    * génère automatiquement une sous-colonne par type.

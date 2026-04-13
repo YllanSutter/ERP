@@ -5,8 +5,7 @@
  * Mode année : lignes = mois de l'année
  */
 
-import React, { useMemo, useState, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import {
   eachWeekOfInterval,
   eachDayOfInterval,
@@ -22,7 +21,7 @@ import {
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { DashboardModuleConfig } from '@/lib/dashboardTypes';
-import { DashboardItemData } from '@/lib/hooks/useDashboardItemData';
+import { DashboardItemData, GlobalDateFilter } from '@/lib/hooks/useDashboardItemData';
 import { Item } from '@/lib/types';
 import {
   PeriodRow,
@@ -59,6 +58,8 @@ interface TooltipState {
   rect: DOMRect;
 }
 
+const MONTH_TOTAL_WEEK_KEY = '__month_total__';
+
 // ---------------------------------------------------------------------------
 // Noms courts des jours (getDay → 0=dim, 1=lun…)
 // ---------------------------------------------------------------------------
@@ -72,7 +73,8 @@ const DAY_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 function getWeekGroups(
   year: number,
   month: number,
-  includeWeekends: boolean
+  includeWeekends: boolean,
+  hiddenWeekDays: number[] = []
 ): WeekGroup[] {
   const monthStart = startOfMonth(new Date(year, month - 1, 1));
   const monthEnd   = endOfMonth(monthStart);
@@ -93,6 +95,7 @@ function getWeekGroups(
       const allDays = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
       const days: DayRow[] = allDays
         .filter((d) => includeWeekends || !isWeekend(d))
+        .filter((d) => !hiddenWeekDays.includes(d.getDay()))
         .map((d) => ({
           key:       format(d, 'yyyy-MM-dd'),
           dayLabel:  DAY_SHORT[getDay(d)],
@@ -141,6 +144,7 @@ const MONTH_NAMES_FR = [
 interface Props {
   module: DashboardModuleConfig;
   data: DashboardItemData;
+  globalFilter?: GlobalDateFilter;
   onUpdate?: (patch: Partial<DashboardModuleConfig>) => void;
   onViewDetail?: (item: Item) => void;
 }
@@ -198,18 +202,25 @@ const CellTooltip: React.FC<{
 // Composant principal
 // ---------------------------------------------------------------------------
 
-const RecapModule: React.FC<Props> = ({ module, data, onUpdate, onViewDetail }) => {
+const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, onViewDetail }) => {
   const now = new Date();
 
-  const [localYear,  setLocalYear]  = useState(module.recapYear  ?? now.getFullYear());
-  const [localMonth, setLocalMonth] = useState(module.recapMonth ?? (now.getMonth() + 1));
   const [tooltip, setTooltip]       = useState<TooltipState | null>(null);
   const hideTimerRef                = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeWeekKey, setActiveWeekKey] = useState<string | null>(MONTH_TOTAL_WEEK_KEY);
 
   const mode             = module.recapMode ?? 'month';
   const columns          = module.recapColumns ?? [];
   const includeWeekends  = module.recapIncludeWeekends ?? true;
+  const hiddenWeekDays   = module.recapHiddenWeekDays ?? [];
   const { filteredItems, properties, dateFields, collection } = data;
+
+  const sharedPeriodDate = useMemo(() => {
+    const raw = globalFilter?.start ?? globalFilter?.end ?? null;
+    if (!raw) return null;
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }, [globalFilter?.start, globalFilter?.end]);
 
   const dateField = useMemo(
     () =>
@@ -239,10 +250,37 @@ const RecapModule: React.FC<Props> = ({ module, data, onUpdate, onViewDetail }) 
 
   // ── Données mode MOIS ──────────────────────────────────────────────────
 
+  const displayYear = useMemo(
+    () => sharedPeriodDate?.getFullYear() ?? now.getFullYear(),
+    [sharedPeriodDate, now]
+  );
+  const displayMonth = useMemo(
+    () => (sharedPeriodDate ? sharedPeriodDate.getMonth() + 1 : now.getMonth() + 1),
+    [sharedPeriodDate, now]
+  );
+
   const weekGroups = useMemo<WeekGroup[]>(() => {
     if (mode !== 'month') return [];
-    return getWeekGroups(localYear, localMonth, includeWeekends);
-  }, [mode, localYear, localMonth, includeWeekends]);
+    return getWeekGroups(displayYear, displayMonth, includeWeekends, hiddenWeekDays);
+  }, [mode, displayYear, displayMonth, includeWeekends, hiddenWeekDays]);
+
+  useEffect(() => {
+    if (mode !== 'month') return;
+    if (weekGroups.length === 0) {
+      setActiveWeekKey(null);
+      return;
+    }
+    if (!activeWeekKey || (activeWeekKey !== MONTH_TOTAL_WEEK_KEY && !weekGroups.some((wg) => wg.weekKey === activeWeekKey))) {
+      setActiveWeekKey(MONTH_TOTAL_WEEK_KEY);
+    }
+  }, [mode, weekGroups, activeWeekKey]);
+
+  const visibleWeekGroups = useMemo(() => {
+    if (mode !== 'month') return [] as { wg: WeekGroup; sourceIdx: number }[];
+    const all = weekGroups.map((wg, sourceIdx) => ({ wg, sourceIdx }));
+    if (!activeWeekKey || activeWeekKey === MONTH_TOTAL_WEEK_KEY) return all;
+    return all.filter(({ wg }) => wg.weekKey === activeWeekKey);
+  }, [mode, weekGroups, activeWeekKey]);
 
   // cells[wgIdx][dayIdx][leafIdx]
   const dayCells = useMemo(() => {
@@ -269,8 +307,8 @@ const RecapModule: React.FC<Props> = ({ module, data, onUpdate, onViewDetail }) 
 
   const yearPeriods = useMemo<PeriodRow[]>(() => {
     if (mode !== 'year') return [];
-    return getMonthsOfYear(localYear);
-  }, [mode, localYear]);
+    return getMonthsOfYear(displayYear);
+  }, [mode, displayYear]);
 
   const yearCells = useMemo(() => {
     if (mode !== 'year') return [];
@@ -302,29 +340,10 @@ const RecapModule: React.FC<Props> = ({ module, data, onUpdate, onViewDetail }) 
     [leafTotals]
   );
 
-  // ── Navigation ────────────────────────────────────────────────────────
-
-  const navigatePrev = () => {
-    if (mode === 'year') {
-      setLocalYear((y) => y - 1);
-    } else {
-      if (localMonth === 1) { setLocalYear((y) => y - 1); setLocalMonth(12); }
-      else setLocalMonth((m) => m - 1);
-    }
-  };
-  const navigateNext = () => {
-    if (mode === 'year') {
-      setLocalYear((y) => y + 1);
-    } else {
-      if (localMonth === 12) { setLocalYear((y) => y + 1); setLocalMonth(1); }
-      else setLocalMonth((m) => m + 1);
-    }
-  };
-
   const periodTitle =
     mode === 'year'
-      ? String(localYear)
-      : `${MONTH_NAMES_FR[localMonth - 1]} ${localYear}`;
+      ? String(displayYear)
+      : `${MONTH_NAMES_FR[displayMonth - 1]} ${displayYear}`;
 
   // ── Tooltip ──────────────────────────────────────────────────────────
 
@@ -388,6 +407,29 @@ const RecapModule: React.FC<Props> = ({ module, data, onUpdate, onViewDetail }) 
   // ── Nombre de colonnes période (pour tfoot colspan) ───────────────────
   const periodColCount = mode === 'month' ? 2 : 1;
 
+  const activeWeekIdx = useMemo(
+    () => weekGroups.findIndex((wg) => wg.weekKey === activeWeekKey),
+    [weekGroups, activeWeekKey]
+  );
+  const activeWeek = activeWeekIdx >= 0 ? weekGroups[activeWeekIdx] : undefined;
+  const activeWeekDayCells = activeWeekIdx >= 0 ? dayCells[activeWeekIdx] : [];
+  const activeWeekRowTotals = activeWeekIdx >= 0 ? dayRowTotals[activeWeekIdx] : [];
+
+  const activeWeekLeafTotals = useMemo(() => {
+    if (mode !== 'month' || activeWeekIdx < 0) return leaves.map(() => 0);
+    return leaves.map((_, li) =>
+      (dayCells[activeWeekIdx] || []).reduce((sum, day) => sum + (day[li] ?? 0), 0)
+    );
+  }, [mode, activeWeekIdx, dayCells, leaves]);
+
+  const activeWeekGrandTotal = useMemo(
+    () => activeWeekLeafTotals.reduce((sum, value) => sum + value, 0),
+    [activeWeekLeafTotals]
+  );
+
+  const displayedMonthTotal = activeWeekKey === MONTH_TOTAL_WEEK_KEY ? grandTotal : activeWeekGrandTotal;
+  const displayedMonthLeafTotals = activeWeekKey === MONTH_TOTAL_WEEK_KEY ? leafTotals : activeWeekLeafTotals;
+
   // ── Rendu ─────────────────────────────────────────────────────────────
 
   return (
@@ -405,37 +447,43 @@ const RecapModule: React.FC<Props> = ({ module, data, onUpdate, onViewDetail }) 
 
       {/* ── Barre de navigation ── */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-card/60 flex-shrink-0">
-        <div className="flex rounded-lg border border-border overflow-hidden text-xs">
-          <button
-            onClick={() => onUpdate?.({ recapMode: 'month' })}
-            className={`px-2.5 py-1 ${mode === 'month' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'}`}
-          >
-            Mois
-          </button>
-          <button
-            onClick={() => onUpdate?.({ recapMode: 'year' })}
-            className={`px-2.5 py-1 ${mode === 'year' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'}`}
-          >
-            Année
-          </button>
-        </div>
-
-        <button onClick={navigatePrev} className="p-1 rounded hover:bg-accent text-muted-foreground">
-          <ChevronLeft size={14} />
-        </button>
         <span className="text-sm font-medium text-foreground min-w-[140px] text-center">
           {periodTitle}
         </span>
-        <button onClick={navigateNext} className="p-1 rounded hover:bg-accent text-muted-foreground">
-          <ChevronRight size={14} />
-        </button>
 
         <div className="flex-1" />
 
         <span className="text-xs text-muted-foreground">
-          Total : <span className="font-semibold text-foreground">{grandTotal}</span>
+          Total : <span className="font-semibold text-foreground">{mode === 'month' ? displayedMonthTotal : grandTotal}</span>
         </span>
       </div>
+
+      {mode === 'month' && weekGroups.length > 0 && (
+        <div className="px-3 py-1.5 border-b border-border bg-card/40 flex items-center gap-3 overflow-x-auto">
+          <button
+            onClick={() => setActiveWeekKey(MONTH_TOTAL_WEEK_KEY)}
+            className={`px-2 py-1 rounded-md text-xs whitespace-nowrap transition-colors ${
+              activeWeekKey === MONTH_TOTAL_WEEK_KEY ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'
+            }`}
+          >
+            Total général
+          </button>
+          {weekGroups.map((wg) => {
+            const active = wg.weekKey === activeWeekKey;
+            return (
+              <button
+                key={wg.weekKey}
+                onClick={() => setActiveWeekKey(wg.weekKey)}
+                className={`px-2 py-1 rounded-md text-xs whitespace-nowrap transition-colors ${
+                  active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'
+                }`}
+              >
+                {wg.weekLabel}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Tableau ── */}
       <div className="flex-1 overflow-auto">
@@ -500,81 +548,85 @@ const RecapModule: React.FC<Props> = ({ module, data, onUpdate, onViewDetail }) 
           {/* Corps */}
           <tbody>
             {/* ── Mode MOIS : jours groupés par semaine ── */}
-            {mode === 'month' && weekGroups.map((wg, wgIdx) =>
-              wg.days.map((day, dayIdx) => {
-                const period: PeriodRow = {
-                  key: day.key, label: day.dayLabel, sublabel: day.dateLabel,
-                  start: day.start, end: day.end,
-                };
-                return (
-                  <tr
-                    key={day.key}
-                    className={`transition-colors hover:bg-accent/30 ${day.isWeekend ? 'bg-muted/30' : ''}`}
-                  >
-                    {/* Cellule semaine – rowspan sur tous les jours de la semaine */}
-                    {dayIdx === 0 && (
-                      <td
-                        rowSpan={wg.days.length}
-                        className="px-1 py-1 border-b border-r border-border/20 text-center align-middle bg-accent/10"
-                      >
-                        <div className="text-[11px] font-semibold text-muted-foreground leading-tight">
-                          {wg.weekLabel}
-                        </div>
-                      </td>
-                    )}
-
-                    {/* Cellule jour */}
-                    <td className="px-3 py-1.5 border-b border-border/50 whitespace-nowrap">
-                      <span className={`text-xs font-semibold ${day.isWeekend ? 'text-muted-foreground' : 'text-foreground'}`}>
-                        {day.dayLabel}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground ml-1.5">
-                        {day.dateLabel}
-                      </span>
-                    </td>
-
-                    {/* Données */}
-                    {leaves.map((leaf, li) => {
-                      const val = dayCells[wgIdx]?.[dayIdx]?.[li] ?? 0;
-                      return (
-                        <td
-                          key={leaf.id}
-                          className={`text-center px-2 py-1.5 border-b border-border/50 tabular-nums ${onViewDetail ? 'cursor-pointer' : ''}`}
-                          onMouseEnter={(e) => handleCellEnter(e, leaf, period)}
-                          onMouseLeave={scheduleHide}
-                          onClick={() => handleCellClick(leaf, period)}
-                        >
-                          {val > 0 ? (
-                            <span
-                              className="inline-flex items-center justify-center min-w-[28px] h-5 rounded px-1 text-xs font-semibold"
-                              style={{
-                                background: leaf.color ? `${leaf.color}18` : 'hsl(var(--accent))',
-                                color:      leaf.color ?? 'hsl(var(--foreground))',
-                              }}
-                            >
-                              {formatRecapValue(val, leaf.displayType, leaf.durationUnit)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/30 text-xs">–</span>
-                          )}
-                        </td>
-                      );
-                    })}
-
-                    {/* Total ligne */}
-                    <td className="text-center px-3 py-1.5 border-b border-border/50 tabular-nums">
-                      {(dayRowTotals[wgIdx]?.[dayIdx] ?? 0) > 0 ? (
-                        <span className="text-xs font-semibold text-foreground">
-                          {dayRowTotals[wgIdx][dayIdx]}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground/30 text-xs">–</span>
-                      )}
-                    </td>
+            {mode === 'month' && (activeWeekKey === MONTH_TOTAL_WEEK_KEY ? visibleWeekGroups : visibleWeekGroups.slice(0, 1)).map(({ wg, sourceIdx }, visibleIdx) => (
+              <React.Fragment key={wg.weekKey}>
+                {activeWeekKey === MONTH_TOTAL_WEEK_KEY && visibleIdx > 0 && (
+                  <tr aria-hidden="true">
+                    <td colSpan={2 + leaves.length + 1} className="h-4 bg-background" />
                   </tr>
-                );
-              })
-            )}
+                )}
+
+                {wg.days.map((day, dayIdx) => {
+              const period: PeriodRow = {
+                key: day.key, label: day.dayLabel, sublabel: day.dateLabel,
+                start: day.start, end: day.end,
+              };
+              return (
+                <tr
+                  key={day.key}
+                  className={`transition-colors hover:bg-accent/30 ${day.isWeekend ? 'bg-muted/30' : ''}`}
+                >
+                  {dayIdx === 0 && (
+                    <td
+                      rowSpan={wg.days.length}
+                      className="px-1 py-1 border-b border-r border-border/20 text-center align-middle bg-accent/10"
+                    >
+                      <div className="text-[11px] font-semibold text-muted-foreground leading-tight">
+                        {wg.weekLabel}
+                      </div>
+                    </td>
+                  )}
+
+                  <td className="px-3 py-1.5 border-b border-border/50 whitespace-nowrap">
+                    <span className={`text-xs font-semibold ${day.isWeekend ? 'text-muted-foreground' : 'text-foreground'}`}>
+                      {day.dayLabel}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground ml-1.5">
+                      {day.dateLabel}
+                    </span>
+                  </td>
+
+                  {leaves.map((leaf, li) => {
+                    const val = dayCells[sourceIdx]?.[dayIdx]?.[li] ?? 0;
+                    return (
+                      <td
+                        key={leaf.id}
+                        className={`text-center px-2 py-1.5 border-b border-border/50 tabular-nums ${onViewDetail ? 'cursor-pointer' : ''}`}
+                        onMouseEnter={(e) => handleCellEnter(e, leaf, period)}
+                        onMouseLeave={scheduleHide}
+                        onClick={() => handleCellClick(leaf, period)}
+                      >
+                        {val > 0 ? (
+                          <span
+                            className="inline-flex items-center justify-center min-w-[28px] h-5 rounded px-1 text-xs font-semibold"
+                            style={{
+                              background: leaf.color ? `${leaf.color}18` : 'hsl(var(--accent))',
+                              color:      leaf.color ?? 'hsl(var(--foreground))',
+                            }}
+                          >
+                            {formatRecapValue(val, leaf.displayType, leaf.durationUnit)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/30 text-xs">–</span>
+                        )}
+                      </td>
+                    );
+                  })}
+
+                  <td className="text-center px-3 py-1.5 border-b border-border/50 tabular-nums">
+                    {(dayRowTotals[sourceIdx]?.[dayIdx] ?? 0) > 0 ? (
+                      <span className="text-xs font-semibold text-foreground">
+                        {dayRowTotals[sourceIdx][dayIdx]}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/30 text-xs">–</span>
+                    )}
+                  </td>
+                </tr>
+              );
+                })}
+              </React.Fragment>
+            ))}
 
             {/* ── Mode ANNÉE : une ligne par mois ── */}
             {mode === 'year' && yearPeriods.map((period, ri) => (
@@ -634,14 +686,14 @@ const RecapModule: React.FC<Props> = ({ module, data, onUpdate, onViewDetail }) 
                     className="text-xs font-bold"
                     style={{ color: leaf.color ?? 'hsl(var(--foreground))' }}
                   >
-                    {leafTotals[li] > 0
-                      ? formatRecapValue(leafTotals[li], leaf.displayType, leaf.durationUnit)
+                    {displayedMonthLeafTotals[li] > 0
+                      ? formatRecapValue(displayedMonthLeafTotals[li], leaf.displayType, leaf.durationUnit)
                       : '–'}
                   </span>
                 </td>
               ))}
               <td className="text-center px-3 py-2 tabular-nums">
-                <span className="text-xs font-bold text-foreground">{grandTotal}</span>
+                <span className="text-xs font-bold text-foreground">{mode === 'month' ? displayedMonthTotal : grandTotal}</span>
               </td>
             </tr>
           </tfoot>

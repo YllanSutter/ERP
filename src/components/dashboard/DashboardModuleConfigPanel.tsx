@@ -87,7 +87,7 @@ const Sel: React.FC<{
 
 // Label de section
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-4 mb-1.5 first:mt-0">
+  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-5 mb-2 first:mt-0">
     {children}
   </div>
 );
@@ -105,6 +105,16 @@ const DISPLAY_TYPE_OPTIONS: { value: RecapDisplayType; label: string }[] = [
   { value: 'count',    label: 'Nombre' },
   { value: 'sum',      label: 'Somme' },
   { value: 'duration', label: 'Durée (Xh Ym)' },
+];
+
+const WEEKDAY_OPTIONS = [
+  { value: 0, label: 'Dim' },
+  { value: 1, label: 'Lun' },
+  { value: 2, label: 'Mar' },
+  { value: 3, label: 'Mer' },
+  { value: 4, label: 'Jeu' },
+  { value: 5, label: 'Ven' },
+  { value: 6, label: 'Sam' },
 ];
 
 interface ModuleDefaults {
@@ -272,11 +282,11 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
             <div>
               <div className="text-xs text-muted-foreground mb-1">Valeurs à inclure</div>
               {getFieldOptions(col.filterFieldId).length > 0 ? (
-                <div className="space-y-1 max-h-28 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto pr-1">
                   {getFieldOptions(col.filterFieldId).map((opt) => {
                     const checked = col.filterValues?.includes(opt) ?? false;
                     return (
-                      <label key={opt} className="flex items-center gap-2 text-xs cursor-pointer hover:text-foreground text-muted-foreground">
+                      <label key={opt} className="flex items-center gap-1.5 text-xs leading-5 cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent/40 rounded-md px-1.5 py-0.5 select-none">
                         <input
                           type="checkbox"
                           checked={checked}
@@ -285,7 +295,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                             if (e.target.checked) cur.add(opt); else cur.delete(opt);
                             onUpdate({ ...col, filterValues: Array.from(cur) });
                           }}
-                          className="rounded"
+                          className="h-3.5 w-3.5 rounded border-border/70"
                         />
                         {opt}
                       </label>
@@ -344,11 +354,11 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                     <span className="text-[10px] italic text-muted-foreground">hérite du parent</span>
                   )}
                 </div>
-                <div className="flex flex-col gap-1 mb-1.5">
+                <div className="grid grid-cols-2 gap-1 mb-1.5">
                   {DISPLAY_TYPE_OPTIONS.map((opt) => {
                     const checked = colTypes.includes(opt.value);
                     return (
-                      <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                      <label key={opt.value} className="flex items-center gap-1.5 text-xs leading-5 cursor-pointer select-none rounded-md px-1.5 py-0.5 hover:bg-accent/40">
                         <input
                           type="checkbox"
                           checked={checked}
@@ -357,7 +367,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                             if (e.target.checked) cur.add(opt.value); else cur.delete(opt.value);
                             onUpdate({ ...col, displayTypes: Array.from(cur), displayType: undefined });
                           }}
-                          className="rounded"
+                          className="h-3.5 w-3.5 rounded border-border/70"
                         />
                         <span className={checked ? 'font-medium' : 'text-muted-foreground'}>
                           {opt.label}
@@ -417,12 +427,77 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                 <div className="space-y-1.5">
                   <Sel
                     value={col.autoSubFieldId ?? ''}
-                    onChange={(v) => onUpdate({ ...col, autoSubFieldId: v || undefined })}
+                    onChange={(v) => onUpdate({
+                      ...col,
+                      autoSubFieldId: v || undefined,
+                      autoSubFilterValues: [],
+                    })}
                     options={selectProps.map((p) => ({ value: p.id, label: p.name }))}
                     placeholder="Champ select/multiselect…"
                   />
                   {col.autoSubFieldId && (
                     <>
+                      <div className="rounded-md border border-border/60 p-2 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Options incluses</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              className="text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground hover:bg-accent"
+                              onClick={() => onUpdate({ ...col, autoSubFilterValues: [] })}
+                            >
+                              Toutes
+                            </button>
+                            <button
+                              type="button"
+                              className="text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground hover:bg-accent"
+                              onClick={() => onUpdate({ ...col, autoSubFilterValues: autoSubOptions })}
+                            >
+                              Prédéfinies
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1 max-h-28 overflow-y-auto pr-1">
+                          {autoSubOptions.map((opt) => {
+                            const selected = col.autoSubFilterValues?.includes(opt) ?? false;
+                            const allSelected = (col.autoSubFilterValues?.length ?? 0) === 0;
+                            const checked = allSelected || selected;
+                            return (
+                              <label
+                                key={opt}
+                                className="flex items-center gap-1.5 text-xs leading-5 cursor-pointer rounded-md px-1.5 py-0.5 hover:bg-accent/40 text-muted-foreground hover:text-foreground select-none"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    const current = new Set(
+                                      (col.autoSubFilterValues?.length ?? 0) === 0
+                                        ? autoSubOptions
+                                        : (col.autoSubFilterValues ?? [])
+                                    );
+                                    if (e.target.checked) current.add(opt);
+                                    else current.delete(opt);
+                                    const next = Array.from(current);
+                                    onUpdate({
+                                      ...col,
+                                      autoSubFilterValues: next.length === autoSubOptions.length ? [] : next,
+                                    });
+                                  }}
+                                  className="h-3.5 w-3.5 rounded border-border/70"
+                                />
+                                {opt}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {(col.autoSubFilterValues?.length ?? 0) === 0
+                            ? 'Toutes les options seront utilisées'
+                            : `${col.autoSubFilterValues?.length ?? 0} option(s) sélectionnée(s)`}
+                        </div>
+                      </div>
+
                       {(() => {
                         const parentTypes   = moduleDefaults?.displayTypes ?? [];
                         // autoSubDisplayTypes : tableau (priorité sur autoSubDisplayType legacy)
@@ -439,11 +514,11 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                                 <span className="text-[10px] italic text-muted-foreground">hérite du parent</span>
                               )}
                             </div>
-                            <div className="flex flex-col gap-1">
+                            <div className="grid grid-cols-2 gap-1">
                               {DISPLAY_TYPE_OPTIONS.map((opt) => {
                                 const checked = colAutoTypes.includes(opt.value);
                                 return (
-                                  <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                  <label key={opt.value} className="flex items-center gap-1.5 text-xs leading-5 cursor-pointer select-none rounded-md px-1.5 py-0.5 hover:bg-accent/40">
                                     <input
                                       type="checkbox"
                                       checked={checked}
@@ -457,7 +532,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                                           autoSubDisplayType: next.length === 1 ? next[0] : undefined,
                                         });
                                       }}
-                                      className="rounded"
+                                      className="h-3.5 w-3.5 rounded border-border/70"
                                     />
                                     <span className={checked ? 'font-medium' : 'text-muted-foreground'}>
                                       {opt.label}
@@ -639,7 +714,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
       </div>
 
       {/* Contenu scrollable */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-0.5">
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
 
         {/* Type de module */}
         <SectionLabel>Type</SectionLabel>
@@ -781,25 +856,25 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
                   options={selectProps.map((p) => ({ value: p.id, label: p.name }))}
                   placeholder="Sans regroupement"
                 />
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-1.5 mt-2 rounded-md px-1.5 py-1 hover:bg-accent/30">
                   <input
                     type="checkbox"
                     id="showLegend"
                     checked={module.chartShowLegend ?? true}
                     onChange={(e) => patch({ chartShowLegend: e.target.checked })}
-                    className="rounded"
+                    className="h-3.5 w-3.5 rounded border-border/70"
                   />
-                  <label htmlFor="showLegend" className="text-sm text-muted-foreground">Afficher la légende</label>
+                  <label htmlFor="showLegend" className="text-xs text-muted-foreground cursor-pointer">Afficher la légende</label>
                 </div>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-1.5 mt-1 rounded-md px-1.5 py-1 hover:bg-accent/30">
                   <input
                     type="checkbox"
                     id="showGrid"
                     checked={module.chartShowGrid ?? true}
                     onChange={(e) => patch({ chartShowGrid: e.target.checked })}
-                    className="rounded"
+                    className="h-3.5 w-3.5 rounded border-border/70"
                   />
-                  <label htmlFor="showGrid" className="text-sm text-muted-foreground">Afficher la grille</label>
+                  <label htmlFor="showGrid" className="text-xs text-muted-foreground cursor-pointer">Afficher la grille</label>
                 </div>
               </>
             )}
@@ -945,11 +1020,11 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
         {(module.type === 'list' || module.type === 'table') && allProps.length > 0 && (
           <>
             <SectionLabel>Champs visibles</SectionLabel>
-            <div className="space-y-1">
+            <div className="grid grid-cols-2 gap-1">
               {allProps.map((prop) => {
                 const hidden = module.hiddenFields?.includes(prop.id) ?? false;
                 return (
-                  <label key={prop.id} className="flex items-center gap-2 text-sm cursor-pointer hover:text-foreground text-muted-foreground py-0.5">
+                  <label key={prop.id} className="flex items-center gap-1.5 text-xs leading-5 cursor-pointer hover:text-foreground text-muted-foreground rounded-md px-1.5 py-0.5 hover:bg-accent/40 select-none">
                     <input
                       type="checkbox"
                       checked={!hidden}
@@ -959,7 +1034,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
                         else current.add(prop.id);
                         patch({ hiddenFields: Array.from(current) });
                       }}
-                      className="rounded"
+                      className="h-3.5 w-3.5 rounded border-border/70"
                     />
                     {prop.name}
                   </label>
@@ -996,15 +1071,42 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
               </button>
             </div>
 
+            <SectionLabel>Jours masqués</SectionLabel>
+            <div className="text-[11px] text-muted-foreground leading-snug mb-1.5">
+              Les jours masqués disparaissent du tableau, et les semaines vides sont automatiquement supprimées.
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              {WEEKDAY_OPTIONS.map((day) => {
+                const active = (module.recapHiddenWeekDays ?? []).includes(day.value);
+                return (
+                  <label key={day.value} className="flex items-center gap-1.5 text-xs leading-5 cursor-pointer hover:text-foreground text-muted-foreground rounded-md px-1.5 py-0.5 hover:bg-accent/40 select-none">
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={(e) => {
+                        const current = new Set(module.recapHiddenWeekDays ?? []);
+                        if (e.target.checked) current.add(day.value);
+                        else current.delete(day.value);
+                        patch({ recapHiddenWeekDays: Array.from(current).sort((a, b) => a - b) });
+                      }}
+                      className="h-3.5 w-3.5 rounded border-border/70"
+                    />
+                    {day.label}
+                  </label>
+                );
+              })}
+            </div>
+
             <SectionLabel>Types d'affichage par défaut</SectionLabel>
             <div className="space-y-1.5">
               <div className="text-[11px] text-muted-foreground leading-snug">
                 Cochez un ou plusieurs types. Si plusieurs sont cochés, chaque colonne génère automatiquement une sous-colonne par type.
               </div>
+              <div className="grid grid-cols-2 gap-1">
               {DISPLAY_TYPE_OPTIONS.map((opt) => {
                 const active = (module.recapDefaultDisplayTypes ?? []).includes(opt.value);
                 return (
-                  <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer hover:text-foreground text-muted-foreground py-0.5 select-none">
+                  <label key={opt.value} className="flex items-center gap-1.5 text-xs leading-5 cursor-pointer hover:text-foreground text-muted-foreground rounded-md px-1.5 py-0.5 hover:bg-accent/40 select-none">
                     <input
                       type="checkbox"
                       checked={active}
@@ -1014,12 +1116,13 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
                         else cur.delete(opt.value);
                         patch({ recapDefaultDisplayTypes: Array.from(cur) });
                       }}
-                      className="rounded"
+                      className="h-3.5 w-3.5 rounded border-border/70"
                     />
                     {opt.label}
                   </label>
                 );
               })}
+              </div>
               {/* Champ numérique si sum ou duration sont sélectionnés */}
               {(module.recapDefaultDisplayTypes ?? []).some((t) => t === 'sum' || t === 'duration') && numericProps.length > 0 && (
                 <Sel

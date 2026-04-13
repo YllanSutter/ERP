@@ -79,9 +79,9 @@ export function useDashboardItemData(
   const filteredItems: Item[] = useMemo(() => {
     let items = [...allItems];
 
-    // 1) Filtre date global (ignoré pour recap — il gère sa propre plage via navigation)
+    // 1) Filtre date global
     const hasGlobalDate = globalFilter?.preset || globalFilter?.start || globalFilter?.end;
-    if (hasGlobalDate && module.type !== 'recap') {
+    if (hasGlobalDate) {
       const dateFieldId = globalFilter?.field ?? module.dateField ?? dateFields[0]?.id;
       if (dateFieldId) {
         const range = computeDateRange(

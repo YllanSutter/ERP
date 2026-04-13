@@ -13,7 +13,7 @@ import {
   ModuleType,
   MODULE_TYPE_LABELS,
 } from '@/lib/dashboardTypes';
-import { DashboardItemData } from '@/lib/hooks/useDashboardItemData';
+import { DashboardItemData, GlobalDateFilter } from '@/lib/hooks/useDashboardItemData';
 import ChartModule from './modules/ChartModule';
 import MetricModule from './modules/MetricModule';
 import ListModule from './modules/ListModule';
@@ -35,6 +35,7 @@ const MODULE_ICONS: Record<ModuleType, React.ReactNode> = {
 interface Props {
   module: DashboardModuleConfig;
   data: DashboardItemData;
+  globalFilter?: GlobalDateFilter;
   collections: any[];
   isEditMode: boolean;
   isFirst: boolean;
@@ -51,6 +52,7 @@ interface Props {
 const DashboardModuleWrapper: React.FC<Props> = ({
   module,
   data,
+  globalFilter,
   collections,
   isEditMode,
   isFirst,
@@ -172,6 +174,7 @@ const DashboardModuleWrapper: React.FC<Props> = ({
           <RecapModule
             module={module}
             data={data}
+            globalFilter={globalFilter}
             onUpdate={onUpdateModule}
             onViewDetail={onViewDetail}
           />

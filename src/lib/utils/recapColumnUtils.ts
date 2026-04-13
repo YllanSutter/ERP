@@ -104,7 +104,11 @@ export function getExpandedChildren(
   if (col.autoSubFieldId) {
     const prop = properties.find((p) => p.id === col.autoSubFieldId);
     if (prop) {
-      const options = getPropOptions(prop);
+      const allOptions = getPropOptions(prop);
+      const filteredOptions = (col.autoSubFilterValues && col.autoSubFilterValues.length > 0)
+        ? allOptions.filter((opt) => col.autoSubFilterValues!.includes(opt))
+        : allOptions;
+      const options = filteredOptions;
       if (options.length > 0) {
         // Priorité : autoSubDisplayTypes colonne > autoSubDisplayType (legacy) > défauts module > count
         const colAutoTypes = col.autoSubDisplayTypes ?? [];

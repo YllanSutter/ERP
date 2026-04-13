@@ -9,9 +9,11 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Plus, Pencil, Check, CalendarRange, ChevronDown, X
+  Plus, CalendarRange, ChevronDown, X
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import { addMonths, endOfMonth, format, parseISO, startOfMonth } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import {
   DashboardConfig,
   DashboardModuleConfig,
@@ -54,6 +56,7 @@ const ModuleWithData: React.FC<{
     <DashboardModuleWrapper
       module={props.module}
       data={data}
+      globalFilter={props.globalFilter}
       collections={props.collections}
       isEditMode={props.isEditMode}
       isFirst={props.isFirst}
@@ -82,7 +85,7 @@ const DashboardView: React.FC<Props> = ({
   onViewDetail,
   onShowNewItemModal,
 }) => {
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [isEditMode] = useState(true);
   const [showAddModule, setShowAddModule] = useState(false);
   const [configuringModuleId, setConfiguringModuleId] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -97,6 +100,29 @@ const DashboardView: React.FC<Props> = ({
       field: dashboard.globalDateField,
     };
   }, [dashboard?.globalDatePreset, dashboard?.globalDateStart, dashboard?.globalDateEnd, dashboard?.globalDateField]);
+
+  const currentGlobalMonth = useMemo(() => {
+    if (dashboard?.globalDateStart) {
+      const parsed = parseISO(dashboard.globalDateStart);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    return new Date();
+  }, [dashboard?.globalDateStart]);
+
+  const globalMonthLabel = format(currentGlobalMonth, 'MMMM yyyy', { locale: fr });
+
+  const updateGlobalMonth = useCallback((delta: number) => {
+    const base = dashboard?.globalDateStart ? parseISO(dashboard.globalDateStart) : new Date();
+    const safeBase = Number.isNaN(base.getTime()) ? new Date() : base;
+    const nextMonth = addMonths(safeBase, delta);
+    const start = startOfMonth(nextMonth);
+    const end = endOfMonth(nextMonth);
+    onUpdate({
+      globalDatePreset: 'custom',
+      globalDateStart: start.toISOString(),
+      globalDateEnd: end.toISOString(),
+    });
+  }, [dashboard?.globalDateStart, onUpdate]);
 
   // Modules triés par order
   const sortedModules = useMemo(
@@ -253,18 +279,29 @@ const DashboardView: React.FC<Props> = ({
           </AnimatePresence>
         </div>
 
-        {/* Mode édition */}
-        <button
-          onClick={() => setIsEditMode(!isEditMode)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-colors ${
-            isEditMode
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-border text-muted-foreground hover:bg-accent'
-          }`}
-        >
-          {isEditMode ? <Check size={14} /> : <Pencil size={14} />}
-          {isEditMode ? 'Terminé' : 'Éditer'}
-        </button>
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-border bg-background/50">
+          <button
+            onClick={() => updateGlobalMonth(-1)}
+            className="px-2 py-1 rounded hover:bg-accent text-muted-foreground"
+            title="Mois précédent"
+          >
+            <ChevronDown size={12} className="rotate-90" />
+          </button>
+          <button
+            onClick={() => onUpdate({ globalDatePreset: 'custom', globalDateStart: startOfMonth(currentGlobalMonth).toISOString(), globalDateEnd: endOfMonth(currentGlobalMonth).toISOString() })}
+            className="text-xs font-medium text-foreground whitespace-nowrap px-2"
+            title="Appliquer ce mois à tous les modules"
+          >
+            {globalMonthLabel}
+          </button>
+          <button
+            onClick={() => updateGlobalMonth(1)}
+            className="px-2 py-1 rounded hover:bg-accent text-muted-foreground"
+            title="Mois suivant"
+          >
+            <ChevronDown size={12} className="-rotate-90" />
+          </button>
+        </div>
 
         {/* Ajouter module */}
         <button
