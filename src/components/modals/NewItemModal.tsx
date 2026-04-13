@@ -1056,34 +1056,34 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         initial={{ scale: 0.97, opacity: 0, y: 12 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="bg-[#0c0c0e] text-neutral-100 border border-white/[0.07] rounded-2xl w-screen h-screen max-w-[1600px] max-h-[93vh] overflow-hidden flex flex-col shadow-[0_32px_80px_-8px_rgba(0,0,0,0.8)]"
+        className="bg-background text-foreground border border-border rounded-2xl w-screen h-screen max-w-[1600px] max-h-[93vh] overflow-hidden flex flex-col shadow-[0_32px_80px_-8px_rgba(0,0,0,0.22)] dark:shadow-[0_32px_80px_-8px_rgba(0,0,0,0.8)]"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-start gap-4 px-8 py-5 border-b border-white/[0.06] shrink-0">
+        <div className="flex items-start gap-4 px-8 py-5 border-b border-border bg-card/70 shrink-0">
           {/* Titre + badge collection */}
           <div className="flex-1 min-w-0 flex flex-col gap-1.5">
             <div className="flex items-center gap-3">
               {!isReallyEditing ? (
                 <>
-                  <span className="text-[10px] tracking-widest uppercase text-neutral-600 font-medium shrink-0">Collection</span>
+                  <span className="text-[10px] tracking-widest uppercase text-muted-foreground font-medium shrink-0">Collection</span>
                   <select
-                    className="text-[11px] px-2 py-0.5 rounded-md bg-white/[0.06] text-violet-300 border border-violet-500/20 focus:border-violet-500/60 focus:outline-none transition-colors"
+                    className="text-[11px] px-2 py-0.5 rounded-md bg-background text-foreground border border-border focus:border-violet-500 focus:outline-none transition-colors"
                     value={selectedCollectionId}
                     onChange={handleCollectionChange}
                   >
                     {writableCollections.map((col: any) => (
-                      <option key={col.id} value={col.id} className="bg-[#1a1a1e] text-neutral-100">{col.name}</option>
+                      <option key={col.id} value={col.id} className="bg-background text-foreground">{col.name}</option>
                     ))}
                   </select>
                 </>
               ) : (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] tracking-widest uppercase font-semibold bg-violet-500/10 text-violet-400 border border-violet-500/20">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] tracking-widest uppercase font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
                   {selectedCollection?.name || 'Collection'}
                 </span>
               )}
             </div>
             {classicPropsSansRichText.length > 0 && (
-              <div className="[&_input]:text-[22px] [&_input]:font-semibold [&_input]:tracking-tight [&_input]:text-neutral-50 [&_input]:placeholder:text-neutral-700 [&_input]:bg-transparent [&_input]:border-0 [&_input]:outline-none [&_input]:w-full [&_input]:p-0 [&_textarea]:text-[22px] [&_textarea]:font-semibold [&_textarea]:text-neutral-50">
+              <div className="[&_input]:text-[22px] [&_input]:font-semibold [&_input]:tracking-tight [&_input]:text-foreground [&_input]:placeholder:text-muted-foreground [&_input]:bg-transparent [&_input]:border-0 [&_input]:outline-none [&_input]:w-full [&_input]:p-0 [&_textarea]:text-[22px] [&_textarea]:font-semibold [&_textarea]:text-foreground">
                 <EditableProperty
                   property={classicPropsSansRichText[0]}
                   value={formData[classicPropsSansRichText[0].id]}
@@ -1116,7 +1116,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             {historyData?.versions?.length ? (
               <button
                 onClick={() => setHistoryOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-white/[0.05] text-neutral-500 border border-white/[0.08] hover:text-neutral-200 hover:border-white/20 transition-all"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-muted/50 text-muted-foreground border border-border hover:text-foreground hover:border-border/80 transition-all"
                 title="Historique des versions"
               >
                 <History size={11} />
@@ -1130,7 +1130,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   "p-2 rounded-lg transition-all",
                   isFavorite
                     ? "text-amber-400 bg-amber-500/10"
-                    : "text-neutral-600 hover:text-amber-400 hover:bg-amber-500/10"
+                    : "text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10"
                 )}
                 title={isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
               >
@@ -1139,7 +1139,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             )}
             <button
               onClick={onClose}
-              className="p-2 rounded-lg text-neutral-600 hover:text-neutral-300 hover:bg-white/[0.06] transition-all ml-1"
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all ml-1"
               title="Fermer"
             >
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1402,7 +1402,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 const totalDuration = segments.reduce((acc: number, seg: any) => acc + getSegmentHours(seg), 0);
 
                 return (
-                  <div key={`_eventSegments_${dateProp.id}`} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                  <div key={`_eventSegments_${dateProp.id}`} className="rounded-xl border border-border bg-card/70 p-4">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-semibold text-neutral-300">{dateProp.name}</span>
                       <button
@@ -1424,8 +1424,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                           <span className="text-neutral-400">{segments.length || 0} plage{segments.length > 1 ? 's' : ''}</span>
                         </div>
                         {segments.length > 0 && (
-                          <div className="absolute left-0 top-full mt-2 w-72 rounded-xl border border-white/[0.08] bg-[#111113] p-3 text-xs text-neutral-300 opacity-0 group-hover/seg:opacity-100 transition-opacity z-20 pointer-events-none group-hover/seg:pointer-events-auto shadow-xl">
-                            <div className="text-[10px] tracking-widest uppercase text-neutral-600 mb-2">Plages personnalisées</div>
+                          <div className="absolute left-0 top-full mt-2 w-72 rounded-xl border border-border bg-popover p-3 text-xs text-popover-foreground opacity-0 group-hover/seg:opacity-100 transition-opacity z-20 pointer-events-none group-hover/seg:pointer-events-auto shadow-xl">
+                            <div className="text-[10px] tracking-widest uppercase text-muted-foreground mb-2">Plages personnalisées</div>
                             <div className="space-y-1.5">
                               {segments.map((seg: any, idx: number) => (
                                 <div key={idx} className="flex items-center gap-2">
@@ -1454,7 +1454,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                             )}
                           </button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-80 bg-[#111113] border-white/[0.08] text-neutral-200">
+                        <PopoverContent className="w-80 bg-popover border-border text-popover-foreground">
                           <div className="space-y-2">
                             <div className="text-[10px] tracking-widest uppercase text-violet-400 mb-3">Plages calculées auto</div>
                             {autoSegments.map((seg: any, idx: number) => (
@@ -1494,7 +1494,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             <div className="pt-2">
               <div className="relative space-y-4">
                 {richTextTabs.length > 1 ? (
-                  <div className="flex items-center gap-0 border-b border-white/[0.06] mb-1">
+                  <div className="flex items-center gap-0 border-b border-border mb-1">
                     {richTextTabs.map((tab: { id: string; label: string }) => (
                       <button
                         key={tab.id}
@@ -1516,7 +1516,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     <div className="flex-1 h-px bg-white/[0.06]" />
                   </div>
                 )}
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] px-4 py-3 min-h-[180px]">
+                <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 min-h-[180px]">
                   {richTextPropsForDisplay
                     .filter((prop: any) => !activeRichTextTab || prop.id === activeRichTextTab)
                     .map((prop: any) => (
@@ -1541,7 +1541,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           </div>
           )}
         </div>
-        <div className="flex items-center justify-between gap-3 px-8 py-4 border-t border-white/[0.06] shrink-0">
+        <div className="flex items-center justify-between gap-3 px-8 py-4 border-t border-border shrink-0">
           <div className="flex items-center gap-3">
             {isReallyEditing && onDelete && editingItem?.id && (
               <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -1578,7 +1578,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm text-neutral-500 hover:text-neutral-200 rounded-lg hover:bg-white/[0.05] transition-all"
+              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-all"
             >
               Annuler
             </button>
@@ -1586,7 +1586,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleSave(onSaveAndStay || onSave)}
-                className="px-4 py-2 text-sm font-medium text-neutral-300 border border-white/[0.1] rounded-lg hover:bg-white/[0.05] hover:border-white/20 transition-all"
+                className="px-4 py-2 text-sm font-medium text-foreground border border-border rounded-lg hover:bg-muted hover:border-border transition-all"
               >
                 Enregistrer
               </button>
@@ -1614,14 +1614,14 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             initial={{ scale: 0.97, opacity: 0, y: 4 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             transition={{ duration: 0.18 }}
-            className="bg-[#111113] border border-white/[0.08] rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl"
+            className="bg-background border border-border rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
-            <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between shrink-0">
-              <h3 className="text-sm font-semibold text-neutral-100">Modifier les plages · {editingDateProp.name}</h3>
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between shrink-0">
+              <h3 className="text-sm font-semibold text-foreground">Modifier les plages · {editingDateProp.name}</h3>
               <button
                 onClick={() => setEditingDateProp(null)}
-                className="p-1.5 rounded-lg text-neutral-600 hover:text-neutral-200 hover:bg-white/[0.06] transition-all"
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
               >
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -1660,7 +1660,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   <div className="space-y-4">
                     {Object.entries(segmentsByDay).map(([day, segs]) => (
                       <div key={day}>
-                        <div className="font-semibold text-sm text-neutral-600 dark:text-neutral-400 mb-2">{day}</div>
+                        <div className="font-semibold text-sm text-muted-foreground mb-2">{day}</div>
                         <ul className="space-y-2">
                           {segs.map((seg: any, idx: number) => {
                             const startDate = new Date(seg.start || seg.__eventStart);
@@ -1670,11 +1670,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                             const currentTime = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
 
                             return (
-                              <li key={idx} className="p-3 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+                              <li key={idx} className="p-3 rounded-xl border border-border bg-card/60">
                                 <div className="flex items-center gap-3">
                                   <div className="flex-1 grid grid-cols-1 md:grid-cols-[1fr_130px_130px] gap-3 items-end">
                                     <div>
-                                      <label className="block text-[10px] tracking-widest uppercase text-neutral-600 mb-1.5">Date</label>
+                                      <label className="block text-[10px] tracking-widest uppercase text-muted-foreground mb-1.5">Date</label>
                                       <input
                                         type="date"
                                         value={startDate.toISOString().slice(0, 10)}
@@ -1690,11 +1690,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setManualSegments(segsCopy);
                                           }
                                         }}
-                                        className="w-full px-2.5 py-1.5 bg-white/[0.04] border border-white/[0.08] text-neutral-200 text-xs rounded-lg focus:border-violet-500/60 focus:outline-none transition-colors"
+                                        className="w-full px-2.5 py-1.5 bg-background border border-border text-foreground text-xs rounded-lg focus:border-violet-500/60 focus:outline-none transition-colors"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-[10px] tracking-widest uppercase text-neutral-600 mb-1.5">Heure</label>
+                                      <label className="block text-[10px] tracking-widest uppercase text-muted-foreground mb-1.5">Heure</label>
                                       <select
                                         value={currentTime}
                                         onChange={e => {
@@ -1709,7 +1709,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setManualSegments(segsCopy);
                                           }
                                         }}
-                                        className="w-full px-2.5 py-1.5 bg-white/[0.04] border border-white/[0.08] text-neutral-200 text-xs rounded-lg focus:border-violet-500/60 focus:outline-none transition-colors"
+                                        className="w-full px-2.5 py-1.5 bg-background border border-border text-foreground text-xs rounded-lg focus:border-violet-500/60 focus:outline-none transition-colors"
                                       >
                                         {timeOptions.map(opt => (
                                           <option key={opt} value={opt} className="bg-[#111113]">
@@ -1719,7 +1719,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                       </select>
                                     </div>
                                     <div>
-                                      <label className="block text-[10px] tracking-widest uppercase text-neutral-600 mb-1.5">Durée</label>
+                                      <label className="block text-[10px] tracking-widest uppercase text-muted-foreground mb-1.5">Durée</label>
                                       <select
                                         value={durationHoursValue}
                                         onChange={e => {
@@ -1733,7 +1733,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setManualSegments(segsCopy);
                                           }
                                         }}
-                                        className="w-full px-2.5 py-1.5 bg-white/[0.04] border border-white/[0.08] text-neutral-200 text-xs rounded-lg focus:border-violet-500/60 focus:outline-none transition-colors"
+                                        className="w-full px-2.5 py-1.5 bg-background border border-border text-foreground text-xs rounded-lg focus:border-violet-500/60 focus:outline-none transition-colors"
                                       >
                                         {durationOptions.map(dur => {
                                           const hours = Math.floor(dur);
@@ -1774,7 +1774,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 );
               })()}
             </div>
-            <div className="px-6 py-4 border-t border-white/[0.06] flex justify-end shrink-0">
+            <div className="px-6 py-4 border-t border-border flex justify-end shrink-0">
               <button
                 onClick={() => setEditingDateProp(null)}
                 className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
@@ -1796,7 +1796,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           </DialogHeader>
           <div className="space-y-3 max-h-[50vh] overflow-y-auto">
             {templateDialogItems.map((item: any) => (
-              <label key={item.targetKey} className="flex items-start gap-3 rounded-md border border-black/10 dark:border-white/10 p-3">
+              <label key={item.targetKey} className="flex items-start gap-3 rounded-md border border-border p-3 bg-background">
                 <input
                   type="checkbox"
                   className="mt-1"
@@ -1809,13 +1809,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   }
                 />
                 <div className="flex-1">
-                  <div className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+                  <div className="text-sm font-medium text-foreground">
                     {item.propName}
                   </div>
-                  <div className="text-xs text-neutral-500 mt-1">
+                  <div className="text-xs text-muted-foreground mt-1">
                     <span className="font-semibold">Actuel :</span> {formatValueForDisplay(item.currentValue)}
                   </div>
-                  <div className="text-xs text-neutral-500">
+                  <div className="text-xs text-muted-foreground">
                     <span className="font-semibold">Nouveau :</span> {formatValueForDisplay(item.desiredValue)}
                   </div>
                 </div>
@@ -1884,14 +1884,14 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 )}
               </div>
             )}
-            <div className="border border-black/10 dark:border-white/10 rounded-lg p-3 overflow-y-auto max-h-[45vh]">
+            <div className="border border-border rounded-lg p-3 overflow-y-auto max-h-[45vh] bg-background">
               {historySelectedIndex === null || !historyData || !historyPreview ? (
                 <div className="text-sm text-neutral-500">Sélectionne une version pour voir le détail.</div>
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Changements</div>
+                      <div className="text-sm font-semibold text-foreground">Changements</div>
                       <div className="text-xs text-neutral-500">
                         {new Date(historyData.versions[historySelectedIndex].ts).toLocaleString('fr-FR')} · {historyData.versions[historySelectedIndex].userName || 'Utilisateur'}
                       </div>
@@ -1953,8 +1953,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                             const afterText = serializeTiptapLines(afterDoc) || extractTextFromTiptap(afterDoc);
                             const lineDiff = diffLines(beforeText, afterText);
                             return (
-                              <div key={key} className="rounded-md border border-black/5 dark:border-white/10 p-2">
-                                <div className="font-semibold text-neutral-700 dark:text-neutral-200 mb-1">{key}</div>
+                              <div key={key} className="rounded-md border border-border p-2 bg-muted/20">
+                                <div className="font-semibold text-foreground mb-1">{key}</div>
                                 {lineDiff.length === 0 ? (
                                   <div className="text-xs text-neutral-500">Aucun changement de lignes.</div>
                                 ) : (
@@ -1979,18 +1979,18 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                           }
 
                           return (
-                            <div key={key} className="rounded-md border border-black/5 dark:border-white/10 p-2">
-                              <div className="font-semibold text-neutral-700 dark:text-neutral-200 mb-1">{key}</div>
+                            <div key={key} className="rounded-md border border-border p-2 bg-muted/20">
+                              <div className="font-semibold text-foreground mb-1">{key}</div>
                               <div className="grid grid-cols-1 gap-2">
                                 <div className="bg-red-500/10 border border-red-500/20 rounded px-2 py-1">
                                   <div className="text-[10px] uppercase text-red-500 mb-1">Avant</div>
-                                  <div className="text-neutral-600 dark:text-neutral-300">
+                                  <div className="text-muted-foreground">
                                     {formatValueForDisplay(before)}
                                   </div>
                                 </div>
                                 <div className="bg-green-500/10 border border-green-500/20 rounded px-2 py-1">
                                   <div className="text-[10px] uppercase text-green-500 mb-1">Après</div>
-                                  <div className="text-neutral-600 dark:text-neutral-300">
+                                  <div className="text-muted-foreground">
                                     {formatValueForDisplay(after)}
                                   </div>
                                 </div>

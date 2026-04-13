@@ -73,7 +73,7 @@ const DashboardModuleWrapper: React.FC<Props> = ({
 
   return (
     <div
-      className={`${gridColSpan} flex flex-col rounded-xl border border-border bg-card shadow-sm overflow-hidden transition-shadow ${isEditMode ? 'ring-2 ring-primary/20' : ''}`}
+      className={`${gridColSpan} flex flex-col rounded-xl border border-border bg-card shadow-sm overflow-hidden transition-shadow ${isEditMode ? '' : ''}`}
       style={{ height: module.layout.h }}
     >
       {/* Header */}

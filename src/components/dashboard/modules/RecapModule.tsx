@@ -243,6 +243,29 @@ function getVariantChipStyle(baseColor: string | undefined, index: number, total
   };
 }
 
+function getLeafColumnTone(index: number, baseColor?: string): React.CSSProperties {
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  const isEven = index % 2 === 0;
+  const alpha = isDark ? (isEven ? '03' : '05') : (isEven ? '14' : '20');
+  const borderAlpha = isDark ? (isEven ? '0c' : '14') : (isEven ? '24' : '34');
+
+  if (baseColor) {
+    return {
+      background: `${baseColor}${alpha}`,
+      borderColor: `${baseColor}${borderAlpha}`,
+    };
+  }
+
+  return {
+    background: isDark
+      ? (isEven ? 'hsl(var(--muted) / 0.18)' : 'hsl(var(--accent) / 0.12)')
+      : (isEven ? 'hsl(var(--muted) / 0.42)' : 'hsl(var(--accent) / 0.24)'),
+    borderColor: isDark
+      ? (isEven ? 'hsl(var(--border) / 0.55)' : 'hsl(var(--border) / 0.75)')
+      : (isEven ? 'hsl(var(--border) / 0.85)' : 'hsl(var(--border) / 1)'),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Composant principal
 // ---------------------------------------------------------------------------
@@ -820,19 +843,28 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                 )}
 
                 {/* Cellules données */}
-                {row.map((cell) => (
-                  <th
-                    key={cell.id}
-                    colSpan={cell.colspan}
-                    rowSpan={cell.rowspan}
-                    className={`text-center px-2 py-1.5 border-b border-r border-border whitespace-nowrap ${
-                      cell.isLeaf ? 'bg-card text-[11px] font-medium' : 'bg-muted/10 text-xs font-semibold'
-                    }`}
-                    style={{ color: cell.color ?? 'hsl(var(--foreground))' }}
-                  >
-                    <span className="leading-tight">{cell.label}</span>
-                  </th>
-                ))}
+                {(() => {
+                  let leafHeaderIndex = 0;
+                  return row.map((cell) => {
+                    const tone = cell.isLeaf ? getLeafColumnTone(leafHeaderIndex++, cell.color) : {};
+                    return (
+                      <th
+                        key={cell.id}
+                        colSpan={cell.colspan}
+                        rowSpan={cell.rowspan}
+                        className={`text-center px-2 py-1.5 border-b border-r border-border whitespace-nowrap ${
+                          cell.isLeaf ? 'bg-card text-[11px] font-medium' : 'bg-muted/10 text-xs font-semibold'
+                        }`}
+                        style={{
+                          color: cell.color ?? 'hsl(var(--foreground))',
+                          ...tone,
+                        }}
+                      >
+                        <span className="leading-tight">{cell.label}</span>
+                      </th>
+                    );
+                  });
+                })()}
 
                 {/* Colonne Total */}
                 {rowIdx === 0 && (
@@ -957,6 +989,9 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                         key={leaf.id}
                         rowSpan={cellLayout.rowSpan}
                         className={`text-center px-2 py-1.5 border-b border-border/50 tabular-nums align-middle ${onViewDetail ? 'cursor-pointer' : ''}`}
+                        style={{
+                          ...getLeafColumnTone(li, leaf.color),
+                        }}
                         onMouseEnter={(e) => handleCellEnter(e, leaf, period)}
                         onMouseLeave={scheduleHide}
                         onClick={(e) => handleCellClick(e, leaf, period)}
