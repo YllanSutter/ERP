@@ -121,8 +121,11 @@ const WEEKDAY_OPTIONS = [
 
 interface ModuleDefaults {
   displayTypes?: RecapDisplayType[];
+  collectionId?: string;
+  dateFieldId?: string;
   aggregationField?: string;
   durationField?: string;
+  durationUnit?: 'minutes' | 'hours';
 }
 
 interface RecapColumnsEditorProps {
@@ -141,6 +144,10 @@ interface RecapColumnItemEditorProps {
   properties: Property[];
   collections: Collection[];
   moduleCollectionId?: string;
+  parentCollectionId?: string;
+  parentDateFieldId?: string;
+  parentDurationField?: string;
+  parentDurationUnit?: 'minutes' | 'hours';
   depth: number;      // 0 = top, 1 = sub, 2 = sub-sub (feuille forcée)
   moduleDefaults?: ModuleDefaults;
   onUpdate: (updated: RecapColumn) => void;
@@ -148,11 +155,25 @@ interface RecapColumnItemEditorProps {
 }
 
 const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
-  col, properties, collections, moduleCollectionId, depth, moduleDefaults, onUpdate, onRemove,
+  col,
+  properties,
+  collections,
+  moduleCollectionId,
+  parentCollectionId,
+  parentDateFieldId,
+  parentDurationField,
+  parentDurationUnit,
+  depth,
+  moduleDefaults,
+  onUpdate,
+  onRemove,
 }) => {
   const [open, setOpen] = useState(false);
 
-  const activeCollectionId = col.collectionId ?? moduleCollectionId;
+  const activeCollectionId = col.collectionId ?? parentCollectionId ?? moduleCollectionId ?? moduleDefaults?.collectionId;
+  const effectiveDateFieldId = col.dateFieldId ?? parentDateFieldId ?? moduleDefaults?.dateFieldId;
+  const effectiveDurationField = col.durationField ?? parentDurationField ?? moduleDefaults?.durationField;
+  const effectiveDurationUnit = col.durationUnit ?? parentDurationUnit ?? moduleDefaults?.durationUnit ?? 'minutes';
   const activeCollection = collections.find((c) => c.id === activeCollectionId) ?? null;
   const activeProperties = activeCollection?.properties ?? properties;
 
@@ -274,7 +295,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                 autoSubAggregationField: undefined,
               })}
               options={collections.map((c) => ({ value: c.id, label: c.name }))}
-              placeholder={moduleCollectionId ? `Défaut module: ${collections.find((c) => c.id === moduleCollectionId)?.name ?? 'Collection'}` : 'Collection du module'}
+              placeholder={activeCollectionId ? `Hérité: ${collections.find((c) => c.id === activeCollectionId)?.name ?? 'Collection'}` : 'Collection du module'}
             />
           </div>
 
@@ -286,7 +307,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                 value={col.dateFieldId ?? ''}
                 onChange={(v) => onUpdate({ ...col, dateFieldId: v || undefined })}
                 options={dateProps.map((p) => ({ value: p.id, label: p.name }))}
-                placeholder="Défaut module"
+                placeholder={effectiveDateFieldId ? `Hérité: ${dateProps.find((p) => p.id === effectiveDateFieldId)?.name ?? 'Champ date'}` : 'Défaut module'}
               />
             </div>
           )}
@@ -370,7 +391,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                   key={u}
                   onClick={() => onUpdate({ ...col, durationUnit: u })}
                   className={`px-2 py-0.5 transition-colors ${
-                    (col.durationUnit ?? 'minutes') === u
+                    effectiveDurationUnit === u
                       ? 'bg-primary text-primary-foreground'
                       : 'hover:bg-accent text-muted-foreground'
                   }`}
@@ -443,8 +464,8 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                       onChange={(v) => onUpdate({ ...col, durationField: v || undefined })}
                       options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
                       placeholder={
-                        moduleDefaults?.durationField
-                          ? `Temps par défaut: ${numericProps.find((p) => p.id === moduleDefaults.durationField)?.name ?? '…'}`
+                        effectiveDurationField
+                          ? `Hérité: ${numericProps.find((p) => p.id === effectiveDurationField)?.name ?? '…'}`
                           : 'Source temps'
                       }
                     />
@@ -620,8 +641,8 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                                   onChange={(v) => onUpdate({ ...col, durationField: v || undefined })}
                                   options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
                                   placeholder={
-                                    moduleDefaults?.durationField
-                                      ? `Temps par défaut: ${numericProps.find((p) => p.id === moduleDefaults.durationField)?.name ?? '…'}`
+                                    effectiveDurationField
+                                      ? `Hérité: ${numericProps.find((p) => p.id === effectiveDurationField)?.name ?? '…'}`
                                       : 'Source temps'
                                   }
                                 />
@@ -662,6 +683,10 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                       properties={properties}
                       collections={collections}
                       moduleCollectionId={moduleCollectionId}
+                      parentCollectionId={activeCollectionId}
+                      parentDateFieldId={effectiveDateFieldId}
+                      parentDurationField={effectiveDurationField}
+                      parentDurationUnit={effectiveDurationUnit}
                       depth={depth + 1}
                       moduleDefaults={moduleDefaults}
                       onUpdate={(updated) => {
@@ -715,6 +740,10 @@ const RecapColumnsEditor: React.FC<RecapColumnsEditorProps> = ({ columns, proper
           properties={properties}
           collections={collections}
           moduleCollectionId={moduleCollectionId}
+          parentCollectionId={moduleCollectionId ?? moduleDefaults?.collectionId}
+          parentDateFieldId={moduleDefaults?.dateFieldId}
+          parentDurationField={moduleDefaults?.durationField}
+          parentDurationUnit={moduleDefaults?.durationUnit}
           depth={0}
           moduleDefaults={moduleDefaults}
           onUpdate={(updated) => {
@@ -1298,6 +1327,8 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
               moduleCollectionId={module.collectionId}
               moduleDefaults={{
                 displayTypes:     module.recapDefaultDisplayTypes,
+                collectionId:     module.collectionId,
+                dateFieldId:      module.recapDateField,
                 aggregationField: module.recapDefaultAggregationField,
                 durationField:    module.recapDefaultDurationField,
                 durationUnit:     module.recapDefaultDurationUnit,

@@ -32,6 +32,7 @@ import {
   HeaderCell,
   buildRecapHeaderRows,
   flattenRecapToLeaves,
+  RecapPropertyResolver,
   computeLeafCell,
   getLeafCellItems,
   formatRecapValue,
@@ -278,6 +279,19 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
     return Array.from(map.values());
   }, [allCollections]);
 
+  const resolvePropertyForCollection = useCallback<RecapPropertyResolver>((fieldId, collectionId) => {
+    if (collectionId) {
+      const col = allCollections.find((c) => c.id === collectionId);
+      const prop = col?.properties?.find((p) => p.id === fieldId);
+      if (prop) return prop;
+    }
+    for (const col of allCollections) {
+      const prop = col.properties?.find((p) => p.id === fieldId);
+      if (prop) return prop;
+    }
+    return allProperties.find((p) => p.id === fieldId);
+  }, [allCollections, allProperties]);
+
   const sharedPeriodDate = useMemo(() => {
     const raw = globalFilter?.start ?? globalFilter?.end ?? null;
     if (!raw) return null;
@@ -392,21 +406,23 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
 
   const moduleDefaults = useMemo(() => ({
     displayTypes:     module.recapDefaultDisplayTypes,
+    collectionId:     module.collectionId,
+    dateFieldId:      module.recapDateField,
     aggregationField: module.recapDefaultAggregationField,
     durationField:    module.recapDefaultDurationField,
     durationUnit:     module.recapDefaultDurationUnit,
-  }), [module.recapDefaultDisplayTypes, module.recapDefaultAggregationField, module.recapDefaultDurationField, module.recapDefaultDurationUnit]);
+  }), [module.recapDefaultDisplayTypes, module.collectionId, module.recapDateField, module.recapDefaultAggregationField, module.recapDefaultDurationField, module.recapDefaultDurationUnit]);
 
   // Feuilles après expansion de l'arbre
   const leaves = useMemo<LeafColumn[]>(
-    () => flattenRecapToLeaves(columns, allProperties, [], moduleDefaults),
-    [columns, allProperties, moduleDefaults]
+    () => flattenRecapToLeaves(columns, allProperties, [], moduleDefaults, resolvePropertyForCollection),
+    [columns, allProperties, moduleDefaults, resolvePropertyForCollection]
   );
 
   // Lignes d'en-tête multi-niveaux
   const headerRows = useMemo<HeaderCell[][]>(
-    () => buildRecapHeaderRows(columns, allProperties, moduleDefaults),
-    [columns, allProperties, moduleDefaults]
+    () => buildRecapHeaderRows(columns, allProperties, moduleDefaults, resolvePropertyForCollection),
+    [columns, allProperties, moduleDefaults, resolvePropertyForCollection]
   );
 
   // ── Données mode MOIS ──────────────────────────────────────────────────

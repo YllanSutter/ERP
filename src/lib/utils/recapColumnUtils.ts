@@ -73,11 +73,15 @@ export interface ModuleRecapDefaults {
    * Si un seul → type appliqué directement à la feuille.
    */
   displayTypes?: RecapDisplayType[];
+  collectionId?: string;
+  dateFieldId?: string;
   aggregationField?: string;
   durationField?: string;
   /** Unité par défaut pour les colonnes duration */
   durationUnit?: 'minutes' | 'hours';
 }
+
+export type RecapPropertyResolver = (fieldId: string, collectionId?: string) => Property | undefined;
 
 /** Labels courts affichés dans les sous-colonnes auto-générées par type */
 const DISPLAY_TYPE_SHORT: Record<RecapDisplayType, string> = {
@@ -99,14 +103,26 @@ const DISPLAY_TYPE_SHORT: Record<RecapDisplayType, string> = {
 export function getExpandedChildren(
   col: RecapColumn,
   properties: Property[],
-  moduleDefaults?: ModuleRecapDefaults
+  moduleDefaults?: ModuleRecapDefaults,
+  propertyResolver?: RecapPropertyResolver,
+  inheritedCollectionId?: string,
+  inheritedDateFieldId?: string,
+  inheritedDurationField?: string,
+  inheritedDurationUnit?: 'minutes' | 'hours'
 ): RecapColumn[] {
+  const effectiveCollectionId = col.collectionId ?? inheritedCollectionId ?? moduleDefaults?.collectionId;
+  const effectiveDateFieldId = col.dateFieldId ?? inheritedDateFieldId ?? moduleDefaults?.dateFieldId;
+  const effectiveDurationField = col.durationField ?? inheritedDurationField ?? moduleDefaults?.durationField;
+  const effectiveDurationUnit = col.durationUnit ?? inheritedDurationUnit ?? moduleDefaults?.durationUnit;
+
   // 1. Enfants manuels
   if (col.children && col.children.length > 0) return col.children;
 
   // 2. Sous-colonnes auto depuis un champ select
   if (col.autoSubFieldId) {
-    const prop = properties.find((p) => p.id === col.autoSubFieldId);
+    const prop = propertyResolver
+      ? propertyResolver(col.autoSubFieldId, effectiveCollectionId)
+      : properties.find((p) => p.id === col.autoSubFieldId);
     if (prop) {
       const allOptions = getPropOptions(prop);
       const filteredOptions = (col.autoSubFilterValues && col.autoSubFilterValues.length > 0)
@@ -127,7 +143,8 @@ export function getExpandedChildren(
           return options.map((opt) => ({
             id:    `${col.id}__auto__${opt}`,
             label: opt,
-            collectionId: col.collectionId,
+            collectionId: effectiveCollectionId,
+            dateFieldId: effectiveDateFieldId,
             color: col.color,
             filterFieldId: col.autoSubFieldId,
             filterValues:  [opt],
@@ -135,13 +152,13 @@ export function getExpandedChildren(
             children: dtypes.map((dt) => ({
               id:               `${col.id}__auto__${opt}__dt__${dt}`,
               label:            DISPLAY_TYPE_SHORT[dt],
-              collectionId:     col.collectionId,
-              dateFieldId:      col.dateFieldId,
+              collectionId:     effectiveCollectionId,
+              dateFieldId:      effectiveDateFieldId,
               color:            col.color,
               displayType:      dt,
               aggregationField: col.autoSubAggregationField ?? moduleDefaults?.aggregationField,
-              durationField:    col.durationField ?? moduleDefaults?.durationField,
-              durationUnit:     col.durationUnit,
+              durationField:    effectiveDurationField,
+              durationUnit:     effectiveDurationUnit,
             })),
           }));
         }
@@ -149,15 +166,15 @@ export function getExpandedChildren(
         return options.map((opt) => ({
           id:               `${col.id}__auto__${opt}`,
           label:            opt,
-          collectionId:     col.collectionId,
-          dateFieldId:      col.dateFieldId,
+          collectionId:     effectiveCollectionId,
+          dateFieldId:      effectiveDateFieldId,
           color:            col.color,
           filterFieldId:    col.autoSubFieldId,
           filterValues:     [opt],
           displayType:      dtypes[0],
           aggregationField: col.autoSubAggregationField ?? moduleDefaults?.aggregationField,
-          durationField:    col.durationField ?? moduleDefaults?.durationField,
-          durationUnit:     col.durationUnit,
+          durationField:    effectiveDurationField,
+          durationUnit:     effectiveDurationUnit,
         }));
       }
     }
@@ -174,12 +191,13 @@ export function getExpandedChildren(
     return dtypes.map((dt) => ({
       id:               `${col.id}__dt__${dt}`,
       label:            DISPLAY_TYPE_SHORT[dt],
-      collectionId:     col.collectionId,
-      dateFieldId:      col.dateFieldId,
+      collectionId:     effectiveCollectionId,
+      dateFieldId:      effectiveDateFieldId,
       color:            col.color,
       displayType:      dt,
       aggregationField: col.aggregationField ?? moduleDefaults?.aggregationField,
-      durationField:    col.durationField ?? moduleDefaults?.durationField,
+      durationField:    effectiveDurationField,
+      durationUnit:     effectiveDurationUnit,
     }));
   }
 
@@ -190,22 +208,58 @@ export function getExpandedChildren(
 export function countRecapLeaves(
   col: RecapColumn,
   properties: Property[],
-  moduleDefaults?: ModuleRecapDefaults
+  moduleDefaults?: ModuleRecapDefaults,
+  propertyResolver?: RecapPropertyResolver,
+  inheritedCollectionId?: string,
+  inheritedDateFieldId?: string,
+  inheritedDurationField?: string,
+  inheritedDurationUnit?: 'minutes' | 'hours'
 ): number {
-  const children = getExpandedChildren(col, properties, moduleDefaults);
+  const children = getExpandedChildren(
+    col,
+    properties,
+    moduleDefaults,
+    propertyResolver,
+    inheritedCollectionId,
+    inheritedDateFieldId,
+    inheritedDurationField,
+    inheritedDurationUnit
+  );
   if (children.length === 0) return 1;
-  return children.reduce((s, c) => s + countRecapLeaves(c, properties, moduleDefaults), 0);
+  const nextCollectionId = col.collectionId ?? inheritedCollectionId ?? moduleDefaults?.collectionId;
+  const nextDateFieldId = col.dateFieldId ?? inheritedDateFieldId ?? moduleDefaults?.dateFieldId;
+  const nextDurationField = col.durationField ?? inheritedDurationField ?? moduleDefaults?.durationField;
+  const nextDurationUnit = col.durationUnit ?? inheritedDurationUnit ?? moduleDefaults?.durationUnit;
+  return children.reduce((s, c) => s + countRecapLeaves(c, properties, moduleDefaults, propertyResolver, nextCollectionId, nextDateFieldId, nextDurationField, nextDurationUnit), 0);
 }
 
 /** Retourne la profondeur max du sous-arbre (0 = feuille) */
 export function getRecapTreeDepth(
   col: RecapColumn,
   properties: Property[],
-  moduleDefaults?: ModuleRecapDefaults
+  moduleDefaults?: ModuleRecapDefaults,
+  propertyResolver?: RecapPropertyResolver,
+  inheritedCollectionId?: string,
+  inheritedDateFieldId?: string,
+  inheritedDurationField?: string,
+  inheritedDurationUnit?: 'minutes' | 'hours'
 ): number {
-  const children = getExpandedChildren(col, properties, moduleDefaults);
+  const children = getExpandedChildren(
+    col,
+    properties,
+    moduleDefaults,
+    propertyResolver,
+    inheritedCollectionId,
+    inheritedDateFieldId,
+    inheritedDurationField,
+    inheritedDurationUnit
+  );
   if (children.length === 0) return 0;
-  return 1 + Math.max(...children.map((c) => getRecapTreeDepth(c, properties, moduleDefaults)));
+  const nextCollectionId = col.collectionId ?? inheritedCollectionId ?? moduleDefaults?.collectionId;
+  const nextDateFieldId = col.dateFieldId ?? inheritedDateFieldId ?? moduleDefaults?.dateFieldId;
+  const nextDurationField = col.durationField ?? inheritedDurationField ?? moduleDefaults?.durationField;
+  const nextDurationUnit = col.durationUnit ?? inheritedDurationUnit ?? moduleDefaults?.durationUnit;
+  return 1 + Math.max(...children.map((c) => getRecapTreeDepth(c, properties, moduleDefaults, propertyResolver, nextCollectionId, nextDateFieldId, nextDurationField, nextDurationUnit)));
 }
 
 // ---------------------------------------------------------------------------
@@ -222,18 +276,37 @@ export function getRecapTreeDepth(
 export function buildRecapHeaderRows(
   cols: RecapColumn[],
   properties: Property[],
-  moduleDefaults?: ModuleRecapDefaults
+  moduleDefaults?: ModuleRecapDefaults,
+  propertyResolver?: RecapPropertyResolver
 ): HeaderCell[][] {
   if (cols.length === 0) return [[]];
 
-  const maxDepth = Math.max(...cols.map((c) => getRecapTreeDepth(c, properties, moduleDefaults)));
+  const maxDepth = Math.max(...cols.map((c) => getRecapTreeDepth(c, properties, moduleDefaults, propertyResolver)));
   const numRows = maxDepth + 1;
   const rows: HeaderCell[][] = Array.from({ length: numRows }, () => []);
 
-  function process(col: RecapColumn, rowIdx: number): void {
-    const children = getExpandedChildren(col, properties, moduleDefaults);
+  function process(
+    col: RecapColumn,
+    rowIdx: number,
+    inheritedCollectionId?: string,
+    inheritedDateFieldId?: string,
+    inheritedDurationField?: string,
+    inheritedDurationUnit?: 'minutes' | 'hours'
+  ): void {
+    const children = getExpandedChildren(
+      col,
+      properties,
+      moduleDefaults,
+      propertyResolver,
+      inheritedCollectionId,
+      inheritedDateFieldId,
+      inheritedDurationField,
+      inheritedDurationUnit
+    );
     const isLeaf = children.length === 0;
-    const colspan = isLeaf ? 1 : countRecapLeaves(col, properties, moduleDefaults);
+    const colspan = isLeaf
+      ? 1
+      : countRecapLeaves(col, properties, moduleDefaults, propertyResolver, inheritedCollectionId, inheritedDateFieldId, inheritedDurationField, inheritedDurationUnit);
     const rowspan = isLeaf ? numRows - rowIdx : 1;
 
     rows[rowIdx].push({
@@ -246,8 +319,12 @@ export function buildRecapHeaderRows(
     });
 
     if (!isLeaf) {
+      const nextCollectionId = col.collectionId ?? inheritedCollectionId ?? moduleDefaults?.collectionId;
+      const nextDateFieldId = col.dateFieldId ?? inheritedDateFieldId ?? moduleDefaults?.dateFieldId;
+      const nextDurationField = col.durationField ?? inheritedDurationField ?? moduleDefaults?.durationField;
+      const nextDurationUnit = col.durationUnit ?? inheritedDurationUnit ?? moduleDefaults?.durationUnit;
       for (const child of children) {
-        process(child, rowIdx + 1);
+        process(child, rowIdx + 1, nextCollectionId, nextDateFieldId, nextDurationField, nextDurationUnit);
       }
     }
   }
@@ -271,9 +348,20 @@ export function flattenRecapToLeaves(
   cols: RecapColumn[],
   properties: Property[],
   parentChain: { fieldId: string; values: string[] }[] = [],
-  moduleDefaults?: ModuleRecapDefaults
+  moduleDefaults?: ModuleRecapDefaults,
+  propertyResolver?: RecapPropertyResolver
 ): LeafColumn[] {
-  return cols.flatMap((col) => flattenNode(col, properties, parentChain, moduleDefaults, moduleDefaults?.durationUnit));
+  return cols.flatMap((col) => flattenNode(
+    col,
+    properties,
+    parentChain,
+    moduleDefaults,
+    propertyResolver,
+    moduleDefaults?.collectionId,
+    moduleDefaults?.dateFieldId,
+    moduleDefaults?.durationField,
+    moduleDefaults?.durationUnit
+  ));
 }
 
 function flattenNode(
@@ -281,8 +369,15 @@ function flattenNode(
   properties: Property[],
   parentChain: { fieldId: string; values: string[] }[],
   moduleDefaults?: ModuleRecapDefaults,
+  propertyResolver?: RecapPropertyResolver,
+  parentCollectionId?: string,
+  parentDateFieldId?: string,
+  parentDurationField?: string,
   parentDurationUnit?: 'minutes' | 'hours'
 ): LeafColumn[] {
+  const myCollectionId = col.collectionId ?? parentCollectionId ?? moduleDefaults?.collectionId;
+  const myDateFieldId = col.dateFieldId ?? parentDateFieldId ?? moduleDefaults?.dateFieldId;
+  const myDurationField = col.durationField ?? parentDurationField ?? moduleDefaults?.durationField;
   const myDurationUnit = col.durationUnit ?? parentDurationUnit;
 
   const myChain: { fieldId: string; values: string[] }[] = [
@@ -292,7 +387,16 @@ function flattenNode(
       : []),
   ];
 
-  const children = getExpandedChildren(col, properties, moduleDefaults);
+  const children = getExpandedChildren(
+    col,
+    properties,
+    moduleDefaults,
+    propertyResolver,
+    parentCollectionId,
+    parentDateFieldId,
+    parentDurationField,
+    parentDurationUnit
+  );
 
   if (children.length === 0) {
     // Résolution du type d'affichage :
@@ -311,20 +415,30 @@ function flattenNode(
     return [{
       id:               col.id,
       label:            col.label,
-      collectionId:     col.collectionId,
-      dateFieldId:      col.dateFieldId,
+      collectionId:     myCollectionId,
+      dateFieldId:      myDateFieldId,
       color:            col.color,
       filterChain:      myChain,
       displayType,
       aggregationField: col.aggregationField ?? moduleDefaults?.aggregationField,
-      durationField:    col.durationField ?? moduleDefaults?.durationField,
+      durationField:    myDurationField,
       durationUnit:     myDurationUnit,
     }];
   }
 
   // Récursion — les enfants virtuels (type dt) n'ont pas de filterFieldId
   // donc myChain n'est pas ré-augmenté par eux
-  return children.flatMap((child) => flattenNode(child, properties, myChain, moduleDefaults, myDurationUnit));
+  return children.flatMap((child) => flattenNode(
+    child,
+    properties,
+    myChain,
+    moduleDefaults,
+    propertyResolver,
+    myCollectionId,
+    myDateFieldId,
+    myDurationField,
+    myDurationUnit
+  ));
 }
 
 // ---------------------------------------------------------------------------
