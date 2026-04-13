@@ -18,11 +18,14 @@ import {
   getISOWeek,
   getDay,
   isWeekend,
+  parseISO,
+  isWithinInterval,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { DashboardModuleConfig } from '@/lib/dashboardTypes';
 import { DashboardItemData, GlobalDateFilter } from '@/lib/hooks/useDashboardItemData';
-import { Item } from '@/lib/types';
+import { Collection, Item, Property } from '@/lib/types';
+import { applyModuleFilters, computeDateRange, getDateValue } from '@/lib/utils/dashboardUtils';
 import {
   PeriodRow,
   LeafColumn,
@@ -144,6 +147,7 @@ const MONTH_NAMES_FR = [
 interface Props {
   module: DashboardModuleConfig;
   data: DashboardItemData;
+  collections: Collection[];
   globalFilter?: GlobalDateFilter;
   onUpdate?: (patch: Partial<DashboardModuleConfig>) => void;
   onViewDetail?: (item: Item) => void;
@@ -198,11 +202,51 @@ const CellTooltip: React.FC<{
   );
 };
 
+function getItemDisplayLabel(item: Item): string {
+  return (item as any).name ?? (item as any).title ?? (item as any).label ?? `Item ${item.id}`;
+}
+
+function abbreviateItemLabel(label: string): string {
+  const clean = label.trim().replace(/\s+/g, ' ');
+  if (!clean) return '…';
+
+  const words = clean.split(/[\s/_-]+/).filter(Boolean);
+  if (words.length === 1) {
+    return words[0].slice(0, 4).toUpperCase();
+  }
+
+  return words
+    .slice(0, 3)
+    .map((word) => word.charAt(0))
+    .join('')
+    .toUpperCase();
+}
+
+function getVariantChipStyle(baseColor: string | undefined, index: number, total: number): React.CSSProperties {
+  const alphaSteps = ['18', '20', '26', '2c', '32'];
+  const alpha = alphaSteps[Math.min(index, alphaSteps.length - 1)];
+  const opacityBoost = total > 1 ? Math.max(0, 1 - index * 0.08) : 1;
+
+  if (!baseColor) {
+    return {
+      background: `hsl(var(--accent) / ${Math.max(0.12, opacityBoost).toFixed(2)})`,
+      color: 'hsl(var(--foreground))',
+      borderColor: 'hsl(var(--border))',
+    };
+  }
+
+  return {
+    background: `${baseColor}${alpha}`,
+    color: baseColor,
+    borderColor: `${baseColor}${Math.min(42, 24 + index * 8).toString(16).padStart(2, '0')}`,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Composant principal
 // ---------------------------------------------------------------------------
 
-const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, onViewDetail }) => {
+const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter, onUpdate, onViewDetail }) => {
   const now = new Date();
 
   const [tooltip, setTooltip]       = useState<TooltipState | null>(null);
@@ -214,6 +258,25 @@ const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, on
   const includeWeekends  = module.recapIncludeWeekends ?? true;
   const hiddenWeekDays   = module.recapHiddenWeekDays ?? [];
   const { filteredItems, properties, dateFields, collection } = data;
+
+  const allCollections = useMemo(() => {
+    const map = new Map<string, Collection>();
+    if (collection) map.set(collection.id, collection);
+    (collections ?? []).forEach((c) => {
+      if (c?.id) map.set(c.id, c);
+    });
+    return Array.from(map.values());
+  }, [collection, collections]);
+
+  const allProperties = useMemo<Property[]>(() => {
+    const map = new Map<string, Property>();
+    allCollections.forEach((c) => {
+      (c.properties ?? []).forEach((p) => {
+        if (!map.has(p.id)) map.set(p.id, p);
+      });
+    });
+    return Array.from(map.values());
+  }, [allCollections]);
 
   const sharedPeriodDate = useMemo(() => {
     const raw = globalFilter?.start ?? globalFilter?.end ?? null;
@@ -230,22 +293,111 @@ const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, on
     [properties, module.recapDateField, dateFields]
   );
 
+  const sourceContexts = useMemo(() => {
+    const byId = new Map<string, {
+      collection: Collection;
+      properties: Property[];
+      dateField?: Property;
+      nameField?: Property;
+      items: Item[];
+    }>();
+
+    const hasGlobalDate = !!(globalFilter?.preset || globalFilter?.start || globalFilter?.end);
+    const globalRange = hasGlobalDate
+      ? computeDateRange(globalFilter?.preset ?? 'custom', globalFilter?.start, globalFilter?.end)
+      : null;
+
+    allCollections.forEach((srcCollection) => {
+      const srcProperties: Property[] = srcCollection.properties ?? [];
+      const srcDateFields = srcProperties.filter((p) => p.type === 'date' || (p.type as string) === 'date_range');
+      const srcDateField =
+        srcProperties.find((p) => p.id === module.recapDateField) ??
+        srcProperties.find((p) => p.id === globalFilter?.field) ??
+        srcProperties.find((p) => p.id === module.dateField) ??
+        srcDateFields[0] ??
+        undefined;
+
+      let srcItems: Item[] = [...(srcCollection.items ?? [])];
+
+      if (globalRange && srcDateField) {
+        srcItems = srcItems.filter((item) => {
+          const dateStr = getDateValue(item, srcDateField.id);
+          if (!dateStr) return false;
+          try {
+            const d = parseISO(dateStr);
+            return isWithinInterval(d, { start: globalRange.start, end: globalRange.end });
+          } catch {
+            return false;
+          }
+        });
+      }
+
+      if (module.filters && module.filters.length > 0) {
+        srcItems = applyModuleFilters(srcItems, module.filters, srcProperties);
+      }
+
+      const srcNameField = srcProperties.find((p) => p.id === 'name' || p.name === 'Nom') ?? undefined;
+
+      byId.set(srcCollection.id, {
+        collection: srcCollection,
+        properties: srcProperties,
+        dateField: srcDateField,
+        nameField: srcNameField,
+        items: srcItems,
+      });
+    });
+
+    return byId;
+  }, [allCollections, module.recapDateField, module.dateField, module.filters, globalFilter?.preset, globalFilter?.start, globalFilter?.end, globalFilter?.field]);
+
+  const itemNameField = useMemo(
+    () => collection?.properties?.find((p) => p.id === 'name' || p.name === 'Nom') ?? undefined,
+    [collection]
+  );
+
+  const getLeafSource = useCallback((leaf: LeafColumn) => {
+    const sourceCollectionId = leaf.collectionId ?? module.collectionId ?? collection?.id;
+    if (sourceCollectionId && sourceContexts.has(sourceCollectionId)) {
+      return sourceContexts.get(sourceCollectionId)!;
+    }
+    return {
+      collection: collection as Collection,
+      properties,
+      dateField,
+      nameField: itemNameField,
+      items: filteredItems,
+    };
+  }, [sourceContexts, module.collectionId, collection, properties, dateField, itemNameField, filteredItems]);
+
+  const getItemLabel = useCallback((item: Item, leaf?: LeafColumn) => {
+    const source = leaf ? getLeafSource(leaf) : null;
+    const nameField = source?.nameField ?? itemNameField;
+    if (nameField) {
+      const raw = (item as any)[nameField.id];
+      if (raw !== null && raw !== undefined && String(raw).trim() !== '') {
+        return String(raw);
+      }
+    }
+    return getItemDisplayLabel(item);
+  }, [itemNameField, getLeafSource]);
+
   const moduleDefaults = useMemo(() => ({
     displayTypes:     module.recapDefaultDisplayTypes,
     aggregationField: module.recapDefaultAggregationField,
+    durationField:    module.recapDefaultDurationField,
     durationUnit:     module.recapDefaultDurationUnit,
-  }), [module.recapDefaultDisplayTypes, module.recapDefaultAggregationField, module.recapDefaultDurationUnit]);
+  }), [module.recapDefaultDisplayTypes, module.recapDefaultAggregationField, module.recapDefaultDurationField, module.recapDefaultDurationUnit]);
 
   // Feuilles après expansion de l'arbre
   const leaves = useMemo<LeafColumn[]>(
-    () => flattenRecapToLeaves(columns, properties, [], moduleDefaults),
-    [columns, properties, moduleDefaults]
+    () => flattenRecapToLeaves(columns, allProperties, [], moduleDefaults),
+    [columns, allProperties, moduleDefaults]
   );
 
   // Lignes d'en-tête multi-niveaux
   const headerRows = useMemo<HeaderCell[][]>(
-    () => buildRecapHeaderRows(columns, properties, moduleDefaults),
-    [columns, properties, moduleDefaults]
+    () => buildRecapHeaderRows(columns, allProperties, moduleDefaults),
+    [columns, allProperties, moduleDefaults]
   );
 
   // ── Données mode MOIS ──────────────────────────────────────────────────
@@ -282,25 +434,102 @@ const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, on
     return all.filter(({ wg }) => wg.weekKey === activeWeekKey);
   }, [mode, weekGroups, activeWeekKey]);
 
+  const visibleMonthCellItems = useMemo(() => {
+    if (mode !== 'month') return [] as Item[][][][];
+    return visibleWeekGroups.map(({ wg }) =>
+      wg.days.map((day) =>
+        leaves.map((leaf) => {
+          const source = getLeafSource(leaf);
+          return getLeafCellItems(
+            source.items,
+            leaf,
+            { key: day.key, label: day.dayLabel, sublabel: day.dateLabel, start: day.start, end: day.end },
+            source.dateField,
+            source.properties
+          );
+        })
+      )
+    );
+  }, [mode, visibleWeekGroups, leaves, getLeafSource]);
+
+  const visibleMonthCellLayout = useMemo(() => {
+    if (mode !== 'month') return [] as Array<Array<Array<{ rowSpan: number; skip: boolean }>>>;
+
+    const layout = visibleWeekGroups.map(({ wg }) =>
+      wg.days.map(() => leaves.map(() => ({ rowSpan: 1, skip: false })))
+    );
+
+    const flatPositions: { weekIdx: number; dayIdx: number }[] = [];
+    visibleWeekGroups.forEach(({ wg }, weekIdx) => {
+      wg.days.forEach((_, dayIdx) => {
+        flatPositions.push({ weekIdx, dayIdx });
+      });
+    });
+
+    for (let flatIdx = 0; flatIdx < flatPositions.length; flatIdx++) {
+      const { weekIdx, dayIdx } = flatPositions[flatIdx];
+
+      for (let leafIdx = 0; leafIdx < leaves.length; leafIdx++) {
+        const leaf = leaves[leafIdx];
+        const currentItems = visibleMonthCellItems[weekIdx]?.[dayIdx]?.[leafIdx] ?? [];
+        const currentMeta = layout[weekIdx][dayIdx][leafIdx];
+
+        if (currentMeta.skip || leaf.displayType !== 'count' || currentItems.length !== 1) {
+          continue;
+        }
+
+        const currentItemId = String(currentItems[0].id);
+        let span = 1;
+
+        for (let nextIdx = flatIdx + 1; nextIdx < flatPositions.length; nextIdx++) {
+          const { weekIdx: nextWeekIdx, dayIdx: nextDayIdx } = flatPositions[nextIdx];
+          const nextItems = visibleMonthCellItems[nextWeekIdx]?.[nextDayIdx]?.[leafIdx] ?? [];
+          if (nextItems.length !== 1 || String(nextItems[0].id) !== currentItemId) break;
+
+          span += 1;
+          layout[nextWeekIdx][nextDayIdx][leafIdx].skip = true;
+        }
+
+        currentMeta.rowSpan = span;
+      }
+    }
+
+    return layout;
+  }, [mode, visibleWeekGroups, visibleMonthCellItems, leaves]);
+
   // cells[wgIdx][dayIdx][leafIdx]
   const dayCells = useMemo(() => {
     if (mode !== 'month') return [];
     return weekGroups.map((wg) =>
       wg.days.map((day) =>
-        leaves.map((leaf) =>
-          computeLeafCell(
-            filteredItems, leaf,
+        leaves.map((leaf) => {
+          const source = getLeafSource(leaf);
+          return computeLeafCell(
+            source.items,
+            leaf,
             { key: day.key, label: day.dayLabel, sublabel: day.dateLabel, start: day.start, end: day.end },
-            dateField, properties
-          )
-        )
+            source.dateField,
+            source.properties
+          );
+        })
       )
     );
-  }, [mode, weekGroups, leaves, filteredItems, dateField, properties]);
+  }, [mode, weekGroups, leaves, getLeafSource]);
 
   const dayRowTotals = useMemo(
     () => dayCells.map((wg) => wg.map((row) => row.reduce((a, b) => a + b, 0))),
     [dayCells]
+  );
+
+  const monthPeriods = useMemo(
+    () => weekGroups.flatMap((wg) => wg.days.map((day) => ({
+      key: day.key,
+      label: day.dayLabel,
+      sublabel: day.dateLabel,
+      start: day.start,
+      end: day.end,
+    } as PeriodRow))),
+    [weekGroups]
   );
 
   // ── Données mode ANNÉE ─────────────────────────────────────────────────
@@ -313,27 +542,49 @@ const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, on
   const yearCells = useMemo(() => {
     if (mode !== 'year') return [];
     return yearPeriods.map((period) =>
-      leaves.map((leaf) => computeLeafCell(filteredItems, leaf, period, dateField, properties))
+      leaves.map((leaf) => {
+        const source = getLeafSource(leaf);
+        return computeLeafCell(source.items, leaf, period, source.dateField, source.properties);
+      })
     );
-  }, [mode, yearPeriods, leaves, filteredItems, dateField, properties]);
+  }, [mode, yearPeriods, leaves, getLeafSource]);
 
   const yearRowTotals = useMemo(
     () => yearCells.map((row) => row.reduce((a, b) => a + b, 0)),
     [yearCells]
   );
 
+  const countUniqueItemsAcrossPeriods = useCallback(
+    (leaf: LeafColumn, periods: PeriodRow[]) => {
+      const source = getLeafSource(leaf);
+      const seen = new Set<string>();
+      for (const period of periods) {
+        const items = getLeafCellItems(source.items, leaf, period, source.dateField, source.properties);
+        items.forEach((item) => seen.add(String(item.id)));
+      }
+      return seen.size;
+    },
+    [getLeafSource]
+  );
+
   // ── Totaux par feuille + grand total ──────────────────────────────────
 
   const leafTotals = useMemo(() => {
     if (mode === 'month') {
-      return leaves.map((_, li) =>
-        dayCells.reduce((s, wg) => s + wg.reduce((s2, day) => s2 + day[li], 0), 0)
-      );
+      return leaves.map((leaf, li) => {
+        if (leaf.displayType === 'count') {
+          return countUniqueItemsAcrossPeriods(leaf, monthPeriods);
+        }
+        return dayCells.reduce((s, wg) => s + wg.reduce((s2, day) => s2 + day[li], 0), 0);
+      });
     }
-    return leaves.map((_, li) =>
-      yearCells.reduce((s, row) => s + row[li], 0)
-    );
-  }, [mode, dayCells, yearCells, leaves]);
+    return leaves.map((leaf, li) => {
+      if (leaf.displayType === 'count') {
+        return countUniqueItemsAcrossPeriods(leaf, yearPeriods);
+      }
+      return yearCells.reduce((s, row) => s + row[li], 0);
+    });
+  }, [mode, dayCells, yearCells, leaves, monthPeriods, yearPeriods, countUniqueItemsAcrossPeriods]);
 
   const grandTotal = useMemo(
     () => leafTotals.reduce((a, b) => a + b, 0),
@@ -361,23 +612,36 @@ const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, on
     period: PeriodRow
   ) => {
     cancelHide();
-    const items = getLeafCellItems(filteredItems, leaf, period, dateField, properties);
+    const source = getLeafSource(leaf);
+    const items = getLeafCellItems(source.items, leaf, period, source.dateField, source.properties);
     if (items.length === 0) { setTooltip(null); return; }
     setTooltip({ items, rect: e.currentTarget.getBoundingClientRect() });
-  }, [filteredItems, dateField, properties, cancelHide]);
+  }, [getLeafSource, cancelHide]);
 
   const handleCellClick = useCallback((
+    e: React.MouseEvent<HTMLTableCellElement>,
     leaf: LeafColumn,
     period: PeriodRow
   ) => {
+    cancelHide();
+    const source = getLeafSource(leaf);
+    const items = getLeafCellItems(source.items, leaf, period, source.dateField, source.properties);
+    if (items.length === 0) {
+      setTooltip(null);
+      return;
+    }
+
+    if (items.length > 1) {
+      setTooltip({ items, rect: e.currentTarget.getBoundingClientRect() });
+      return;
+    }
+
     if (!onViewDetail) return;
-    const items = getLeafCellItems(filteredItems, leaf, period, dateField, properties);
     if (items.length === 1) {
       onViewDetail(items[0]);
       setTooltip(null);
     }
-    // si plusieurs items, le tooltip est déjà visible avec la liste cliquable
-  }, [filteredItems, dateField, properties, onViewDetail]);
+  }, [getLeafSource, onViewDetail, cancelHide]);
 
   // ── États vides ───────────────────────────────────────────────────────
 
@@ -417,10 +681,21 @@ const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, on
 
   const activeWeekLeafTotals = useMemo(() => {
     if (mode !== 'month' || activeWeekIdx < 0) return leaves.map(() => 0);
-    return leaves.map((_, li) =>
-      (dayCells[activeWeekIdx] || []).reduce((sum, day) => sum + (day[li] ?? 0), 0)
-    );
-  }, [mode, activeWeekIdx, dayCells, leaves]);
+    if (!activeWeek) return leaves.map(() => 0);
+    return leaves.map((leaf, li) => {
+      if (leaf.displayType === 'count') {
+        const activeWeekPeriods = activeWeek.days.map((day) => ({
+          key: day.key,
+          label: day.dayLabel,
+          sublabel: day.dateLabel,
+          start: day.start,
+          end: day.end,
+        } as PeriodRow));
+        return countUniqueItemsAcrossPeriods(leaf, activeWeekPeriods);
+      }
+      return (dayCells[activeWeekIdx] || []).reduce((sum, day) => sum + (day[li] ?? 0), 0);
+    });
+  }, [mode, activeWeekIdx, activeWeek, dayCells, leaves, countUniqueItemsAcrossPeriods]);
 
   const activeWeekGrandTotal = useMemo(
     () => activeWeekLeafTotals.reduce((sum, value) => sum + value, 0),
@@ -492,19 +767,19 @@ const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, on
           {/* En-tête multi-niveaux */}
           <thead className="sticky top-0 z-10 bg-card">
             {headerRows.map((row, rowIdx) => (
-              <tr key={rowIdx}>
+              <tr key={rowIdx} className={rowIdx === 0 ? 'bg-muted/20' : 'bg-card'}>
                 {/* Colonnes période — seulement sur la première ligne de header */}
                 {rowIdx === 0 && mode === 'month' && (
                   <>
                     <th
                       rowSpan={headerRows.length}
-                      className="text-center px-2 py-2 text-xs font-semibold text-muted-foreground border-b border-border whitespace-nowrap w-14 align-bottom"
+                      className="text-center px-2 py-2 text-[11px] font-semibold text-muted-foreground border-b border-r border-border whitespace-nowrap w-14 align-bottom"
                     >
                       Sem.
                     </th>
                     <th
                       rowSpan={headerRows.length}
-                      className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border whitespace-nowrap min-w-[90px] align-bottom"
+                      className="text-left px-3 py-2 text-[11px] font-semibold text-muted-foreground border-b border-r border-border whitespace-nowrap min-w-[90px] align-bottom"
                     >
                       Jour
                     </th>
@@ -513,7 +788,7 @@ const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, on
                 {rowIdx === 0 && mode === 'year' && (
                   <th
                     rowSpan={headerRows.length}
-                    className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border whitespace-nowrap min-w-[110px] align-bottom"
+                    className="text-left px-3 py-2 text-[11px] font-semibold text-muted-foreground border-b border-r border-border whitespace-nowrap min-w-[110px] align-bottom"
                   >
                     Mois
                   </th>
@@ -525,10 +800,12 @@ const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, on
                     key={cell.id}
                     colSpan={cell.colspan}
                     rowSpan={cell.rowspan}
-                    className="text-center px-2 py-2 text-xs font-semibold border-b border-border whitespace-nowrap"
+                    className={`text-center px-2 py-1.5 border-b border-r border-border whitespace-nowrap ${
+                      cell.isLeaf ? 'bg-card text-[11px] font-medium' : 'bg-muted/10 text-xs font-semibold'
+                    }`}
                     style={{ color: cell.color ?? 'hsl(var(--foreground))' }}
                   >
-                    {cell.label}
+                    <span className="leading-tight">{cell.label}</span>
                   </th>
                 ))}
 
@@ -536,7 +813,7 @@ const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, on
                 {rowIdx === 0 && (
                   <th
                     rowSpan={headerRows.length}
-                    className="text-center px-3 py-2 text-xs font-semibold text-muted-foreground border-b border-border align-bottom"
+                    className="text-center px-3 py-2 text-[11px] font-semibold text-muted-foreground border-b border-l border-border align-bottom"
                   >
                     Total
                   </th>
@@ -587,27 +864,96 @@ const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, on
                   </td>
 
                   {leaves.map((leaf, li) => {
-                    const val = dayCells[sourceIdx]?.[dayIdx]?.[li] ?? 0;
+                    const items = visibleMonthCellItems[visibleIdx]?.[dayIdx]?.[li] ?? [];
+                    const cellLayout = visibleMonthCellLayout[visibleIdx]?.[dayIdx]?.[li] ?? { rowSpan: 1, skip: false };
+
+                    if (cellLayout.skip) return null;
+
+                    const renderCountContent = () => {
+                      if (items.length === 0) {
+                        return <span className="text-muted-foreground/30 text-xs">–</span>;
+                      }
+
+                      const shownItems = items.slice(0, 2);
+                      const rest = items.length - shownItems.length;
+
+                      if (items.length === 1) {
+                        const label = getItemLabel(items[0], leaf);
+                        const abbr = abbreviateItemLabel(label);
+                        return (
+                          <div className="flex flex-col items-center gap-0.5 leading-tight">
+                            <span
+                              className="inline-flex items-center justify-center w-full min-w-[40px] max-w-[120px] rounded border px-1 py-0.5 text-[11px] font-semibold"
+                              style={{
+                                ...getVariantChipStyle(leaf.color, 0, 1),
+                              }}
+                              title={label}
+                            >
+                              {abbr}
+                            </span>
+                            {cellLayout.rowSpan > 1 && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {cellLayout.rowSpan} j
+                              </span>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="flex flex-col gap-1 items-stretch min-w-[56px]">
+                          {shownItems.map((item: Item, index: number) => {
+                            const label = getItemLabel(item, leaf);
+                            const abbr = abbreviateItemLabel(label);
+                            return (
+                              <span
+                                key={item.id}
+                                className="inline-flex items-center justify-center rounded border px-1 py-0.5 text-[10px] font-semibold"
+                                style={{
+                                  ...getVariantChipStyle(leaf.color, index, items.length),
+                                }}
+                                title={label}
+                              >
+                                {abbr}
+                              </span>
+                            );
+                          })}
+                          {rest > 0 && (
+                            <span className="text-[10px] text-muted-foreground text-center">
+                              +{rest} autre{rest > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    };
+
                     return (
                       <td
                         key={leaf.id}
-                        className={`text-center px-2 py-1.5 border-b border-border/50 tabular-nums ${onViewDetail ? 'cursor-pointer' : ''}`}
+                        rowSpan={cellLayout.rowSpan}
+                        className={`text-center px-2 py-1.5 border-b border-border/50 tabular-nums align-middle ${onViewDetail ? 'cursor-pointer' : ''}`}
                         onMouseEnter={(e) => handleCellEnter(e, leaf, period)}
                         onMouseLeave={scheduleHide}
-                        onClick={() => handleCellClick(leaf, period)}
+                        onClick={(e) => handleCellClick(e, leaf, period)}
                       >
-                        {val > 0 ? (
-                          <span
-                            className="inline-flex items-center justify-center min-w-[28px] h-5 rounded px-1 text-xs font-semibold"
-                            style={{
-                              background: leaf.color ? `${leaf.color}18` : 'hsl(var(--accent))',
-                              color:      leaf.color ?? 'hsl(var(--foreground))',
-                            }}
-                          >
-                            {formatRecapValue(val, leaf.displayType, leaf.durationUnit)}
-                          </span>
+                        {leaf.displayType === 'count' ? (
+                          renderCountContent()
                         ) : (
-                          <span className="text-muted-foreground/30 text-xs">–</span>
+                          <>
+                            {(dayCells[sourceIdx]?.[dayIdx]?.[li] ?? 0) > 0 ? (
+                              <span
+                                className="inline-flex items-center justify-center min-w-[28px] h-5 rounded px-1 text-xs font-semibold"
+                                style={{
+                                  background: leaf.color ? `${leaf.color}18` : 'hsl(var(--accent))',
+                                  color:      leaf.color ?? 'hsl(var(--foreground))',
+                                }}
+                              >
+                                {formatRecapValue(dayCells[sourceIdx][dayIdx][li], leaf.displayType, leaf.durationUnit)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/30 text-xs">–</span>
+                            )}
+                          </>
                         )}
                       </td>
                     );
@@ -642,7 +988,7 @@ const RecapModule: React.FC<Props> = ({ module, data, globalFilter, onUpdate, on
                       className={`text-center px-2 py-2 border-b border-border/50 tabular-nums ${onViewDetail ? 'cursor-pointer' : ''}`}
                       onMouseEnter={(e) => handleCellEnter(e, leaf, period)}
                       onMouseLeave={scheduleHide}
-                      onClick={() => handleCellClick(leaf, period)}
+                        onClick={(e) => handleCellClick(e, leaf, period)}
                     >
                       {val > 0 ? (
                         <span

@@ -47,6 +47,8 @@ export interface RecapColumn {
   id: string;
   /** Label affiché dans l'en-tête */
   label: string;
+  /** Collection source de la colonne (défaut: collection du module) */
+  collectionId?: string;
   /** Couleur de la colonne */
   color?: string;
 
@@ -68,6 +70,8 @@ export interface RecapColumn {
   displayType?: RecapDisplayType;
   /** Champ numérique à sommer pour sum/duration */
   aggregationField?: string;
+  /** Champ numérique utilisé comme source de temps pour displayType=duration */
+  durationField?: string;
   /**
    * Unité du champ durée ('minutes' | 'hours').
    * Défaut : 'minutes'. Si le champ stocke des heures décimales (ex: 1.5 = 1h30), mettre 'hours'.
@@ -199,6 +203,8 @@ export interface DashboardModuleConfig {
   recapDefaultDisplayTypes?: RecapDisplayType[];
   /** Champ numérique par défaut pour sum/duration */
   recapDefaultAggregationField?: string;
+  /** Champ numérique par défaut pour les colonnes duration */
+  recapDefaultDurationField?: string;
   /** Unité par défaut pour les colonnes duration ('minutes' | 'hours') */
   recapDefaultDurationUnit?: 'minutes' | 'hours';
 

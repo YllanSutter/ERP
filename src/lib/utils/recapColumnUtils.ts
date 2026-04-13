@@ -29,10 +29,12 @@ export interface PeriodRow {
 export interface LeafColumn {
   id: string;
   label: string;
+  collectionId?: string;
   color?: string;
   filterChain: { fieldId: string; values: string[] }[];
   displayType: RecapDisplayType;
   aggregationField?: string;
+  durationField?: string;
   /** Unité pour les colonnes duration ('minutes' par défaut) */
   durationUnit?: 'minutes' | 'hours';
 }
@@ -71,6 +73,7 @@ export interface ModuleRecapDefaults {
    */
   displayTypes?: RecapDisplayType[];
   aggregationField?: string;
+  durationField?: string;
   /** Unité par défaut pour les colonnes duration */
   durationUnit?: 'minutes' | 'hours';
 }
@@ -123,6 +126,7 @@ export function getExpandedChildren(
           return options.map((opt) => ({
             id:    `${col.id}__auto__${opt}`,
             label: opt,
+            collectionId: col.collectionId,
             color: col.color,
             filterFieldId: col.autoSubFieldId,
             filterValues:  [opt],
@@ -130,9 +134,11 @@ export function getExpandedChildren(
             children: dtypes.map((dt) => ({
               id:               `${col.id}__auto__${opt}__dt__${dt}`,
               label:            DISPLAY_TYPE_SHORT[dt],
+              collectionId:     col.collectionId,
               color:            col.color,
               displayType:      dt,
               aggregationField: col.autoSubAggregationField ?? moduleDefaults?.aggregationField,
+              durationField:    col.durationField ?? moduleDefaults?.durationField,
               durationUnit:     col.durationUnit,
             })),
           }));
@@ -141,11 +147,13 @@ export function getExpandedChildren(
         return options.map((opt) => ({
           id:               `${col.id}__auto__${opt}`,
           label:            opt,
+          collectionId:     col.collectionId,
           color:            col.color,
           filterFieldId:    col.autoSubFieldId,
           filterValues:     [opt],
           displayType:      dtypes[0],
           aggregationField: col.autoSubAggregationField ?? moduleDefaults?.aggregationField,
+          durationField:    col.durationField ?? moduleDefaults?.durationField,
           durationUnit:     col.durationUnit,
         }));
       }
@@ -163,9 +171,11 @@ export function getExpandedChildren(
     return dtypes.map((dt) => ({
       id:               `${col.id}__dt__${dt}`,
       label:            DISPLAY_TYPE_SHORT[dt],
+      collectionId:     col.collectionId,
       color:            col.color,
       displayType:      dt,
       aggregationField: col.aggregationField ?? moduleDefaults?.aggregationField,
+      durationField:    col.durationField ?? moduleDefaults?.durationField,
     }));
   }
 
@@ -297,10 +307,12 @@ function flattenNode(
     return [{
       id:               col.id,
       label:            col.label,
+      collectionId:     col.collectionId,
       color:            col.color,
       filterChain:      myChain,
       displayType,
       aggregationField: col.aggregationField ?? moduleDefaults?.aggregationField,
+      durationField:    col.durationField ?? moduleDefaults?.durationField,
       durationUnit:     myDurationUnit,
     }];
   }
@@ -389,9 +401,58 @@ export function getLeafCellItems(
   properties: Property[]
 ): Item[] {
   const filtered = applyFilterChain(items, leaf.filterChain, properties);
+
+  const periodStart = period.start.getTime();
+  const periodEnd = period.end.getTime();
+
+  const getItemIntervals = (item: Item): { start: number; end: number }[] => {
+    if (!dateField) return [];
+
+    // 1) Segments calendrier (source la plus fiable pour multi-jours)
+    const segments: any[] = Array.isArray((item as any)._eventSegments)
+      ? (item as any)._eventSegments
+      : [];
+    const segIntervals = segments
+      .filter((s) => s?.label === dateField.name && (s.start || s.__eventStart) && (s.end || s.__eventEnd))
+      .map((s) => {
+        const start = new Date(s.start || s.__eventStart).getTime();
+        const end = new Date(s.end || s.__eventEnd).getTime();
+        return { start, end };
+      })
+      .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end >= r.start);
+    if (segIntervals.length > 0) return segIntervals;
+
+    // 2) date_range brut
+    if ((dateField.type as string) === 'date_range') {
+      const value = (item as any)[dateField.id];
+      const ranges: { start?: string; end?: string }[] = Array.isArray(value)
+        ? value
+        : value?.start && value?.end ? [value] : [];
+      return ranges
+        .map((r) => ({
+          start: new Date(r.start ?? '').getTime(),
+          end: new Date(r.end ?? '').getTime(),
+        }))
+        .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end >= r.start);
+    }
+
+    // 3) date simple + éventuelle durée dédiée (<dateField>_duration)
+    if (dateField.type === 'date') {
+      const start = new Date((item as any)[dateField.id]).getTime();
+      if (!Number.isFinite(start)) return [];
+      const rawDurationHours = Number((item as any)[`${dateField.id}_duration`]);
+      const end = Number.isFinite(rawDurationHours) && rawDurationHours > 0
+        ? start + rawDurationHours * 3600000
+        : start;
+      return [{ start, end }];
+    }
+
+    return [];
+  };
+
   return filtered.filter((item) => {
-    const d = getItemDate(item, dateField);
-    return d !== null && d >= period.start && d <= period.end;
+    const intervals = getItemIntervals(item);
+    return intervals.some((r) => r.end >= periodStart && r.start <= periodEnd);
   });
 }
 
@@ -411,49 +472,78 @@ export function computeLeafCell(
   const toLeafUnit = (mins: number): number =>
     (leaf.durationUnit === 'hours' ? mins / 60 : mins);
 
-  // Durée depuis la source principale du champ date sélectionné
-  // (même logique métier que le modal : priorité au <dateField>_duration).
-  const getDateFieldDurationForItem = (item: Item): number => {
-    if (!dateField) return 0;
+  const periodStartMs = period.start.getTime();
+  const periodEndMs = period.end.getTime();
 
-    // 1) Champ durée dédié (<dateField.id>_duration), stocké en heures décimales
-    const durationKey = `${dateField.id}_duration`;
-    const rawDuration = Number((item as any)[durationKey]);
-    if (Number.isFinite(rawDuration) && rawDuration > 0) {
-      return leaf.durationUnit === 'hours' ? rawDuration : rawDuration * 60;
-    }
+  const getIntervalsForDuration = (item: Item): { start: number; end: number }[] => {
+    if (!dateField) return [];
 
-    // 2) Segments existants (modifiés en manuel / générés)
     const segments: any[] = Array.isArray((item as any)._eventSegments)
       ? (item as any)._eventSegments
       : [];
-    const matching = segments.filter(
-      (s) => s?.label === dateField.name && (s.start || s.__eventStart) && (s.end || s.__eventEnd)
-    );
-    if (matching.length > 0) {
-      const totalMins = matching.reduce((sum: number, seg: any) => {
-        const start = new Date(seg.start || seg.__eventStart).getTime();
-        const end = new Date(seg.end || seg.__eventEnd).getTime();
-        const mins = (end - start) / 60000;
-        return sum + (Number.isFinite(mins) && mins > 0 ? mins : 0);
-      }, 0);
-      return toLeafUnit(totalMins);
-    }
+    const segIntervals = segments
+      .filter((s) => s?.label === dateField.name && (s.start || s.__eventStart) && (s.end || s.__eventEnd))
+      .map((s) => ({
+        start: new Date(s.start || s.__eventStart).getTime(),
+        end: new Date(s.end || s.__eventEnd).getTime(),
+      }))
+      .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end >= r.start);
+    if (segIntervals.length > 0) return segIntervals;
 
-    // 3) date_range natif {start,end}
     if ((dateField.type as string) === 'date_range') {
       const value = (item as any)[dateField.id];
       const ranges: { start?: string; end?: string }[] = Array.isArray(value)
         ? value
         : value?.start && value?.end ? [value] : [];
+      return ranges
+        .map((r) => ({
+          start: new Date(r.start ?? '').getTime(),
+          end: new Date(r.end ?? '').getTime(),
+        }))
+        .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end >= r.start);
+    }
 
-      const totalMins = ranges.reduce((sum, r) => {
-        const start = new Date(r.start ?? '').getTime();
-        const end = new Date(r.end ?? '').getTime();
-        const mins = (end - start) / 60000;
+    if (dateField.type === 'date') {
+      const start = new Date((item as any)[dateField.id]).getTime();
+      if (!Number.isFinite(start)) return [];
+      const rawDurationHours = Number((item as any)[`${dateField.id}_duration`]);
+      const end = Number.isFinite(rawDurationHours) && rawDurationHours > 0
+        ? start + rawDurationHours * 3600000
+        : start;
+      return [{ start, end }];
+    }
+
+    return [];
+  };
+
+  // Durée depuis la source principale du champ date sélectionné
+  // Répartie par période via chevauchement réel des intervalles.
+  const getDateFieldDurationForItem = (item: Item): number => {
+    const durationFieldId = leaf.durationField ?? fid;
+    if (durationFieldId) {
+      const rawDuration = Number((item as any)[durationFieldId]);
+      if (Number.isFinite(rawDuration) && rawDuration > 0) {
+        return leaf.durationUnit === 'hours' ? rawDuration : rawDuration * 60;
+      }
+    }
+
+    const intervals = getIntervalsForDuration(item);
+    if (intervals.length > 0) {
+      const totalMins = intervals.reduce((sum, r) => {
+        const overlapStart = Math.max(r.start, periodStartMs);
+        const overlapEnd = Math.min(r.end, periodEndMs);
+        const mins = (overlapEnd - overlapStart) / 60000;
         return sum + (Number.isFinite(mins) && mins > 0 ? mins : 0);
       }, 0);
       return toLeafUnit(totalMins);
+    }
+
+    // Fallback minimal si on a seulement une durée sans intervalle exploitable
+    if (dateField) {
+      const rawDuration = Number((item as any)[`${dateField.id}_duration`]);
+      if (Number.isFinite(rawDuration) && rawDuration > 0) {
+        return leaf.durationUnit === 'hours' ? rawDuration : rawDuration * 60;
+      }
     }
 
     return 0;

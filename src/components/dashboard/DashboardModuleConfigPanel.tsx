@@ -34,6 +34,8 @@ interface Props {
   onClose: () => void;
 }
 
+type ConfigTab = 'type' | 'infos' | 'columns';
+
 // Icônes par type de module
 const MODULE_TYPE_ICONS: Record<ModuleType, React.ReactNode> = {
   table:    <Table2 size={16} />,
@@ -120,11 +122,14 @@ const WEEKDAY_OPTIONS = [
 interface ModuleDefaults {
   displayTypes?: RecapDisplayType[];
   aggregationField?: string;
+  durationField?: string;
 }
 
 interface RecapColumnsEditorProps {
   columns: RecapColumn[];
   properties: Property[];
+  collections: Collection[];
+  moduleCollectionId?: string;
   moduleDefaults?: ModuleDefaults;
   onChange: (cols: RecapColumn[]) => void;
 }
@@ -134,6 +139,8 @@ interface RecapColumnsEditorProps {
 interface RecapColumnItemEditorProps {
   col: RecapColumn;
   properties: Property[];
+  collections: Collection[];
+  moduleCollectionId?: string;
   depth: number;      // 0 = top, 1 = sub, 2 = sub-sub (feuille forcée)
   moduleDefaults?: ModuleDefaults;
   onUpdate: (updated: RecapColumn) => void;
@@ -141,14 +148,18 @@ interface RecapColumnItemEditorProps {
 }
 
 const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
-  col, properties, depth, moduleDefaults, onUpdate, onRemove,
+  col, properties, collections, moduleCollectionId, depth, moduleDefaults, onUpdate, onRemove,
 }) => {
   const [open, setOpen] = useState(false);
 
-  const selectProps  = properties.filter((p) =>
+  const activeCollectionId = col.collectionId ?? moduleCollectionId;
+  const activeCollection = collections.find((c) => c.id === activeCollectionId) ?? null;
+  const activeProperties = activeCollection?.properties ?? properties;
+
+  const selectProps  = activeProperties.filter((p) =>
     p.type === 'select' || p.type === 'multiselect' || (p.type as string) === 'multi_select'
   );
-  const numericProps = properties.filter((p) => p.type === 'number');
+  const numericProps = activeProperties.filter((p) => p.type === 'number');
 
   // Mode sous-colonnes : state LOCAL (pas dérivé) pour piloter l'UI du toggle
   // On l'initialise depuis les données puis il vit sa vie indépendamment
@@ -165,7 +176,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
   const autoSubOptions = autoSubProp ? getPropOptions(autoSubProp) : [];
 
   const getFieldOptions = (fid: string) => {
-    const p = properties.find((pp) => pp.id === fid);
+    const p = activeProperties.find((pp) => pp.id === fid);
     return p ? getPropOptions(p) : [];
   };
 
@@ -244,6 +255,27 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
             />
           </div>
 
+          {/* Collection source */}
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">Collection source</div>
+            <Sel
+              value={col.collectionId ?? ''}
+              onChange={(v) => onUpdate({
+                ...col,
+                collectionId: v || undefined,
+                filterFieldId: undefined,
+                filterValues: [],
+                autoSubFieldId: undefined,
+                autoSubFilterValues: [],
+                aggregationField: undefined,
+                durationField: undefined,
+                autoSubAggregationField: undefined,
+              })}
+              options={collections.map((c) => ({ value: c.id, label: c.name }))}
+              placeholder={moduleCollectionId ? `Défaut module: ${collections.find((c) => c.id === moduleCollectionId)?.name ?? 'Collection'}` : 'Collection du module'}
+            />
+          </div>
+
           {/* Couleur */}
           <div>
             <div className="text-xs text-muted-foreground mb-1">Couleur</div>
@@ -272,7 +304,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
             <Sel
               value={col.filterFieldId ?? ''}
               onChange={(v) => onUpdate({ ...col, filterFieldId: v || undefined, filterValues: [] })}
-              options={properties.map((p) => ({ value: p.id, label: p.name }))}
+              options={activeProperties.map((p) => ({ value: p.id, label: p.name }))}
               placeholder="Aucun filtre (tout afficher)"
             />
           </div>
@@ -345,7 +377,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
             const effectiveTypes = colTypes.length > 0 ? colTypes : parentTypes;
             const isInherited    = colTypes.length === 0;
             // Champ numérique effectif pour sum/duration
-            const hasSumOrDuration = effectiveTypes.some((t) => t === 'sum' || t === 'duration');
+            const hasDuration = effectiveTypes.includes('duration');
             return (
               <div>
                 <div className="text-xs text-muted-foreground mb-1 flex items-center justify-between">
@@ -379,17 +411,29 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                     );
                   })}
                 </div>
-                {hasSumOrDuration && numericProps.length > 0 && (
-                  <Sel
-                    value={col.aggregationField ?? ''}
-                    onChange={(v) => onUpdate({ ...col, aggregationField: v || undefined })}
-                    options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
-                    placeholder={
-                      moduleDefaults?.aggregationField
-                        ? `Défaut: ${numericProps.find((p) => p.id === moduleDefaults.aggregationField)?.name ?? '…'}`
-                        : 'Champ numérique'
-                    }
-                  />
+                {numericProps.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Sel
+                      value={col.aggregationField ?? ''}
+                      onChange={(v) => onUpdate({ ...col, aggregationField: v || undefined })}
+                      options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
+                      placeholder={
+                        moduleDefaults?.aggregationField
+                          ? `Défaut: ${numericProps.find((p) => p.id === moduleDefaults.aggregationField)?.name ?? '…'}`
+                          : 'Source de donnée'
+                      }
+                    />
+                    <Sel
+                      value={col.durationField ?? ''}
+                      onChange={(v) => onUpdate({ ...col, durationField: v || undefined })}
+                      options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
+                      placeholder={
+                        moduleDefaults?.durationField
+                          ? `Temps par défaut: ${numericProps.find((p) => p.id === moduleDefaults.durationField)?.name ?? '…'}`
+                          : 'Source temps'
+                      }
+                    />
+                  </div>
                 )}
               </div>
             );
@@ -505,7 +549,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                           col.autoSubDisplayTypes ?? (col.autoSubDisplayType ? [col.autoSubDisplayType] : []);
                         const isInherited = colAutoTypes.length === 0;
                         const effectiveAutoTypes = colAutoTypes.length > 0 ? colAutoTypes : parentTypes;
-                        const hasSumOrDuration = effectiveAutoTypes.some((t) => t === 'sum' || t === 'duration');
+                        const hasDuration = effectiveAutoTypes.includes('duration');
                         return (
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
@@ -544,17 +588,29 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                                 );
                               })}
                             </div>
-                            {hasSumOrDuration && numericProps.length > 0 && (
-                              <Sel
-                                value={col.autoSubAggregationField ?? ''}
-                                onChange={(v) => onUpdate({ ...col, autoSubAggregationField: v || undefined })}
-                                options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
-                                placeholder={
-                                  moduleDefaults?.aggregationField
-                                    ? `Défaut: ${numericProps.find((p) => p.id === moduleDefaults.aggregationField)?.name ?? '…'}`
-                                    : 'Champ numérique'
-                                }
-                              />
+                            {numericProps.length > 0 && (
+                              <div className="space-y-1.5">
+                                <Sel
+                                  value={col.autoSubAggregationField ?? ''}
+                                  onChange={(v) => onUpdate({ ...col, autoSubAggregationField: v || undefined })}
+                                  options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
+                                  placeholder={
+                                    moduleDefaults?.aggregationField
+                                      ? `Défaut: ${numericProps.find((p) => p.id === moduleDefaults.aggregationField)?.name ?? '…'}`
+                                      : 'Source de donnée'
+                                  }
+                                />
+                                <Sel
+                                  value={col.durationField ?? ''}
+                                  onChange={(v) => onUpdate({ ...col, durationField: v || undefined })}
+                                  options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
+                                  placeholder={
+                                    moduleDefaults?.durationField
+                                      ? `Temps par défaut: ${numericProps.find((p) => p.id === moduleDefaults.durationField)?.name ?? '…'}`
+                                      : 'Source temps'
+                                  }
+                                />
+                              </div>
                             )}
                           </div>
                         );
@@ -589,6 +645,8 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                       key={child.id}
                       col={child}
                       properties={properties}
+                      collections={collections}
+                      moduleCollectionId={moduleCollectionId}
                       depth={depth + 1}
                       moduleDefaults={moduleDefaults}
                       onUpdate={(updated) => {
@@ -622,7 +680,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
 
 // ── Éditeur de liste de colonnes (niveau racine) ───────────────────────────
 
-const RecapColumnsEditor: React.FC<RecapColumnsEditorProps> = ({ columns, properties, moduleDefaults, onChange }) => {
+const RecapColumnsEditor: React.FC<RecapColumnsEditorProps> = ({ columns, properties, collections, moduleCollectionId, moduleDefaults, onChange }) => {
   const addColumn = () => {
     const newCol: RecapColumn = {
       id:    uuidv4(),
@@ -640,6 +698,8 @@ const RecapColumnsEditor: React.FC<RecapColumnsEditorProps> = ({ columns, proper
           key={col.id}
           col={col}
           properties={properties}
+          collections={collections}
+          moduleCollectionId={moduleCollectionId}
           depth={0}
           moduleDefaults={moduleDefaults}
           onUpdate={(updated) => {
@@ -663,6 +723,7 @@ const RecapColumnsEditor: React.FC<RecapColumnsEditorProps> = ({ columns, proper
 // ---------------------------------------------------------------------------
 
 const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUpdate, onClose }) => {
+  const [activeTab, setActiveTab] = useState<ConfigTab>('type');
   const collection = collections.find((c) => c.id === module.collectionId) ?? null;
   const properties: Property[] = collection?.properties ?? [];
 
@@ -716,67 +777,110 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
       {/* Contenu scrollable */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
 
-        {/* Type de module */}
-        <SectionLabel>Type</SectionLabel>
-        <div className="grid grid-cols-3 gap-1.5">
-          {(Object.entries(MODULE_TYPE_LABELS) as [ModuleType, string][]).map(([type, label]) => (
-            <button
-              key={type}
-              onClick={() => patch({ type })}
-              className={`flex flex-col items-center gap-1 py-2 px-1 rounded-lg border text-xs font-medium transition-colors ${
-                module.type === type
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border hover:bg-accent text-muted-foreground'
-              }`}
-            >
-              {MODULE_TYPE_ICONS[type]}
-              {label}
-            </button>
-          ))}
+        <div className="flex rounded-lg border border-border overflow-hidden text-xs mb-1">
+          <button
+            onClick={() => setActiveTab('type')}
+            className={`flex-1 py-1.5 transition-colors ${
+              activeTab === 'type' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'
+            }`}
+          >
+            Type
+          </button>
+          <button
+            onClick={() => setActiveTab('infos')}
+            className={`flex-1 py-1.5 transition-colors ${
+              activeTab === 'infos' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'
+            }`}
+          >
+            Paramètres
+          </button>
+          <button
+            onClick={() => setActiveTab('columns')}
+            className={`flex-1 py-1.5 transition-colors ${
+              activeTab === 'columns' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'
+            }`}
+          >
+            Colonnes
+          </button>
         </div>
+
+        {/* Type de module */}
+        {activeTab === 'type' && (
+          <>
+            <SectionLabel>Type</SectionLabel>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(Object.entries(MODULE_TYPE_LABELS) as [ModuleType, string][]).map(([type, label]) => (
+                <button
+                  key={type}
+                  onClick={() => patch({ type })}
+                  className={`flex flex-col items-center gap-1 py-2 px-1 rounded-lg border text-xs font-medium transition-colors ${
+                    module.type === type
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border hover:bg-accent text-muted-foreground'
+                  }`}
+                >
+                  {MODULE_TYPE_ICONS[type]}
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Titre */}
-        <SectionLabel>Titre</SectionLabel>
-        <input
-          type="text"
-          value={module.title ?? ''}
-          onChange={(e) => patch({ title: e.target.value })}
-          placeholder="Titre du module (optionnel)"
-          className="w-full bg-background border border-border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-        />
+        {activeTab === 'infos' && (
+          <>
+            <SectionLabel>Titre</SectionLabel>
+            <input
+              type="text"
+              value={module.title ?? ''}
+              onChange={(e) => patch({ title: e.target.value })}
+              placeholder="Titre du module (optionnel)"
+              className="w-full bg-background border border-border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </>
+        )}
 
         {/* Mise en page */}
-        <SectionLabel>Mise en page</SectionLabel>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">Largeur</div>
-            <Sel
-              value={String(module.layout.w)}
-              onChange={(v) => patch({ layout: { ...module.layout, w: Number(v) } })}
-              options={MODULE_WIDTH_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
-            />
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground mb-1">Hauteur</div>
-            <Sel
-              value={String(module.layout.h)}
-              onChange={(v) => patch({ layout: { ...module.layout, h: Number(v) } })}
-              options={MODULE_HEIGHT_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
-            />
-          </div>
-        </div>
+        {activeTab === 'infos' && (
+          <>
+            <SectionLabel>Mise en page</SectionLabel>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">Largeur</div>
+                <Sel
+                  value={String(module.layout.w)}
+                  onChange={(v) => patch({ layout: { ...module.layout, w: Number(v) } })}
+                  options={MODULE_WIDTH_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+                />
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">Hauteur</div>
+                <Sel
+                  value={String(module.layout.h)}
+                  onChange={(v) => patch({ layout: { ...module.layout, h: Number(v) } })}
+                  options={MODULE_HEIGHT_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+                />
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Collection source */}
-        <SectionLabel>Source de données</SectionLabel>
-        <Sel
-          value={module.collectionId ?? ''}
-          onChange={(v) => patch({ collectionId: v })}
-          options={collections.map((c) => ({ value: c.id, label: c.name }))}
-          placeholder="Choisir une collection…"
-        />
+        {activeTab === 'infos' && (
+          <>
+            <SectionLabel>Source de données</SectionLabel>
+            <Sel
+              value={module.collectionId ?? ''}
+              onChange={(v) => patch({ collectionId: v })}
+              options={collections.map((c) => ({ value: c.id, label: c.name }))}
+              placeholder="Choisir une collection…"
+            />
+          </>
+        )}
 
         {/* Champ date (pour modules avec groupement temporel) */}
-        {dateProps.length > 0 && (module.type === 'chart' || module.type === 'table' || module.type === 'metric' || module.type === 'list') && (
+        {activeTab === 'infos' && dateProps.length > 0 && (module.type === 'chart' || module.type === 'table' || module.type === 'metric' || module.type === 'list') && (
           <>
             <SectionLabel>Champ date (filtre global)</SectionLabel>
             <Sel
@@ -789,7 +893,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
         )}
 
         {/* ---- Options spécifiques : CHART ---- */}
-        {module.type === 'chart' && (
+        {activeTab === 'infos' && module.type === 'chart' && (
           <>
             <SectionLabel>Type de graphique</SectionLabel>
             <div className="grid grid-cols-4 gap-1">
@@ -882,7 +986,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
         )}
 
         {/* ---- Options spécifiques : METRIC ---- */}
-        {module.type === 'metric' && (
+        {activeTab === 'infos' && module.type === 'metric' && (
           <>
             <SectionLabel>Métrique</SectionLabel>
             <div className="grid grid-cols-2 gap-2">
@@ -941,7 +1045,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
         )}
 
         {/* ---- Options spécifiques : TABLE ---- */}
-        {module.type === 'table' && (
+        {activeTab === 'infos' && module.type === 'table' && (
           <>
             <SectionLabel>Groupement (champs select)</SectionLabel>
             <Sel
@@ -968,7 +1072,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
         )}
 
         {/* ---- Options spécifiques : KANBAN ---- */}
-        {module.type === 'kanban' && (
+        {activeTab === 'infos' && module.type === 'kanban' && (
           <>
             <SectionLabel>Regrouper par</SectionLabel>
             <Sel
@@ -981,7 +1085,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
         )}
 
         {/* ---- Options spécifiques : CALENDAR ---- */}
-        {module.type === 'calendar' && (
+        {activeTab === 'infos' && module.type === 'calendar' && (
           <>
             <SectionLabel>Champ date</SectionLabel>
             <Sel
@@ -994,7 +1098,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
         )}
 
         {/* ---- Options tri (table/list) ---- */}
-        {(module.type === 'table' || module.type === 'list') && (
+        {activeTab === 'infos' && (module.type === 'table' || module.type === 'list') && (
           <>
             <SectionLabel>Tri</SectionLabel>
             <div className="grid grid-cols-2 gap-2">
@@ -1017,7 +1121,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
         )}
 
         {/* ---- Champs visibles (pour list et table) ---- */}
-        {(module.type === 'list' || module.type === 'table') && allProps.length > 0 && (
+        {activeTab === 'columns' && (module.type === 'list' || module.type === 'table') && allProps.length > 0 && (
           <>
             <SectionLabel>Champs visibles</SectionLabel>
             <div className="grid grid-cols-2 gap-1">
@@ -1045,7 +1149,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
         )}
 
         {/* ---- Options spécifiques : RECAP ---- */}
-        {module.type === 'recap' && (
+        {activeTab === 'infos' && module.type === 'recap' && (
           <>
             <SectionLabel>Champ date</SectionLabel>
             <Sel
@@ -1125,12 +1229,24 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
               </div>
               {/* Champ numérique si sum ou duration sont sélectionnés */}
               {(module.recapDefaultDisplayTypes ?? []).some((t) => t === 'sum' || t === 'duration') && numericProps.length > 0 && (
-                <Sel
-                  value={module.recapDefaultAggregationField ?? ''}
-                  onChange={(v) => patch({ recapDefaultAggregationField: v || undefined })}
-                  options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
-                  placeholder="Champ numérique par défaut…"
-                />
+                <div className="space-y-1.5">
+                  {(module.recapDefaultDisplayTypes ?? []).includes('sum') && (
+                    <Sel
+                      value={module.recapDefaultAggregationField ?? ''}
+                      onChange={(v) => patch({ recapDefaultAggregationField: v || undefined })}
+                      options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
+                      placeholder="Source de donnée par défaut…"
+                    />
+                  )}
+                  {(module.recapDefaultDisplayTypes ?? []).includes('duration') && (
+                    <Sel
+                      value={module.recapDefaultDurationField ?? ''}
+                      onChange={(v) => patch({ recapDefaultDurationField: v || undefined })}
+                      options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
+                      placeholder="Source temps par défaut…"
+                    />
+                  )}
+                </div>
               )}
               {/* Unité durée si duration est sélectionné */}
               {(module.recapDefaultDisplayTypes ?? []).includes('duration') && (
@@ -1154,14 +1270,21 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
                 </div>
               )}
             </div>
+          </>
+        )}
 
+        {activeTab === 'columns' && module.type === 'recap' && (
+          <>
             <SectionLabel>Colonnes</SectionLabel>
             <RecapColumnsEditor
               columns={module.recapColumns ?? []}
               properties={allProps}
+              collections={collections}
+              moduleCollectionId={module.collectionId}
               moduleDefaults={{
                 displayTypes:     module.recapDefaultDisplayTypes,
                 aggregationField: module.recapDefaultAggregationField,
+                durationField:    module.recapDefaultDurationField,
                 durationUnit:     module.recapDefaultDurationUnit,
               }}
               onChange={(cols) => patch({ recapColumns: cols })}
@@ -1170,7 +1293,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
         )}
 
         {/* ---- Filtres ---- */}
-        {collection && module.type !== 'recap' && (
+        {activeTab === 'infos' && collection && module.type !== 'recap' && (
           <>
             <SectionLabel>Filtres</SectionLabel>
             <div className="space-y-2">

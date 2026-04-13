@@ -174,6 +174,7 @@ const DashboardModuleWrapper: React.FC<Props> = ({
           <RecapModule
             module={module}
             data={data}
+            collections={collections}
             globalFilter={globalFilter}
             onUpdate={onUpdateModule}
             onViewDetail={onViewDetail}
