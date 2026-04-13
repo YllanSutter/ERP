@@ -30,6 +30,7 @@ export interface LeafColumn {
   id: string;
   label: string;
   collectionId?: string;
+  dateFieldId?: string;
   color?: string;
   filterChain: { fieldId: string; values: string[] }[];
   displayType: RecapDisplayType;
@@ -135,6 +136,7 @@ export function getExpandedChildren(
               id:               `${col.id}__auto__${opt}__dt__${dt}`,
               label:            DISPLAY_TYPE_SHORT[dt],
               collectionId:     col.collectionId,
+              dateFieldId:      col.dateFieldId,
               color:            col.color,
               displayType:      dt,
               aggregationField: col.autoSubAggregationField ?? moduleDefaults?.aggregationField,
@@ -148,6 +150,7 @@ export function getExpandedChildren(
           id:               `${col.id}__auto__${opt}`,
           label:            opt,
           collectionId:     col.collectionId,
+          dateFieldId:      col.dateFieldId,
           color:            col.color,
           filterFieldId:    col.autoSubFieldId,
           filterValues:     [opt],
@@ -172,6 +175,7 @@ export function getExpandedChildren(
       id:               `${col.id}__dt__${dt}`,
       label:            DISPLAY_TYPE_SHORT[dt],
       collectionId:     col.collectionId,
+      dateFieldId:      col.dateFieldId,
       color:            col.color,
       displayType:      dt,
       aggregationField: col.aggregationField ?? moduleDefaults?.aggregationField,
@@ -308,6 +312,7 @@ function flattenNode(
       id:               col.id,
       label:            col.label,
       collectionId:     col.collectionId,
+      dateFieldId:      col.dateFieldId,
       color:            col.color,
       filterChain:      myChain,
       displayType,

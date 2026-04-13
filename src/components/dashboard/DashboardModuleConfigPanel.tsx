@@ -160,6 +160,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
     p.type === 'select' || p.type === 'multiselect' || (p.type as string) === 'multi_select'
   );
   const numericProps = activeProperties.filter((p) => p.type === 'number');
+  const dateProps = activeProperties.filter((p) => p.type === 'date' || (p.type as string) === 'date_range');
 
   // Mode sous-colonnes : state LOCAL (pas dérivé) pour piloter l'UI du toggle
   // On l'initialise depuis les données puis il vit sa vie indépendamment
@@ -263,6 +264,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
               onChange={(v) => onUpdate({
                 ...col,
                 collectionId: v || undefined,
+                dateFieldId: undefined,
                 filterFieldId: undefined,
                 filterValues: [],
                 autoSubFieldId: undefined,
@@ -275,6 +277,19 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
               placeholder={moduleCollectionId ? `Défaut module: ${collections.find((c) => c.id === moduleCollectionId)?.name ?? 'Collection'}` : 'Collection du module'}
             />
           </div>
+
+          {/* Champ date source */}
+          {dateProps.length > 0 && (
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Champ date source</div>
+              <Sel
+                value={col.dateFieldId ?? ''}
+                onChange={(v) => onUpdate({ ...col, dateFieldId: v || undefined })}
+                options={dateProps.map((p) => ({ value: p.id, label: p.name }))}
+                placeholder="Défaut module"
+              />
+            </div>
+          )}
 
           {/* Couleur */}
           <div>

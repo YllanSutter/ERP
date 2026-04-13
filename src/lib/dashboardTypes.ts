@@ -49,6 +49,8 @@ export interface RecapColumn {
   label: string;
   /** Collection source de la colonne (défaut: collection du module) */
   collectionId?: string;
+  /** Champ date/date_range source pour la colonne (défaut: champ date du module) */
+  dateFieldId?: string;
   /** Couleur de la colonne */
   color?: string;
 

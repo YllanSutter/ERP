@@ -358,12 +358,21 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
   const getLeafSource = useCallback((leaf: LeafColumn) => {
     const sourceCollectionId = leaf.collectionId ?? module.collectionId ?? collection?.id;
     if (sourceCollectionId && sourceContexts.has(sourceCollectionId)) {
-      return sourceContexts.get(sourceCollectionId)!;
+      const source = sourceContexts.get(sourceCollectionId)!;
+      const columnDateField = leaf.dateFieldId
+        ? source.properties.find((p) => p.id === leaf.dateFieldId)
+        : undefined;
+      return {
+        ...source,
+        dateField: columnDateField ?? source.dateField,
+      };
     }
     return {
       collection: collection as Collection,
       properties,
-      dateField,
+      dateField: leaf.dateFieldId
+        ? properties.find((p) => p.id === leaf.dateFieldId) ?? dateField
+        : dateField,
       nameField: itemNameField,
       items: filteredItems,
     };
