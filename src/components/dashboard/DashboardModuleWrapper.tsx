@@ -42,6 +42,7 @@ interface Props {
   isLast: boolean;
   onEdit?: (item: any) => void;
   onViewDetail?: (item: any) => void;
+  onShowNewItemModal?: (collection: any, item?: any) => void;
   onConfigOpen: () => void;
   onDelete: () => void;
   onMoveUp: () => void;
@@ -59,6 +60,7 @@ const DashboardModuleWrapper: React.FC<Props> = ({
   isLast,
   onEdit,
   onViewDetail,
+  onShowNewItemModal,
   onConfigOpen,
   onDelete,
   onMoveUp,
@@ -178,6 +180,7 @@ const DashboardModuleWrapper: React.FC<Props> = ({
             globalFilter={globalFilter}
             onUpdate={onUpdateModule}
             onViewDetail={onViewDetail}
+            onShowNewItemModal={onShowNewItemModal}
           />
         )}
       </div>

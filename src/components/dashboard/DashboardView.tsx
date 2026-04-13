@@ -44,6 +44,7 @@ const ModuleWithData: React.FC<{
   isLast: boolean;
   onEdit?: (item: any) => void;
   onViewDetail?: (item: any) => void;
+  onShowNewItemModal?: (collection: any, item?: any) => void;
   onConfigOpen: () => void;
   onDelete: () => void;
   onMoveUp: () => void;
@@ -63,6 +64,7 @@ const ModuleWithData: React.FC<{
       isLast={props.isLast}
       onEdit={props.onEdit}
       onViewDetail={props.onViewDetail}
+      onShowNewItemModal={props.onShowNewItemModal}
       onConfigOpen={props.onConfigOpen}
       onDelete={props.onDelete}
       onMoveUp={props.onMoveUp}
@@ -352,6 +354,7 @@ const DashboardView: React.FC<Props> = ({
                   isLast={idx === sortedModules.length - 1}
                   onEdit={onEdit}
                   onViewDetail={onViewDetail}
+                  onShowNewItemModal={onShowNewItemModal}
                   onConfigOpen={() => setConfiguringModuleId(module.id)}
                   onDelete={() => handleDeleteModule(module.id)}
                   onMoveUp={() => handleMoveModule(module.id, 'up')}

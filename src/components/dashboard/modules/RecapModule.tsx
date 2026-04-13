@@ -22,6 +22,7 @@ import {
   isWithinInterval,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DashboardModuleConfig } from '@/lib/dashboardTypes';
 import { DashboardItemData, GlobalDateFilter } from '@/lib/hooks/useDashboardItemData';
 import { Collection, Item, Property } from '@/lib/types';
@@ -152,6 +153,7 @@ interface Props {
   globalFilter?: GlobalDateFilter;
   onUpdate?: (patch: Partial<DashboardModuleConfig>) => void;
   onViewDetail?: (item: Item) => void;
+  onShowNewItemModal?: (collection: any, item?: any) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,12 +272,21 @@ function getLeafColumnTone(index: number, baseColor?: string): React.CSSProperti
 // Composant principal
 // ---------------------------------------------------------------------------
 
-const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter, onUpdate, onViewDetail }) => {
+const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter, onUpdate, onViewDetail, onShowNewItemModal }) => {
   const now = new Date();
 
   const [tooltip, setTooltip]       = useState<TooltipState | null>(null);
   const hideTimerRef                = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeWeekKey, setActiveWeekKey] = useState<string | null>(MONTH_TOTAL_WEEK_KEY);
+  
+  // État pour le menu contextuel au clic droit
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    items: Item[];
+    period: PeriodRow;
+    leaf: LeafColumn;
+  } | null>(null);
 
   const mode             = module.recapMode ?? 'month';
   const columns          = module.recapColumns ?? [];
@@ -691,6 +702,95 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
     }
   }, [getLeafSource, onViewDetail, cancelHide]);
 
+  const handleCellContextMenu = useCallback((
+    e: React.MouseEvent<HTMLTableCellElement>,
+    leaf: LeafColumn,
+    period: PeriodRow
+  ) => {
+    e.preventDefault();
+    cancelHide();
+    const source = getLeafSource(leaf);
+    const items = getLeafCellItems(source.items, leaf, period, source.dateField, source.properties);
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items,
+      period,
+      leaf,
+    });
+  }, [getLeafSource, cancelHide]);
+
+  const handleCreateNewItem = useCallback((sourceCollectionId?: string) => {
+    if (!onShowNewItemModal || !contextMenu) return;
+    
+    const leaf = contextMenu.leaf;
+    const source = getLeafSource(leaf);
+    
+    // Déterminer la bonne collection : celle de la feuille si elle en a une, sinon celle par défaut
+    const targetCollection = leaf.collectionId
+      ? allCollections.find((c) => c.id === leaf.collectionId)
+      : collection;
+    
+    if (!targetCollection) return;
+
+    const contextDateField = source?.dateField || dateField;
+
+    // Créer les valeurs de pré-remplissage basées sur :
+    // 1. La date de la période cliquée
+    // 2. La chaîne de filtres (parent columns) pour pré-remplir les champs de regroupement
+    const prefillValues: Record<string, any> = {};
+
+    // 1. Ajouter la date de début et/ou fin de la période
+    if (contextDateField && contextMenu?.period) {
+      const dateFieldId = contextDateField.id;
+      
+      if (contextDateField.type === 'date') {
+        prefillValues[dateFieldId] = contextMenu.period.start.toISOString().split('T')[0];
+      } else if ((contextDateField.type as string) === 'date_range') {
+        // Si c'est un range, on met les deux dates
+        prefillValues[dateFieldId] = {
+          start: contextMenu.period.start.toISOString().split('T')[0],
+          end: contextMenu.period.end.toISOString().split('T')[0],
+        };
+      }
+    }
+
+    // 2. Ajouter les valeurs du filterChain (colonnes parentes de regroupement)
+    // Le filterChain contient les filtres qui définissent cette feuille
+    // Exemple: [{fieldId: 'type_site', values: ['NB']}, {fieldId: 'plan', values: ['Premium']}]
+    // Important: Si plusieurs filtres concernent le même champ, il faut les accumuler !
+    console.log('[RecapModule] contextMenu.leaf.filterChain:', leaf.filterChain);
+    
+    if (leaf.filterChain && leaf.filterChain.length > 0) {
+      // Grouper les filtres par fieldId et accumuler les valeurs
+      const filtersByField = new Map<string, string[]>();
+      leaf.filterChain.forEach((filter) => {
+        const existing = filtersByField.get(filter.fieldId) || [];
+        filtersByField.set(filter.fieldId, [...existing, ...filter.values]);
+      });
+
+      // Pré-remplir avec toutes les valeurs accumulées
+      filtersByField.forEach((values, fieldId) => {
+        const fieldInTarget = targetCollection.properties?.find((p) => p.id === fieldId);
+        console.log(`[RecapModule] filter ${fieldId} = ${values.join(', ')} → found in target: ${!!fieldInTarget}`);
+        if (fieldInTarget && values.length > 0) {
+          // Si c'est un champ multiselect, ajouter toutes les valeurs; sinon, prendre la première
+          if (fieldInTarget.type === 'multiselect' || (fieldInTarget.type as string) === 'multi_select') {
+            prefillValues[fieldId] = values;
+          } else {
+            // Même si c'est un select simple, on met toutes les valeurs (multiselect implicite)
+            prefillValues[fieldId] = values;
+          }
+        }
+      });
+    }
+
+    console.log('[RecapModule] prefillValues:', prefillValues);
+    // Passer les prefillValues comme editingItem (item vide pré-rempli)
+    onShowNewItemModal(targetCollection, prefillValues);
+    setContextMenu(null);
+  }, [collection, allCollections, getLeafSource, contextMenu, dateField, onShowNewItemModal]);
+
   // ── États vides ───────────────────────────────────────────────────────
 
   if (!collection) {
@@ -995,6 +1095,7 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                         onMouseEnter={(e) => handleCellEnter(e, leaf, period)}
                         onMouseLeave={scheduleHide}
                         onClick={(e) => handleCellClick(e, leaf, period)}
+                        onContextMenu={(e) => handleCellContextMenu(e, leaf, period)}
                       >
                         {leaf.displayType === 'count' ? (
                           renderCountContent()
@@ -1048,7 +1149,8 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                       className={`text-center px-2 py-2 border-b border-border/50 tabular-nums ${onViewDetail ? 'cursor-pointer' : ''}`}
                       onMouseEnter={(e) => handleCellEnter(e, leaf, period)}
                       onMouseLeave={scheduleHide}
-                        onClick={(e) => handleCellClick(e, leaf, period)}
+                      onClick={(e) => handleCellClick(e, leaf, period)}
+                      onContextMenu={(e) => handleCellContextMenu(e, leaf, period)}
                     >
                       {val > 0 ? (
                         <span
@@ -1105,6 +1207,57 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
           </tfoot>
         </table>
       </div>
+
+      {/* Menu contextuel au clic droit */}
+      {contextMenu && (
+        <>
+          {/* Backdrop pour fermer le menu */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
+          />
+          {/* Popover du menu contextuel */}
+          <div
+            className="fixed z-50 bg-popover border border-border rounded-lg shadow-lg p-1"
+            style={{
+              left: `${Math.min(contextMenu.x, window.innerWidth - 220)}px`,
+              top: `${Math.min(contextMenu.y, window.innerHeight - 150)}px`,
+            }}
+          >
+            {contextMenu.items.length > 0 && (
+              <>
+                <button
+                  onClick={() => {
+                    if (contextMenu.items.length === 1) {
+                      onViewDetail?.(contextMenu.items[0]);
+                    } else {
+                      // Afficher les items dans un menu si plusieurs
+                      setTooltip({
+                        items: contextMenu.items,
+                        rect: new DOMRect(contextMenu.x, contextMenu.y, 0, 0),
+                      });
+                    }
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent rounded transition-colors"
+                >
+                  {contextMenu.items.length === 1
+                    ? `Ouvrir: ${getItemLabel(contextMenu.items[0])}`
+                    : `Ouvrir (${contextMenu.items.length})`}
+                </button>
+                <div className="h-px bg-border my-1" />
+              </>
+            )}
+            <button
+              onClick={() => handleCreateNewItem()}
+              className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent rounded transition-colors"
+            >
+              Créer un nouvel objet
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 };

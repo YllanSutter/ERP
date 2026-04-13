@@ -336,6 +336,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     const data: any = { ...(prefill || {}) };
     const autoFilled: Record<string, boolean> = {};
     const props = orderedProperties && orderedProperties.length > 0 ? orderedProperties : col.properties;
+    
+    // Marquer les champs du prefill comme NON auto-remplis pour qu'ils ne soient pas écrasés par les templates
+    const prefillFieldIds = new Set(prefill ? Object.keys(prefill) : []);
+    
     props.forEach((prop: any) => {
       if (data[prop.id] === undefined) {
         if (prop.type === 'date') {
@@ -370,6 +374,12 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       const effectiveGroupCtx = groupContext ?? (prefill && !prefill.id ? prefill : null);
       let currentData = { ...data };
       let currentAutoFilled = { ...autoFilled };
+      // Marquer les champs du prefill comme "NOT auto-filled" pour qu'ils ne soient pas écrasés
+      for (const fieldId of prefillFieldIds) {
+        if (fieldId !== 'id' && fieldId !== '_eventSegments') {
+          currentAutoFilled[fieldId] = false;
+        }
+      }
       for (let i = 0; i < 3; i += 1) {
         const { nextData, nextAutoFilled } = applyTemplates(currentData, undefined, currentAutoFilled, false, effectiveGroupCtx) as any;
         const prevSerialized = JSON.stringify(currentData);
