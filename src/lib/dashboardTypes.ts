@@ -57,17 +57,36 @@ export interface RecapColumn {
   filterValues?: string[];
 
   // ── Affichage (feuille — utilisé quand pas de sous-colonnes) ─────
-  /** Type d'affichage (défaut : count) */
+  /**
+   * Types d'affichage de cette colonne.
+   * - [] ou absent → hérite des défauts du module parent
+   * - [x] → type unique, pas de sous-colonnes par type
+   * - [x, y, …] → génère une sous-colonne par type sélectionné
+   */
+  displayTypes?: RecapDisplayType[];
+  /** @deprecated utiliser displayTypes */
   displayType?: RecapDisplayType;
   /** Champ numérique à sommer pour sum/duration */
   aggregationField?: string;
+  /**
+   * Unité du champ durée ('minutes' | 'hours').
+   * Défaut : 'minutes'. Si le champ stocke des heures décimales (ex: 1.5 = 1h30), mettre 'hours'.
+   */
+  durationUnit?: 'minutes' | 'hours';
   /** @deprecated utiliser displayType */
   aggregation?: 'count' | 'sum' | 'avg';
 
   // ── Sous-colonnes automatiques ────────────────────────────────────
   /** Champ select/multiselect → génère une sous-colonne par option */
   autoSubFieldId?: string;
-  /** Type d'affichage pour chaque sous-colonne auto (défaut : count) */
+  /**
+   * Types d'affichage pour chaque sous-colonne auto.
+   * - [] ou absent → hérite des défauts du module/parent
+   * - [x] → type unique
+   * - [x, y, …] → génère une sous-sous-colonne par type dans chaque option
+   */
+  autoSubDisplayTypes?: RecapDisplayType[];
+  /** @deprecated utiliser autoSubDisplayTypes */
   autoSubDisplayType?: RecapDisplayType;
   /** Champ numérique pour les sous-colonnes auto si sum/duration */
   autoSubAggregationField?: string;
@@ -169,6 +188,15 @@ export interface DashboardModuleConfig {
   recapColumns?: RecapColumn[];
   /** Inclure les week-ends dans les lignes (mode mois) */
   recapIncludeWeekends?: boolean;
+  /**
+   * Types d'affichage par défaut. Si plusieurs sont sélectionnés, chaque colonne
+   * génère automatiquement une sous-colonne par type.
+   */
+  recapDefaultDisplayTypes?: RecapDisplayType[];
+  /** Champ numérique par défaut pour sum/duration */
+  recapDefaultAggregationField?: string;
+  /** Unité par défaut pour les colonnes duration ('minutes' | 'hours') */
+  recapDefaultDurationUnit?: 'minutes' | 'hours';
 
   // Layout
   layout: ModuleLayout;

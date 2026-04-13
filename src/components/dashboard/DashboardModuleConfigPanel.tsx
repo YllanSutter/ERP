@@ -107,9 +107,15 @@ const DISPLAY_TYPE_OPTIONS: { value: RecapDisplayType; label: string }[] = [
   { value: 'duration', label: 'Durée (Xh Ym)' },
 ];
 
+interface ModuleDefaults {
+  displayTypes?: RecapDisplayType[];
+  aggregationField?: string;
+}
+
 interface RecapColumnsEditorProps {
   columns: RecapColumn[];
   properties: Property[];
+  moduleDefaults?: ModuleDefaults;
   onChange: (cols: RecapColumn[]) => void;
 }
 
@@ -119,12 +125,13 @@ interface RecapColumnItemEditorProps {
   col: RecapColumn;
   properties: Property[];
   depth: number;      // 0 = top, 1 = sub, 2 = sub-sub (feuille forcée)
+  moduleDefaults?: ModuleDefaults;
   onUpdate: (updated: RecapColumn) => void;
   onRemove: () => void;
 }
 
 const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
-  col, properties, depth, onUpdate, onRemove,
+  col, properties, depth, moduleDefaults, onUpdate, onRemove,
 }) => {
   const [open, setOpen] = useState(false);
 
@@ -166,10 +173,10 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
 
   const addChild = () => {
     const child: RecapColumn = {
-      id:          uuidv4(),
-      label:       `Sous-col ${(col.children?.length ?? 0) + 1}`,
-      color:       col.color,
-      displayType: 'count',
+      id:    uuidv4(),
+      label: `Sous-col ${(col.children?.length ?? 0) + 1}`,
+      color: col.color,
+      // Pas de displayType → hérite des défauts module/parent
     };
     onUpdate({ ...col, children: [...(col.children ?? []), child] });
   };
@@ -297,27 +304,86 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
             </div>
           )}
 
+          {/* Unité de durée — s'applique à la colonne et se propage aux descendants */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Unité durée</span>
+            <div className="flex rounded-md border border-border overflow-hidden text-xs">
+              {(['minutes', 'hours'] as const).map((u) => (
+                <button
+                  key={u}
+                  onClick={() => onUpdate({ ...col, durationUnit: u })}
+                  className={`px-2 py-0.5 transition-colors ${
+                    (col.durationUnit ?? 'minutes') === u
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-accent text-muted-foreground'
+                  }`}
+                >
+                  {u === 'minutes' ? 'min' : 'h décimal'}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Type d'affichage (uniquement si feuille) */}
-          {isLeaf && (
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">Afficher</div>
-              <div className="grid grid-cols-2 gap-1.5">
-                <Sel
-                  value={col.displayType ?? 'count'}
-                  onChange={(v) => onUpdate({ ...col, displayType: v as RecapDisplayType })}
-                  options={DISPLAY_TYPE_OPTIONS}
-                />
-                {(col.displayType === 'sum' || col.displayType === 'duration') && numericProps.length > 0 && (
+          {isLeaf && (() => {
+            const parentTypes = moduleDefaults?.displayTypes ?? [];
+            // Compatibilité legacy : si displayType (string) mais pas displayTypes (array), on le lit
+            const colTypes: RecapDisplayType[] = col.displayTypes?.length
+              ? col.displayTypes
+              : col.displayType ? [col.displayType] : [];
+            // Types effectifs : propres si définis, sinon hérités du parent
+            const effectiveTypes = colTypes.length > 0 ? colTypes : parentTypes;
+            const isInherited    = colTypes.length === 0;
+            // Champ numérique effectif pour sum/duration
+            const hasSumOrDuration = effectiveTypes.some((t) => t === 'sum' || t === 'duration');
+            return (
+              <div>
+                <div className="text-xs text-muted-foreground mb-1 flex items-center justify-between">
+                  <span>Afficher</span>
+                  {isInherited && parentTypes.length > 0 && (
+                    <span className="text-[10px] italic text-muted-foreground">hérite du parent</span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1 mb-1.5">
+                  {DISPLAY_TYPE_OPTIONS.map((opt) => {
+                    const checked = colTypes.includes(opt.value);
+                    return (
+                      <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const cur = new Set(colTypes);
+                            if (e.target.checked) cur.add(opt.value); else cur.delete(opt.value);
+                            onUpdate({ ...col, displayTypes: Array.from(cur), displayType: undefined });
+                          }}
+                          className="rounded"
+                        />
+                        <span className={checked ? 'font-medium' : 'text-muted-foreground'}>
+                          {opt.label}
+                        </span>
+                        {!checked && isInherited && parentTypes.includes(opt.value) && (
+                          <span className="text-[10px] italic text-muted-foreground">(parent)</span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+                {hasSumOrDuration && numericProps.length > 0 && (
                   <Sel
                     value={col.aggregationField ?? ''}
                     onChange={(v) => onUpdate({ ...col, aggregationField: v || undefined })}
                     options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
-                    placeholder="Champ numérique"
+                    placeholder={
+                      moduleDefaults?.aggregationField
+                        ? `Défaut: ${numericProps.find((p) => p.id === moduleDefaults.aggregationField)?.name ?? '…'}`
+                        : 'Champ numérique'
+                    }
                   />
                 )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ─ Sous-colonnes (max depth 2) ─ */}
           {canNest && (
@@ -357,21 +423,67 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                   />
                   {col.autoSubFieldId && (
                     <>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <Sel
-                          value={col.autoSubDisplayType ?? 'count'}
-                          onChange={(v) => onUpdate({ ...col, autoSubDisplayType: v as RecapDisplayType })}
-                          options={DISPLAY_TYPE_OPTIONS}
-                        />
-                        {(col.autoSubDisplayType === 'sum' || col.autoSubDisplayType === 'duration') && numericProps.length > 0 && (
-                          <Sel
-                            value={col.autoSubAggregationField ?? ''}
-                            onChange={(v) => onUpdate({ ...col, autoSubAggregationField: v || undefined })}
-                            options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
-                            placeholder="Champ numérique"
-                          />
-                        )}
-                      </div>
+                      {(() => {
+                        const parentTypes   = moduleDefaults?.displayTypes ?? [];
+                        // autoSubDisplayTypes : tableau (priorité sur autoSubDisplayType legacy)
+                        const colAutoTypes: RecapDisplayType[] =
+                          col.autoSubDisplayTypes ?? (col.autoSubDisplayType ? [col.autoSubDisplayType] : []);
+                        const isInherited = colAutoTypes.length === 0;
+                        const effectiveAutoTypes = colAutoTypes.length > 0 ? colAutoTypes : parentTypes;
+                        const hasSumOrDuration = effectiveAutoTypes.some((t) => t === 'sum' || t === 'duration');
+                        return (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">Afficher (sous-col.)</span>
+                              {isInherited && parentTypes.length > 0 && (
+                                <span className="text-[10px] italic text-muted-foreground">hérite du parent</span>
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              {DISPLAY_TYPE_OPTIONS.map((opt) => {
+                                const checked = colAutoTypes.includes(opt.value);
+                                return (
+                                  <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={(e) => {
+                                        const cur = new Set(colAutoTypes);
+                                        if (e.target.checked) cur.add(opt.value); else cur.delete(opt.value);
+                                        const next = Array.from(cur);
+                                        onUpdate({
+                                          ...col,
+                                          autoSubDisplayTypes: next,
+                                          autoSubDisplayType: next.length === 1 ? next[0] : undefined,
+                                        });
+                                      }}
+                                      className="rounded"
+                                    />
+                                    <span className={checked ? 'font-medium' : 'text-muted-foreground'}>
+                                      {opt.label}
+                                    </span>
+                                    {!checked && isInherited && parentTypes.includes(opt.value) && (
+                                      <span className="text-[10px] italic text-muted-foreground">(parent)</span>
+                                    )}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            {hasSumOrDuration && numericProps.length > 0 && (
+                              <Sel
+                                value={col.autoSubAggregationField ?? ''}
+                                onChange={(v) => onUpdate({ ...col, autoSubAggregationField: v || undefined })}
+                                options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
+                                placeholder={
+                                  moduleDefaults?.aggregationField
+                                    ? `Défaut: ${numericProps.find((p) => p.id === moduleDefaults.aggregationField)?.name ?? '…'}`
+                                    : 'Champ numérique'
+                                }
+                              />
+                            )}
+                          </div>
+                        );
+                      })()}
                       {/* Aperçu des sous-colonnes */}
                       {autoSubOptions.length > 0 && (
                         <div className="flex flex-wrap gap-1 pt-0.5">
@@ -403,6 +515,7 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
                       col={child}
                       properties={properties}
                       depth={depth + 1}
+                      moduleDefaults={moduleDefaults}
                       onUpdate={(updated) => {
                         const next = [...(col.children ?? [])];
                         next[ci] = updated;
@@ -434,13 +547,13 @@ const RecapColumnItemEditor: React.FC<RecapColumnItemEditorProps> = ({
 
 // ── Éditeur de liste de colonnes (niveau racine) ───────────────────────────
 
-const RecapColumnsEditor: React.FC<RecapColumnsEditorProps> = ({ columns, properties, onChange }) => {
+const RecapColumnsEditor: React.FC<RecapColumnsEditorProps> = ({ columns, properties, moduleDefaults, onChange }) => {
   const addColumn = () => {
     const newCol: RecapColumn = {
-      id:          uuidv4(),
-      label:       `Colonne ${columns.length + 1}`,
-      color:       PRESET_COLORS[columns.length % PRESET_COLORS.length],
-      displayType: 'count',
+      id:    uuidv4(),
+      label: `Colonne ${columns.length + 1}`,
+      color: PRESET_COLORS[columns.length % PRESET_COLORS.length],
+      // Pas de displayType explicite → hérite du défaut module au calcul
     };
     onChange([...columns, newCol]);
   };
@@ -453,6 +566,7 @@ const RecapColumnsEditor: React.FC<RecapColumnsEditorProps> = ({ columns, proper
           col={col}
           properties={properties}
           depth={0}
+          moduleDefaults={moduleDefaults}
           onUpdate={(updated) => {
             const next = [...columns];
             next[idx] = updated;
@@ -882,10 +996,71 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
               </button>
             </div>
 
+            <SectionLabel>Types d'affichage par défaut</SectionLabel>
+            <div className="space-y-1.5">
+              <div className="text-[11px] text-muted-foreground leading-snug">
+                Cochez un ou plusieurs types. Si plusieurs sont cochés, chaque colonne génère automatiquement une sous-colonne par type.
+              </div>
+              {DISPLAY_TYPE_OPTIONS.map((opt) => {
+                const active = (module.recapDefaultDisplayTypes ?? []).includes(opt.value);
+                return (
+                  <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer hover:text-foreground text-muted-foreground py-0.5 select-none">
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={(e) => {
+                        const cur = new Set(module.recapDefaultDisplayTypes ?? []);
+                        if (e.target.checked) cur.add(opt.value);
+                        else cur.delete(opt.value);
+                        patch({ recapDefaultDisplayTypes: Array.from(cur) });
+                      }}
+                      className="rounded"
+                    />
+                    {opt.label}
+                  </label>
+                );
+              })}
+              {/* Champ numérique si sum ou duration sont sélectionnés */}
+              {(module.recapDefaultDisplayTypes ?? []).some((t) => t === 'sum' || t === 'duration') && numericProps.length > 0 && (
+                <Sel
+                  value={module.recapDefaultAggregationField ?? ''}
+                  onChange={(v) => patch({ recapDefaultAggregationField: v || undefined })}
+                  options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
+                  placeholder="Champ numérique par défaut…"
+                />
+              )}
+              {/* Unité durée si duration est sélectionné */}
+              {(module.recapDefaultDisplayTypes ?? []).includes('duration') && (
+                <div className="flex items-center gap-2 pt-0.5">
+                  <span className="text-xs text-muted-foreground">Unité durée par défaut</span>
+                  <div className="flex rounded-md border border-border overflow-hidden text-xs">
+                    {(['minutes', 'hours'] as const).map((u) => (
+                      <button
+                        key={u}
+                        onClick={() => patch({ recapDefaultDurationUnit: u })}
+                        className={`px-2 py-0.5 transition-colors ${
+                          (module.recapDefaultDurationUnit ?? 'minutes') === u
+                            ? 'bg-primary text-primary-foreground'
+                            : 'hover:bg-accent text-muted-foreground'
+                        }`}
+                      >
+                        {u === 'minutes' ? 'min' : 'h décimal'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <SectionLabel>Colonnes</SectionLabel>
             <RecapColumnsEditor
               columns={module.recapColumns ?? []}
               properties={allProps}
+              moduleDefaults={{
+                displayTypes:     module.recapDefaultDisplayTypes,
+                aggregationField: module.recapDefaultAggregationField,
+                durationUnit:     module.recapDefaultDurationUnit,
+              }}
               onChange={(cols) => patch({ recapColumns: cols })}
             />
           </>

@@ -173,6 +173,7 @@ const DashboardModuleWrapper: React.FC<Props> = ({
             module={module}
             data={data}
             onUpdate={onUpdateModule}
+            onViewDetail={onViewDetail}
           />
         )}
       </div>
