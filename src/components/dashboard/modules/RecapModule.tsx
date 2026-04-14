@@ -65,6 +65,45 @@ interface TooltipState {
 
 const MONTH_TOTAL_WEEK_KEY = '__month_total__';
 
+interface TotalsByType {
+  count: number;
+  durationMinutes: number;
+  sum: number;
+}
+
+const EMPTY_TOTALS: TotalsByType = {
+  count: 0,
+  durationMinutes: 0,
+  sum: 0,
+};
+
+function accumulateLeafTotal(current: TotalsByType, leaf: LeafColumn, rawValue: number): TotalsByType {
+  if (!rawValue || rawValue <= 0) return current;
+
+  if (leaf.displayType === 'count') {
+    return { ...current, count: current.count + rawValue };
+  }
+
+  if (leaf.displayType === 'duration') {
+    const mins = leaf.durationUnit === 'hours' ? rawValue * 60 : rawValue;
+    return { ...current, durationMinutes: current.durationMinutes + mins };
+  }
+
+  return { ...current, sum: current.sum + rawValue };
+}
+
+function computeTotalsByType(values: number[], leaves: LeafColumn[]): TotalsByType {
+  return values.reduce((acc, val, idx) => accumulateLeafTotal(acc, leaves[idx], val ?? 0), { ...EMPTY_TOTALS });
+}
+
+function formatTotalCount(value: number): string {
+  return value > 0 ? String(value) : '–';
+}
+
+function formatTotalDuration(minutes: number): string {
+  return minutes > 0 ? formatRecapValue(minutes, 'duration', 'minutes') : '–';
+}
+
 // ---------------------------------------------------------------------------
 // Noms courts des jours (getDay → 0=dim, 1=lun…)
 // ---------------------------------------------------------------------------
@@ -576,8 +615,8 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
   }, [mode, weekGroups, leaves, getLeafSource]);
 
   const dayRowTotals = useMemo(
-    () => dayCells.map((wg) => wg.map((row) => row.reduce((a, b) => a + b, 0))),
-    [dayCells]
+    () => dayCells.map((wg) => wg.map((row) => computeTotalsByType(row, leaves))),
+    [dayCells, leaves]
   );
 
   const monthPeriods = useMemo(
@@ -609,8 +648,8 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
   }, [mode, yearPeriods, leaves, getLeafSource]);
 
   const yearRowTotals = useMemo(
-    () => yearCells.map((row) => row.reduce((a, b) => a + b, 0)),
-    [yearCells]
+    () => yearCells.map((row) => computeTotalsByType(row, leaves)),
+    [yearCells, leaves]
   );
 
   const countUniqueItemsAcrossPeriods = useCallback(
@@ -645,9 +684,9 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
     });
   }, [mode, dayCells, yearCells, leaves, monthPeriods, yearPeriods, countUniqueItemsAcrossPeriods]);
 
-  const grandTotal = useMemo(
-    () => leafTotals.reduce((a, b) => a + b, 0),
-    [leafTotals]
+  const grandTotalsByType = useMemo(
+    () => computeTotalsByType(leafTotals, leaves),
+    [leafTotals, leaves]
   );
 
   const periodTitle =
@@ -845,13 +884,13 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
     });
   }, [mode, activeWeekIdx, activeWeek, dayCells, leaves, countUniqueItemsAcrossPeriods]);
 
-  const activeWeekGrandTotal = useMemo(
-    () => activeWeekLeafTotals.reduce((sum, value) => sum + value, 0),
-    [activeWeekLeafTotals]
+  const activeWeekTotalsByType = useMemo(
+    () => computeTotalsByType(activeWeekLeafTotals, leaves),
+    [activeWeekLeafTotals, leaves]
   );
 
-  const displayedMonthTotal = activeWeekKey === MONTH_TOTAL_WEEK_KEY ? grandTotal : activeWeekGrandTotal;
   const displayedMonthLeafTotals = activeWeekKey === MONTH_TOTAL_WEEK_KEY ? leafTotals : activeWeekLeafTotals;
+  const displayedTotalsByType = activeWeekKey === MONTH_TOTAL_WEEK_KEY ? grandTotalsByType : activeWeekTotalsByType;
 
   // ── Rendu ─────────────────────────────────────────────────────────────
 
@@ -877,7 +916,8 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
         <div className="flex-1" />
 
         <span className="text-xs text-muted-foreground">
-          Total : <span className="font-semibold text-foreground">{mode === 'month' ? displayedMonthTotal : grandTotal}</span>
+          Total — Nb: <span className="font-semibold text-foreground">{formatTotalCount(mode === 'month' ? displayedTotalsByType.count : grandTotalsByType.count)}</span>
+          {' · '}Durée: <span className="font-semibold text-foreground">{formatTotalDuration(mode === 'month' ? displayedTotalsByType.durationMinutes : grandTotalsByType.durationMinutes)}</span>
         </span>
       </div>
 
@@ -966,14 +1006,48 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                   });
                 })()}
 
-                {/* Colonne Total */}
-                {rowIdx === 0 && (
-                  <th
-                    rowSpan={headerRows.length}
-                    className="text-center px-3 py-2 text-[11px] font-semibold text-muted-foreground border-b border-l border-border align-bottom"
-                  >
-                    Total
-                  </th>
+                {/* Colonnes Total */}
+                {headerRows.length > 1 ? (
+                  <>
+                    {rowIdx === 0 && (
+                      <th
+                        colSpan={2}
+                        className="text-center px-3 py-1.5 text-[11px] font-semibold text-muted-foreground border-b border-l border-border"
+                      >
+                        Total
+                      </th>
+                    )}
+                    {rowIdx > 0 && rowIdx < headerRows.length - 1 && (
+                      <th
+                        colSpan={2}
+                        className="border-b border-l border-border bg-card"
+                        aria-hidden="true"
+                      />
+                    )}
+                    {rowIdx === headerRows.length - 1 && (
+                      <>
+                        <th className="text-center px-3 py-2 text-[11px] font-semibold text-muted-foreground border-b border-l border-border align-bottom">
+                          Nb
+                        </th>
+                        <th className="text-center px-3 py-2 text-[11px] font-semibold text-muted-foreground border-b border-l border-border align-bottom">
+                          Durée
+                        </th>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  rowIdx === 0 && (
+                    <>
+                      <th className="text-center px-3 py-2 text-[11px] font-semibold text-muted-foreground border-b border-l border-border align-bottom">
+                        <div className="leading-tight">Total</div>
+                        <div className="leading-tight">Nb</div>
+                      </th>
+                      <th className="text-center px-3 py-2 text-[11px] font-semibold text-muted-foreground border-b border-l border-border align-bottom">
+                        <div className="leading-tight">Total</div>
+                        <div className="leading-tight">Durée</div>
+                      </th>
+                    </>
+                  )
                 )}
               </tr>
             ))}
@@ -986,7 +1060,7 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
               <React.Fragment key={wg.weekKey}>
                 {activeWeekKey === MONTH_TOTAL_WEEK_KEY && visibleIdx > 0 && (
                   <tr aria-hidden="true">
-                    <td colSpan={2 + leaves.length + 1} className="h-4 bg-background" />
+                    <td colSpan={2 + leaves.length + 2} className="h-4 bg-background" />
                   </tr>
                 )}
 
@@ -1121,13 +1195,14 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                   })}
 
                   <td className="text-center px-3 py-1.5 border-b border-border/50 tabular-nums">
-                    {(dayRowTotals[sourceIdx]?.[dayIdx] ?? 0) > 0 ? (
-                      <span className="text-xs font-semibold text-foreground">
-                        {dayRowTotals[sourceIdx][dayIdx]}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground/30 text-xs">–</span>
-                    )}
+                    <span className="text-xs font-semibold text-foreground">
+                      {formatTotalCount((dayRowTotals[sourceIdx]?.[dayIdx] ?? EMPTY_TOTALS).count)}
+                    </span>
+                  </td>
+                  <td className="text-center px-3 py-1.5 border-b border-border/50 tabular-nums">
+                    <span className="text-xs font-semibold text-foreground">
+                      {formatTotalDuration((dayRowTotals[sourceIdx]?.[dayIdx] ?? EMPTY_TOTALS).durationMinutes)}
+                    </span>
                   </td>
                 </tr>
               );
@@ -1169,11 +1244,10 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                   );
                 })}
                 <td className="text-center px-3 py-2 border-b border-border/50 tabular-nums">
-                  {yearRowTotals[ri] > 0 ? (
-                    <span className="text-xs font-semibold text-foreground">{yearRowTotals[ri]}</span>
-                  ) : (
-                    <span className="text-muted-foreground/40 text-xs">–</span>
-                  )}
+                  <span className="text-xs font-semibold text-foreground">{formatTotalCount((yearRowTotals[ri] ?? EMPTY_TOTALS).count)}</span>
+                </td>
+                <td className="text-center px-3 py-2 border-b border-border/50 tabular-nums">
+                  <span className="text-xs font-semibold text-foreground">{formatTotalDuration((yearRowTotals[ri] ?? EMPTY_TOTALS).durationMinutes)}</span>
                 </td>
               </tr>
             ))}
@@ -1201,7 +1275,10 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                 </td>
               ))}
               <td className="text-center px-3 py-2 tabular-nums">
-                <span className="text-xs font-bold text-foreground">{mode === 'month' ? displayedMonthTotal : grandTotal}</span>
+                <span className="text-xs font-bold text-foreground">{formatTotalCount(mode === 'month' ? displayedTotalsByType.count : grandTotalsByType.count)}</span>
+              </td>
+              <td className="text-center px-3 py-2 tabular-nums">
+                <span className="text-xs font-bold text-foreground">{formatTotalDuration(mode === 'month' ? displayedTotalsByType.durationMinutes : grandTotalsByType.durationMinutes)}</span>
               </td>
             </tr>
           </tfoot>

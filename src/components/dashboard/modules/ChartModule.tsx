@@ -143,11 +143,11 @@ function formatChartValue(
   if (Number.isNaN(numericValue)) return String(value ?? '');
 
   const yIsDurationFieldMode =
-    (module.chartYMode ?? 'aggregation') === 'field' &&
     Boolean(module.chartYField) &&
     (
       module.chartYFieldIsDuration ||
       module.chartDateFieldsAsDuration ||
+      module.chartYDateDisplayMode === 'duration' ||
       module.chartYField === module.chartDurationField ||
       module.chartYField?.endsWith('_duration') ||
       (module.chartYField === module.chartXField && module.chartXDateDisplayMode === 'duration')
@@ -422,11 +422,11 @@ const ChartModule: React.FC<Props> = ({ module, data }) => {
   const showGrid = module.chartShowGrid ?? true;
   const colors = module.chartColors;
   const shouldFormatYAxisAsDuration =
-    (module.chartYMode ?? 'aggregation') === 'field' &&
     Boolean(module.chartYField) &&
     (
       module.chartYFieldIsDuration ||
       module.chartDateFieldsAsDuration ||
+      module.chartYDateDisplayMode === 'duration' ||
       module.chartYField === module.chartDurationField ||
       module.chartYField?.endsWith('_duration') ||
       (module.chartYField === module.chartXField && module.chartXDateDisplayMode === 'duration')
