@@ -440,7 +440,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
               onFocus={() => setIsSearchOpen(true)}
               onBlur={() => setTimeout(() => setIsSearchOpen(false), 150)}
               placeholder="Rechercher un projet…"
-              className="bg-background border-b border-black/15 dark:border-white/15 px-3 py-2 lg:text-sm text-xs text-neutral-700 dark:text-neutral-200 placeholder:text-neutral-500 focus:outline-none"
+              className="bg-background border-b border-black/15 dark:border-white/15 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200 placeholder:text-neutral-500 focus:outline-none"
             />
             {isSearchOpen && activeCollections.length > 0 && (
               <div className="absolute left-0 mt-2 w-[28rem] max-w-[80vw] rounded-lg border border-black/10 dark:border-white/10 bg-background dark:bg-neutral-900 shadow-xl backdrop-blur z-30 p-3">

@@ -32,6 +32,8 @@ import {
   NO_DATE_KEY,
 } from '@/lib/utils/dashboardUtils';
 
+type DateGroupingLike = 'day' | 'week' | 'month' | 'quarter' | 'year';
+
 interface Props {
   module: DashboardModuleConfig;
   data: DashboardItemData;
@@ -226,6 +228,72 @@ function getDurationLabelForGroup(items: Item[], dateField: string, endField?: s
   return formatDurationValue(totalMinutes, unit);
 }
 
+function getEffectiveDateGroupingFromProperty(
+  explicitGrouping: DateGroupingLike | undefined,
+  prop: any
+): DateGroupingLike | undefined {
+  if (explicitGrouping) return explicitGrouping;
+
+  const granularity = String(prop?.dateGranularity ?? '');
+  if (granularity === 'year') return 'year';
+  if (granularity === 'month' || granularity === 'month-year') return 'month';
+  return undefined;
+}
+
+function groupItemsByDateForAxis(
+  items: Item[],
+  dateField: string,
+  grouping: DateGroupingLike,
+  monthOnly: boolean
+): Map<string, Item[]> {
+  if (!monthOnly || grouping !== 'month') {
+    return groupItemsByDate(items, dateField, grouping);
+  }
+
+  const groups = new Map<string, Item[]>();
+
+  for (const item of items) {
+    const raw = item[dateField];
+    const dateStr = typeof raw === 'object' && raw?.start ? String(raw.start) : raw ? String(raw) : '';
+    if (!dateStr) {
+      if (!groups.has(NO_DATE_KEY)) groups.set(NO_DATE_KEY, []);
+      groups.get(NO_DATE_KEY)!.push(item);
+      continue;
+    }
+
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) {
+      if (!groups.has(NO_DATE_KEY)) groups.set(NO_DATE_KEY, []);
+      groups.get(NO_DATE_KEY)!.push(item);
+      continue;
+    }
+
+    const key = String(d.getMonth() + 1).padStart(2, '0');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(item);
+  }
+
+  return new Map(
+    [...groups.entries()].sort((a, b) => {
+      if (a[0] === NO_DATE_KEY) return 1;
+      if (b[0] === NO_DATE_KEY) return -1;
+      return Number(a[0]) - Number(b[0]);
+    })
+  );
+}
+
+function getDateAxisLabel(key: string, grouping: DateGroupingLike, monthOnly: boolean): string {
+  if (!monthOnly || grouping !== 'month') {
+    return getDateGroupLabel(key, grouping);
+  }
+
+  if (key === NO_DATE_KEY) return 'Sans date';
+  const monthNum = Number(key);
+  if (Number.isNaN(monthNum) || monthNum < 1 || monthNum > 12) return key;
+  const d = new Date(2000, monthNum - 1, 1);
+  return d.toLocaleDateString('fr-FR', { month: 'long' });
+}
+
 function getNumericFieldValue(item: Item, fieldId: string, data: DashboardItemData, module: DashboardModuleConfig): number | null {
   if (!fieldId) return null;
   const prop = data.properties.find((p) => p.id === fieldId);
@@ -265,21 +333,33 @@ function buildXYData(module: DashboardModuleConfig, data: DashboardItemData) {
   const yField = module.chartYField ?? '';
   const durationField = getDurationSourceField(module);
   const isDateField = dateFields.some((f) => f.id === xField);
+  const xProp = properties.find((p) => p.id === xField);
+  const effectiveXDateGrouping = isDateField
+    ? getEffectiveDateGroupingFromProperty(module.chartDateGrouping as DateGroupingLike | undefined, xProp)
+    : undefined;
+  const xMonthOnly = effectiveXDateGrouping === 'month' && String((xProp as any)?.dateGranularity ?? '') === 'month';
 
   if (!xField) return [];
 
   if (yMode === 'field' && yField) {
     const groupField = module.chartStackBy || xField;
     const isDateGroupField = dateFields.some((f) => f.id === groupField);
-    const groups = isDateGroupField && module.chartDateGrouping
-      ? groupItemsByDate(filteredItems, groupField, module.chartDateGrouping)
+    const groupFieldProp = properties.find((p) => p.id === groupField);
+    const effectiveGroupDateGrouping = isDateGroupField
+      ? getEffectiveDateGroupingFromProperty(module.chartDateGrouping as DateGroupingLike | undefined, groupFieldProp)
+      : undefined;
+    const groupFieldMonthOnly =
+      effectiveGroupDateGrouping === 'month' && String((groupFieldProp as any)?.dateGranularity ?? '') === 'month';
+
+    const groups = isDateGroupField && effectiveGroupDateGrouping
+      ? groupItemsByDateForAxis(filteredItems, groupField, effectiveGroupDateGrouping, groupFieldMonthOnly)
       : groupItemsByField(filteredItems, groupField, properties);
 
     const rows: Record<string, any>[] = [];
 
     groups.forEach((items, key) => {
-      let label = isDateGroupField && module.chartDateGrouping
-        ? getDateGroupLabel(key, module.chartDateGrouping)
+      let label = isDateGroupField && effectiveGroupDateGrouping
+        ? getDateAxisLabel(key, effectiveGroupDateGrouping, groupFieldMonthOnly)
         : key === EMPTY_GROUP_KEY || key === NO_DATE_KEY
           ? 'Vide'
           : key;
@@ -307,12 +387,12 @@ function buildXYData(module: DashboardModuleConfig, data: DashboardItemData) {
   }
 
   // Groupement par période de date
-  const isDateGrouping = (module.chartDateGrouping && isDateField);
+  const isDateGrouping = Boolean(effectiveXDateGrouping && isDateField);
 
   let groups: Map<string, typeof filteredItems>;
 
-  if (isDateGrouping && module.chartDateGrouping) {
-    groups = groupItemsByDate(filteredItems, xField, module.chartDateGrouping);
+  if (isDateGrouping && effectiveXDateGrouping) {
+    groups = groupItemsByDateForAxis(filteredItems, xField, effectiveXDateGrouping, xMonthOnly);
   } else {
     groups = groupItemsByField(filteredItems, xField, properties);
   }
@@ -320,8 +400,8 @@ function buildXYData(module: DashboardModuleConfig, data: DashboardItemData) {
   const result: Record<string, any>[] = [];
 
   groups.forEach((items, key) => {
-    let label = isDateGrouping && module.chartDateGrouping
-      ? getDateGroupLabel(key, module.chartDateGrouping)
+    let label = isDateGrouping && effectiveXDateGrouping
+      ? getDateAxisLabel(key, effectiveXDateGrouping, xMonthOnly)
       : key === EMPTY_GROUP_KEY || key === NO_DATE_KEY
         ? 'Vide'
         : key;

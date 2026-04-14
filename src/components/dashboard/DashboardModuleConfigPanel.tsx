@@ -31,6 +31,7 @@ import {
   RecapColumn,
 } from '@/lib/dashboardTypes';
 import { getPropOptions } from '@/lib/utils/recapColumnUtils';
+import { getOrderedProperties } from '@/lib/filterUtils';
 import { Property, Collection } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -804,7 +805,9 @@ const RecapColumnsEditor: React.FC<RecapColumnsEditorProps> = ({ columns, proper
 const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUpdate, onClose }) => {
   const [activeTab, setActiveTab] = useState<ConfigTab>('type');
   const collection = collections.find((c) => c.id === module.collectionId) ?? null;
-  const properties: Property[] = collection?.properties ?? [];
+  const properties: Property[] = collection
+    ? ((getOrderedProperties(collection, undefined, collections) as Property[]) ?? [])
+    : [];
 
   const dateProps = properties.filter((p) => p.type === 'date' || (p.type as string) === 'date_range');
   const numericProps = properties.filter((p) => p.type === 'number');
