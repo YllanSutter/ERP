@@ -1603,6 +1603,17 @@ const TableView: React.FC<TableViewProps> = ({
                           }}
                           onActiveSubGroupTabChange={(path, tabDepth) => {
                             if (path) {
+                              // Synchronise aussi la sélection par profondeur pour que
+                              // le contextPath des totaux pointe bien sur le niveau actif (ex: bundle)
+                              setActiveGroupSelectByDepth((prev) => {
+                                const next: Record<number, string> = { ...prev, [tabDepth]: path };
+                                Object.keys(next).forEach((k) => {
+                                  const d = Number(k);
+                                  if (d > tabDepth) delete next[d];
+                                });
+                                return next;
+                              });
+
                               const prefill = buildGroupPrefill(path, groups, collection.properties || []);
                               const ctx = Object.keys(prefill).length > 0 ? prefill : null;
                               console.log('[GroupContext] select-mode subGroup tab:', path, 'depth=', tabDepth, '→', ctx);

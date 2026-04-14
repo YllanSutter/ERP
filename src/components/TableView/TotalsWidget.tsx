@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer,
+  LineChart, Line, CartesianGrid, XAxis, YAxis, Cell, ResponsiveContainer,
   PieChart, Pie, Tooltip as RechartsTooltip,
 } from 'recharts';
 import {
@@ -51,7 +51,7 @@ const TOTAL_META: Record<string, TotalMeta> = {
   avg:          { Icon: BarChart2,    label: 'Moyenne',    iconColorClass: 'text-blue-400',   valueColorClass: 'text-blue-300',   accentHex: '#2563eb' },
   min:          { Icon: TrendingDown, label: 'Minimum',    iconColorClass: 'text-emerald-400',valueColorClass: 'text-emerald-300',accentHex: '#059669' },
   max:          { Icon: TrendingUp,   label: 'Maximum',    iconColorClass: 'text-orange-400', valueColorClass: 'text-orange-300', accentHex: '#d97706' },
-  count:        { Icon: Hash,         label: 'Nb lignes',  iconColorClass: 'text-neutral-400',valueColorClass: 'text-neutral-300',accentHex: '#6b7280' },
+  count:        { Icon: Hash,         label: 'Nb lignes',  iconColorClass: 'text-neutral-500 dark:text-neutral-400',valueColorClass: 'text-neutral-700 dark:text-neutral-300',accentHex: '#6b7280' },
   unique:       { Icon: Fingerprint,  label: 'Uniques',    iconColorClass: 'text-teal-400',   valueColorClass: 'text-teal-300',   accentHex: '#0891b2' },
   'count-true': { Icon: SquareCheck,  label: 'Cochés',     iconColorClass: 'text-green-400',  valueColorClass: 'text-green-300',  accentHex: '#16a34a' },
   'count-false':{ Icon: Square,       label: 'Non cochés', iconColorClass: 'text-rose-400',   valueColorClass: 'text-rose-300',   accentHex: '#dc2626' },
@@ -65,7 +65,7 @@ const LINKED_PROGRESS_META: TotalMeta = {
 
 const DEFAULT_META: TotalMeta = {
   Icon: Hash, label: 'Total',
-  iconColorClass: 'text-neutral-400', valueColorClass: 'text-neutral-300', accentHex: '#6b7280',
+  iconColorClass: 'text-neutral-500 dark:text-neutral-400', valueColorClass: 'text-neutral-700 dark:text-neutral-300', accentHex: '#6b7280',
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,9 +101,10 @@ function buildGroupedTree(groupedSections: Array<any>) {
   const roots: Node[] = [];
   const stack: Node[] = [];
   groupedSections.forEach((section, index) => {
+    const nodeId = section.path || `section-${index}`;
     const node: Node = {
-      id: section.path || `section-${index}`,
-      label: section.label,
+      id: nodeId,
+      label: cleanLabel(toDisplayLabel(section.label, `Groupe ${index + 1}`)) || `Groupe ${index + 1}`,
       items: section.items,
       depth: section.depth,
       propertyName: section.propertyName,
@@ -149,6 +150,77 @@ function toRawNumber(val: any): number {
   return Math.round(n * 100) / 100;
 }
 
+function toDisplayLabel(value: any, fallback = '', depth = 0): string {
+  if (depth > 3) return fallback;
+  if (value === null || value === undefined) return fallback;
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    const text = String(value).trim();
+    const normalized = text.toLowerCase();
+    if (!text || normalized === '[object object]' || normalized === 'object object') return fallback;
+    return text;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const candidate = toDisplayLabel(entry, '', depth + 1);
+      if (candidate) return candidate;
+    }
+    return fallback;
+  }
+
+  if (typeof value === 'object') {
+    const obj = value as Record<string, any>;
+    const preferredKeys = [
+      'title', 'name', 'label', 'displayName', 'text', 'value', 'reference', 'id',
+      'steamName', 'steamId',
+    ];
+
+    for (const key of preferredKeys) {
+      const candidate = toDisplayLabel(obj[key], '', depth + 1);
+      if (candidate) return candidate;
+    }
+
+    for (const val of Object.values(obj)) {
+      const candidate = toDisplayLabel(val, '', depth + 1);
+      if (candidate) return candidate;
+    }
+  }
+
+  return fallback;
+}
+
+function isObjectLabel(text: string): boolean {
+  const normalized = String(text || '')
+    .toLowerCase()
+    .replace(/[\u00a0\u2000-\u200b\u202f\u205f\u3000]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return (
+    !normalized ||
+    normalized === '[object object]' ||
+    normalized === 'object object' ||
+    /\[?object\s*object\]?/i.test(normalized)
+  );
+}
+
+function cleanLabel(text: any): string {
+  return String(text || '')
+    .replace(/\[?object\s*object\]?/gi, '')
+    .replace(/[\u00a0\u2000-\u200b\u202f\u205f\u3000]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeLabelKey(text: string): string {
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Module types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,8 +241,8 @@ const MODULE_META: Record<ModuleKey, { Icon: LucideIcon; label: string }> = {
 const DarkTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#1a1a1f] border border-white/[0.08] rounded-lg px-3 py-2 shadow-2xl text-xs">
-      <p className="text-neutral-300 font-medium mb-1 truncate max-w-[180px]">{label}</p>
+    <div className="bg-white border border-slate-200 dark:bg-[#1a1a1f] dark:border-white/[0.08] rounded-lg px-3 py-2 shadow-lg dark:shadow-2xl text-xs">
+      <p className="text-slate-700 dark:text-neutral-300 font-medium mb-1 truncate max-w-[180px]">{label}</p>
       {payload.map((entry: any, i: number) => (
         <p key={i} className="tabular-nums" style={{ color: entry.fill || entry.color }}>
           {entry.name}: <span className="font-bold">{entry.value}</span>
@@ -263,17 +335,105 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
   // Pré-sélection depuis le chemin actif du tableau
   React.useEffect(() => {
-    if (!contextPath || !flatRows.length) return;
-    const segments = contextPath.split('/');
-    const newSelected: Record<number, string | null> = {};
-    let cumPath = '';
-    segments.forEach((seg) => {
-      cumPath = cumPath ? `${cumPath}/${seg}` : seg;
-      const row = flatRows.find((r) => r.id === cumPath);
-      if (row) newSelected[row.depth] = row.id;
+    if (!flatRows.length) return;
+
+    console.log('[TotalsWidget][context-sync] start', {
+      contextPath,
+      itemsCount: items.length,
+      flatRowsCount: flatRows.length,
     });
-    if (Object.keys(newSelected).length > 0) setSelectedByDepth(newSelected);
-  }, [contextPath, flatRows]);
+
+    if (!contextPath) {
+      setSelectedByDepth({});
+      setActiveLevelDepth('overview');
+      console.log('[TotalsWidget][context-sync] no contextPath -> overview');
+      return;
+    }
+
+    // 0) Si contextPath est un parent (ex: mois), essayer d'identifier
+    //    automatiquement le bon enfant (ex: bundle) via les items affichés.
+    const currentItemKeys = new Set(
+      (items || []).map((it: any) => String(it?.id ?? it?._id ?? ''))
+    );
+    const hasStableItemKeys = currentItemKeys.size > 0 && !currentItemKeys.has('');
+
+    const descendantCandidates = flatRows.filter(
+      (r) => r.id === contextPath || r.id.startsWith(`${contextPath}/`)
+    );
+
+    console.log('[TotalsWidget][context-sync] candidates', {
+      descendantCandidates: descendantCandidates.map((r) => ({ id: r.id, depth: r.depth, items: r.items.length })),
+      hasStableItemKeys,
+    });
+
+    let inferredFromItems: FlatRow | null = null;
+    if (descendantCandidates.length > 0 && items.length > 0) {
+      inferredFromItems = descendantCandidates
+        .filter((r) => {
+          if (r.items.length !== items.length) return false;
+          if (hasStableItemKeys) {
+            return r.items.every((it: any) => currentItemKeys.has(String(it?.id ?? it?._id ?? '')));
+          }
+          return true;
+        })
+        .sort((a, b) => b.depth - a.depth || b.id.length - a.id.length)[0] ?? null;
+    }
+
+    console.log('[TotalsWidget][context-sync] inferredFromItems', inferredFromItems ? {
+      id: inferredFromItems.id,
+      depth: inferredFromItems.depth,
+      items: inferredFromItems.items.length,
+    } : null);
+
+    // 1) Match inféré par les items visibles
+    let targetRow = inferredFromItems;
+
+    // 2) Match exact (id === contextPath)
+    if (!targetRow) targetRow = flatRows.find((r) => r.id === contextPath) ?? null;
+
+    // 3) Fallback robuste: plus long préfixe de contextPath
+    if (!targetRow) {
+      targetRow = flatRows
+        .filter((r) => contextPath === r.id || contextPath.startsWith(`${r.id}/`))
+        .sort((a, b) => b.id.length - a.id.length)[0] ?? null;
+    }
+
+    // 4) Dernier fallback historique (construction segmentée)
+    if (!targetRow) {
+      const segments = contextPath.split('/');
+      let cumPath = '';
+      segments.forEach((seg) => {
+        cumPath = cumPath ? `${cumPath}/${seg}` : seg;
+        const row = flatRows.find((r) => r.id === cumPath);
+        if (row) targetRow = row;
+      });
+    }
+
+    if (!targetRow) {
+      setSelectedByDepth({});
+      setActiveLevelDepth('overview');
+      console.log('[TotalsWidget][context-sync] no targetRow -> overview');
+      return;
+    }
+
+    // Reconstruit la chaîne parent -> enfant jusqu'au niveau cible
+    const newSelected: Record<number, string | null> = {};
+    let cursor: FlatRow | null = targetRow;
+    while (cursor) {
+      newSelected[cursor.depth] = cursor.id;
+      const parentId = parentMap.get(cursor.id);
+      cursor = parentId ? (flatRows.find((r) => r.id === parentId) ?? null) : null;
+    }
+
+    setSelectedByDepth(newSelected);
+    setActiveLevelDepth(targetRow.depth);
+
+    console.log('[TotalsWidget][context-sync] applied', {
+      targetRow: { id: targetRow.id, depth: targetRow.depth, items: targetRow.items.length },
+      selectedByDepth: newSelected,
+      activeLevelDepth: targetRow.depth,
+    });
+  }, [contextPath, flatRows, parentMap, items]);
 
   // Restore localStorage
   React.useEffect(() => {
@@ -333,15 +493,33 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     return items;
   }, [selectedGroupRow, activeLevelDepth, levelRows, items]);
 
-  // Lignes enfants pour les graphiques
-  const contextChildRows: FlatRow[] = selectedGroupRow
-    ? (() => {
-        const kids = (childrenMap.get(selectedGroupRow.id) || [])
-          .map((id) => flatRows.find((r) => r.id === id)!)
-          .filter(Boolean);
-        return kids.length > 0 ? kids : levelRows;
-      })()
-    : levelRows;
+  // Lignes pour les graphiques :
+  // - groupe sélectionné avec sous-groupes -> sous-groupes
+  // - groupe sélectionné feuille -> items du groupe
+  // - sinon -> groupes du niveau
+  const contextChildRows: FlatRow[] = React.useMemo(() => {
+    if (!selectedGroupRow) return levelRows;
+
+    const kids = (childrenMap.get(selectedGroupRow.id) || [])
+      .map((id) => flatRows.find((r) => r.id === id)!)
+      .filter(Boolean);
+
+    if (kids.length > 0) return kids;
+
+    return selectedGroupRow.items.map((item: any, i: number) => {
+      const itemId = String(item?.id ?? item?._id ?? `${selectedGroupRow.id}-item-${i}`);
+      const itemLabel = cleanLabel(toDisplayLabel(
+        item?.title ?? item?.name ?? item?.label ?? item?.reference,
+        toDisplayLabel(item, itemId),
+      )) || itemId;
+      return {
+        id: `${selectedGroupRow.id}::${itemId}`,
+        label: itemLabel,
+        items: [item],
+        depth: selectedGroupRow.depth + 1,
+      };
+    });
+  }, [selectedGroupRow, levelRows, childrenMap, flatRows]);
 
   // ── Visibilité des rangées (respect du collapse) ───────────────────────
   const isRowVisible = (rowId: string): boolean => {
@@ -374,12 +552,22 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     const accent = prop?.color || meta.accentHex;
 
     // Sparkbar : distribution des groupes de l'onglet
-    const groupValues = hasGroups
-      ? contextChildRows.map((r) => toRawNumber(calculateTotal(prop.id, r.items, totalType)))
+    const sparkData = hasGroups
+      ? contextChildRows.map((r) => {
+          const raw = calculateTotal(prop.id, r.items, totalType);
+          const numeric = toRawNumber(raw);
+          const formattedValue = formatTotal(prop.id, raw, totalType);
+          const { visible: visibleValue } = splitFilterHint(formattedValue || '');
+          return {
+            id: r.id,
+            name: r.label,
+            numeric,
+            visibleValue: visibleValue || String(numeric),
+            count: r.items.length,
+          };
+        })
       : [];
-    const maxGroupVal = groupValues.length ? Math.max(...groupValues, 0.001) : 1;
-
-    return { prop, meta, total, visible, PropIcon, accent, groupValues, maxGroupVal, totalType };
+    return { prop, meta, total, visible, PropIcon, accent, sparkData, totalType };
   });
 
   // ── Données bar chart ─────────────────────────────────────────────────────
@@ -393,14 +581,14 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
         const numVal = toRawNumber(raw);
         const formatted = formatTotal(activeProp.id, raw, totalType);
         const { visible } = splitFilterHint(formatted || '');
+        const label = cleanLabel(toDisplayLabel(row.label, `Objet ${i + 1}`)) || `Objet ${i + 1}`;
         return {
-          name: row.label,
+          name: label,
           value: numVal,
           displayValue: visible,
           fill: CHART_PALETTE[i % CHART_PALETTE.length],
         };
       })
-      .sort((a, b) => b.value - a.value)
       .slice(0, 12);
   }, [activeProp, contextChildRows, totalFields, calculateTotal, formatTotal, hasGroups]);
 
@@ -409,17 +597,63 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     if (!hasGroups || !activeProp) return [];
     const totalType = totalFields[activeProp.id];
     const isNumericMetric = ['sum', 'avg', 'min', 'max'].includes(normalizeTotalType(totalType));
-    return contextChildRows
+    const rows = contextChildRows
       .map((row, i) => {
         const value = isNumericMetric
           ? toRawNumber(calculateTotal(activeProp.id, row.items, totalType))
           : row.items.length;
-        return { name: row.label, value, fill: CHART_PALETTE[i % CHART_PALETTE.length] };
+
+        const fromRow = cleanLabel(toDisplayLabel(row.label, ''));
+        const fromItem = cleanLabel(toDisplayLabel(row.items?.[0], `Objet ${i + 1}`));
+        const name = (!fromRow || isObjectLabel(fromRow)) ? fromItem : fromRow;
+
+        return {
+          name,
+          value,
+          fill: CHART_PALETTE[i % CHART_PALETTE.length],
+        };
       })
-      .filter((d) => d.value > 0)
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
+      .filter((d) => d.value > 0 && !!d.name && !isObjectLabel(d.name));
+
+    // Agrège les doublons d'intitulé pour éviter les entrées répétées en légende.
+    const aggregatedMap = new Map<string, { name: string; value: number; fill: string }>();
+    rows.forEach((row) => {
+      const key = normalizeLabelKey(cleanLabel(row.name));
+      if (!key || isObjectLabel(key)) return;
+
+      const existing = aggregatedMap.get(key);
+      if (existing) {
+        existing.value += row.value;
+      } else {
+        aggregatedMap.set(key, { ...row, name: cleanLabel(row.name) });
+      }
+    });
+
+    return Array.from(aggregatedMap.values()).slice(0, 10);
   }, [contextChildRows, hasGroups, activeProp, totalFields, calculateTotal]);
+
+  // Sécurisation finale spécifique au camembert (répartition)
+  const donutDataSafe = React.useMemo(() => {
+    const out = new Map<string, { name: string; value: number; fill: string }>();
+    donutData.forEach((entry, i) => {
+      const rawName = cleanLabel(entry?.name);
+      if (!rawName || isObjectLabel(rawName)) return;
+      const key = normalizeLabelKey(rawName);
+      if (!key || isObjectLabel(key)) return;
+
+      const existing = out.get(key);
+      if (existing) {
+        existing.value += Number(entry?.value || 0);
+      } else {
+        out.set(key, {
+          name: rawName,
+          value: Number(entry?.value || 0),
+          fill: entry?.fill || CHART_PALETTE[i % CHART_PALETTE.length],
+        });
+      }
+    });
+    return Array.from(out.values()).filter((e) => e.value > 0).slice(0, 10);
+  }, [donutData]);
 
   // ── Toggle module ─────────────────────────────────────────────────────────
   const toggleModule = (key: ModuleKey) => {
@@ -430,21 +664,21 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className={cn('rounded-xl overflow-hidden mb-3 border border-white/[0.07] bg-[#0d0d10] shadow-2xl', className)}>
+    <div className={cn('rounded-xl overflow-hidden mb-3 border border-slate-200 bg-white shadow-sm dark:border-white/[0.07] dark:bg-[#0d0d10] dark:shadow-2xl', className)}>
 
       {/* ── En-tête ligne 1 : titre + toggles modules + collapse ──────── */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.04]">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-200 dark:border-white/[0.04]">
         <Sigma size={12} className="text-violet-400 shrink-0" />
-        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-400 select-none">
+        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600 dark:text-neutral-400 select-none">
           Totaux
         </span>
-        <span className="text-[10px] text-neutral-600">
+        <span className="text-[10px] text-slate-500 dark:text-neutral-600">
           · {contextItems.length} ligne{contextItems.length > 1 ? 's' : ''}
         </span>
 
         <div className="flex items-center gap-1 ml-auto">
           {/* Toggles de modules */}
-          <div className="flex items-center gap-0.5 bg-white/[0.04] rounded-lg p-0.5 mr-1">
+          <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.04] rounded-lg p-0.5 mr-1">
             {(Object.entries(MODULE_META) as [ModuleKey, typeof MODULE_META[ModuleKey]][]).map(([key, { Icon, label }]) => {
               if ((key === 'bar' || key === 'donut') && !hasGroups) return null;
               return (
@@ -456,8 +690,8 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                   className={cn(
                     'p-1.5 rounded-md transition-all',
                     modules[key]
-                      ? 'bg-violet-600/30 text-violet-300'
-                      : 'text-neutral-600 hover:text-neutral-400'
+                      ? 'bg-violet-100 text-violet-700 dark:bg-violet-600/30 dark:text-violet-300'
+                      : 'text-slate-500 hover:text-slate-700 dark:text-neutral-600 dark:hover:text-neutral-400'
                   )}
                 >
                   <Icon size={12} />
@@ -468,7 +702,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="p-1.5 rounded-md text-neutral-600 hover:text-neutral-300 hover:bg-white/[0.05] transition-all"
+            className="p-1.5 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-neutral-600 dark:hover:text-neutral-300 dark:hover:bg-white/[0.05] transition-all"
           >
             <ChevronDown
               size={13}
@@ -480,9 +714,9 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
       {/* ── Onglet niveau (Vue d'ensemble / Année / Mois / Bundle…) ─────── */}
       {hasGroups && (
-        <div className="border-b border-white/[0.05]">
+        <div className="border-b border-slate-200 dark:border-white/[0.05]">
           {/* Rangée 1 : onglets de niveau */}
-          <div className="flex items-center gap-0 px-3 overflow-x-auto bg-white/[0.01]">
+          <div className="flex items-center gap-0 px-3 overflow-x-auto bg-slate-50 dark:bg-white/[0.01]">
             {/* Onglet Vue d'ensemble */}
             {[{ id: 'overview' as const, label: "Vue d'ensemble" }, ...depthLevels.map(({ depth, propertyName }) => ({ id: depth as 'overview' | number, label: propertyName || `Niveau ${depth + 1}` }))].map(({ id, label }) => {
               const isActive = activeLevelDepth === id;
@@ -493,7 +727,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                   onClick={() => setActiveLevelDepth(id)}
                   className={cn(
                     'relative px-3 py-2 text-[11px] font-medium whitespace-nowrap transition-colors shrink-0',
-                    isActive ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
+                    isActive ? 'text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-neutral-500 dark:hover:text-neutral-300'
                   )}
                 >
                   {label}
@@ -507,7 +741,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
           {/* Rangée 2 : groupes du niveau sélectionné (sauf Vue d'ensemble) */}
           {activeLevelDepth !== 'overview' && levelRows.length > 0 && (
-            <div className="flex items-center gap-1 px-3 py-1.5 overflow-x-auto bg-black/10 border-t border-white/[0.03]">
+            <div className="flex items-center gap-1 px-3 py-1.5 overflow-x-auto bg-slate-100/70 dark:bg-black/10 border-t border-slate-200 dark:border-white/[0.03]">
               {/* Bouton "Tous" */}
               <button
                 type="button"
@@ -515,8 +749,8 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                 className={cn(
                   'shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-medium border transition-all whitespace-nowrap',
                   currentGroupId === null
-                    ? 'bg-violet-600/25 border-violet-500/30 text-violet-300'
-                    : 'border-white/[0.07] text-neutral-500 hover:text-neutral-300 hover:border-white/10'
+                    ? 'bg-violet-100 border-violet-300 text-violet-700 dark:bg-violet-600/25 dark:border-violet-500/30 dark:text-violet-300'
+                    : 'border-slate-300 text-slate-600 hover:text-slate-800 hover:border-slate-400 dark:border-white/[0.07] dark:text-neutral-500 dark:hover:text-neutral-300 dark:hover:border-white/10'
                 )}
               >
                 Tous
@@ -532,8 +766,8 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                     className={cn(
                       'shrink-0 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium border transition-all whitespace-nowrap',
                       isActive
-                        ? 'text-white border-transparent'
-                        : 'border-white/[0.07] text-neutral-400 hover:text-neutral-200 hover:border-white/10'
+                        ? 'text-slate-900 dark:text-white border-transparent'
+                        : 'border-slate-300 text-slate-600 hover:text-slate-800 hover:border-slate-400 dark:border-white/[0.07] dark:text-neutral-400 dark:hover:text-neutral-200 dark:hover:border-white/10'
                     )}
                     style={isActive ? { backgroundColor: color + '33', borderColor: color + '66', color } : undefined}
                   >
@@ -554,7 +788,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
           {/* ── Module 1 : Cartes de stats ─────────────────────────────── */}
           {modules.stats && (
             <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(190px, 1fr))` }}>
-              {statCards.map(({ prop, meta, visible, PropIcon, accent, groupValues, maxGroupVal }) => (
+              {statCards.map(({ prop, meta, visible, PropIcon, accent, sparkData }) => (
                 <button
                   key={prop.id}
                   type="button"
@@ -562,8 +796,8 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                   className={cn(
                     'relative overflow-hidden rounded-xl border text-left transition-all group',
                     activeMetricId === prop.id
-                      ? 'border-white/[0.12] bg-white/[0.05] ring-1 ring-violet-500/30'
-                      : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.1] hover:bg-white/[0.04]'
+                      ? 'border-violet-300 bg-violet-50 ring-1 ring-violet-400/40 dark:border-white/[0.12] dark:bg-white/[0.05] dark:ring-violet-500/30'
+                      : 'border-slate-200 bg-slate-50/60 hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.06] dark:bg-white/[0.02] dark:hover:border-white/[0.1] dark:hover:bg-white/[0.04]'
                   )}
                 >
                   {/* Bande colorée gauche */}
@@ -576,7 +810,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                     {/* Label */}
                     <div className="flex items-center gap-1.5 mb-2">
                       <PropIcon size={11} style={{ color: accent }} />
-                      <span className="text-[10px] font-medium uppercase tracking-widest text-neutral-500 truncate">
+                      <span className="text-[10px] font-medium uppercase tracking-widest text-slate-600 dark:text-neutral-500 truncate">
                         {prop.name}
                       </span>
                       <span
@@ -588,25 +822,88 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                     </div>
 
                     {/* Valeur */}
-                    <div className="text-xl font-bold tabular-nums text-white truncate">
+                    <div className="text-xl font-bold tabular-nums text-slate-900 dark:text-white truncate">
                       {visible || '—'}
                     </div>
 
                     {/* Mini sparkbars */}
-                    {groupValues.length > 1 && (
-                      <div className="flex items-end gap-0.5 mt-2.5 h-5">
-                        {groupValues.slice(0, 12).map((v, i) => (
-                          <div
-                            key={i}
-                            className="flex-1 rounded-sm min-w-[3px] transition-opacity"
-                            style={{
-                              height: `${Math.max(10, (v / maxGroupVal) * 100)}%`,
-                              backgroundColor: accent,
-                              opacity: activeMetricId === prop.id ? 0.7 : 0.3,
-                            }}
-                          />
-                        ))}
-                      </div>
+                    {sparkData.length > 1 && (
+                      <>
+                        <p className="mt-2 text-[9px] uppercase tracking-wider text-slate-400 dark:text-neutral-600">
+                          Tendance groupes (survol)
+                        </p>
+                        <div className="relative mt-1.5 h-8 w-full">
+                          {(() => {
+                            const series = sparkData.slice(0, 12);
+                            const minVal = Math.min(...series.map((s) => s.numeric));
+                            const maxVal = Math.max(...series.map((s) => s.numeric));
+                            const range = Math.max(0.0001, maxVal - minVal);
+                            const points = series.map((s, i) => {
+                              const x = series.length <= 1 ? 0 : (i / (series.length - 1)) * 100;
+                              const y = maxVal === minVal
+                                ? 50
+                                : 100 - (((s.numeric - minVal) / range) * 100);
+                              return { ...s, x, y };
+                            });
+                            const linePoints = points.map((p) => `${p.x},${p.y}`).join(' ');
+                            const areaPath = points.length
+                              ? `M 0,100 L ${points.map((p) => `${p.x},${p.y}`).join(' L ')} L 100,100 Z`
+                              : '';
+
+                            return (
+                              <>
+                                <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full overflow-visible">
+                                  <defs>
+                                    <linearGradient id={`spark-grad-${prop.id}`} x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={accent} stopOpacity={activeMetricId === prop.id ? 0.35 : 0.2} />
+                                      <stop offset="100%" stopColor={accent} stopOpacity={0.02} />
+                                    </linearGradient>
+                                  </defs>
+                                  <path d={areaPath} fill={`url(#spark-grad-${prop.id})`} />
+                                  <polyline
+                                    points={linePoints}
+                                    fill="none"
+                                    stroke={accent}
+                                    strokeWidth={2.2}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    opacity={activeMetricId === prop.id ? 0.95 : 0.65}
+                                  />
+                                </svg>
+
+                                {points.map((spark) => (
+                                  <Tooltip key={spark.id}>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="absolute -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-white dark:border-black/40 shadow-sm"
+                                        style={{
+                                          left: `${spark.x}%`,
+                                          top: `${spark.y}%`,
+                                          backgroundColor: accent,
+                                          opacity: activeMetricId === prop.id ? 1 : 0.8,
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-[220px]">
+                                      <div className="text-[11px] leading-tight">
+                                        <p className="font-medium truncate">{spark.name}</p>
+                                        <p className="text-slate-500 dark:text-neutral-400 mt-0.5">
+                                          {meta.label}: <span className="font-semibold">{spark.visibleValue}</span>
+                                        </p>
+                                        <p className="text-slate-400 dark:text-neutral-500 text-[10px]">
+                                          {spark.count} ligne{spark.count > 1 ? 's' : ''}
+                                        </p>
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ))}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </>
                     )}
                   </div>
                 </button>
@@ -618,12 +915,12 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
           {hasGroups && (modules.bar || modules.donut) && (
             <div className={cn('grid gap-4', modules.bar && modules.donut ? 'grid-cols-1 xl:grid-cols-[2fr_1fr]' : 'grid-cols-1')}>
 
-              {/* Bar chart */}
+              {/* Graphique métrique (ligne) */}
               {modules.bar && barData.length > 0 && (
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 dark:border-white/[0.06] dark:bg-white/[0.02] p-4">
                   {/* Sélecteur de métrique */}
                   <div className="flex items-center gap-2 mb-4 flex-wrap">
-                    <span className="text-[10px] uppercase tracking-widest text-neutral-600">Métrique :</span>
+                    <span className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-neutral-600">Métrique :</span>
                     {activeTotals.map((prop: any) => {
                       const meta = getMeta(totalFields[prop.id]);
                       const accent = prop?.color || meta.accentHex;
@@ -635,8 +932,8 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                           className={cn(
                             'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border transition-all',
                             activeMetricId === prop.id
-                              ? 'border-white/10 text-white'
-                              : 'border-white/[0.05] text-neutral-500 hover:text-neutral-300'
+                              ? 'border-violet-300 text-violet-700 dark:border-white/10 dark:text-white'
+                              : 'border-slate-300 text-slate-600 hover:text-slate-800 dark:border-white/[0.05] dark:text-neutral-500 dark:hover:text-neutral-300'
                           )}
                           style={activeMetricId === prop.id ? { backgroundColor: accent + '22', borderColor: accent + '55', color: accent } : undefined}
                         >
@@ -647,48 +944,53 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                   </div>
 
                   <ResponsiveContainer width="100%" height={Math.min(240, Math.max(120, barData.length * 28))}>
-                    <BarChart
+                    <LineChart
                       data={barData}
-                      layout="vertical"
                       margin={{ top: 0, right: 48, bottom: 0, left: 0 }}
-                      barCategoryGap="30%"
                     >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="hsl(var(--border))"
+                        opacity={0.45}
+                      />
                       <XAxis
-                        type="number"
-                        tick={{ fill: '#4b5563', fontSize: 10 }}
+                        dataKey="name"
+                        tick={{ fill: '#64748b', fontSize: 10 }}
                         axisLine={false}
                         tickLine={false}
+                        tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 10) + '…' : v}
                       />
                       <YAxis
-                        type="category"
-                        dataKey="name"
-                        width={120}
-                        tick={{ fill: '#9ca3af', fontSize: 11 }}
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
                         axisLine={false}
                         tickLine={false}
-                        tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 14) + '…' : v}
+                        width={44}
                       />
                       <RechartsTooltip
                         content={<DarkTooltip />}
-                        cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                        cursor={{ stroke: 'hsl(var(--border))', strokeDasharray: '3 3' }}
                       />
-                      <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={20}>
-                        {barData.map((entry, i) => (
-                          <Cell key={i} fill={entry.fill} fillOpacity={0.85} />
-                        ))}
-                      </Bar>
-                    </BarChart>
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        name={activeProp?.name || 'Valeur'}
+                        stroke={activeProp?.color || getMeta(totalFields[activeProp?.id]).accentHex}
+                        strokeWidth={2.5}
+                        dot={{ r: 3, fill: activeProp?.color || getMeta(totalFields[activeProp?.id]).accentHex, strokeWidth: 0 }}
+                        activeDot={{ r: 4 }}
+                      />
+                    </LineChart>
                   </ResponsiveContainer>
                 </div>
               )}
 
               {/* Donut */}
-              {modules.donut && donutData.length > 0 && (
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+              {modules.donut && donutDataSafe.length > 0 && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 dark:border-white/[0.06] dark:bg-white/[0.02] p-4">
                   <p className="text-[10px] uppercase tracking-widest text-neutral-600 mb-3">
                     Répartition
                     {activeProp && (
-                      <span className="ml-1.5 normal-case tracking-normal text-neutral-700">
+                      <span className="ml-1.5 normal-case tracking-normal text-slate-500 dark:text-neutral-700">
                         — {activeProp.name}
                       </span>
                     )}
@@ -697,7 +999,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                     <ResponsiveContainer width={140} height={140}>
                       <PieChart>
                         <Pie
-                          data={donutData}
+                          data={donutDataSafe}
                           cx="50%"
                           cy="50%"
                           innerRadius={42}
@@ -706,7 +1008,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                           dataKey="value"
                           strokeWidth={0}
                         >
-                          {donutData.map((entry, i) => (
+                          {donutDataSafe.map((entry, i) => (
                             <Cell key={i} fill={entry.fill} fillOpacity={0.85} />
                           ))}
                         </Pie>
@@ -720,11 +1022,12 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                     {/* Légende */}
                     <div className="flex-1 space-y-1.5 min-w-0 w-full xl:w-auto">
                       {(() => {
-                        const totalDonutValue = donutData.reduce((acc, d) => acc + d.value, 0);
+                        const totalDonutValue = donutDataSafe.reduce((acc, d) => acc + d.value, 0);
                         const isNumericMetric = activeProp && ['sum', 'avg', 'min', 'max'].includes(
                           normalizeTotalType(totalFields[activeProp.id])
                         );
-                        return donutData.slice(0, 8).map((entry) => {
+                        return donutDataSafe.slice(0, 8).map((entry) => {
+                          if (!entry?.name || isObjectLabel(entry.name)) return null;
                           const pct = totalDonutValue > 0 ? Math.round((entry.value / totalDonutValue) * 100) : 0;
                           const displayValue = isNumericMetric
                             ? formatTotal(activeProp!.id, entry.value, totalFields[activeProp!.id])
@@ -733,9 +1036,9 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                           return (
                             <div key={entry.name} className="flex items-center gap-2 text-[11px]">
                               <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entry.fill }} />
-                              <span className="text-neutral-400 truncate flex-1 min-w-0">{entry.name}</span>
-                              <span className="text-neutral-500 tabular-nums shrink-0">{visibleVal}</span>
-                              <span className="text-neutral-600 tabular-nums shrink-0 w-8 text-right">{pct}%</span>
+                              <span className="text-slate-600 dark:text-neutral-400 truncate flex-1 min-w-0">{entry.name}</span>
+                              <span className="text-slate-500 dark:text-neutral-500 tabular-nums shrink-0">{visibleVal}</span>
+                              <span className="text-slate-400 dark:text-neutral-600 tabular-nums shrink-0 w-8 text-right">{pct}%</span>
                             </div>
                           );
                         });
@@ -749,13 +1052,13 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
           {/* ── Module 4 : Tableau ─────────────────────────────────────── */}
           {modules.table && (
-            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+            <div className="rounded-xl border border-slate-200 dark:border-white/[0.06] overflow-hidden">
               <TooltipProvider>
                 <table className="w-full text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                    <tr className="border-b border-slate-200 bg-slate-50 dark:border-white/[0.06] dark:bg-white/[0.02]">
                       {hasGroups && (
-                        <th className="px-4 py-2.5 text-left font-medium text-neutral-500 w-40 min-w-[120px]">
+                        <th className="px-4 py-2.5 text-left font-medium text-slate-600 dark:text-neutral-500 w-40 min-w-[120px]">
                           Groupe
                         </th>
                       )}
@@ -769,7 +1072,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                               <TooltipTrigger asChild>
                                 <div className="flex items-center gap-1.5 cursor-default">
                                   <PropIcon size={11} className={meta.iconColorClass} style={accentStyle} />
-                                  <span className="text-neutral-400 truncate max-w-[90px]">{prop.name}</span>
+                                  <span className="text-slate-600 dark:text-neutral-400 truncate max-w-[90px]">{prop.name}</span>
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent side="top">{meta.label}</TooltipContent>
@@ -782,13 +1085,13 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
                   <tbody>
                     {/* Ligne Total */}
-                    <tr className="border-b border-white/[0.04] bg-white/[0.015]">
+                    <tr className="border-b border-slate-200 bg-slate-50/70 dark:border-white/[0.04] dark:bg-white/[0.015]">
                       {hasGroups && (
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-1.5">
-                            <Sigma size={9} className="text-neutral-500 shrink-0" />
-                            <span className="font-semibold text-neutral-200">Total</span>
-                            <span className="text-[10px] text-neutral-600">({contextItems.length})</span>
+                            <Sigma size={9} className="text-slate-500 dark:text-neutral-500 shrink-0" />
+                            <span className="font-semibold text-slate-800 dark:text-neutral-200">Total</span>
+                            <span className="text-[10px] text-slate-500 dark:text-neutral-600">({contextItems.length})</span>
                           </div>
                         </td>
                       )}
@@ -834,9 +1137,9 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                           className={cn(
                             'border-b transition-colors',
                             row.depth === 0
-                              ? 'border-white/[0.06] hover:bg-white/[0.025]'
-                              : 'border-white/[0.025] hover:bg-white/[0.015]',
-                            isActiveDepth && 'bg-white/[0.02]',
+                              ? 'border-slate-200 hover:bg-slate-50 dark:border-white/[0.06] dark:hover:bg-white/[0.025]'
+                              : 'border-slate-100 hover:bg-slate-50/60 dark:border-white/[0.025] dark:hover:bg-white/[0.015]',
+                            isActiveDepth && 'bg-violet-50/60 dark:bg-white/[0.02]',
                           )}
                         >
                           <td
@@ -849,7 +1152,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => toggleCollapse(row.id)}
-                                  className="shrink-0 text-neutral-500 hover:text-neutral-200 transition-colors p-0.5 -ml-0.5 rounded"
+                                  className="shrink-0 text-slate-500 hover:text-slate-700 dark:text-neutral-500 dark:hover:text-neutral-200 transition-colors p-0.5 -ml-0.5 rounded"
                                 >
                                   <ChevronRight
                                     size={12}
@@ -861,7 +1164,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                                 </button>
                               ) : (
                                 /* Enfant sans sous-groupes : tiret d'indentation */
-                                <span className="shrink-0 w-4 flex justify-center text-neutral-700 text-[10px]">
+                                <span className="shrink-0 w-4 flex justify-center text-slate-400 dark:text-neutral-700 text-[10px]">
                                   ╴
                                 </span>
                               )}
@@ -880,12 +1183,12 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                               <span
                                 className={cn(
                                   'truncate max-w-[160px] ml-0.5',
-                                  row.depth === 0 ? 'text-neutral-200 font-medium text-xs' : 'text-neutral-400 text-[11px]',
+                                  row.depth === 0 ? 'text-slate-800 dark:text-neutral-200 font-medium text-xs' : 'text-slate-600 dark:text-neutral-400 text-[11px]',
                                 )}
                               >
                                 {row.label}
                               </span>
-                              <span className="text-[10px] text-neutral-600 shrink-0 tabular-nums ml-1">
+                              <span className="text-[10px] text-slate-500 dark:text-neutral-600 shrink-0 tabular-nums ml-1">
                                 {row.items.length}
                               </span>
                             </div>
