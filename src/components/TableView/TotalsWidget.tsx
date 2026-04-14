@@ -77,6 +77,7 @@ export interface TotalsWidgetProps {
   totalFields: Record<string, string>;
   calculateTotal: (fieldId: string, items: any[], totalType: string) => any;
   formatTotal: (fieldId: string, total: any, totalType: string) => string;
+  resolveValue?: (item: any, prop: Property) => any;
   groupedSections?: Array<{ path?: string; label: string; items: any[]; depth: number; propertyName: string }>;
   persistKey?: string;
   className?: string;
@@ -221,6 +222,31 @@ function normalizeLabelKey(text: string): string {
     .trim();
 }
 
+function isChoiceProperty(prop: any): boolean {
+  const t = String(prop?.type || '').toLowerCase();
+  return t === 'select' || t === 'multi_select' || t === 'multiselect';
+}
+
+function resolveChoiceEntry(entry: any): { raw: string; label: string } | null {
+  if (entry === null || entry === undefined) return null;
+
+  if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') {
+    const raw = String(entry).trim();
+    if (!raw) return null;
+    return { raw, label: raw };
+  }
+
+  if (typeof entry === 'object') {
+    const rawCandidate = entry.value ?? entry.id ?? entry.key ?? entry.name ?? entry.label ?? entry.title;
+    const raw = String(rawCandidate ?? '').trim();
+    if (!raw) return null;
+    const label = cleanLabel(toDisplayLabel(entry.label ?? entry.name ?? entry.title ?? entry.value, raw)) || raw;
+    return { raw, label };
+  }
+
+  return null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Module types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -261,12 +287,30 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   totalFields,
   calculateTotal,
   formatTotal,
+  resolveValue,
   groupedSections,
   persistKey,
   className = '',
   contextPath,
 }) => {
-  const activeTotals = displayProperties.filter((p: any) => totalFields[p.id]);
+  const getTotalTypeForProp = React.useCallback((prop: any): string | null => {
+    const explicit = totalFields[prop?.id];
+    if (explicit) return explicit;
+
+    const propType = String(prop?.type || '').toLowerCase();
+    if (propType === 'select' || propType === 'multi_select' || propType === 'multiselect') {
+      return 'unique';
+    }
+
+    return null;
+  }, [totalFields]);
+
+  const activeTotals = displayProperties.filter((p: any) => !!getTotalTypeForProp(p));
+
+  const getItemPropValue = React.useCallback((item: any, prop: Property) => {
+    if (resolveValue) return resolveValue(item, prop);
+    return item?.[prop?.id];
+  }, [resolveValue]);
 
   // ── Groupes aplatis ───────────────────────────────────────────────────────
   const groupedTree = React.useMemo(
@@ -337,16 +381,9 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   React.useEffect(() => {
     if (!flatRows.length) return;
 
-    console.log('[TotalsWidget][context-sync] start', {
-      contextPath,
-      itemsCount: items.length,
-      flatRowsCount: flatRows.length,
-    });
-
     if (!contextPath) {
       setSelectedByDepth({});
       setActiveLevelDepth('overview');
-      console.log('[TotalsWidget][context-sync] no contextPath -> overview');
       return;
     }
 
@@ -361,11 +398,6 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
       (r) => r.id === contextPath || r.id.startsWith(`${contextPath}/`)
     );
 
-    console.log('[TotalsWidget][context-sync] candidates', {
-      descendantCandidates: descendantCandidates.map((r) => ({ id: r.id, depth: r.depth, items: r.items.length })),
-      hasStableItemKeys,
-    });
-
     let inferredFromItems: FlatRow | null = null;
     if (descendantCandidates.length > 0 && items.length > 0) {
       inferredFromItems = descendantCandidates
@@ -378,12 +410,6 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
         })
         .sort((a, b) => b.depth - a.depth || b.id.length - a.id.length)[0] ?? null;
     }
-
-    console.log('[TotalsWidget][context-sync] inferredFromItems', inferredFromItems ? {
-      id: inferredFromItems.id,
-      depth: inferredFromItems.depth,
-      items: inferredFromItems.items.length,
-    } : null);
 
     // 1) Match inféré par les items visibles
     let targetRow = inferredFromItems;
@@ -412,7 +438,6 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     if (!targetRow) {
       setSelectedByDepth({});
       setActiveLevelDepth('overview');
-      console.log('[TotalsWidget][context-sync] no targetRow -> overview');
       return;
     }
 
@@ -427,12 +452,6 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
     setSelectedByDepth(newSelected);
     setActiveLevelDepth(targetRow.depth);
-
-    console.log('[TotalsWidget][context-sync] applied', {
-      targetRow: { id: targetRow.id, depth: targetRow.depth, items: targetRow.items.length },
-      selectedByDepth: newSelected,
-      activeLevelDepth: targetRow.depth,
-    });
   }, [contextPath, flatRows, parentMap, items]);
 
   // Restore localStorage
@@ -543,26 +562,28 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
   // ── Données cartes ─────────────────────────────────────────────────────
   const statCards = activeTotals.map((prop: any) => {
-    const totalType = totalFields[prop.id];
+    const totalType = getTotalTypeForProp(prop) || 'count';
     const meta = getMeta(totalType);
     const total = calculateTotal(prop.id, contextItems, totalType);
     const formatted = formatTotal(prop.id, total, totalType);
     const { visible } = splitFilterHint(formatted || '');
     const PropIcon = (Icons as any)[prop.icon] || meta.Icon;
     const accent = prop?.color || meta.accentHex;
+    const normalizedType = normalizeTotalType(totalType);
+    const isNumericMetric = ['sum', 'avg', 'min', 'max'].includes(normalizedType);
 
     // Sparkbar : distribution des groupes de l'onglet
     const sparkData = hasGroups
       ? contextChildRows.map((r) => {
           const raw = calculateTotal(prop.id, r.items, totalType);
-          const numeric = toRawNumber(raw);
+          const numeric = isNumericMetric ? toRawNumber(raw) : r.items.length;
           const formattedValue = formatTotal(prop.id, raw, totalType);
           const { visible: visibleValue } = splitFilterHint(formattedValue || '');
           return {
             id: r.id,
             name: r.label,
             numeric,
-            visibleValue: visibleValue || String(numeric),
+            visibleValue: isNumericMetric ? (visibleValue || String(numeric)) : String(numeric),
             count: r.items.length,
           };
         })
@@ -574,28 +595,103 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   const activeProp = activeTotals.find((p: any) => p.id === activeMetricId) || activeTotals[0];
   const barData = React.useMemo(() => {
     if (!activeProp || !hasGroups) return [];
-    const totalType = totalFields[activeProp.id];
+
+    if (isChoiceProperty(activeProp)) {
+      const optionLabelByRaw = new Map<string, string>();
+      (activeProp?.options || []).forEach((opt: any) => {
+        const resolved = resolveChoiceEntry(opt);
+        if (!resolved) return;
+        optionLabelByRaw.set(resolved.raw, resolved.label || resolved.raw);
+      });
+
+      const countsByLabel = new Map<string, number>();
+      const addLabel = (label: string) => {
+        const safe = cleanLabel(label);
+        if (!safe || isObjectLabel(safe)) return;
+        countsByLabel.set(safe, (countsByLabel.get(safe) || 0) + 1);
+      };
+
+      (contextItems || []).forEach((item: any) => {
+        const raw = getItemPropValue(item, activeProp as Property);
+        const values = Array.isArray(raw) ? raw : (raw === null || raw === undefined || raw === '' ? [] : [raw]);
+        values.forEach((entry: any) => {
+          const resolved = resolveChoiceEntry(entry);
+          if (!resolved) return;
+          const label = optionLabelByRaw.get(resolved.raw) || resolved.label || resolved.raw;
+          addLabel(label);
+        });
+      });
+
+      return Array.from(countsByLabel.entries())
+        .map(([name, value], i) => ({
+          name,
+          value,
+          displayValue: String(value),
+          fill: CHART_PALETTE[i % CHART_PALETTE.length],
+        }))
+        .slice(0, 12);
+    }
+
+    const totalType = getTotalTypeForProp(activeProp) || 'count';
+    const isNumericMetric = ['sum', 'avg', 'min', 'max'].includes(normalizeTotalType(totalType));
     return contextChildRows
       .map((row, i) => {
         const raw = calculateTotal(activeProp.id, row.items, totalType);
-        const numVal = toRawNumber(raw);
+        const numVal = isNumericMetric ? toRawNumber(raw) : row.items.length;
         const formatted = formatTotal(activeProp.id, raw, totalType);
         const { visible } = splitFilterHint(formatted || '');
         const label = cleanLabel(toDisplayLabel(row.label, `Objet ${i + 1}`)) || `Objet ${i + 1}`;
         return {
           name: label,
           value: numVal,
-          displayValue: visible,
+          displayValue: isNumericMetric ? visible : String(numVal),
           fill: CHART_PALETTE[i % CHART_PALETTE.length],
         };
       })
       .slice(0, 12);
-  }, [activeProp, contextChildRows, totalFields, calculateTotal, formatTotal, hasGroups]);
+  }, [activeProp, contextChildRows, contextItems, calculateTotal, formatTotal, hasGroups, getTotalTypeForProp, getItemPropValue]);
 
   // ── Données donut (suit la métrique active) ───────────────────────────────
   const donutData = React.useMemo(() => {
     if (!hasGroups || !activeProp) return [];
-    const totalType = totalFields[activeProp.id];
+
+    if (isChoiceProperty(activeProp)) {
+      const optionLabelByRaw = new Map<string, string>();
+      (activeProp?.options || []).forEach((opt: any) => {
+        const resolved = resolveChoiceEntry(opt);
+        if (!resolved) return;
+        optionLabelByRaw.set(resolved.raw, resolved.label || resolved.raw);
+      });
+
+      const countsByLabel = new Map<string, number>();
+      const addLabel = (label: string) => {
+        const safe = cleanLabel(label);
+        if (!safe || isObjectLabel(safe)) return;
+        countsByLabel.set(safe, (countsByLabel.get(safe) || 0) + 1);
+      };
+
+      (contextItems || []).forEach((item: any) => {
+        const raw = getItemPropValue(item, activeProp as Property);
+        const values = Array.isArray(raw) ? raw : (raw === null || raw === undefined || raw === '' ? [] : [raw]);
+        values.forEach((entry: any) => {
+          const resolved = resolveChoiceEntry(entry);
+          if (!resolved) return;
+          const label = optionLabelByRaw.get(resolved.raw) || resolved.label || resolved.raw;
+          addLabel(label);
+        });
+      });
+
+      return Array.from(countsByLabel.entries())
+        .map(([name, value], i) => ({
+          name,
+          value,
+          fill: CHART_PALETTE[i % CHART_PALETTE.length],
+        }))
+        .filter((d) => d.value > 0)
+        .slice(0, 10);
+    }
+
+    const totalType = getTotalTypeForProp(activeProp) || 'count';
     const isNumericMetric = ['sum', 'avg', 'min', 'max'].includes(normalizeTotalType(totalType));
     const rows = contextChildRows
       .map((row, i) => {
@@ -630,7 +726,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     });
 
     return Array.from(aggregatedMap.values()).slice(0, 10);
-  }, [contextChildRows, hasGroups, activeProp, totalFields, calculateTotal]);
+  }, [contextChildRows, contextItems, hasGroups, activeProp, calculateTotal, getTotalTypeForProp, getItemPropValue]);
 
   // Sécurisation finale spécifique au camembert (répartition)
   const donutDataSafe = React.useMemo(() => {
@@ -874,8 +970,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                                 {points.map((spark) => (
                                   <Tooltip key={spark.id}>
                                     <TooltipTrigger asChild>
-                                      <button
-                                        type="button"
+                                      <span
                                         className="absolute -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-white dark:border-black/40 shadow-sm"
                                         style={{
                                           left: `${spark.x}%`,
@@ -922,7 +1017,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                   <div className="flex items-center gap-2 mb-4 flex-wrap">
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-neutral-600">Métrique :</span>
                     {activeTotals.map((prop: any) => {
-                      const meta = getMeta(totalFields[prop.id]);
+                      const meta = getMeta(getTotalTypeForProp(prop) || 'count');
                       const accent = prop?.color || meta.accentHex;
                       return (
                         <button
@@ -974,9 +1069,9 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                         type="monotone"
                         dataKey="value"
                         name={activeProp?.name || 'Valeur'}
-                        stroke={activeProp?.color || getMeta(totalFields[activeProp?.id]).accentHex}
+                        stroke={activeProp?.color || getMeta(getTotalTypeForProp(activeProp) || 'count').accentHex}
                         strokeWidth={2.5}
-                        dot={{ r: 3, fill: activeProp?.color || getMeta(totalFields[activeProp?.id]).accentHex, strokeWidth: 0 }}
+                        dot={{ r: 3, fill: activeProp?.color || getMeta(getTotalTypeForProp(activeProp) || 'count').accentHex, strokeWidth: 0 }}
                         activeDot={{ r: 4 }}
                       />
                     </LineChart>
@@ -1024,13 +1119,13 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                       {(() => {
                         const totalDonutValue = donutDataSafe.reduce((acc, d) => acc + d.value, 0);
                         const isNumericMetric = activeProp && ['sum', 'avg', 'min', 'max'].includes(
-                          normalizeTotalType(totalFields[activeProp.id])
+                          normalizeTotalType(getTotalTypeForProp(activeProp) || 'count')
                         );
                         return donutDataSafe.slice(0, 8).map((entry) => {
                           if (!entry?.name || isObjectLabel(entry.name)) return null;
                           const pct = totalDonutValue > 0 ? Math.round((entry.value / totalDonutValue) * 100) : 0;
                           const displayValue = isNumericMetric
-                            ? formatTotal(activeProp!.id, entry.value, totalFields[activeProp!.id])
+                            ? formatTotal(activeProp!.id, entry.value, getTotalTypeForProp(activeProp) || 'count')
                             : String(entry.value);
                           const { visible: visibleVal } = splitFilterHint(displayValue || '');
                           return (
@@ -1063,7 +1158,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                         </th>
                       )}
                       {activeTotals.map((prop: any) => {
-                        const meta = getMeta(totalFields[prop.id]);
+                        const meta = getMeta(getTotalTypeForProp(prop) || 'count');
                         const PropIcon = (Icons as any)[prop.icon] || meta.Icon;
                         const accentStyle = prop?.color ? { color: prop.color } : undefined;
                         return (
@@ -1096,7 +1191,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                         </td>
                       )}
                       {activeTotals.map((prop: any) => {
-                        const totalType = totalFields[prop.id];
+                        const totalType = getTotalTypeForProp(prop) || 'count';
                         const meta = getMeta(totalType);
                         const total = calculateTotal(prop.id, contextItems, totalType);
                         const formatted = formatTotal(prop.id, total, totalType);
@@ -1194,7 +1289,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                             </div>
                           </td>
                           {activeTotals.map((prop: any) => {
-                            const totalType = totalFields[prop.id];
+                            const totalType = getTotalTypeForProp(prop) || 'count';
                             const meta = getMeta(totalType);
                             const total = calculateTotal(prop.id, row.items, totalType);
                             const formatted = formatTotal(prop.id, total, totalType);

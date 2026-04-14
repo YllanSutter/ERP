@@ -425,7 +425,7 @@ const TableView: React.FC<TableViewProps> = ({
 
   // Fonction pour calculer le total d'un champ selon le type de total
   const calculateTotal = useCallback((fieldId: string, itemsToSum: any[], totalType: string) => {
-    const property = visibleProperties.find(p => p.id === fieldId);
+    const property = orderedProperties.find(p => p.id === fieldId);
     if (!property) return null;
 
     const parseNumberFilteredTotalType = (rawType: string) => {
@@ -603,11 +603,11 @@ const TableView: React.FC<TableViewProps> = ({
     }
 
     return null;
-  }, [visibleProperties]);
+  }, [orderedProperties]);
 
   // Formater l'affichage du total
   const formatTotal = useCallback((fieldId: string, total: any, totalType: string) => {
-    const property = visibleProperties.find(p => p.id === fieldId);
+    const property = orderedProperties.find(p => p.id === fieldId);
     if (!property || total === null) return '';
 
     const parseNumberFilteredTotalType = (rawType: string) => {
@@ -712,7 +712,7 @@ const TableView: React.FC<TableViewProps> = ({
     }
 
     return String(total);
-  }, [visibleProperties, collection?.properties, collections]);
+  }, [orderedProperties, collection?.properties, collections]);
 
   const bulkEditableProperties = useMemo(
     () => visibleProperties.filter((p: any) => !p.showContextMenu && canEditFieldFn(p.id) && !isCalculatedNumberProperty(p)),
@@ -967,11 +967,12 @@ const TableView: React.FC<TableViewProps> = ({
 
         return (
           <TotalsWidget
-            displayProperties={displayProperties}
+            displayProperties={orderedProperties}
             items={items}
             totalFields={totalFields}
             calculateTotal={calculateTotal}
             formatTotal={formatTotal}
+            resolveValue={resolveProjectedValue}
             groupedSections={groupedSections}
             persistKey={`table-view:${collection?.id || 'unknown'}`}
             contextPath={contextPath}
