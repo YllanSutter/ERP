@@ -69,8 +69,13 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
       // Valeurs par défaut selon le type
       ...(selectedType === 'chart' ? {
         chartType: 'bar',
+        chartYMode: 'aggregation',
         chartYAggregation: 'count',
         chartShowLegend: true,
+        chartLegendLabelSource: 'aggregation',
+        chartTooltipLabelSource: 'aggregation',
+        chartTooltipValueFormat: 'number',
+        chartPieLabelMode: 'name',
         chartShowGrid: true,
       } : {}),
       ...(selectedType === 'metric' ? {

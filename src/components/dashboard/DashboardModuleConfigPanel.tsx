@@ -10,10 +10,17 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
+  CHART_AGG_DURATION_FIELD_ID,
+  CHART_AGG_DURATION_FIELD_LABEL,
   DashboardModuleConfig,
   ModuleType,
   ChartType,
+  ChartDateDisplayMode,
+  ChartYMode,
   AggregationType,
+  ChartLabelSource,
+  ChartPieLabelMode,
+  ChartValueFormat,
   DateGrouping,
   RecapDisplayType,
   MODULE_WIDTH_OPTIONS,
@@ -52,6 +59,34 @@ const CHART_TYPE_OPTIONS: { value: ChartType; label: string; icon: React.ReactNo
   { value: 'line', label: 'Lignes',    icon: <LineChart size={14} /> },
   { value: 'area', label: 'Zones',     icon: <AreaChart size={14} /> },
   { value: 'pie',  label: 'Camembert', icon: <PieChart size={14} /> },
+];
+
+const CHART_DATE_DISPLAY_MODE_OPTIONS: { value: ChartDateDisplayMode; label: string }[] = [
+  { value: 'date', label: 'Date' },
+  { value: 'duration', label: 'Durée' },
+];
+
+const CHART_Y_MODE_OPTIONS: { value: ChartYMode; label: string }[] = [
+  { value: 'aggregation', label: 'Agrégation' },
+  { value: 'field', label: 'Champ' },
+];
+
+const CHART_LABEL_SOURCE_OPTIONS: { value: ChartLabelSource; label: string }[] = [
+  { value: 'aggregation', label: 'Agrégation' },
+  { value: 'xField', label: 'Champ X' },
+  { value: 'yField', label: 'Champ Y' },
+  { value: 'custom', label: 'Texte personnalisé' },
+];
+
+const CHART_VALUE_FORMAT_OPTIONS: { value: ChartValueFormat; label: string }[] = [
+  { value: 'number', label: 'Nombre' },
+  { value: 'duration', label: 'Durée' },
+];
+
+const CHART_PIE_LABEL_MODE_OPTIONS: { value: ChartPieLabelMode; label: string }[] = [
+  { value: 'name', label: 'Nom' },
+  { value: 'name_value', label: 'Nom + valeur' },
+  { value: 'value', label: 'Valeur' },
 ];
 
 const OPERATOR_LABELS: Record<string, string> = {
@@ -775,6 +810,12 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
   const numericProps = properties.filter((p) => p.type === 'number');
   const selectProps = properties.filter((p) => p.type === 'select' || p.type === 'multiselect' || (p.type as string) === 'multi_select');
   const allProps = properties.filter((p) => p.type !== 'relation' && p.type !== 'steam');
+  const chartFieldOptions = [
+    ...allProps,
+    ...((module.chartYFieldIsDuration || Boolean(module.chartDurationField))
+      ? [{ id: CHART_AGG_DURATION_FIELD_ID, name: CHART_AGG_DURATION_FIELD_LABEL }]
+      : []),
+  ];
 
   const patch = useCallback(
     (p: Partial<DashboardModuleConfig>) => onUpdate(p),
@@ -975,25 +1016,280 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
                   options={Object.entries(DATE_GROUPING_LABELS).map(([k, l]) => ({ value: k, label: l }))}
                   placeholder="Aucun"
                 />
+
+                <div className="mt-2">
+                  <div className="text-xs text-muted-foreground mb-1">Affichage axe X</div>
+                  <Sel
+                    value={module.chartXDateDisplayMode ?? 'date'}
+                    onChange={(v) => patch({ chartXDateDisplayMode: v as ChartDateDisplayMode })}
+                    options={CHART_DATE_DISPLAY_MODE_OPTIONS}
+                  />
+                </div>
               </>
             )}
 
             <SectionLabel>Axe Y (valeur)</SectionLabel>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="mb-2">
               <Sel
-                value={module.chartYAggregation ?? 'count'}
-                onChange={(v) => patch({ chartYAggregation: v as AggregationType })}
-                options={Object.entries(AGGREGATION_LABELS).map(([k, l]) => ({ value: k, label: l }))}
+                value={module.chartYMode ?? 'aggregation'}
+                onChange={(v) => patch({ chartYMode: v as ChartYMode })}
+                options={CHART_Y_MODE_OPTIONS}
               />
-              {module.chartYAggregation && module.chartYAggregation !== 'count' && (
+            </div>
+
+            {(module.chartYMode ?? 'aggregation') === 'aggregation' ? (
+              <div className="grid grid-cols-2 gap-2">
                 <Sel
-                  value={module.chartYField ?? ''}
-                  onChange={(v) => patch({ chartYField: v })}
-                  options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
-                  placeholder="Champ numérique…"
+                  value={module.chartYAggregation ?? 'count'}
+                  onChange={(v) => patch({ chartYAggregation: v as AggregationType })}
+                  options={Object.entries(AGGREGATION_LABELS).map(([k, l]) => ({ value: k, label: l }))}
                 />
+                {module.chartYAggregation && module.chartYAggregation !== 'count' && (
+                  <Sel
+                    value={module.chartYField ?? ''}
+                    onChange={(v) => patch({ chartYField: v })}
+                    options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
+                    placeholder="Champ numérique…"
+                  />
+                )}
+              </div>
+            ) : (
+              <Sel
+                value={module.chartYField ?? ''}
+                onChange={(v) => patch({ chartYField: v || undefined })}
+                options={allProps.map((p) => ({ value: p.id, label: p.name }))}
+                placeholder="Choisir un champ Y…"
+              />
+            )}
+
+            {(module.chartYMode ?? 'aggregation') === 'field' && dateProps.some((p) => p.id === module.chartYField) && (
+              <>
+                <div className="mt-2">
+                  <div className="text-xs text-muted-foreground mb-1">Regroupement date Y</div>
+                  <Sel
+                    value={module.chartYDateGrouping ?? ''}
+                    onChange={(v) => patch({ chartYDateGrouping: (v || undefined) as DateGrouping | undefined })}
+                    options={Object.entries(DATE_GROUPING_LABELS).map(([k, l]) => ({ value: k, label: l }))}
+                    placeholder="Aucun"
+                  />
+                </div>
+
+                <div className="mt-2">
+                  <div className="text-xs text-muted-foreground mb-1">Affichage axe Y</div>
+                  <Sel
+                    value={module.chartYDateDisplayMode ?? 'date'}
+                    onChange={(v) => patch({ chartYDateDisplayMode: v as ChartDateDisplayMode })}
+                    options={CHART_DATE_DISPLAY_MODE_OPTIONS}
+                  />
+                </div>
+
+                {module.chartYDateDisplayMode === 'duration' && (
+                  <div className="mt-2">
+                    <div className="text-xs text-muted-foreground mb-1">Champ date de fin Y (optionnel)</div>
+                    <Sel
+                      value={module.chartYDateDurationEndField ?? ''}
+                      onChange={(v) => patch({ chartYDateDurationEndField: v || undefined })}
+                      options={dateProps.map((p) => ({ value: p.id, label: p.name }))}
+                      placeholder="Utiliser end de la plage"
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
+            {module.chartYField && (module.chartYMode ?? 'aggregation') === 'aggregation' && module.chartYAggregation && module.chartYAggregation !== 'count' && (
+              <div className="mt-2 rounded-md border border-border/70 p-2 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    id="chartYFieldIsDuration"
+                    checked={module.chartYFieldIsDuration ?? false}
+                    onChange={(e) => patch({ chartYFieldIsDuration: e.target.checked })}
+                    className="h-3.5 w-3.5 rounded border-border/70"
+                  />
+                  <label htmlFor="chartYFieldIsDuration" className="text-xs text-muted-foreground cursor-pointer">
+                    Ce champ Y est une durée
+                  </label>
+                </div>
+                {module.chartYFieldIsDuration && (
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-1">Unité de la durée</div>
+                    <Sel
+                      value={module.chartYFieldDurationUnit ?? 'minutes'}
+                      onChange={(v) => patch({ chartYFieldDurationUnit: v as 'minutes' | 'hours' })}
+                      options={[
+                        { value: 'minutes', label: 'Minutes' },
+                        { value: 'hours', label: 'Heures décimales' },
+                      ]}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {numericProps.length > 0 && (
+              <div className="mt-2 rounded-md border border-border/70 p-2 space-y-2">
+                <div className="text-xs text-muted-foreground mb-1">Source durée (légende/tooltip)</div>
+                <Sel
+                  value={module.chartDurationField ?? ''}
+                  onChange={(v) => patch({ chartDurationField: v || undefined })}
+                  options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
+                  placeholder="Aucune"
+                />
+                {(module.chartYFieldIsDuration || module.chartDurationField) && (
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-1">Unité de la durée</div>
+                    <Sel
+                      value={module.chartYFieldDurationUnit ?? 'minutes'}
+                      onChange={(v) => patch({ chartYFieldDurationUnit: v as 'minutes' | 'hours' })}
+                      options={[
+                        { value: 'minutes', label: 'Minutes' },
+                        { value: 'hours', label: 'Heures décimales' },
+                      ]}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center gap-1.5 mt-2 rounded-md px-1.5 py-1 hover:bg-accent/30">
+              <input
+                type="checkbox"
+                id="showLegend"
+                checked={module.chartShowLegend ?? true}
+                onChange={(e) => patch({ chartShowLegend: e.target.checked })}
+                className="h-3.5 w-3.5 rounded border-border/70"
+              />
+              <label htmlFor="showLegend" className="text-xs text-muted-foreground cursor-pointer">Afficher la légende</label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-xs text-muted-foreground">Champs légende</div>
+                  <div className="flex gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => patch({ chartLegendFieldIds: chartFieldOptions.map((p) => p.id) })}
+                      className="px-2 py-0.5 rounded border border-border hover:bg-accent text-muted-foreground"
+                    >
+                      Tout
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => patch({ chartLegendFieldIds: [] })}
+                      className="px-2 py-0.5 rounded border border-border hover:bg-accent text-muted-foreground"
+                    >
+                      Aucun
+                    </button>
+                  </div>
+                </div>
+                <div className="max-h-36 overflow-y-auto rounded-md border border-border/70 p-2 space-y-1">
+                  {chartFieldOptions.map((prop) => {
+                    const checked = (module.chartLegendFieldIds ?? []).includes(prop.id);
+                    return (
+                      <label key={prop.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const next = module.chartLegendFieldIds ?? [];
+                            patch({
+                              chartLegendFieldIds: e.target.checked
+                                ? [...next, prop.id]
+                                : next.filter((id) => id !== prop.id),
+                            });
+                          }}
+                          className="h-3.5 w-3.5 rounded border-border/70"
+                        />
+                        <span className="text-muted-foreground truncate">{prop.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-xs text-muted-foreground">Champs tooltip</div>
+                  <div className="flex gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => patch({ chartTooltipFieldIds: chartFieldOptions.map((p) => p.id) })}
+                      className="px-2 py-0.5 rounded border border-border hover:bg-accent text-muted-foreground"
+                    >
+                      Tout
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => patch({ chartTooltipFieldIds: [] })}
+                      className="px-2 py-0.5 rounded border border-border hover:bg-accent text-muted-foreground"
+                    >
+                      Aucun
+                    </button>
+                  </div>
+                </div>
+                <div className="max-h-36 overflow-y-auto rounded-md border border-border/70 p-2 space-y-1">
+                  {chartFieldOptions.map((prop) => {
+                    const checked = (module.chartTooltipFieldIds ?? []).includes(prop.id);
+                    return (
+                      <label key={prop.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const next = module.chartTooltipFieldIds ?? [];
+                            patch({
+                              chartTooltipFieldIds: e.target.checked
+                                ? [...next, prop.id]
+                                : next.filter((id) => id !== prop.id),
+                            });
+                          }}
+                          className="h-3.5 w-3.5 rounded border-border/70"
+                        />
+                        <span className="text-muted-foreground truncate">{prop.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-2">
+              <div className="flex items-center gap-1.5 rounded-md px-1.5 py-1 hover:bg-accent/30">
+                <input
+                  type="checkbox"
+                  id="chartDateFieldsAsDuration"
+                  checked={module.chartDateFieldsAsDuration ?? false}
+                  onChange={(e) => patch({ chartDateFieldsAsDuration: e.target.checked })}
+                  className="h-3.5 w-3.5 rounded border-border/70"
+                />
+                <label htmlFor="chartDateFieldsAsDuration" className="text-xs text-muted-foreground cursor-pointer">
+                  Champs date en durée (si plage start/end)
+                </label>
+              </div>
+              {module.chartDateFieldsAsDuration && dateProps.length > 0 && (
+                <div className="mt-2">
+                  <div className="text-xs text-muted-foreground mb-1">Champ date de fin (optionnel)</div>
+                  <Sel
+                    value={module.chartDateDurationEndField ?? ''}
+                    onChange={(v) => patch({ chartDateDurationEndField: v || undefined })}
+                    options={dateProps.map((p) => ({ value: p.id, label: p.name }))}
+                    placeholder="Utiliser end de la plage"
+                  />
+                </div>
               )}
             </div>
+
+            {module.chartType === 'pie' && (
+              <div className="mt-2">
+                <div className="text-xs text-muted-foreground mb-1">Légende camembert</div>
+                <Sel
+                  value={module.chartPieLabelMode ?? 'name'}
+                  onChange={(v) => patch({ chartPieLabelMode: v as ChartPieLabelMode })}
+                  options={CHART_PIE_LABEL_MODE_OPTIONS}
+                />
+              </div>
+            )}
 
             {module.chartType !== 'pie' && (
               <>
@@ -1004,16 +1300,6 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
                   options={selectProps.map((p) => ({ value: p.id, label: p.name }))}
                   placeholder="Sans regroupement"
                 />
-                <div className="flex items-center gap-1.5 mt-2 rounded-md px-1.5 py-1 hover:bg-accent/30">
-                  <input
-                    type="checkbox"
-                    id="showLegend"
-                    checked={module.chartShowLegend ?? true}
-                    onChange={(e) => patch({ chartShowLegend: e.target.checked })}
-                    className="h-3.5 w-3.5 rounded border-border/70"
-                  />
-                  <label htmlFor="showLegend" className="text-xs text-muted-foreground cursor-pointer">Afficher la légende</label>
-                </div>
                 <div className="flex items-center gap-1.5 mt-1 rounded-md px-1.5 py-1 hover:bg-accent/30">
                   <input
                     type="checkbox"
@@ -1070,48 +1356,6 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
                 />
               </div>
             </div>
-            <SectionLabel>Label</SectionLabel>
-            <input
-              type="text"
-              value={module.metricLabel ?? ''}
-              onChange={(e) => patch({ metricLabel: e.target.value })}
-              placeholder={collection?.name ?? 'Nom de la métrique'}
-              className="w-full bg-background border border-border rounded-md px-2 py-1.5 text-sm"
-            />
-            <SectionLabel>Couleur</SectionLabel>
-            <input
-              type="color"
-              value={module.metricColor ?? '#6366f1'}
-              onChange={(e) => patch({ metricColor: e.target.value })}
-              className="h-9 w-full rounded-md border border-border cursor-pointer"
-            />
-          </>
-        )}
-
-        {/* ---- Options spécifiques : TABLE ---- */}
-        {activeTab === 'infos' && module.type === 'table' && (
-          <>
-            <SectionLabel>Groupement (champs select)</SectionLabel>
-            <Sel
-              value={module.tableGroups?.[0] ?? ''}
-              onChange={(v) => patch({ tableGroups: v ? [v] : [] })}
-              options={selectProps.map((p) => ({ value: p.id, label: p.name }))}
-              placeholder="Sans groupement"
-            />
-            {(module.tableGroups?.length ?? 0) > 0 && (
-              <>
-                <SectionLabel>Mode d'affichage des groupes</SectionLabel>
-                <Sel
-                  value={module.tableGroupDisplayMode ?? 'accordion'}
-                  onChange={(v) => patch({ tableGroupDisplayMode: v as any })}
-                  options={[
-                    { value: 'accordion', label: 'Accordéon' },
-                    { value: 'columns', label: 'Colonnes' },
-                    { value: 'tabs', label: 'Onglets' },
-                  ]}
-                />
-              </>
-            )}
           </>
         )}
 

@@ -319,6 +319,22 @@ export function formatMetricValue(
   return `${prefix ?? ''}${formatted}${suffix ?? ''}`;
 }
 
+/** Formate une durée en minutes ou en heures décimales au format lisible. */
+export function formatDurationValue(
+  value: number,
+  unit: 'minutes' | 'hours' = 'minutes'
+): string {
+  const totalMinutes = unit === 'hours' ? Math.round(value * 60) : Math.round(value);
+  const sign = totalMinutes < 0 ? '-' : '';
+  const absoluteMinutes = Math.abs(totalMinutes);
+  const hours = Math.floor(absoluteMinutes / 60);
+  const minutes = absoluteMinutes % 60;
+
+  if (hours === 0) return `${sign}${minutes} min`;
+  if (minutes === 0) return `${sign}${hours} h`;
+  return `${sign}${hours} h ${minutes} min`;
+}
+
 // ---------------------------------------------------------------------------
 // Couleurs
 // ---------------------------------------------------------------------------

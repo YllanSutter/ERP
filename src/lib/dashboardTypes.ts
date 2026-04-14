@@ -16,8 +16,20 @@ export type ModuleType =
 export type ChartType = 'bar' | 'line' | 'area' | 'pie';
 
 export type DateGrouping = 'day' | 'week' | 'month' | 'quarter' | 'year';
+export type ChartDateDisplayMode = 'date' | 'duration';
 
 export type AggregationType = 'count' | 'sum' | 'avg' | 'min' | 'max';
+export type ChartYMode = 'aggregation' | 'field';
+
+export type ChartLabelSource = 'aggregation' | 'xField' | 'yField' | 'custom';
+
+export type ChartValueFormat = 'number' | 'duration';
+
+export type ChartPieLabelMode = 'name' | 'name_value' | 'value';
+
+/** Champ virtuel utilisable dans légende/tooltip pour afficher la durée agrégée du segment */
+export const CHART_AGG_DURATION_FIELD_ID = '__chart_agg_duration__';
+export const CHART_AGG_DURATION_FIELD_LABEL = 'Durée (agrégée)';
 
 export type GroupMode = 'none' | 'field' | 'week' | 'month' | 'quarter' | 'year';
 
@@ -153,12 +165,31 @@ export interface DashboardModuleConfig {
   // --- Chart ---
   chartType?: ChartType;
   chartXField?: string;           // field pour l'axe X (ou segments)
+  chartXDateDisplayMode?: ChartDateDisplayMode;
+  chartYMode?: ChartYMode;
   chartYField?: string;           // field pour l'axe Y (si aggregation != count)
+  chartYDateGrouping?: DateGrouping;
+  chartYDateDisplayMode?: ChartDateDisplayMode;
+  chartYDateDurationEndField?: string;
   chartYAggregation?: AggregationType;
   chartStackBy?: string;          // field pour stacker les barres
   chartDateGrouping?: DateGrouping;
   chartColors?: string[];
   chartShowLegend?: boolean;
+  chartLegendLabelSource?: ChartLabelSource;
+  chartLegendLabel?: string;      // libellé custom pour la série principale
+  chartLegendFieldIds?: string[];
+  chartTooltipLabelSource?: ChartLabelSource;
+  chartTooltipLabel?: string;     // libellé custom pour tooltip
+  chartTooltipFieldIds?: string[];
+  chartTooltipValueFormat?: ChartValueFormat;
+  chartTooltipShowValue?: boolean;
+  chartPieLabelMode?: ChartPieLabelMode;
+  chartDurationField?: string;
+  chartDateFieldsAsDuration?: boolean;
+  chartDateDurationEndField?: string;
+  chartYFieldIsDuration?: boolean;
+  chartYFieldDurationUnit?: 'minutes' | 'hours';
   chartShowGrid?: boolean;
 
   // --- Metric ---
