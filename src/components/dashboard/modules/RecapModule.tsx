@@ -913,6 +913,23 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
           {periodTitle}
         </span>
 
+        <div className="flex rounded-md border border-border overflow-hidden text-xs">
+          <button
+            onClick={() => onUpdate?.({ recapMode: 'month' })}
+            className={`px-2 py-1 transition-colors ${mode === 'month' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'}`}
+            disabled={!onUpdate}
+          >
+            Mois
+          </button>
+          <button
+            onClick={() => onUpdate?.({ recapMode: 'year' })}
+            className={`px-2 py-1 transition-colors ${mode === 'year' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'}`}
+            disabled={!onUpdate}
+          >
+            Année
+          </button>
+        </div>
+
         <div className="flex-1" />
 
         <span className="text-xs text-muted-foreground">
