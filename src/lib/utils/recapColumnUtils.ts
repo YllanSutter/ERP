@@ -584,8 +584,6 @@ export function computeLeafCell(
 ): number {
   const inRange = getLeafCellItems(items, leaf, period, dateField, properties);
 
-  if (leaf.displayType === 'count') return inRange.length;
-
   const fid = leaf.aggregationField;
 
   const toLeafUnit = (mins: number): number =>
@@ -634,6 +632,67 @@ export function computeLeafCell(
 
     return [];
   };
+
+  const getCanonicalStartMs = (item: Item): number | null => {
+    if (!dateField) return null;
+
+    // Source prioritaire: valeur brute du champ date/date_range (évite les segments tronqués)
+    if ((dateField.type as string) === 'date_range') {
+      const value = (item as any)[dateField.id];
+      const ranges: { start?: string }[] = Array.isArray(value)
+        ? value
+        : value?.start ? [value] : [];
+      const starts = ranges
+        .map((r) => new Date(r.start ?? '').getTime())
+        .filter((ms) => Number.isFinite(ms));
+      if (starts.length > 0) return Math.min(...starts);
+    }
+
+    if (dateField.type === 'date') {
+      const start = new Date((item as any)[dateField.id]).getTime();
+      if (Number.isFinite(start)) return start;
+    }
+
+    // Fallback: segments
+    const intervals = getIntervalsForDuration(item);
+    if (intervals.length > 0) {
+      return Math.min(...intervals.map((r) => r.start));
+    }
+
+    return null;
+  };
+
+  if (leaf.displayType === 'count') {
+    // Périodes longues (ex: mois en mode année) : on attribue l'item
+    // à une seule période, celle contenant son début, pour éviter les doublons.
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    const isLongPeriod = (periodEndMs - periodStartMs) > ONE_DAY_MS;
+
+    if (!isLongPeriod) return inRange.length;
+
+    const seen = new Set<string>();
+    let count = 0;
+
+    for (const item of inRange) {
+      const itemId = String((item as any).id ?? '');
+      if (seen.has(itemId)) continue;
+
+      const itemStartMs = getCanonicalStartMs(item);
+      if (itemStartMs === null || !Number.isFinite(itemStartMs)) {
+        // Fallback conservateur si on n'arrive pas à extraire les intervalles
+        seen.add(itemId);
+        count += 1;
+        continue;
+      }
+
+      if (itemStartMs >= periodStartMs && itemStartMs <= periodEndMs) {
+        seen.add(itemId);
+        count += 1;
+      }
+    }
+
+    return count;
+  }
 
   // Durée depuis la source principale du champ date sélectionné
   // Répartie par période via chevauchement réel des intervalles.

@@ -18,15 +18,13 @@ import {
   getISOWeek,
   getDay,
   isWeekend,
-  parseISO,
-  isWithinInterval,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DashboardModuleConfig } from '@/lib/dashboardTypes';
 import { DashboardItemData, GlobalDateFilter } from '@/lib/hooks/useDashboardItemData';
 import { Collection, Item, Property } from '@/lib/types';
-import { applyModuleFilters, computeDateRange, getDateValue } from '@/lib/utils/dashboardUtils';
+import { applyModuleFilters, computeDateRange } from '@/lib/utils/dashboardUtils';
 import {
   PeriodRow,
   LeafColumn,
@@ -170,6 +168,84 @@ function getMonthsOfYear(year: number): PeriodRow[] {
       end:      me,
     };
   });
+}
+
+function getItemIntervalsForDateField(item: Item, dateField?: Property): Array<{ start: number; end: number }> {
+  if (!dateField) return [];
+
+  const segments: any[] = Array.isArray((item as any)._eventSegments)
+    ? (item as any)._eventSegments
+    : [];
+
+  const segIntervals = segments
+    .filter((s) => s?.label === dateField.name && (s.start || s.__eventStart) && (s.end || s.__eventEnd))
+    .map((s) => ({
+      start: new Date(s.start || s.__eventStart).getTime(),
+      end: new Date(s.end || s.__eventEnd).getTime(),
+    }))
+    .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end >= r.start);
+
+  if (segIntervals.length > 0) return segIntervals;
+
+  if ((dateField.type as string) === 'date_range') {
+    const value = (item as any)[dateField.id];
+    const ranges: { start?: string; end?: string }[] = Array.isArray(value)
+      ? value
+      : value?.start && value?.end ? [value] : [];
+
+    return ranges
+      .map((r) => ({
+        start: new Date(r.start ?? '').getTime(),
+        end: new Date(r.end ?? '').getTime(),
+      }))
+      .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end >= r.start);
+  }
+
+  if (dateField.type === 'date') {
+    const start = new Date((item as any)[dateField.id]).getTime();
+    if (!Number.isFinite(start)) return [];
+
+    const rawDurationHours = Number((item as any)[`${dateField.id}_duration`]);
+    const end = Number.isFinite(rawDurationHours) && rawDurationHours > 0
+      ? start + rawDurationHours * 3600000
+      : start;
+
+    return [{ start, end }];
+  }
+
+  return [];
+}
+
+function itemOverlapsDateRange(item: Item, dateField: Property | undefined, rangeStart: Date, rangeEnd: Date): boolean {
+  const startMs = rangeStart.getTime();
+  const endMs = rangeEnd.getTime();
+  const intervals = getItemIntervalsForDateField(item, dateField);
+  return intervals.some((r) => r.end >= startMs && r.start <= endMs);
+}
+
+function getItemCanonicalStartMs(item: Item, dateField?: Property): number | null {
+  if (!dateField) return null;
+
+  if ((dateField.type as string) === 'date_range') {
+    const raw = (item as any)[dateField.id];
+    const ranges: Array<{ start?: string }> = Array.isArray(raw)
+      ? raw
+      : raw?.start ? [raw] : [];
+    const starts = ranges
+      .map((r) => new Date(r.start ?? '').getTime())
+      .filter((ms) => Number.isFinite(ms));
+    if (starts.length > 0) return Math.min(...starts);
+  }
+
+  if (dateField.type === 'date') {
+    const start = new Date((item as any)[dateField.id]).getTime();
+    if (Number.isFinite(start)) return start;
+  }
+
+  const intervals = getItemIntervalsForDateField(item, dateField);
+  if (intervals.length > 0) return Math.min(...intervals.map((r) => r.start));
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -407,16 +483,9 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
       let srcItems: Item[] = [...(srcCollection.items ?? [])];
 
       if (globalRange && srcDateField) {
-        srcItems = srcItems.filter((item) => {
-          const dateStr = getDateValue(item, srcDateField.id);
-          if (!dateStr) return false;
-          try {
-            const d = parseISO(dateStr);
-            return isWithinInterval(d, { start: globalRange.start, end: globalRange.end });
-          } catch {
-            return false;
-          }
-        });
+        srcItems = srcItems.filter((item) =>
+          itemOverlapsDateRange(item, srcDateField, globalRange.start, globalRange.end)
+        );
       }
 
       if (module.filters && module.filters.length > 0) {
@@ -639,12 +708,33 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
 
   const yearCells = useMemo(() => {
     if (mode !== 'year') return [];
-    return yearPeriods.map((period) =>
-      leaves.map((leaf) => {
-        const source = getLeafSource(leaf);
-        return computeLeafCell(source.items, leaf, period, source.dateField, source.properties);
-      })
-    );
+    const base = yearPeriods.map(() => leaves.map(() => 0));
+
+    leaves.forEach((leaf, li) => {
+      const source = getLeafSource(leaf);
+
+      if (leaf.displayType !== 'count') {
+        yearPeriods.forEach((period, pi) => {
+          base[pi][li] = computeLeafCell(source.items, leaf, period, source.dateField, source.properties);
+        });
+        return;
+      }
+
+      // Count: attribution stricte au mois de début canonique
+      yearPeriods.forEach((period, pi) => {
+        const itemsInPeriod = getLeafCellItems(source.items, leaf, period, source.dateField, source.properties);
+        let count = 0;
+        itemsInPeriod.forEach((item) => {
+          const startMs = getItemCanonicalStartMs(item, source.dateField);
+          if (startMs !== null && startMs >= period.start.getTime() && startMs <= period.end.getTime()) {
+            count += 1;
+          }
+        });
+        base[pi][li] = count;
+      });
+    });
+
+    return base;
   }, [mode, yearPeriods, leaves, getLeafSource]);
 
   const yearRowTotals = useMemo(
@@ -655,12 +745,29 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
   const countUniqueItemsAcrossPeriods = useCallback(
     (leaf: LeafColumn, periods: PeriodRow[]) => {
       const source = getLeafSource(leaf);
-      const seen = new Set<string>();
+      if (periods.length === 0) return 0;
+
+      const rangeStart = Math.min(...periods.map((p) => p.start.getTime()));
+      const rangeEnd = Math.max(...periods.map((p) => p.end.getTime()));
+      const seen = new Map<string, Item>();
+
       for (const period of periods) {
         const items = getLeafCellItems(source.items, leaf, period, source.dateField, source.properties);
-        items.forEach((item) => seen.add(String(item.id)));
+        items.forEach((item) => {
+          const key = String(item.id);
+          if (!seen.has(key)) seen.set(key, item);
+        });
       }
-      return seen.size;
+
+      let count = 0;
+      seen.forEach((item) => {
+        const startMs = getItemCanonicalStartMs(item, source.dateField);
+        if (startMs !== null && startMs >= rangeStart && startMs <= rangeEnd) {
+          count += 1;
+        }
+      });
+
+      return count;
     },
     [getLeafSource]
   );
