@@ -15,6 +15,7 @@ import AutomationsPage from '@/components/pages/AutomationsPage';
 import AccessManager from '@/components/admin/AccessManager';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/menus/Sidebar';
+import CommandMenu from '@/components/menus/CommandMenu';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import ViewToolbar from '@/components/views/ViewToolbar';
 import LayoutView from '@/components/views/LayoutView';
@@ -194,6 +195,7 @@ const App = () => {
   });
   const [showAccessManager, setShowAccessManager] = useState(false);
   const [showAutomations, setShowAutomations] = useState(false);
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<any[]>([]);
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
   const [favorites, setFavorites] = useState<{ views: string[]; items: string[] }>({ views: [], items: [] });
@@ -592,6 +594,10 @@ const App = () => {
           activeCollection={activeCollection}
           userRoleIds={userRoleIds}
           userId={user?.id || null}
+          organizations={organizations}
+          activeOrganizationId={activeOrganizationId}
+          onSwitchOrganization={switchOrganization}
+          onCreateOrganization={createOrganization}
           onSelectCollection={(collectionId) => {
             setShowAutomations(false);
             setActiveDashboard(null);
@@ -660,14 +666,10 @@ const App = () => {
            <AppHeader
             impersonatedRoleId={impersonatedRoleId}
             availableRoles={availableRoles}
-              organizations={organizations}
-              activeOrganizationId={activeOrganizationId}
             activeCollectionName={currentCollection?.name || null}
-            onNewCollection={() => setShowNewCollectionModal(true)}
             onImpersonate={impersonate}
-              onSwitchOrganization={switchOrganization}
-              onCreateOrganization={createOrganization}
             onShowAccessManager={() => setShowAccessManager(true)}
+            onOpenCommandMenu={() => setCommandMenuOpen(true)}
             theme={theme}
             setTheme={setTheme}
           />
@@ -1099,6 +1101,60 @@ const App = () => {
           )}
         </SidebarInset>
       </SidebarProvider>
+
+      <CommandMenu
+        open={commandMenuOpen}
+        onOpenChange={setCommandMenuOpen}
+        collections={collections}
+        views={views}
+        dashboards={sortedDashboards}
+        organizations={organizations}
+        activeOrganizationId={activeOrganizationId}
+        theme={theme}
+        onSelectCollection={(collectionId) => {
+          setShowAutomations(false);
+          setActiveDashboard(null);
+          setActiveCollection(collectionId);
+          const lastViewId = localStorage.getItem(`erp_lastView_${collectionId}`);
+          setActiveView(lastViewId || 'default');
+          setRelationFilter({ collectionId: null, ids: [] });
+        }}
+        onSelectView={(collectionId, viewId) => {
+          setActiveDashboard(null);
+          setActiveCollection(collectionId);
+          setActiveView(viewId);
+          localStorage.setItem(`erp_lastView_${activeOrganizationId || 'default'}_${collectionId}`, viewId);
+          setRelationFilter({ collectionId: null, ids: [] });
+        }}
+        onSelectDashboard={(dashboardId) => {
+          setShowAutomations(false);
+          setActiveDashboard(dashboardId);
+          setActiveCollection(null);
+          setActiveView(null);
+          setRelationFilter({ collectionId: null, ids: [] });
+        }}
+        onSelectItem={(collectionId, itemId) => {
+          setShowAutomations(false);
+          setActiveDashboard(null);
+          const collection = collections.find((c) => c.id === collectionId);
+          const item = collection?.items.find((it: any) => it.id === itemId);
+          if (item) {
+            setActiveCollection(collectionId);
+            setEditingItem(item);
+            setShowNewItemModal(true);
+          }
+        }}
+        onCreateCollection={() => setShowNewCollectionModal(true)}
+        onCreateDashboard={handleCreateDashboard}
+        onSwitchOrganization={switchOrganization}
+        onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+        onLogout={logout}
+        onShowAutomations={() => {
+          setShowAutomations(true);
+          setActiveDashboard(null);
+          setActiveCollection(null);
+        }}
+      />
 
       {showNewCollectionModal && (
         <NewCollectionModal

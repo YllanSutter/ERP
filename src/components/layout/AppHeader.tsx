@@ -1,44 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Moon, Plus, Sun, LogOut, Shield } from 'lucide-react';
-import ShinyButton from '@/components/ui/ShinyButton';
+import { Moon, Sun, LogOut, Shield, Search, Command } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useAuth } from '@/auth/AuthProvider';
-import { useCanEdit, useCanManagePermissions } from '@/lib/hooks/useCanEdit';
+import { useCanManagePermissions } from '@/lib/hooks/useCanEdit';
 import { io } from 'socket.io-client';
 
 interface AppHeaderProps {
   impersonatedRoleId: string | null;
   availableRoles: any[];
-  organizations: any[];
-  activeOrganizationId: string | null;
   activeCollectionName?: string | null;
   theme: 'light' | 'dark';
   setTheme: React.Dispatch<React.SetStateAction<'light' | 'dark'>>;
-  onNewCollection: () => void;
   onImpersonate: (roleId: string | null) => void;
-  onSwitchOrganization: (organizationId: string) => Promise<void>;
-  onCreateOrganization: (name: string) => Promise<void>;
   onShowAccessManager: () => void;
+  onOpenCommandMenu?: () => void;
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({
   impersonatedRoleId,
   availableRoles,
-  organizations,
-  activeOrganizationId,
   activeCollectionName,
-  onNewCollection,
   onImpersonate,
-  onSwitchOrganization,
-  onCreateOrganization,
   theme,
   setTheme,
-  onShowAccessManager
+  onShowAccessManager,
+  onOpenCommandMenu,
 }) => {
   const { user, logout, isAdminBase } = useAuth();
-  // Hooks de permissions
-  const canEdit = useCanEdit();
+  // Hook de permissions
   const canManagePermissions = useCanManagePermissions();
 
   // Ajout de la liste des utilisateurs connectés
@@ -88,72 +85,33 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       className="border-b border-black/10 dark:border-white/5 backdrop-blur lg:px-4 px-2 py-2 flex items-center justify-between bg-white dark:bg-neutral-900/50"
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div>
-          <button
-            className="h-8 w-8 rounded-full flex items-center justify-center bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300 hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 transition-all duration-300"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            aria-label={theme === 'dark' ? 'Activer le mode clair' : 'Activer le mode sombre'}
-            title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
-          >
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-        </div>
         <div className="flex items-center gap-2">
           <h1 className="text-sm md:text-base font-semibold truncate max-w-[240px]">
             {activeCollectionName || 'Collections'}
           </h1>
         </div>
-        <ShinyButton
-          onClick={() => {
-            if (!canEdit) return;
-            onNewCollection();
-          }}
-          className={`!px-2 !py-1 text-xs ${!canEdit ? 'opacity-60 pointer-events-none' : ''}`}
-        >
-          <Plus size={14} />
-          Nouvelle
-        </ShinyButton>
       </div>
       <div className="flex items-center gap-2">
-        <div className="hidden md:flex items-center gap-2 text-xs text-neutral-400">
-          <span className="text-neutral-500">Orga :</span>
-          <select
-            className="bg-background dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs text-neutral-700 dark:text-white max-w-[180px]"
-            value={activeOrganizationId || ''}
-            onChange={async (e) => {
-              const val = e.target.value;
-              if (!val || val === activeOrganizationId) return;
-              try {
-                await onSwitchOrganization(val);
-              } catch (err: any) {
-                alert(err?.message || 'Impossible de changer d’organisation');
-              }
-            }}
-          >
-            {organizations.map((org) => (
-              <option key={org.id} value={org.id}>
-                {org.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="h-7 px-2 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-neutral-600 dark:text-neutral-300"
-            onClick={async () => {
-              const name = window.prompt('Nom de la nouvelle organisation ?')?.trim();
-              if (!name) return;
-              try {
-                await onCreateOrganization(name);
-              } catch (err: any) {
-                alert(err?.message || 'Impossible de créer l’organisation');
-              }
-            }}
-            title="Créer une organisation"
-          >
-            +
-          </button>
-        </div>
-        {/* Affiche tous les utilisateurs connectés avec couleur et uppercase */}
+        {onOpenCommandMenu && (() => {
+          const isMac = typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(window.navigator.platform);
+          return (
+            <button
+              type="button"
+              onClick={onOpenCommandMenu}
+              className="hidden md:inline-flex items-center gap-2 h-8 pl-2.5 pr-2 rounded-md bg-muted/70 hover:bg-muted text-muted-foreground text-xs border border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1"
+              title={isMac ? 'Recherche globale (⌘K)' : 'Recherche globale (Ctrl+K)'}
+              aria-label="Ouvrir la recherche globale"
+            >
+              <Search size={13} />
+              <span className="mr-4">Rechercher…</span>
+              <kbd className="ml-auto inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                {isMac ? <Command size={10} /> : <span>Ctrl</span>}
+                <span>K</span>
+              </kbd>
+            </button>
+          );
+        })()}
+        {/* Affiche tous les utilisateurs connect\u00e9s avec couleur et uppercase */}
         <TooltipProvider>
           {connectedUsers.map((u: any) => (
             <Tooltip key={u.id}>
@@ -174,23 +132,26 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           ))}
         </TooltipProvider>
         {(isAdminBase || canManagePermissions || Boolean(impersonatedRoleId)) && (
-          <div className="flex items-center gap-2 text-xs text-neutral-400">
-            <span className="text-neutral-500 hidden md:inline">Rôle :</span>
-            <select
-              className="bg-background dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded px-2 py-1 text-xs text-neutral-700 dark:text-white"
-              value={impersonatedRoleId || ''}
-              onChange={(e) => {
-                const val = e.target.value || null;
-                onImpersonate(val);
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground hidden md:inline">Rôle :</span>
+            <Select
+              value={impersonatedRoleId || '__self__'}
+              onValueChange={(val) => {
+                onImpersonate(val === '__self__' ? null : val);
               }}
             >
-              <option value="">(Mon rôle réel)</option>
-              {availableRoles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="h-8 w-auto min-w-[140px] text-xs px-2 py-1 gap-1.5 focus:ring-brand-500">
+                <SelectValue placeholder="Mon rôle" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__self__">(Mon rôle réel)</SelectItem>
+                {availableRoles.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
         {canManagePermissions && (
@@ -202,6 +163,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             <Shield size={16} />
           </button>
         )}
+        <button
+          className="h-8 w-8 rounded-full flex items-center justify-center bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300 hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 transition-all duration-300"
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          aria-label={theme === 'dark' ? 'Activer le mode clair' : 'Activer le mode sombre'}
+          title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
+        >
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
         <button
           onClick={logout}
           className="h-8 w-8 rounded-full flex items-center justify-center bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300 hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 transition-all duration-300"

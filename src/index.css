@@ -44,6 +44,17 @@ body {
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
+    /* Brand accent (indigo, Linear-style) */
+    --brand-50:  238 241 255;
+    --brand-100: 224 228 255;
+    --brand-200: 199 206 255;
+    --brand-300: 164 173 255;
+    --brand-400: 128 132 255;
+    --brand-500: 94 99 232;
+    --brand-600: 74 77 209;
+    --brand-700: 61 63 171;
+    --brand-800: 51 53 138;
+    --brand-900: 46 48 110;
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;

@@ -28,6 +28,7 @@ import {
   useSidebar
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/auth/AuthProvider';
+import WorkspaceSwitcher from '@/components/menus/WorkspaceSwitcher';
 
 interface SidebarProps {
   collections: any[];
@@ -37,6 +38,10 @@ interface SidebarProps {
   dashboards: any[];
   userRoleIds: string[];
   userId: string | null;
+  organizations?: any[];
+  activeOrganizationId?: string | null;
+  onSwitchOrganization?: (organizationId: string) => Promise<void>;
+  onCreateOrganization?: (name: string) => Promise<void>;
   onSelectCollection: (collectionId: string) => void;
   onEditCollection: (collection: any) => void;
   onToggleFavoriteView: (viewId: string) => void;
@@ -60,6 +65,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   dashboards,
   userRoleIds,
   userId,
+  organizations,
+  activeOrganizationId,
+  onSwitchOrganization,
+  onCreateOrganization,
   onSelectCollection,
   onEditCollection,
   onSelectView,
@@ -268,14 +277,25 @@ const Sidebar: React.FC<SidebarProps> = ({
       collapsible="icon"
       className="dark:bg-neutral-950/50 backdrop-blur"
     >
-      <SidebarHeader className={cn('mb-4 justify-between', collapsed ? 'justify-center' : 'px-2')}>
-        {!collapsed && <div className="text-xs font-semibold text-neutral-500">Navigation</div>}
-        <SidebarTrigger
-          className="p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-black dark:hover:text-white"
-          title={collapsed ? 'Déplier' : 'Replier'}
-        >
-          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-        </SidebarTrigger>
+      <SidebarHeader className={cn('mb-3 gap-2', collapsed ? 'px-1 items-center' : 'px-2')}>
+        {organizations && organizations.length > 0 && onSwitchOrganization && onCreateOrganization && (
+          <WorkspaceSwitcher
+            organizations={organizations}
+            activeOrganizationId={activeOrganizationId ?? null}
+            onSwitchOrganization={onSwitchOrganization}
+            onCreateOrganization={onCreateOrganization}
+            collapsed={collapsed}
+          />
+        )}
+        <div className={cn('flex items-center justify-between', collapsed ? 'justify-center' : '')}>
+          {!collapsed && <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">Navigation</div>}
+          <SidebarTrigger
+            className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+            title={collapsed ? 'D\u00e9plier' : 'Replier'}
+          >
+            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </SidebarTrigger>
+        </div>
       </SidebarHeader>
 
       <SidebarContent>
