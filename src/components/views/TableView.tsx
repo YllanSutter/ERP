@@ -7,7 +7,7 @@ import GroupRenderer from '@/components/TableView/GroupRenderer';
 import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
 import TotalsBar from '@/components/TableView/TotalsBar';
-import TotalsWidget from '@/components/TableView/TotalsWidget';
+import TotalsWidget, { type TotalsWidgetPreferences } from '@/components/TableView/TotalsWidget';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { countItemsInGroup, getGroupLabel, resolveGroupVisualStyle } from '@/lib/groupingUtils';
 import { isCalculatedNumberProperty } from '@/lib/calculatedFields';
+import { API_URL } from '@/lib/constants';
 import { compareValues } from '@/lib/utils/sortUtils';
 import { buildGroupPrefill } from '@/lib/utils/groupPrefillUtils';
 import {
@@ -36,6 +37,63 @@ import {
 } from '@/components/ui/alert-dialog';
 
 const ROW_SELECTION_FIELD_ID = '__rowSelection';
+
+const createDefaultTotalsWidgetPreferences = (hasGroups: boolean): TotalsWidgetPreferences => ({
+  showTotalsWidget: false,
+  widgetExpanded: true,
+  widgetModules: {
+    stats: true,
+    bar: true,
+    donut: hasGroups,
+    table: false,
+  },
+  activeMetricId: '',
+  activeLevelDepth: 'overview' as 'overview' | number,
+  selectedByDepth: {} as Record<number, string | null>,
+  collapsedGroupIds: [] as string[],
+  hiddenFieldIds: [] as string[],
+  fieldOrderIds: [] as string[],
+});
+
+const normalizeTotalsWidgetPreferences = (value: any, hasGroups: boolean): TotalsWidgetPreferences => {
+  const base = createDefaultTotalsWidgetPreferences(hasGroups);
+  const src = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const widgetModules = src.widgetModules && typeof src.widgetModules === 'object' ? src.widgetModules : {};
+  const selectedByDepth = src.selectedByDepth && typeof src.selectedByDepth === 'object' ? src.selectedByDepth : {};
+  const normalizedWidgetModules = {
+    stats: Boolean((widgetModules as any).stats ?? base.widgetModules?.stats),
+    bar: Boolean((widgetModules as any).bar ?? base.widgetModules?.bar),
+    donut: Boolean((widgetModules as any).donut ?? base.widgetModules?.donut),
+    table: Boolean((widgetModules as any).table ?? base.widgetModules?.table),
+  };
+
+  return {
+    ...base,
+    showTotalsWidget: Boolean(src.showTotalsWidget),
+    widgetExpanded: src.widgetExpanded !== undefined ? Boolean(src.widgetExpanded) : base.widgetExpanded,
+    widgetModules: normalizedWidgetModules,
+    activeMetricId: typeof src.activeMetricId === 'string' ? src.activeMetricId : base.activeMetricId,
+    activeLevelDepth: src.activeLevelDepth === 'overview' || Number.isInteger(src.activeLevelDepth)
+      ? src.activeLevelDepth
+      : base.activeLevelDepth,
+    selectedByDepth: Object.fromEntries(
+      Object.entries(selectedByDepth).flatMap(([depth, id]) => {
+        const parsedDepth = Number(depth);
+        if (!Number.isInteger(parsedDepth)) return [];
+        return [[parsedDepth, typeof id === 'string' ? id : null]];
+      })
+    ),
+    collapsedGroupIds: Array.isArray(src.collapsedGroupIds)
+      ? src.collapsedGroupIds.map((id: any) => String(id)).filter(Boolean)
+      : base.collapsedGroupIds,
+    hiddenFieldIds: Array.isArray(src.hiddenFieldIds)
+      ? src.hiddenFieldIds.map((id: any) => String(id)).filter(Boolean)
+      : base.hiddenFieldIds,
+    fieldOrderIds: Array.isArray(src.fieldOrderIds)
+      ? Array.from(new Set<string>(src.fieldOrderIds.map((id: any) => String(id)).filter(Boolean)))
+      : base.fieldOrderIds,
+  };
+};
 
 const TableView: React.FC<TableViewProps> = ({
   collection,
@@ -133,7 +191,6 @@ const TableView: React.FC<TableViewProps> = ({
     if (!wasExpanded) {
       const prefill = buildGroupPrefill(groupPath, groups, collection.properties || []);
       const ctx = Object.keys(prefill).length > 0 ? prefill : null;
-      console.log('[GroupContext] accordion toggle:', groupPath, '→', ctx);
       onGroupContextChangeRef.current?.(ctx);
     }
   }, [expandedGroups, toggleGroup, groups, collection.properties]);
@@ -211,7 +268,7 @@ const TableView: React.FC<TableViewProps> = ({
   
   // Hooks de permissions
   const canEdit = useCanEdit(collection?.id);
-  const { isAdmin, isEditor, permissions } = useAuth();
+  const { user, isAdmin, isEditor, permissions, activeOrganizationId } = useAuth();
   const canEditFieldFn = useCallback((fieldId: string) => {
     const property = (collection?.properties || []).find((p: any) => p.id === fieldId);
     if (isCalculatedNumberProperty(property)) return false;
@@ -315,10 +372,20 @@ const TableView: React.FC<TableViewProps> = ({
     [orderedProperties, groups]
   );
   const [activeGroupTab, setActiveGroupTab] = useState('');
-  const [showTotalsWidget, setShowTotalsWidget] = useState(() => {
-    try { return localStorage.getItem(`totalswidget:show:${collection?.id || 'unknown'}`) === '1'; } catch { return false; }
-  });
+  const totalsPersistKey = useMemo(
+    () => `table-view:${collection?.id || 'unknown'}`,
+    [collection?.id]
+  );
+  const incomingTotalsPreferences = useMemo(
+    () => normalizeTotalsWidgetPreferences((user?.user_preferences as any)?.erpTotals?.[totalsPersistKey], groups.length > 0),
+    [user?.user_preferences, totalsPersistKey, groups.length]
+  );
+  const [totalsWidgetPreferences, setTotalsWidgetPreferences] = useState<TotalsWidgetPreferences>(() => incomingTotalsPreferences);
+  const hiddenTotalFieldIds = totalsWidgetPreferences.hiddenFieldIds || [];
+  const visibleTotalProperties = displayProperties.filter((prop: any) => !hiddenTotalFieldIds.includes(prop.id));
   const [activeGroupSelectByDepth, setActiveGroupSelectByDepth] = useState<Record<number, string>>({});
+  const lastSavedTotalsPreferencesRef = useRef<string>(JSON.stringify(incomingTotalsPreferences));
+  const lastHydratedTotalsContextRef = useRef<string>('');
   const rootTabsStorageKey = useMemo(
     () => `erp:table:root-tabs:${collection?.id || 'unknown'}:${groups.join('|')}`,
     [collection?.id, groups]
@@ -356,6 +423,50 @@ const TableView: React.FC<TableViewProps> = ({
       // ignore storage errors
     }
   }, [groupDisplayMode, activeGroupTab, rootTabsStorageKey]);
+
+  useEffect(() => {
+    const hydrateContextKey = `${user?.id || 'anonymous'}:${totalsPersistKey}`;
+    if (lastHydratedTotalsContextRef.current === hydrateContextKey) return;
+
+    setTotalsWidgetPreferences(incomingTotalsPreferences);
+    lastSavedTotalsPreferencesRef.current = JSON.stringify(incomingTotalsPreferences);
+    lastHydratedTotalsContextRef.current = hydrateContextKey;
+  }, [incomingTotalsPreferences, totalsPersistKey, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !activeOrganizationId) return;
+
+    const serialized = JSON.stringify(totalsWidgetPreferences);
+    if (serialized === lastSavedTotalsPreferencesRef.current) return;
+
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_URL}/users/${encodeURIComponent(user.id)}/preferences`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            preferences: {
+              erpTotals: {
+                [totalsPersistKey]: totalsWidgetPreferences,
+              },
+            },
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.error || 'Sauvegarde des préférences des totaux impossible');
+        }
+
+        lastSavedTotalsPreferencesRef.current = serialized;
+      } catch (error) {
+        console.error('Totals preferences save failed', error);
+      }
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [totalsWidgetPreferences, user?.id, activeOrganizationId, totalsPersistKey]);
 
   useEffect(() => {
     const rootGroupMode: 'accordion' | 'columns' | 'tabs' | 'select' =
@@ -403,7 +514,6 @@ const TableView: React.FC<TableViewProps> = ({
     if (rootGroupMode === 'tabs' && activeGroupTab) {
       const prefill = buildGroupPrefill(activeGroupTab, groups, collection.properties || []);
       const ctx = Object.keys(prefill).length > 0 ? prefill : null;
-      console.log('[GroupContext] root tab change:', activeGroupTab, '→', ctx);
       onGroupContextChangeRef.current(ctx);
     } else if (rootGroupMode === 'select') {
       // Chaque valeur de activeGroupSelectByDepth est déjà un chemin COMPLET
@@ -417,7 +527,6 @@ const TableView: React.FC<TableViewProps> = ({
       if (deepestPath) {
         const prefill = buildGroupPrefill(deepestPath, groups, collection.properties || []);
         const ctx = Object.keys(prefill).length > 0 ? prefill : null;
-        console.log('[GroupContext] root select change:', deepestPath, '→', ctx);
         onGroupContextChangeRef.current(ctx);
       }
     }
@@ -923,7 +1032,7 @@ const TableView: React.FC<TableViewProps> = ({
     <>
       {/* ─── Section totaux (globaux + par groupe) ────────────────────────── */}
       {Object.keys(totalFields).length > 0 && items.length > 0 && (() => {
-        if (!showTotalsWidget) return null;
+        if (!totalsWidgetPreferences.showTotalsWidget) return null;
 
         // Traverser récursivement tous les niveaux de groupes
         const buildGroupedSections = () => {
@@ -965,6 +1074,15 @@ const TableView: React.FC<TableViewProps> = ({
           contextPath = rootGroups[0] || undefined;
         }
 
+        console.log('[TableView Totals] contextPath computed', {
+          rootGroupMode,
+          contextPath,
+          activeGroupTab,
+          activeSubGroupPathByRoot,
+          activeGroupSelectByDepth,
+          rootGroups,
+        });
+
         return (
           <TotalsWidget
             displayProperties={orderedProperties}
@@ -974,8 +1092,10 @@ const TableView: React.FC<TableViewProps> = ({
             formatTotal={formatTotal}
             resolveValue={resolveProjectedValue}
             groupedSections={groupedSections}
-            persistKey={`table-view:${collection?.id || 'unknown'}`}
+            persistKey={totalsPersistKey}
             contextPath={contextPath}
+            preferences={totalsWidgetPreferences}
+            onPreferencesChange={setTotalsWidgetPreferences}
           />
         );
       })()}
@@ -995,13 +1115,9 @@ const TableView: React.FC<TableViewProps> = ({
             {Object.keys(totalFields).length > 0 && (
               <button
                 type="button"
-                onClick={() => setShowTotalsWidget((v) => {
-                  const next = !v;
-                  try { localStorage.setItem(`totalswidget:show:${collection?.id || 'unknown'}`, next ? '1' : '0'); } catch { /* no-op */ }
-                  return next;
-                })}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs border transition-colors ${showTotalsWidget ? 'bg-violet-50 border-violet-200 text-violet-700 dark:bg-violet-900/20 dark:border-violet-800/60 dark:text-violet-300' : 'border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'}`}
-                title={showTotalsWidget ? 'Masquer le tableau de totaux' : 'Afficher le tableau de totaux'}
+                onClick={() => setTotalsWidgetPreferences((prev) => ({ ...prev, showTotalsWidget: !prev.showTotalsWidget }))}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs border transition-colors ${totalsWidgetPreferences.showTotalsWidget ? 'bg-violet-50 border-violet-200 text-violet-700 dark:bg-violet-900/20 dark:border-violet-800/60 dark:text-violet-300' : 'border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'}`}
+                title={totalsWidgetPreferences.showTotalsWidget ? 'Masquer le tableau de totaux' : 'Afficher le tableau de totaux'}
               >
                 <Sigma size={11} />
                 <span>Tableau</span>
@@ -1171,6 +1287,7 @@ const TableView: React.FC<TableViewProps> = ({
               onRowDrop={handleRowDrop}
               onRowDragEnd={handleRowDragEnd}
               totalFields={totalFields}
+              hiddenTotalFieldIds={hiddenTotalFieldIds}
               calculateTotal={calculateTotal}
               formatTotal={formatTotal}
               hideCurrentHeader={hideCurrentHeader}
@@ -1192,7 +1309,6 @@ const TableView: React.FC<TableViewProps> = ({
                 if (path) {
                   const prefill = buildGroupPrefill(path, groups, collection.properties || []);
                   const ctx = Object.keys(prefill).length > 0 ? prefill : null;
-                  console.log('[GroupContext] subGroup tab change: path=', path, 'tabDepth=', tabDepth, '→', ctx);
                   onGroupContextChangeRef.current?.(ctx);
                 }
               }}
@@ -1292,7 +1408,7 @@ const TableView: React.FC<TableViewProps> = ({
                     <tr>
                       {canReorderRows && <td className="px-1 py-2 w-8" />}
                       {showSelectionColumn && <td className="px-2 py-2 w-10" />}
-                      {displayProperties.map((prop: any) => {
+                      {visibleTotalProperties.map((prop: any) => {
                         const totalType = totalFields[prop.id];
                         if (!totalType) return <td key={prop.id} className="px-2 py-2" />;
 
@@ -1617,7 +1733,6 @@ const TableView: React.FC<TableViewProps> = ({
 
                               const prefill = buildGroupPrefill(path, groups, collection.properties || []);
                               const ctx = Object.keys(prefill).length > 0 ? prefill : null;
-                              console.log('[GroupContext] select-mode subGroup tab:', path, 'depth=', tabDepth, '→', ctx);
                               onGroupContextChangeRef.current?.(ctx);
                             }
                           }}

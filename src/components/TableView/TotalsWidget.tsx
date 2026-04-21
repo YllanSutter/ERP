@@ -18,6 +18,7 @@ import {
   Donut,
   TableProperties,
   ChevronDown,
+  ChevronUp,
   ChevronRight,
   Settings2,
   type LucideIcon,
@@ -83,6 +84,8 @@ export interface TotalsWidgetProps {
   className?: string;
   /** Chemin actif du tableau (ex: "2026/2026-03/testbundle") pour pré-sélectionner */
   contextPath?: string;
+  preferences?: TotalsWidgetPreferences;
+  onPreferencesChange?: (preferences: TotalsWidgetPreferences) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -254,6 +257,35 @@ type ModuleKey = 'stats' | 'bar' | 'donut' | 'table';
 
 interface DepthLevel { depth: number; propertyName: string }
 
+export interface TotalsWidgetPreferences {
+  showTotalsWidget?: boolean;
+  widgetExpanded?: boolean;
+  widgetModules?: Record<ModuleKey, boolean>;
+  activeMetricId?: string;
+  activeLevelDepth?: 'overview' | number;
+  selectedByDepth?: Record<number, string | null>;
+  collapsedGroupIds?: string[];
+  hiddenFieldIds?: string[];
+  fieldOrderIds?: string[];
+}
+
+const createDefaultTotalsWidgetPreferences = (hasGroups: boolean): TotalsWidgetPreferences => ({
+  showTotalsWidget: false,
+  widgetExpanded: true,
+  widgetModules: {
+    stats: true,
+    bar: true,
+    donut: hasGroups,
+    table: false,
+  },
+  activeMetricId: '',
+  activeLevelDepth: 'overview',
+  selectedByDepth: {},
+  collapsedGroupIds: [],
+  hiddenFieldIds: [],
+  fieldOrderIds: [],
+});
+
 const MODULE_META: Record<ModuleKey, { Icon: LucideIcon; label: string }> = {
   stats:  { Icon: BarChart3 as LucideIcon,      label: 'Cartes'       },
   bar:    { Icon: BarChart2,       label: 'Barres'       },
@@ -278,6 +310,47 @@ const DarkTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+const normalizeTotalsWidgetPreferences = (
+  preferences: TotalsWidgetPreferences | undefined,
+  hasGroups: boolean
+): TotalsWidgetPreferences => {
+  const base = createDefaultTotalsWidgetPreferences(hasGroups);
+  const src = preferences && typeof preferences === 'object' ? preferences : {};
+  const widgetModules = src.widgetModules && typeof src.widgetModules === 'object' ? src.widgetModules : {};
+  const selectedByDepth = src.selectedByDepth && typeof src.selectedByDepth === 'object' ? src.selectedByDepth : {};
+
+  return {
+    ...base,
+    ...src,
+    widgetModules: {
+      ...base.widgetModules,
+      ...Object.fromEntries(
+        Object.entries(widgetModules).map(([key, enabled]) => [key, Boolean(enabled)])
+      ),
+    } as Record<ModuleKey, boolean>,
+    activeMetricId: typeof src.activeMetricId === 'string' ? src.activeMetricId : base.activeMetricId,
+    activeLevelDepth: src.activeLevelDepth === 'overview' || Number.isInteger(src.activeLevelDepth)
+      ? src.activeLevelDepth
+      : base.activeLevelDepth,
+    selectedByDepth: Object.fromEntries(
+      Object.entries(selectedByDepth).flatMap(([depth, id]) => {
+        const parsedDepth = Number(depth);
+        if (!Number.isInteger(parsedDepth)) return [];
+        return [[parsedDepth, typeof id === 'string' ? id : null]];
+      })
+    ),
+    collapsedGroupIds: Array.isArray(src.collapsedGroupIds)
+      ? src.collapsedGroupIds.map((id) => String(id)).filter(Boolean)
+      : base.collapsedGroupIds,
+    hiddenFieldIds: Array.isArray(src.hiddenFieldIds)
+      ? src.hiddenFieldIds.map((id) => String(id)).filter(Boolean)
+      : base.hiddenFieldIds,
+    fieldOrderIds: Array.isArray(src.fieldOrderIds)
+      ? Array.from(new Set(src.fieldOrderIds.map((id) => String(id)).filter(Boolean)))
+      : base.fieldOrderIds,
+  };
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Composant principal
 // ─────────────────────────────────────────────────────────────────────────────
@@ -292,6 +365,8 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   persistKey,
   className = '',
   contextPath,
+  preferences,
+  onPreferencesChange,
 }) => {
   const getTotalTypeForProp = React.useCallback((prop: any): string | null => {
     const explicit = totalFields[prop?.id];
@@ -305,7 +380,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     return null;
   }, [totalFields]);
 
-  const activeTotals = displayProperties.filter((p: any) => !!getTotalTypeForProp(p));
+  const availableTotals = displayProperties.filter((p: any) => !!getTotalTypeForProp(p));
 
   const getItemPropValue = React.useCallback((item: any, prop: Property) => {
     if (resolveValue) return resolveValue(item, prop);
@@ -319,6 +394,28 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   );
   const flatRows = React.useMemo(() => flattenTree(groupedTree), [groupedTree]);
   const hasGroups = flatRows.length > 0;
+  const normalizedPreferences = React.useMemo(
+    () => normalizeTotalsWidgetPreferences(preferences, hasGroups),
+    [preferences, hasGroups]
+  );
+  const [totalFieldOrderIds, setTotalFieldOrderIds] = React.useState<string[]>(
+    normalizedPreferences.fieldOrderIds || []
+  );
+  const orderedTotals = React.useMemo(() => {
+    const rankMap = new Map(totalFieldOrderIds.map((id, index) => [id, index]));
+    const fallbackIndex = new Map(availableTotals.map((prop: any, index: number) => [prop.id, index]));
+
+    return [...availableTotals].sort((a: any, b: any) => {
+      const aRank = rankMap.has(a.id) ? (rankMap.get(a.id) as number) : Number.MAX_SAFE_INTEGER;
+      const bRank = rankMap.has(b.id) ? (rankMap.get(b.id) as number) : Number.MAX_SAFE_INTEGER;
+      if (aRank !== bRank) return aRank - bRank;
+      return (fallbackIndex.get(a.id) ?? 0) - (fallbackIndex.get(b.id) ?? 0);
+    });
+  }, [availableTotals, totalFieldOrderIds]);
+  const visibleTotals = React.useMemo(
+    () => orderedTotals.filter((prop: any) => !(normalizedPreferences.hiddenFieldIds || []).includes(prop.id)),
+    [orderedTotals, normalizedPreferences.hiddenFieldIds]
+  );
 
   // ── Relations parent/enfant dans la table ─────────────────────────────────
   const parentMap = React.useMemo(() => {
@@ -363,68 +460,118 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
   // ── État ─────────────────────────────────────────────────────────────────
   const [expanded, setExpanded] = React.useState(true);
-  const [modules, setModules] = React.useState<Record<ModuleKey, boolean>>({
-    stats: true, bar: true, donut: hasGroups, table: false,
-  });
+  const [modules, setModules] = React.useState<Record<ModuleKey, boolean>>(
+    normalizedPreferences.widgetModules || createDefaultTotalsWidgetPreferences(hasGroups).widgetModules!
+  );
   const [activeMetricId, setActiveMetricId] = React.useState<string>('');
   const [activeLevelDepth, setActiveLevelDepth] = React.useState<'overview' | number>('overview');
   // Groupe sélectionné par profondeur : { 0: "2026", 1: "2026/2026-03", ... }
   const [selectedByDepth, setSelectedByDepth] = React.useState<Record<number, string | null>>({});
   const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(() => new Set());
+  const [hiddenTotalFieldIds, setHiddenTotalFieldIds] = React.useState<string[]>(
+    normalizedPreferences.hiddenFieldIds || []
+  );
+  const [settingsPanelOpen, setSettingsPanelOpen] = React.useState(false);
+  const lastSyncedContextPathRef = React.useRef<string | null>(null);
+  const hasSyncedContextRef = React.useRef(false);
+  const debugLog = React.useCallback((event: string, payload?: any) => {
+    console.log('[TotalsWidget]', event, payload ?? '');
+  }, []);
+  const preferencesSignature = React.useMemo(() => JSON.stringify(normalizedPreferences), [normalizedPreferences]);
+  const lastAppliedPreferencesSignatureRef = React.useRef<string>('');
+  const lastEmittedPreferencesSignatureRef = React.useRef<string>('');
 
   React.useEffect(() => { setCollapsedGroups(new Set(rowsWithChildren)); }, [rowsWithChildren]);
   React.useEffect(() => {
-    if (!activeMetricId && activeTotals.length > 0) setActiveMetricId(activeTotals[0].id);
-  }, [activeTotals, activeMetricId]);
+    if (preferencesSignature === lastAppliedPreferencesSignatureRef.current) return;
+    lastAppliedPreferencesSignatureRef.current = preferencesSignature;
+
+    setExpanded(Boolean(normalizedPreferences.widgetExpanded ?? true));
+    setModules(normalizedPreferences.widgetModules || createDefaultTotalsWidgetPreferences(hasGroups).widgetModules!);
+    setActiveMetricId(normalizedPreferences.activeMetricId || '');
+    // Quand contextPath est fourni par la vue parent (onglets du bas),
+    // on évite de réinjecter la sélection depuis les préférences pour ne pas créer de ping-pong.
+    if (!contextPath) {
+      setActiveLevelDepth(normalizedPreferences.activeLevelDepth ?? 'overview');
+      setSelectedByDepth(normalizedPreferences.selectedByDepth || {});
+    }
+    setHiddenTotalFieldIds(normalizedPreferences.hiddenFieldIds || []);
+    setTotalFieldOrderIds(normalizedPreferences.fieldOrderIds || []);
+  }, [preferencesSignature, normalizedPreferences, hasGroups, contextPath]);
+
+  React.useEffect(() => {
+    const availableIds = availableTotals.map((prop: any) => prop.id);
+    setTotalFieldOrderIds((prev) => {
+      const deduped = Array.from(new Set(prev));
+      const kept = deduped.filter((id) => availableIds.includes(id));
+      const missing = availableIds.filter((id) => !kept.includes(id));
+      const next = [...kept, ...missing];
+      if (next.length === prev.length && next.every((id, index) => id === prev[index])) return prev;
+      return next;
+    });
+  }, [availableTotals]);
+
+  React.useEffect(() => {
+    if (!activeMetricId && visibleTotals.length > 0) setActiveMetricId(visibleTotals[0].id);
+  }, [visibleTotals, activeMetricId]);
+
+  React.useEffect(() => {
+    setCollapsedGroups((prev) => {
+      const next = new Set<string>();
+      const savedCollapsed = new Set(normalizedPreferences.collapsedGroupIds || []);
+      rowsWithChildren.forEach((rowId) => {
+        if (savedCollapsed.has(rowId)) next.add(rowId);
+      });
+      if (savedCollapsed.size === 0) {
+        rowsWithChildren.forEach((rowId) => next.add(rowId));
+      }
+      if (prev.size === next.size && Array.from(prev).every((id) => next.has(id))) return prev;
+      return next;
+    });
+  }, [rowsWithChildren, normalizedPreferences.collapsedGroupIds]);
 
   // Pré-sélection depuis le chemin actif du tableau
   React.useEffect(() => {
     if (!flatRows.length) return;
 
-    if (!contextPath) {
-      setSelectedByDepth({});
-      setActiveLevelDepth('overview');
+    const normalizedContextPath = contextPath || '';
+    if (hasSyncedContextRef.current && lastSyncedContextPathRef.current === normalizedContextPath) {
+      debugLog('sync:skip-same-context', {
+        contextPath: normalizedContextPath,
+        activeLevelDepth,
+        selectedByDepth,
+      });
       return;
     }
 
-    // 0) Si contextPath est un parent (ex: mois), essayer d'identifier
-    //    automatiquement le bon enfant (ex: bundle) via les items affichés.
-    const currentItemKeys = new Set(
-      (items || []).map((it: any) => String(it?.id ?? it?._id ?? ''))
-    );
-    const hasStableItemKeys = currentItemKeys.size > 0 && !currentItemKeys.has('');
+    debugLog('sync:start', {
+      contextPath: normalizedContextPath,
+      flatRows: flatRows.length,
+      previousContextPath: lastSyncedContextPathRef.current,
+      alreadySynced: hasSyncedContextRef.current,
+    });
 
-    const descendantCandidates = flatRows.filter(
-      (r) => r.id === contextPath || r.id.startsWith(`${contextPath}/`)
-    );
-
-    let inferredFromItems: FlatRow | null = null;
-    if (descendantCandidates.length > 0 && items.length > 0) {
-      inferredFromItems = descendantCandidates
-        .filter((r) => {
-          if (r.items.length !== items.length) return false;
-          if (hasStableItemKeys) {
-            return r.items.every((it: any) => currentItemKeys.has(String(it?.id ?? it?._id ?? '')));
-          }
-          return true;
-        })
-        .sort((a, b) => b.depth - a.depth || b.id.length - a.id.length)[0] ?? null;
+    if (!contextPath) {
+      setSelectedByDepth({});
+      setActiveLevelDepth('overview');
+      lastSyncedContextPathRef.current = normalizedContextPath;
+      hasSyncedContextRef.current = true;
+      debugLog('sync:reset-overview-no-context', { contextPath: normalizedContextPath });
+      return;
     }
 
-    // 1) Match inféré par les items visibles
-    let targetRow = inferredFromItems;
-
-    // 2) Match exact (id === contextPath)
+    // 1) Match exact (id === contextPath)
+    let targetRow = null as FlatRow | null;
     if (!targetRow) targetRow = flatRows.find((r) => r.id === contextPath) ?? null;
 
-    // 3) Fallback robuste: plus long préfixe de contextPath
+    // 2) Fallback robuste: plus long préfixe de contextPath
     if (!targetRow) {
       targetRow = flatRows
         .filter((r) => contextPath === r.id || contextPath.startsWith(`${r.id}/`))
         .sort((a, b) => b.id.length - a.id.length)[0] ?? null;
     }
 
-    // 4) Dernier fallback historique (construction segmentée)
+    // 3) Dernier fallback historique (construction segmentée)
     if (!targetRow) {
       const segments = contextPath.split('/');
       let cumPath = '';
@@ -438,6 +585,9 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     if (!targetRow) {
       setSelectedByDepth({});
       setActiveLevelDepth('overview');
+      lastSyncedContextPathRef.current = normalizedContextPath;
+      hasSyncedContextRef.current = true;
+      debugLog('sync:target-not-found-reset-overview', { contextPath: normalizedContextPath });
       return;
     }
 
@@ -452,30 +602,67 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
     setSelectedByDepth(newSelected);
     setActiveLevelDepth(targetRow.depth);
-  }, [contextPath, flatRows, parentMap, items]);
-
-  // Restore localStorage
-  React.useEffect(() => {
-    if (!persistKey) return;
-    try {
-      const saved = JSON.parse(localStorage.getItem(`totalswidget2:${persistKey}`) || '{}');
-      if (saved.expanded !== undefined) setExpanded(saved.expanded);
-      if (saved.modules) setModules((p) => ({ ...p, ...saved.modules }));
-      if (saved.activeMetricId) setActiveMetricId(saved.activeMetricId);
-      if (saved.activeLevelDepth !== undefined) setActiveLevelDepth(saved.activeLevelDepth);
-    } catch { /* no-op */ }
-  }, [persistKey]);
+    lastSyncedContextPathRef.current = normalizedContextPath;
+    hasSyncedContextRef.current = true;
+    debugLog('sync:applied-target', {
+      contextPath: normalizedContextPath,
+      targetRowId: targetRow.id,
+      targetDepth: targetRow.depth,
+      selectedByDepth: newSelected,
+    });
+  }, [contextPath, flatRows, parentMap, activeLevelDepth, selectedByDepth, debugLog]);
 
   React.useEffect(() => {
-    if (!persistKey) return;
-    try {
-      localStorage.setItem(`totalswidget2:${persistKey}`,
-        JSON.stringify({ expanded, modules, activeMetricId, activeLevelDepth }));
-    } catch { /* no-op */ }
-  }, [persistKey, expanded, modules, activeMetricId, activeLevelDepth]);
+    debugLog('state:active-level-changed', {
+      activeLevelDepth,
+      contextPath: contextPath || '',
+    });
+  }, [activeLevelDepth, contextPath, debugLog]);
+
+  React.useEffect(() => {
+    debugLog('state:selected-by-depth-changed', {
+      selectedByDepth,
+      contextPath: contextPath || '',
+    });
+  }, [selectedByDepth, contextPath, debugLog]);
+
+  React.useEffect(() => {
+    const isContextDriven = Boolean(contextPath);
+    const snapshot = {
+      showTotalsWidget: normalizedPreferences.showTotalsWidget,
+      widgetExpanded: expanded,
+      widgetModules: modules,
+      activeMetricId,
+      activeLevelDepth: isContextDriven
+        ? (normalizedPreferences.activeLevelDepth ?? 'overview')
+        : activeLevelDepth,
+      selectedByDepth: isContextDriven
+        ? (normalizedPreferences.selectedByDepth || {})
+        : selectedByDepth,
+      collapsedGroupIds: Array.from(collapsedGroups),
+      hiddenFieldIds: hiddenTotalFieldIds,
+      fieldOrderIds: totalFieldOrderIds,
+    };
+    const serialized = JSON.stringify(snapshot);
+    if (serialized === lastEmittedPreferencesSignatureRef.current) return;
+    lastEmittedPreferencesSignatureRef.current = serialized;
+    onPreferencesChange?.(snapshot);
+  }, [
+    onPreferencesChange,
+    normalizedPreferences.showTotalsWidget,
+    expanded,
+    modules,
+    activeMetricId,
+    activeLevelDepth,
+    selectedByDepth,
+    collapsedGroups,
+    hiddenTotalFieldIds,
+    totalFieldOrderIds,
+    contextPath,
+  ]);
 
   // ── Garde ─────────────────────────────────────────────────────────────────
-  if (activeTotals.length === 0 || items.length === 0) return null;
+  if (availableTotals.length === 0 || items.length === 0) return null;
 
   // ── Entonnoir : lignes filtrées par la sélection du niveau parent ──────────
   const getFilteredRowsAtDepth = (depth: number): FlatRow[] => {
@@ -561,7 +748,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   };
 
   // ── Données cartes ─────────────────────────────────────────────────────
-  const statCards = activeTotals.map((prop: any) => {
+  const statCards = visibleTotals.map((prop: any) => {
     const totalType = getTotalTypeForProp(prop) || 'count';
     const meta = getMeta(totalType);
     const total = calculateTotal(prop.id, contextItems, totalType);
@@ -592,7 +779,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   });
 
   // ── Données bar chart ─────────────────────────────────────────────────────
-  const activeProp = activeTotals.find((p: any) => p.id === activeMetricId) || activeTotals[0];
+  const activeProp = visibleTotals.find((p: any) => p.id === activeMetricId) || visibleTotals[0];
   const barData = React.useMemo(() => {
     if (!activeProp || !hasGroups) return [];
 
@@ -756,7 +943,38 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     setModules((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const toggleHiddenField = (fieldId: string) => {
+    setHiddenTotalFieldIds((prev) => {
+      if (prev.includes(fieldId)) return prev.filter((id) => id !== fieldId);
+      return [...prev, fieldId];
+    });
+  };
+
+  const resetHiddenFields = () => {
+    setHiddenTotalFieldIds([]);
+  };
+
+  const moveField = (fieldId: string, direction: 'up' | 'down') => {
+    setTotalFieldOrderIds((prev) => {
+      const index = prev.indexOf(fieldId);
+      if (index < 0) return prev;
+
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+
+      const next = [...prev];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
+  };
+
   const activeModuleCount = Object.values(modules).filter(Boolean).length;
+
+  React.useEffect(() => {
+    if (!expanded && settingsPanelOpen) {
+      setSettingsPanelOpen(false);
+    }
+  }, [expanded, settingsPanelOpen]);
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -773,28 +991,42 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
         </span>
 
         <div className="flex items-center gap-1 ml-auto">
-          {/* Toggles de modules */}
-          <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.04] rounded-lg p-0.5 mr-1">
-            {(Object.entries(MODULE_META) as [ModuleKey, typeof MODULE_META[ModuleKey]][]).map(([key, { Icon, label }]) => {
-              if ((key === 'bar' || key === 'donut') && !hasGroups) return null;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => toggleModule(key)}
-                  title={label}
-                  className={cn(
-                    'p-1.5 rounded-md transition-all',
-                    modules[key]
-                      ? 'bg-violet-100 text-violet-700 dark:bg-violet-600/30 dark:text-violet-300'
-                      : 'text-slate-500 hover:text-slate-700 dark:text-neutral-600 dark:hover:text-neutral-400'
-                  )}
-                >
-                  <Icon size={12} />
-                </button>
-              );
-            })}
-          </div>
+          <button
+            type="button"
+            onClick={() => setSettingsPanelOpen((v) => !v)}
+            className={cn(
+              'p-1.5 rounded-md transition-all',
+              settingsPanelOpen
+                ? 'bg-violet-100 text-violet-700 dark:bg-violet-600/30 dark:text-violet-300'
+                : 'text-slate-500 hover:text-slate-700 dark:text-neutral-600 dark:hover:text-neutral-400'
+            )}
+            title={settingsPanelOpen ? 'Fermer les réglages des totaux' : 'Réglages des totaux'}
+          >
+            <Settings2 size={12} />
+          </button>
+          {expanded && (
+            <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/[0.04] rounded-lg p-0.5 mr-1">
+              {(Object.entries(MODULE_META) as [ModuleKey, typeof MODULE_META[ModuleKey]][]).map(([key, { Icon, label }]) => {
+                if ((key === 'bar' || key === 'donut') && !hasGroups) return null;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => toggleModule(key)}
+                    title={label}
+                    className={cn(
+                      'p-1.5 rounded-md transition-all',
+                      modules[key]
+                        ? 'bg-violet-100 text-violet-700 dark:bg-violet-600/30 dark:text-violet-300'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-neutral-600 dark:hover:text-neutral-400'
+                    )}
+                  >
+                    <Icon size={12} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
@@ -808,8 +1040,82 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
         </div>
       </div>
 
+      {expanded && settingsPanelOpen && (
+        <div className="border-b border-slate-200 dark:border-white/[0.05] bg-slate-50/80 dark:bg-white/[0.02] px-4 py-3">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-neutral-500">
+                Champs visibles
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-neutral-600 mt-0.5">
+                Affiche, masque et réorganise les totaux sans toucher aux données.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={resetHiddenFields}
+              className="px-2 py-1 rounded-md border border-slate-300 text-[11px] text-slate-600 hover:border-violet-300 hover:text-violet-700 dark:border-white/[0.08] dark:text-neutral-400 dark:hover:border-violet-500/30 dark:hover:text-violet-300 transition-colors"
+              disabled={hiddenTotalFieldIds.length === 0}
+            >
+              Tout afficher
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {orderedTotals.map((prop: any, index: number) => {
+              const isHidden = hiddenTotalFieldIds.includes(prop.id);
+              return (
+                <div
+                  key={prop.id}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-full border px-1 py-1 transition-all',
+                    isHidden
+                      ? 'bg-slate-100 border-slate-300 dark:bg-white/[0.03] dark:border-white/[0.08]'
+                      : 'bg-white border-violet-200 shadow-sm dark:bg-white/[0.04] dark:border-violet-500/30'
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => moveField(prop.id, 'up')}
+                    disabled={index === 0}
+                    className="h-6 w-6 inline-flex items-center justify-center rounded-full text-slate-500 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed dark:text-neutral-500 dark:hover:text-neutral-300 dark:hover:bg-white/[0.06]"
+                    title="Monter"
+                  >
+                    <ChevronUp size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveField(prop.id, 'down')}
+                    disabled={index === orderedTotals.length - 1}
+                    className="h-6 w-6 inline-flex items-center justify-center rounded-full text-slate-500 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed dark:text-neutral-500 dark:hover:text-neutral-300 dark:hover:bg-white/[0.06]"
+                    title="Descendre"
+                  >
+                    <ChevronDown size={12} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => toggleHiddenField(prop.id)}
+                    className={cn(
+                      'inline-flex items-center gap-2 px-2.5 py-1 rounded-full border text-[11px] transition-all',
+                      isHidden
+                        ? 'bg-slate-100 border-slate-300 text-slate-500 line-through dark:bg-white/[0.03] dark:border-white/[0.08] dark:text-neutral-600'
+                        : 'bg-white border-violet-200 text-slate-700 dark:bg-white/[0.04] dark:border-violet-500/30 dark:text-white'
+                    )}
+                  >
+                    <span className="font-semibold">{prop.name}</span>
+                    <span className="text-[10px] uppercase tracking-wider opacity-60">
+                      {isHidden ? 'Masqué' : 'Visible'}
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Onglet niveau (Vue d'ensemble / Année / Mois / Bundle…) ─────── */}
-      {hasGroups && (
+      {expanded && hasGroups && (
         <div className="border-b border-slate-200 dark:border-white/[0.05]">
           {/* Rangée 1 : onglets de niveau */}
           <div className="flex items-center gap-0 px-3 overflow-x-auto bg-slate-50 dark:bg-white/[0.01]">
@@ -820,7 +1126,10 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                 <button
                   key={String(id)}
                   type="button"
-                  onClick={() => setActiveLevelDepth(id)}
+                  onClick={() => {
+                    debugLog('ui:level-tab-click', { id, label });
+                    setActiveLevelDepth(id);
+                  }}
                   className={cn(
                     'relative px-3 py-2 text-[11px] font-medium whitespace-nowrap transition-colors shrink-0',
                     isActive ? 'text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-neutral-500 dark:hover:text-neutral-300'
@@ -841,7 +1150,10 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
               {/* Bouton "Tous" */}
               <button
                 type="button"
-                onClick={() => setSelectedByDepth((p) => ({ ...p, [levelDepthNum]: null }))}
+                onClick={() => {
+                  debugLog('ui:level-group-click-all', { levelDepthNum });
+                  setSelectedByDepth((p) => ({ ...p, [levelDepthNum]: null }));
+                }}
                 className={cn(
                   'shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-medium border transition-all whitespace-nowrap',
                   currentGroupId === null
@@ -858,7 +1170,16 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                   <button
                     key={row.id}
                     type="button"
-                    onClick={() => setSelectedByDepth((p) => ({ ...p, [levelDepthNum]: isActive ? null : row.id }))}
+                    onClick={() => {
+                      const nextValue = isActive ? null : row.id;
+                      debugLog('ui:level-group-click', {
+                        levelDepthNum,
+                        rowId: row.id,
+                        isActive,
+                        nextValue,
+                      });
+                      setSelectedByDepth((p) => ({ ...p, [levelDepthNum]: nextValue }));
+                    }}
                     className={cn(
                       'shrink-0 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium border transition-all whitespace-nowrap',
                       isActive
@@ -883,127 +1204,126 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
           {/* ── Module 1 : Cartes de stats ─────────────────────────────── */}
           {modules.stats && (
-            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(190px, 1fr))` }}>
-              {statCards.map(({ prop, meta, visible, PropIcon, accent, sparkData }) => (
-                <button
-                  key={prop.id}
-                  type="button"
-                  onClick={() => setActiveMetricId(prop.id)}
-                  className={cn(
-                    'relative overflow-hidden rounded-xl border text-left transition-all group',
-                    activeMetricId === prop.id
-                      ? 'border-violet-300 bg-violet-50 ring-1 ring-violet-400/40 dark:border-white/[0.12] dark:bg-white/[0.05] dark:ring-violet-500/30'
-                      : 'border-slate-200 bg-slate-50/60 hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.06] dark:bg-white/[0.02] dark:hover:border-white/[0.1] dark:hover:bg-white/[0.04]'
-                  )}
-                >
-                  {/* Bande colorée gauche */}
-                  <div
-                    className="absolute left-0 top-0 bottom-0 w-[3px]"
-                    style={{ backgroundColor: accent }}
-                  />
-
-                  <div className="pl-4 pr-3 py-3">
-                    {/* Label */}
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <PropIcon size={11} style={{ color: accent }} />
-                      <span className="text-[10px] font-medium uppercase tracking-widest text-slate-600 dark:text-neutral-500 truncate">
-                        {prop.name}
-                      </span>
-                      <span
-                        className="ml-auto text-[9px] uppercase tracking-widest shrink-0"
-                        style={{ color: accent + 'aa' }}
-                      >
-                        {meta.label}
-                      </span>
-                    </div>
-
-                    {/* Valeur */}
-                    <div className="text-xl font-bold tabular-nums text-slate-900 dark:text-white truncate">
-                      {visible || '—'}
-                    </div>
-
-                    {/* Mini sparkbars */}
-                    {sparkData.length > 1 && (
-                      <>
-                        <p className="mt-2 text-[9px] uppercase tracking-wider text-slate-400 dark:text-neutral-600">
-                          Tendance groupes (survol)
-                        </p>
-                        <div className="relative mt-1.5 h-8 w-full">
-                          {(() => {
-                            const series = sparkData.slice(0, 12);
-                            const minVal = Math.min(...series.map((s) => s.numeric));
-                            const maxVal = Math.max(...series.map((s) => s.numeric));
-                            const range = Math.max(0.0001, maxVal - minVal);
-                            const points = series.map((s, i) => {
-                              const x = series.length <= 1 ? 0 : (i / (series.length - 1)) * 100;
-                              const y = maxVal === minVal
-                                ? 50
-                                : 100 - (((s.numeric - minVal) / range) * 100);
-                              return { ...s, x, y };
-                            });
-                            const linePoints = points.map((p) => `${p.x},${p.y}`).join(' ');
-                            const areaPath = points.length
-                              ? `M 0,100 L ${points.map((p) => `${p.x},${p.y}`).join(' L ')} L 100,100 Z`
-                              : '';
-
-                            return (
-                              <>
-                                <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full overflow-visible">
-                                  <defs>
-                                    <linearGradient id={`spark-grad-${prop.id}`} x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="0%" stopColor={accent} stopOpacity={activeMetricId === prop.id ? 0.35 : 0.2} />
-                                      <stop offset="100%" stopColor={accent} stopOpacity={0.02} />
-                                    </linearGradient>
-                                  </defs>
-                                  <path d={areaPath} fill={`url(#spark-grad-${prop.id})`} />
-                                  <polyline
-                                    points={linePoints}
-                                    fill="none"
-                                    stroke={accent}
-                                    strokeWidth={2.2}
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    opacity={activeMetricId === prop.id ? 0.95 : 0.65}
-                                  />
-                                </svg>
-
-                                {points.map((spark) => (
-                                  <Tooltip key={spark.id}>
-                                    <TooltipTrigger asChild>
-                                      <span
-                                        className="absolute -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-white dark:border-black/40 shadow-sm"
-                                        style={{
-                                          left: `${spark.x}%`,
-                                          top: `${spark.y}%`,
-                                          backgroundColor: accent,
-                                          opacity: activeMetricId === prop.id ? 1 : 0.8,
-                                        }}
-                                        onClick={(e) => e.stopPropagation()}
-                                      />
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="max-w-[220px]">
-                                      <div className="text-[11px] leading-tight">
-                                        <p className="font-medium truncate">{spark.name}</p>
-                                        <p className="text-slate-500 dark:text-neutral-400 mt-0.5">
-                                          {meta.label}: <span className="font-semibold">{spark.visibleValue}</span>
-                                        </p>
-                                        <p className="text-slate-400 dark:text-neutral-500 text-[10px]">
-                                          {spark.count} ligne{spark.count > 1 ? 's' : ''}
-                                        </p>
-                                      </div>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                ))}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </>
+            visibleTotals.length > 0 ? (
+              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(190px, 1fr))` }}>
+                {statCards.map(({ prop, meta, visible, PropIcon, accent, sparkData }) => (
+                  <button
+                    key={prop.id}
+                    type="button"
+                    onClick={() => setActiveMetricId(prop.id)}
+                    className={cn(
+                      'relative overflow-hidden rounded-xl border text-left transition-all group',
+                      activeMetricId === prop.id
+                        ? 'border-violet-300 bg-violet-50 ring-1 ring-violet-400/40 dark:border-white/[0.12] dark:bg-white/[0.05] dark:ring-violet-500/30'
+                        : 'border-slate-200 bg-slate-50/60 hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.06] dark:bg-white/[0.02] dark:hover:border-white/[0.1] dark:hover:bg-white/[0.04]'
                     )}
-                  </div>
-                </button>
-              ))}
-            </div>
+                  >
+                    <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: accent }} />
+
+                    <div className="pl-4 pr-3 py-3">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <PropIcon size={11} style={{ color: accent }} />
+                        <span className="text-[10px] font-medium uppercase tracking-widest text-slate-600 dark:text-neutral-500 truncate">
+                          {prop.name}
+                        </span>
+                        <span
+                          className="ml-auto text-[9px] uppercase tracking-widest shrink-0"
+                          style={{ color: accent + 'aa' }}
+                        >
+                          {meta.label}
+                        </span>
+                      </div>
+
+                      <div className="text-xl font-bold tabular-nums text-slate-900 dark:text-white truncate">
+                        {visible || '—'}
+                      </div>
+
+                      {sparkData.length > 1 && (
+                        <>
+                          <p className="mt-2 text-[9px] uppercase tracking-wider text-slate-400 dark:text-neutral-600">
+                            Tendance groupes (survol)
+                          </p>
+                          <div className="relative mt-1.5 h-8 w-full">
+                            {(() => {
+                              const series = sparkData.slice(0, 12);
+                              const minVal = Math.min(...series.map((s) => s.numeric));
+                              const maxVal = Math.max(...series.map((s) => s.numeric));
+                              const range = Math.max(0.0001, maxVal - minVal);
+                              const points = series.map((s, i) => {
+                                const x = series.length <= 1 ? 0 : (i / (series.length - 1)) * 100;
+                                const y = maxVal === minVal
+                                  ? 50
+                                  : 100 - (((s.numeric - minVal) / range) * 100);
+                                return { ...s, x, y };
+                              });
+                              const linePoints = points.map((p) => `${p.x},${p.y}`).join(' ');
+                              const areaPath = points.length
+                                ? `M 0,100 L ${points.map((p) => `${p.x},${p.y}`).join(' L ')} L 100,100 Z`
+                                : '';
+
+                              return (
+                                <>
+                                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full overflow-visible">
+                                    <defs>
+                                      <linearGradient id={`spark-grad-${prop.id}`} x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor={accent} stopOpacity={activeMetricId === prop.id ? 0.35 : 0.2} />
+                                        <stop offset="100%" stopColor={accent} stopOpacity={0.02} />
+                                      </linearGradient>
+                                    </defs>
+                                    <path d={areaPath} fill={`url(#spark-grad-${prop.id})`} />
+                                    <polyline
+                                      points={linePoints}
+                                      fill="none"
+                                      stroke={accent}
+                                      strokeWidth={2.2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      opacity={activeMetricId === prop.id ? 0.95 : 0.65}
+                                    />
+                                  </svg>
+
+                                  {points.map((spark) => (
+                                    <Tooltip key={spark.id}>
+                                      <TooltipTrigger asChild>
+                                        <span
+                                          className="absolute -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-white dark:border-black/40 shadow-sm"
+                                          style={{
+                                            left: `${spark.x}%`,
+                                            top: `${spark.y}%`,
+                                            backgroundColor: accent,
+                                            opacity: activeMetricId === prop.id ? 1 : 0.8,
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="max-w-[220px]">
+                                        <div className="text-[11px] leading-tight">
+                                          <p className="font-medium truncate">{spark.name}</p>
+                                          <p className="text-slate-500 dark:text-neutral-400 mt-0.5">
+                                            {meta.label}: <span className="font-semibold">{spark.visibleValue}</span>
+                                          </p>
+                                          <p className="text-slate-400 dark:text-neutral-500 text-[10px]">
+                                            {spark.count} ligne{spark.count > 1 ? 's' : ''}
+                                          </p>
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  ))}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-300 dark:border-white/[0.08] bg-slate-50/60 dark:bg-white/[0.02] px-4 py-6 text-center text-sm text-slate-500 dark:text-neutral-500">
+                Aucun champ de total visible. Ouvre les réglages pour en réafficher.
+              </div>
+            )
           )}
 
           {/* ── Modules graphiques (si groupes) ───────────────────────── */}
@@ -1016,7 +1336,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                   {/* Sélecteur de métrique */}
                   <div className="flex items-center gap-2 mb-4 flex-wrap">
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-neutral-600">Métrique :</span>
-                    {activeTotals.map((prop: any) => {
+                    {visibleTotals.map((prop: any) => {
                       const meta = getMeta(getTotalTypeForProp(prop) || 'count');
                       const accent = prop?.color || meta.accentHex;
                       return (
@@ -1157,7 +1477,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                           Groupe
                         </th>
                       )}
-                      {activeTotals.map((prop: any) => {
+                      {visibleTotals.map((prop: any) => {
                         const meta = getMeta(getTotalTypeForProp(prop) || 'count');
                         const PropIcon = (Icons as any)[prop.icon] || meta.Icon;
                         const accentStyle = prop?.color ? { color: prop.color } : undefined;
@@ -1190,7 +1510,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                           </div>
                         </td>
                       )}
-                      {activeTotals.map((prop: any) => {
+                      {visibleTotals.map((prop: any) => {
                         const totalType = getTotalTypeForProp(prop) || 'count';
                         const meta = getMeta(totalType);
                         const total = calculateTotal(prop.id, contextItems, totalType);
@@ -1288,7 +1608,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                               </span>
                             </div>
                           </td>
-                          {activeTotals.map((prop: any) => {
+                          {visibleTotals.map((prop: any) => {
                             const totalType = getTotalTypeForProp(prop) || 'count';
                             const meta = getMeta(totalType);
                             const total = calculateTotal(prop.id, row.items, totalType);

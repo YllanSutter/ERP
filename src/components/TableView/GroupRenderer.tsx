@@ -54,6 +54,7 @@ interface GroupRendererProps {
   onRowDrop?: (targetItemId: string, e: React.DragEvent<HTMLTableRowElement>) => void;
   onRowDragEnd?: () => void;
   totalFields?: Record<string, string>;
+  hiddenTotalFieldIds?: string[];
   calculateTotal?: (fieldId: string, items: Item[], totalType: string) => any;
   formatTotal?: (fieldId: string, total: any, totalType: string) => string;
   hideCurrentHeader?: boolean;
@@ -111,6 +112,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   onRowDrop,
   onRowDragEnd,
   totalFields = {},
+  hiddenTotalFieldIds = [],
   calculateTotal,
   formatTotal,
   hideCurrentHeader = false,
@@ -420,6 +422,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               onRowDrop={onRowDrop}
               onRowDragEnd={onRowDragEnd}
               totalFields={totalFields}
+              hiddenTotalFieldIds={hiddenTotalFieldIds}
               calculateTotal={calculateTotal}
               formatTotal={formatTotal}
               hideCurrentHeader
@@ -438,6 +441,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
   };
 
   const totalColSpan = displayColumnCount + (draggableRows ? 1 : 0) + (enableSelection ? 1 : 0);
+  const visibleDisplayProperties = displayProperties.filter((prop: any) => !hiddenTotalFieldIds.includes(prop.id));
 
   // ─── Rendu des totaux en bas (TotalsRow dans le tbody) ────────────────────
   const renderBottomTotals = () => {
@@ -453,7 +457,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
       <tr>
         {draggableRows && <td className="px-1 py-2 w-8" />}
         {enableSelection && <td className="px-2 py-2 w-10" />}
-        {displayProperties.map((prop: any) => {
+        {visibleDisplayProperties.map((prop: any) => {
           const totalType = totalFields[prop.id];
           if (!totalType) return <td key={prop.id} className="px-2 py-2" />;
 

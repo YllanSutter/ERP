@@ -28,6 +28,34 @@ export const registerAccessRoutes = ({
   countOrganizationAdmins,
   upsertPermission,
 }) => {
+  const mergePreferences = (baseValue, patchValue) => {
+    if (Array.isArray(baseValue) || Array.isArray(patchValue)) {
+      return Array.isArray(patchValue) ? patchValue : baseValue;
+    }
+
+    if (!patchValue || typeof patchValue !== 'object') {
+      return patchValue;
+    }
+
+    const baseObject = baseValue && typeof baseValue === 'object' && !Array.isArray(baseValue)
+      ? baseValue
+      : {};
+
+    const result = { ...baseObject };
+    for (const [key, value] of Object.entries(patchValue)) {
+      const current = baseObject[key];
+      if (
+        value && typeof value === 'object' && !Array.isArray(value) &&
+        current && typeof current === 'object' && !Array.isArray(current)
+      ) {
+        result[key] = mergePreferences(current, value);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  };
+
   const createOrganizationFromImportedState = async (ownerUserId, organizationName, state) => {
     const orgId = uuidv4();
     const trimmedName = String(organizationName || '').trim() || `Organisation importée ${new Date().toLocaleDateString('fr-FR')}`;
@@ -499,13 +527,23 @@ export const registerAccessRoutes = ({
     res.json(users.rows);
   });
 
-  app.patch('/api/users/:id/preferences', requireAuth, requirePermission('can_manage_permissions'), async (req, res) => {
+  app.patch('/api/users/:id/preferences', requireAuth, async (req, res) => {
     try {
       const organizationId = req.auth.activeOrganization?.id;
       if (!organizationId) return res.status(400).json({ error: 'No active organization' });
 
       const userId = String(req.params.id || '').trim();
       if (!userId) return res.status(400).json({ error: 'user id required' });
+
+      const isSelf = req.auth?.user?.id === userId;
+      const canManagePermissions = Boolean(
+        req.auth?.permissions?.some((perm) => perm?.can_manage_permissions) ||
+        req.auth?.roles?.some((role) => role?.name === 'admin') ||
+        req.auth?.baseRoles?.some((role) => role?.name === 'admin')
+      );
+      if (!isSelf && !canManagePermissions) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
 
       const membership = await pool.query(
         'SELECT 1 FROM organization_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1',
@@ -520,6 +558,18 @@ export const registerAccessRoutes = ({
         return res.status(400).json({ error: 'preferences object required' });
       }
 
+      const currentUserRes = await pool.query(
+        `SELECT COALESCE(user_preferences, '{}'::jsonb) AS user_preferences
+         FROM users
+         WHERE id = $1
+         LIMIT 1`,
+        [userId]
+      );
+      if (!currentUserRes.rowCount) return res.status(404).json({ error: 'user not found' });
+
+      const currentPreferences = currentUserRes.rows[0]?.user_preferences || {};
+      const mergedPreferences = mergePreferences(currentPreferences, payload);
+
       const normalized = {
         accentColor: typeof payload.accentColor === 'string' ? payload.accentColor : '#06b6d4',
         workStart: typeof payload.workStart === 'string' ? payload.workStart : '09:00',
@@ -532,12 +582,14 @@ export const registerAccessRoutes = ({
         notificationsEnabled: Boolean(payload.notificationsEnabled),
       };
 
+      const nextPreferences = mergePreferences(mergedPreferences, normalized);
+
       const updated = await pool.query(
         `UPDATE users
          SET user_preferences = $1::jsonb
          WHERE id = $2
          RETURNING id, COALESCE(user_preferences, '{}'::jsonb) AS user_preferences`,
-        [JSON.stringify(normalized), userId]
+        [JSON.stringify(nextPreferences), userId]
       );
       if (!updated.rowCount) return res.status(404).json({ error: 'user not found' });
 

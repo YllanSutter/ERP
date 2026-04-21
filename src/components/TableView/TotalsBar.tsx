@@ -299,36 +299,6 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
   const [showGroupSelectors, setShowGroupSelectors] = React.useState(!hideGroupSelectors);
 
   React.useEffect(() => {
-    if (!persistKey) return;
-    try {
-      const raw = localStorage.getItem(`totalsbar:${persistKey}:expanded`);
-      if (raw === '0') setIsSectionExpanded(false);
-      if (raw === '1') setIsSectionExpanded(true);
-
-      if (allowGroupSelectorToggle) {
-        const showSelectorsRaw = localStorage.getItem(`totalsbar:${persistKey}:show-group-selectors`);
-        if (showSelectorsRaw === '0') setShowGroupSelectors(false);
-        if (showSelectorsRaw === '1') setShowGroupSelectors(true);
-      }
-    } catch {
-      // no-op
-    }
-  }, [persistKey, allowGroupSelectorToggle]);
-
-  React.useEffect(() => {
-    if (!persistKey) return;
-    try {
-      localStorage.setItem(`totalsbar:${persistKey}:expanded`, isSectionExpanded ? '1' : '0');
-
-      if (allowGroupSelectorToggle) {
-        localStorage.setItem(`totalsbar:${persistKey}:show-group-selectors`, showGroupSelectors ? '1' : '0');
-      }
-    } catch {
-      // no-op
-    }
-  }, [persistKey, isSectionExpanded, allowGroupSelectorToggle, showGroupSelectors]);
-
-  React.useEffect(() => {
     if (allowGroupSelectorToggle) return;
     setShowGroupSelectors(!hideGroupSelectors);
   }, [allowGroupSelectorToggle, hideGroupSelectors]);
