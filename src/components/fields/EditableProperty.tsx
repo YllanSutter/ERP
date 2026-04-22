@@ -14,6 +14,7 @@ import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { workDayStart, workDayEnd } from '@/lib/calendarUtils';
 import { formatDateByGranularity } from '@/lib/groupingUtils';
+import { calculateSegmentsClient } from '@/lib/calculateSegmentsClient';
 
 interface EditablePropertyProps {
   property: any;
@@ -944,6 +945,28 @@ function groupSegmentsByDay(segments: any[]) {
   return segmentsByDay;
 }
 
+function normalizeSegmentsForCompare(segments: any[]) {
+  return (segments || [])
+    .map((seg: any) => {
+      const startDate = new Date(seg.start || seg.__eventStart);
+      const endDate = new Date(seg.end || seg.__eventEnd);
+      return {
+        label: seg.label || '',
+        start: Number.isNaN(startDate.getTime()) ? '' : startDate.toISOString(),
+        end: Number.isNaN(endDate.getTime()) ? '' : endDate.toISOString(),
+      };
+    })
+    .sort((a: any, b: any) => {
+      const keyA = `${a.label}|${a.start}|${a.end}`;
+      const keyB = `${b.label}|${b.start}|${b.end}`;
+      return keyA.localeCompare(keyB);
+    });
+}
+
+function areSegmentsEquivalent(left: any[], right: any[]) {
+  return JSON.stringify(normalizeSegmentsForCompare(left || [])) === JSON.stringify(normalizeSegmentsForCompare(right || []));
+}
+
 const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   property,
   value,
@@ -1014,12 +1037,57 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   // Date
   if (property.type === 'date') {
     const [open, setOpen] = useState(false);
+    const [segmentApplyDialog, setSegmentApplyDialog] = useState<{ autoSegments: any[]; latestItem: any } | null>(null);
+    const baselineItemRef = useRef<any>(null);
+    const latestItemRef = useRef<any>(null);
     const selectedDate = value && !isNaN(new Date(value).getTime()) ? new Date(value) : undefined;
     const durationKey = `${property.id}_duration`;
     const currentDuration = currentItem?.[durationKey] || property.defaultDuration || 1;
-    const { handleEventUpdate } = useDateHandlers(property, currentItem!, collections!, collection!, onChange, onRelationChange);
     const dateGranularity = property.dateGranularity || 'full';
     const includeDuration = property.includeDuration !== false;
+
+    const handleEventUpdate = useCallback((propId: string, val: any) => {
+      const baseItem = latestItemRef.current || currentItem || {};
+      const updated = { ...baseItem, [propId]: val };
+      latestItemRef.current = updated;
+      if (propId === property.id && typeof onChange === 'function') {
+        onChange(val);
+      }
+      if (typeof onRelationChange === 'function') {
+        // Always send the date field value as 3rd arg to avoid consumers
+        // writing a duration number into the date field.
+        onRelationChange(property, updated, updated[property.id]);
+      }
+    }, [currentItem, onChange, onRelationChange, property]);
+
+    const handleDatePopoverOpenChange = useCallback((nextOpen: boolean) => {
+      if (nextOpen) {
+        baselineItemRef.current = currentItem ? { ...currentItem } : null;
+        latestItemRef.current = currentItem ? { ...currentItem } : null;
+        setOpen(true);
+        return;
+      }
+
+      setOpen(false);
+
+      if (!includeDuration || dateGranularity !== 'full' || !collection || !currentItem) return;
+
+      const baseline = baselineItemRef.current || currentItem;
+      const latest = latestItemRef.current || currentItem;
+      if (!baseline || !latest) return;
+
+      const dateChanged = JSON.stringify(baseline[property.id] ?? null) !== JSON.stringify(latest[property.id] ?? null);
+      const durationChanged = JSON.stringify(baseline[durationKey] ?? null) !== JSON.stringify(latest[durationKey] ?? null);
+      if (!dateChanged && !durationChanged) return;
+
+      const manualSegments = (latest._eventSegments || []).filter((seg: any) => seg.label === property.name);
+      const autoSegments = calculateSegmentsClient(latest, collection).filter((seg: any) => seg.label === property.name);
+      const hasDiff = !areSegmentsEquivalent(manualSegments, autoSegments);
+
+      if (autoSegments.length > 0 && hasDiff && !readOnly) {
+        setSegmentApplyDialog({ autoSegments, latestItem: latest });
+      }
+    }, [collection, currentItem, dateGranularity, durationKey, includeDuration, property, readOnly]);
 
     // Fonction pour formater la date selon la granularité (importée depuis groupingUtils)
     const formatDateForDisplay = (date: Date) => {
@@ -1046,9 +1114,20 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     // Utiliser selectedDate (déjà validé) pour éviter le crash si value est une
     // string non-ISO comme "2026" (venant du groupContext d'un champ date/year)
     const currentTime = selectedDate ? format(selectedDate, 'HH:mm') : `${String(workDayStart).padStart(2, '0')}:00`;
+    const isValidDate = (d: Date) => !Number.isNaN(d.getTime());
+    const getSafeWorkingDate = () => {
+      const latestValue = latestItemRef.current?.[property.id];
+      const sourceValue = latestValue ?? value;
+      const parsed = sourceValue ? new Date(sourceValue) : new Date();
+      if (isValidDate(parsed)) return parsed;
+      const fallback = new Date();
+      fallback.setHours(9, 0, 0, 0);
+      return fallback;
+    };
 
     return (
-      <Popover open={open} onOpenChange={setOpen}>
+      <>
+      <Popover open={open} onOpenChange={handleDatePopoverOpenChange}>
         <PopoverTrigger asChild>
           <button
             disabled={readOnly}
@@ -1096,8 +1175,10 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                   value={selectedDate ? selectedDate.getMonth() : new Date().getMonth()}
                   onChange={(e) => {
                     const month = parseInt(e.target.value);
+                    if (!Number.isFinite(month)) return;
                     const year = selectedDate ? selectedDate.getFullYear() : new Date().getFullYear();
                     const date = new Date(year, month, 1, 9, 0, 0, 0);
+                    if (!isValidDate(date)) return;
                     handleEventUpdate(property.id, date.toISOString());
                   }}
                   className="w-full px-3 py-2 bg-background dark:bg-neutral-800/50 border border-white/10 rounded text-sm text-black dark:text-white"
@@ -1114,8 +1195,10 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                   value={selectedDate ? selectedDate.getMonth() : new Date().getMonth()}
                   onChange={(e) => {
                     const month = parseInt(e.target.value);
+                    if (!Number.isFinite(month)) return;
                     const year = selectedDate ? selectedDate.getFullYear() : new Date().getFullYear();
                     const date = new Date(year, month, 1, 9, 0, 0, 0);
+                    if (!isValidDate(date)) return;
                     handleEventUpdate(property.id, date.toISOString());
                   }}
                   className="w-full px-3 py-2 bg-background dark:bg-neutral-800/50 border border-white/10 rounded text-sm text-black dark:text-white"
@@ -1128,8 +1211,10 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                   value={selectedDate ? selectedDate.getFullYear() : new Date().getFullYear()}
                   onChange={(e) => {
                     const year = parseInt(e.target.value);
+                    if (!Number.isFinite(year)) return;
                     const month = selectedDate ? selectedDate.getMonth() : new Date().getMonth();
                     const date = new Date(year, month, 1, 9, 0, 0, 0);
+                    if (!isValidDate(date)) return;
                     handleEventUpdate(property.id, date.toISOString());
                   }}
                   className="w-full px-3 py-2 bg-background dark:bg-neutral-800/50 border border-white/10 rounded text-sm text-black dark:text-white"
@@ -1146,7 +1231,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                   value={selectedDate ? selectedDate.getFullYear() : new Date().getFullYear()}
                   onChange={(e) => {
                     const year = parseInt(e.target.value);
+                    if (!Number.isFinite(year)) return;
                     const date = new Date(year, 0, 1, 9, 0, 0, 0);
+                    if (!isValidDate(date)) return;
                     handleEventUpdate(property.id, date.toISOString());
                   }}
                   className="w-full px-3 py-2 bg-background dark:bg-neutral-800/50 border border-white/10 rounded text-sm text-black dark:text-white"
@@ -1163,12 +1250,14 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                   selected={selectedDate}
                   onSelect={(date) => {
                     if (date) {
-                      const existingDate = value ? new Date(value) : null;
+                      const baseDateValue = latestItemRef.current?.[property.id] ?? value;
+                      const existingDate = baseDateValue ? new Date(baseDateValue) : null;
                       if (existingDate && !isNaN(existingDate.getTime())) {
                         date.setHours(existingDate.getHours(), existingDate.getMinutes());
                       } else {
                         date.setHours(9, 0);
                       }
+                      if (!isValidDate(date)) return;
                       handleEventUpdate(property.id, date.toISOString());
                     }
                   }}
@@ -1181,8 +1270,12 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                     value={currentTime}
                     onChange={e => {
                       const [hours, minutes] = e.target.value.split(':');
-                      const d = value ? new Date(value) : new Date();
-                      d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                      const parsedHours = parseInt(hours);
+                      const parsedMinutes = parseInt(minutes);
+                      if (!Number.isFinite(parsedHours) || !Number.isFinite(parsedMinutes)) return;
+                      const d = getSafeWorkingDate();
+                      d.setHours(parsedHours, parsedMinutes, 0, 0);
+                      if (!isValidDate(d)) return;
                       handleEventUpdate(property.id, d.toISOString());
                     }}
                     className="w-full h-50 text-center bg-background text-black dark:bg-neutral-900 dark:text-white border-l border-white/10 text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
@@ -1197,6 +1290,52 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
           </div>
         </PopoverContent>
       </Popover>
+      {segmentApplyDialog && (
+        <div
+          className="fixed inset-0 z-[420] bg-black/60 backdrop-blur-sm flex items-center justify-center"
+          onClick={() => setSegmentApplyDialog(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-base font-semibold text-foreground">Appliquer les plages calculees ?</div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              Les plages auto sont differentes des plages personnalisees. Voulez-vous appliquer les plages calculees maintenant ?
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSegmentApplyDialog(null)}
+                className="px-3 py-2 text-sm rounded-lg border border-border text-foreground hover:bg-muted transition-colors"
+              >
+                Garder mes plages
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!segmentApplyDialog) return;
+                  const propName = property.name;
+                  const latest = segmentApplyDialog.latestItem || currentItem || {};
+                  const otherSegments = (latest._eventSegments || []).filter((seg: any) => seg.label !== propName);
+                  const merged = {
+                    ...latest,
+                    _eventSegments: [...otherSegments, ...segmentApplyDialog.autoSegments],
+                    _preserveEventSegments: false,
+                  };
+                  if (typeof onChange === 'function') onChange(merged[property.id]);
+                  if (typeof onRelationChange === 'function') onRelationChange(property, merged, merged[property.id]);
+                  setSegmentApplyDialog(null);
+                }}
+                className="px-3 py-2 text-sm rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors"
+              >
+                Appliquer les plages auto
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
     );
   }
 

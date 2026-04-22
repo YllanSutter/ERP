@@ -187,6 +187,27 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const [historySelectedIndex, setHistorySelectedIndex] = useState<number | null>(null);
   const [historyPreview, setHistoryPreview] = useState<any | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [actionToast, setActionToast] = useState<string | null>(null);
+  const actionToastTimeoutRef = useRef<number | null>(null);
+
+  const showActionToast = React.useCallback((message: string) => {
+    if (actionToastTimeoutRef.current !== null) {
+      window.clearTimeout(actionToastTimeoutRef.current);
+    }
+    setActionToast(message);
+    actionToastTimeoutRef.current = window.setTimeout(() => {
+      setActionToast(null);
+      actionToastTimeoutRef.current = null;
+    }, 2200);
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (actionToastTimeoutRef.current !== null) {
+        window.clearTimeout(actionToastTimeoutRef.current);
+      }
+    };
+  }, []);
 
 
 
@@ -874,6 +895,33 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     return calculateSegmentsClient(formData, selectedCollection);
   }, [formData, selectedCollection]);
 
+  const normalizeSegmentsForComparison = React.useCallback((segments: any[] = []) => {
+    return segments
+      .map((seg: any) => {
+        const startDate = new Date(seg.start || seg.__eventStart);
+        const endDate = new Date(seg.end || seg.__eventEnd);
+        return {
+          label: seg.label || '',
+          start: Number.isNaN(startDate.getTime()) ? '' : startDate.toISOString(),
+          end: Number.isNaN(endDate.getTime()) ? '' : endDate.toISOString(),
+        };
+      })
+      .sort((a: any, b: any) => {
+        const keyA = `${a.label}|${a.start}|${a.end}`;
+        const keyB = `${b.label}|${b.start}|${b.end}`;
+        return keyA.localeCompare(keyB);
+      });
+  }, []);
+
+  const areSegmentsEquivalent = React.useCallback(
+    (left: any[] = [], right: any[] = []) => {
+      const normalizedLeft = normalizeSegmentsForComparison(left);
+      const normalizedRight = normalizeSegmentsForComparison(right);
+      return areValuesEqual(normalizedLeft, normalizedRight);
+    },
+    [normalizeSegmentsForComparison]
+  );
+
   // Toujours afficher tous les champs date si la collection en a — même vides.
   const datePropsForDisplay = dateProps;
 
@@ -897,16 +945,23 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     if (!exists) setActiveRichTextTab(richTextTabs[0].id);
   }, [richTextTabs, activeRichTextTab]);
 
-  // Détecte si les segments ont changé et demande confirmation
-  const segmentsHaveChanged = useMemo(() => {
-    if (!isReallyEditing || !editingItem) return false;
-    const oldSegments = editingItem._eventSegments || [];
-    const newSegments = previewSegments;
-    return JSON.stringify(oldSegments) !== JSON.stringify(newSegments);
-  }, [previewSegments, editingItem, isReallyEditing]);
-
   // État pour gérer l'ouverture du modal d'édition des plages
   const [editingDateProp, setEditingDateProp] = useState<any>(null);
+  const [segmentApplyDialog, setSegmentApplyDialog] = useState<{ dateProp: any; autoSegments: any[] } | null>(null);
+
+  const closeDateEditor = React.useCallback(() => {
+    if (!editingDateProp) return;
+    const manualSegments = (formData._eventSegments || []).filter((seg: { label: any }) => seg.label === editingDateProp.name);
+    const autoSegments = previewSegments.filter((seg: { label: any }) => seg.label === editingDateProp.name);
+    const hasDiff = !areSegmentsEquivalent(manualSegments, autoSegments);
+    const canWrite = canWriteField(selectedCollection?.id, editingDateProp.id);
+
+    setEditingDateProp(null);
+
+    if (isReallyEditing && canWrite && autoSegments.length > 0 && hasDiff) {
+      setSegmentApplyDialog({ dateProp: editingDateProp, autoSegments });
+    }
+  }, [editingDateProp, formData, previewSegments, areSegmentsEquivalent, canWriteField, selectedCollection?.id, isReallyEditing]);
 
   // Navigation pile pour les items liés (drill-down relations)
   const [subItemStack, setSubItemStack] = useState<SubItemEntry[]>([]);
@@ -1395,6 +1450,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 const canWriteDateProp = canWriteField(selectedCollection?.id, dateProp.id);
                 const segments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
                 const autoSegments = previewSegments.filter((seg: { label: any; }) => seg.label === dateProp.name);
+                const autoSegmentsDiffer = !areSegmentsEquivalent(segments, autoSegments);
                 
                 // Résumé : nombre de plages et durée totale
                 const getSegmentHours = (seg: any) => {
@@ -1459,7 +1515,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                         <PopoverTrigger asChild>
                           <button className="mt-3 flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
                             <span>Plages auto ({autoSegments.length})</span>
-                            {segmentsHaveChanged && isReallyEditing && (
+                            {autoSegmentsDiffer && isReallyEditing && (
                               <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-300 rounded text-[10px]">Modifié</span>
                             )}
                           </button>
@@ -1473,20 +1529,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                 {formatSegmentDisplay(seg)}
                               </div>
                             ))}
-                            {isReallyEditing && segmentsHaveChanged && (
-                              <button
-                                type="button"
-                                className="mt-3 w-full px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors"
-                                disabled={!canWriteDateProp}
-                                onClick={() => {
-                                  if (!canWriteDateProp) return;
-                                  const oldManualSegs = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label !== dateProp.name);
-                                  setFormData({ ...formData, _eventSegments: [...oldManualSegs, ...autoSegments], _preserveEventSegments: false });
-                                }}
-                              >
-                                Appliquer ces plages
-                              </button>
-                            )}
                           </div>
                         </PopoverContent>
                       </Popover>
@@ -1618,7 +1660,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-[300]"
-          onClick={() => setEditingDateProp(null)}
+          onClick={closeDateEditor}
         >
           <motion.div
             initial={{ scale: 0.97, opacity: 0, y: 4 }}
@@ -1630,7 +1672,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             <div className="px-6 py-4 border-b border-border flex items-center justify-between shrink-0">
               <h3 className="text-sm font-semibold text-foreground">Modifier les plages · {editingDateProp.name}</h3>
               <button
-                onClick={() => setEditingDateProp(null)}
+                onClick={closeDateEditor}
                 className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
               >
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1786,7 +1828,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             </div>
             <div className="px-6 py-4 border-t border-border flex justify-end shrink-0">
               <button
-                onClick={() => setEditingDateProp(null)}
+                onClick={closeDateEditor}
                 className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
               >
                 Fermer
@@ -1796,6 +1838,58 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         </motion.div>
       )}
       </div>
+      {segmentApplyDialog && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 z-[420] bg-black/60 backdrop-blur-sm flex items-center justify-center"
+          onClick={() => setSegmentApplyDialog(null)}
+        >
+          <motion.div
+            initial={{ scale: 0.98, opacity: 0, y: 8 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{ duration: 0.16 }}
+            className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-base font-semibold text-foreground">Appliquer les plages calculees ?</div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              Les plages auto sont differentes des plages personnalisees pour ce champ date. Voulez-vous appliquer les plages calculees maintenant ?
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <Button variant="outline" onClick={() => setSegmentApplyDialog(null)}>
+                Garder mes plages
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!segmentApplyDialog) return;
+                  const propName = segmentApplyDialog.dateProp.name;
+                  const oldManualSegs = (formData._eventSegments || []).filter((seg: { label: any }) => seg.label !== propName);
+                  setFormData({
+                    ...formData,
+                    _eventSegments: [...oldManualSegs, ...segmentApplyDialog.autoSegments],
+                    _preserveEventSegments: false,
+                  });
+                  showActionToast('Plages auto appliquees');
+                  setSegmentApplyDialog(null);
+                }}
+              >
+                Appliquer les plages auto
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+      {actionToast && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          className="fixed right-6 top-6 z-[430] rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-4 py-2 text-sm font-medium text-emerald-300 shadow-xl"
+        >
+          {actionToast}
+        </motion.div>
+      )}
       <Dialog open={templateDialogOpen} onOpenChange={(open) => (open ? setTemplateDialogOpen(true) : handleTemplateDialogCancel())}>
         <DialogContent>
           <DialogHeader>

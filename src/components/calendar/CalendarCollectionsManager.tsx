@@ -34,6 +34,8 @@ interface CalendarCollectionsManagerProps {
   viewModeStorageKey?: string;
 }
 
+type CalendarViewMode = 'month' | 'week' | 'day';
+
 const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
   collections,
   defaultDuration = 1,
@@ -170,7 +172,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
       onEdit(updatedItem);
     }
   };
-  const getInitialViewMode = () => {
+  const getInitialViewMode = (): CalendarViewMode => {
     if (typeof window !== 'undefined') {
       try {
         const key = viewModeStorageKey ? `calendarViewMode:${viewModeStorageKey}` : 'calendarViewMode';
@@ -180,9 +182,9 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
     }
     return 'month';
   };
-  const [viewMode, setViewMode] = useState(getInitialViewMode());
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(getInitialViewMode());
   const [currentDate, setCurrentDate] = useState(new Date());
-  const setViewModePersist = (mode: React.SetStateAction<string>) => {
+  const setViewModePersist = (mode: React.SetStateAction<CalendarViewMode>) => {
     setViewMode(mode);
     if (typeof window !== 'undefined') {
       try {
