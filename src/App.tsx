@@ -1282,7 +1282,11 @@ const App = () => {
                 : [...prev.items, itemId],
             }));
           }}
-          onSaveRelatedItem={(colId, item) => itemHooks.saveItem(item, null, colId)}
+          onOpenRelatedItem={(targetCollection, targetItem) => {
+            setModalCollection(targetCollection || null);
+            setEditingItem(targetItem || null);
+            setShowNewItemModal(true);
+          }}
         />
       )}
       {showFilterModal && (

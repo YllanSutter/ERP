@@ -75,6 +75,30 @@ function hasItemCountChanged(prev: Collection[], next: Collection[]): boolean {
   return false;
 }
 
+// Verifie si l'ordre des items a change dans une collection.
+// Important: le diff PATCH par item ne capture pas les permutations de liste.
+function hasItemOrderChanged(prev: Collection[], next: Collection[]): boolean {
+  if (prev.length !== next.length) return true;
+  const prevMap = new Map(prev.map((c) => [c.id, c]));
+
+  for (const col of next) {
+    const prevCol = prevMap.get(col.id);
+    if (!prevCol) return true;
+
+    const prevItems = prevCol.items || [];
+    const nextItems = col.items || [];
+    if (prevItems.length !== nextItems.length) return true;
+
+    for (let i = 0; i < nextItems.length; i += 1) {
+      if (prevItems[i]?.id !== nextItems[i]?.id) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 function countItems(collections: Collection[] = []): number {
   return (collections || []).reduce((acc, col) => acc + ((col.items || []).length || 0), 0);
 }
@@ -294,6 +318,7 @@ export function useErpSync({
 
         const prevCollections = lastSavedCollectionsRef.current;
         const countChanged = hasItemCountChanged(prevCollections, cleanedCollections);
+        const orderChanged = hasItemOrderChanged(prevCollections, cleanedCollections);
         const currentStructureStr = buildStructureSnapshot(
           cleanedViews,
           cleanedDashboards,
@@ -304,7 +329,7 @@ export function useErpSync({
         );
         const structureChanged = currentStructureStr !== lastSavedStructureRef.current;
 
-        let needsFullPost = structureChanged || countChanged;
+        let needsFullPost = structureChanged || countChanged || orderChanged;
 
         // Patches d'items (PATCH /api/state/item) - evite de tout recharger chez les autres
         if (!countChanged && !needsFullPost) {

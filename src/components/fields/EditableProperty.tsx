@@ -764,6 +764,7 @@ const RelationEditor = ({
       <div className="flex gap-1 flex-1 min-w-0 justify-end flex-wrap max-w-[200px] overflow-hidden max-h-[100px] overflow-y-auto">
         {visibleSelectedIds.map((id: string) => {
           const it = targetItems.find((ti: any) => ti.id === id);
+          const targetItemForNavigation = it || targetCollection?.items?.find((ti: any) => ti.id === id) || null;
           const label = it ? getItemLabel(it) : id;
           const baseColor = property.color || '#8b5cf6';
           
@@ -787,11 +788,18 @@ const RelationEditor = ({
               className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 border hover:bg-white/20 transition cursor-pointer group"
               style={{ backgroundColor: `${baseColor}12`, borderColor: `${baseColor}35` }}
             >
-              {onNavigateToRelatedItem && it ? (
+              {onNavigateToRelatedItem ? (
                 <button
                   type="button"
-                  className="flex items-center gap-0.5 truncate hover:underline"
-                  onClick={(e) => { e.stopPropagation(); onNavigateToRelatedItem(it, targetCollection, property.name); }}
+                  className={cn(
+                    "flex items-center gap-0.5 truncate",
+                    targetItemForNavigation ? "hover:underline" : "opacity-60 cursor-default"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!targetItemForNavigation) return;
+                    onNavigateToRelatedItem(targetItemForNavigation, targetCollection, property.name);
+                  }}
                 >
                   <span className="truncate">{label}</span>
                   <Icons.ArrowRight size={9} className="shrink-0 opacity-60" />

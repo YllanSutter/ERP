@@ -47,17 +47,17 @@ interface NewItemModalProps {
   favorites?: { views: string[]; items: string[] };
   onToggleFavoriteItem?: (itemId: string) => void;
   orderedProperties?: any[];
-  onSaveRelatedItem?: (collectionId: string, item: any) => void;
+  onOpenRelatedItem?: (collection: any, item: any) => void;
   groupContext?: Record<string, any> | null;
   /** Groupes de champs configurés dans les paramètres de la vue (section Détails) */
   fieldGroups?: FieldGroup[];
 }
 
-interface SubItemEntry {
+interface RelationTrailEntry {
+  relationName: string;
   collection: any;
   item: any;
-  formData: any;
-  propName: string;
+  label: string;
 }
 
 interface DraftPayloadState {
@@ -78,7 +78,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   favorites,
   onToggleFavoriteItem,
   orderedProperties,
-  onSaveRelatedItem,
+  onOpenRelatedItem,
   groupContext,
   fieldGroups = [],
 }) => {
@@ -182,6 +182,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     const nextId = writableCollections[0]?.id || readableCollections[0]?.id || collection?.id;
     if (nextId) setSelectedCollectionId(nextId);
   }, [selectedCollectionId, readableCollections, writableCollections, collection?.id]);
+
+  React.useEffect(() => {
+    if (!collection?.id) return;
+    if (selectedCollectionId === collection.id) return;
+    setSelectedCollectionId(collection.id);
+  }, [collection?.id, selectedCollectionId]);
+
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyData, setHistoryData] = useState<{ base: any; versions: any[] } | null>(null);
   const [historySelectedIndex, setHistorySelectedIndex] = useState<number | null>(null);
@@ -963,33 +970,80 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     }
   }, [editingDateProp, formData, previewSegments, areSegmentsEquivalent, canWriteField, selectedCollection?.id, isReallyEditing]);
 
-  // Navigation pile pour les items liés (drill-down relations)
-  const [subItemStack, setSubItemStack] = useState<SubItemEntry[]>([]);
-  const currentSubItem = subItemStack.length > 0 ? subItemStack[subItemStack.length - 1] : null;
+  const [relationTrail, setRelationTrail] = useState<RelationTrailEntry[]>([]);
 
-  const navigateToRelatedItem = (propName: string, targetCollection: any, targetItem: any) => {
-    setSubItemStack(prev => [...prev, { collection: targetCollection, item: targetItem, formData: { ...targetItem }, propName }]);
-  };
+  const getItemLabel = React.useCallback((item: any, itemCollection: any) => {
+    if (!item || !itemCollection) return 'Sans titre';
+    const titleProp = (itemCollection.properties || [])[0];
+    if (!titleProp) return 'Sans titre';
+    const raw = item[titleProp.id];
+    if (raw === undefined || raw === null || raw === '') return 'Sans titre';
+    if (typeof raw === 'string' || typeof raw === 'number') return String(raw);
+    return 'Sans titre';
+  }, []);
 
-  const navigateBack = () => {
-    setSubItemStack(prev => prev.slice(0, -1));
-  };
+  React.useEffect(() => {
+    if (!editingItem?.id || !collection?.id) {
+      if (relationTrail.length) setRelationTrail([]);
+      return;
+    }
+    if (!relationTrail.length) return;
 
-  const updateSubFormData = (key: string, value: any) => {
-    setSubItemStack(prev => {
-      if (!prev.length) return prev;
-      const next = [...prev];
-      next[next.length - 1] = { ...next[next.length - 1], formData: { ...next[next.length - 1].formData, [key]: value } };
-      return next;
+    const activeIndex = relationTrail.findIndex(
+      (entry) => entry.item?.id === editingItem.id && entry.collection?.id === collection.id
+    );
+
+    if (activeIndex === -1) {
+      // Pendant la transition parent -> relation, l'état peut être brièvement désaligné.
+      // On évite d'effacer le breadcrumb tant que la navigation n'est pas stabilisée.
+      return;
+    }
+
+    if (activeIndex !== relationTrail.length - 1) {
+      setRelationTrail((prev) => prev.slice(0, activeIndex + 1));
+    }
+  }, [editingItem?.id, collection?.id, relationTrail]);
+
+  const navigateTrailToIndex = React.useCallback((index: number) => {
+    if (!onOpenRelatedItem) return;
+    if (index < 0 || index >= relationTrail.length) return;
+    const nextTrail = relationTrail.slice(0, index + 1);
+    const target = nextTrail[nextTrail.length - 1];
+    if (!target?.collection || !target?.item) return;
+    setRelationTrail(nextTrail);
+    onOpenRelatedItem(target.collection, target.item);
+  }, [onOpenRelatedItem, relationTrail]);
+
+  const navigateToRelatedItemClassic = React.useCallback((targetItem: any, targetCollection: any, relationName: string) => {
+    if (!onOpenRelatedItem || !targetCollection || !targetItem) {
+      return;
+    }
+
+    const currentEntry: RelationTrailEntry = {
+      relationName: '',
+      collection: selectedCollection,
+      item: formData,
+      label: getItemLabel(formData, selectedCollection),
+    };
+
+    const nextEntry: RelationTrailEntry = {
+      relationName,
+      collection: targetCollection,
+      item: targetItem,
+      label: getItemLabel(targetItem, targetCollection),
+    };
+
+    setRelationTrail((prev) => {
+      const last = prev[prev.length - 1];
+      const isCurrentAlreadyLast =
+        last?.item?.id === currentEntry.item?.id &&
+        last?.collection?.id === currentEntry.collection?.id;
+      const base = isCurrentAlreadyLast ? prev : [...prev, currentEntry];
+      return [...base, nextEntry];
     });
-  };
 
-  const saveSubItem = () => {
-    if (!subItemStack.length || !onSaveRelatedItem) return;
-    const top = subItemStack[subItemStack.length - 1];
-    onSaveRelatedItem(top.collection.id, top.formData);
-    navigateBack();
-  };
+    onOpenRelatedItem(targetCollection, targetItem);
+  }, [onOpenRelatedItem, getItemLabel, formData, selectedCollection]);
 
   const timeOptions = useMemo(() => {
     const options: string[] = [];
@@ -1214,107 +1268,45 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           </div>
         </div>
         <div className="flex-1 px-8 py-7 z-10 relative overflow-y-auto">
-          {currentSubItem ? (
-            /* Panneau sous-item : drill-down relation */
-            <div className="space-y-4">
-              {/* Breadcrumb */}
-              <div className="flex items-center gap-2 text-sm mb-6">
-                <button
-                  type="button"
-                  onClick={navigateBack}
-                  className="flex items-center gap-1.5 text-violet-400 hover:text-violet-300 transition-colors font-medium"
-                >
-                  <ChevronLeft size={16} />
-                  Retour
-                </button>
-                <span>/</span>
-                <span>{currentSubItem.propName}</span>
-                <span>/</span>
-                <span className="font-medium text-neutral-200 truncate max-w-[200px]">
-                  {(() => {
-                    const titleProp = (currentSubItem.collection.properties || [])[0];
-                    return titleProp ? currentSubItem.formData[titleProp.id] || 'Sans titre' : 'Sans titre';
-                  })()}
-                </span>
-              </div>
-
-              {/* Champs classiques */}
-              <div className="space-y-0.5">
-                {(currentSubItem.collection.properties || [])
-                  .filter((p: any) => p.type !== 'relation')
-                  .map((prop: any) => (
-                    <div className="group/sub flex items-stretch rounded-lg hover:bg-white/[0.025] focus-within:bg-white/[0.03] transition-colors" key={prop.id}>
-                      <div className="w-[150px] shrink-0 flex items-center px-3 py-2.5">
-                        <label className="text-[10px] font-mono tracking-widest uppercase text-neutral-600 group-hover/sub:text-neutral-500 truncate transition-colors">
-                          {prop.name}
-                        </label>
-                      </div>
-                      <div className="flex-1 min-w-0 border-l border-white/[0.06] group-focus-within/sub:border-violet-500/40 transition-colors px-3 py-1.5 flex items-center">
-                        <EditableProperty
-                          property={prop}
-                          value={currentSubItem.formData[prop.id]}
-                          onChange={(val) => updateSubFormData(prop.id, val)}
-                          size="md"
-                          collections={readableCollections}
-                          collection={currentSubItem.collection}
-                          currentItem={currentSubItem.formData}
-                          onRelationChange={(property, _item, value) => updateSubFormData(property.id, value)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-              </div>
-
-              {/* Relations du sous-item */}
-              {(currentSubItem.collection.properties || []).some((p: any) => p.type === 'relation') && (
-                <div className="pt-4 space-y-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-[10px] tracking-widest uppercase font-medium text-neutral-600 shrink-0">Relations</span>
-                    <div className="flex-1 h-px bg-white/[0.06]" />
-                  </div>
-                  {(currentSubItem.collection.properties || [])
-                    .filter((p: any) => p.type === 'relation')
-                    .map((prop: any) => {
-                      const targetCol = readableCollections.find((c: any) => c.id === prop.relation?.targetCollectionId);
-                      return (
-                        <div key={prop.id} className="group/rel flex items-stretch rounded-lg hover:bg-white/[0.025] transition-colors">
-                          <div className="w-[150px] shrink-0 flex items-center px-3 py-2.5">
-                            <label className="text-[10px] font-mono tracking-widest uppercase text-neutral-600 truncate">{prop.name}</label>
-                          </div>
-                          <div className="flex-1 min-w-0 border-l border-white/[0.06] px-3 py-1.5 flex items-center">
-                            <EditableProperty
-                              property={prop}
-                              value={currentSubItem.formData[prop.id]}
-                              onChange={(val) => updateSubFormData(prop.id, val)}
-                              size="md"
-                              collections={readableCollections}
-                              collection={currentSubItem.collection}
-                              currentItem={currentSubItem.formData}
-                              onRelationChange={(property, _item, value) => updateSubFormData(property.id, value)}
-                              onNavigateToRelatedItem={(item) => navigateToRelatedItem(prop.name, targetCol, item)}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
-
-              {/* Bouton enregistrer sous-item */}
-              {onSaveRelatedItem && (
-                <div className="pt-4 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={saveSubItem}
-                    className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
-                  >
-                    Enregistrer
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
           <div className="space-y-8">
+
+          {relationTrail.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2 text-sm -mb-2">
+              <button
+                type="button"
+                onClick={() => navigateTrailToIndex(relationTrail.length - 2)}
+                className="inline-flex items-center gap-1.5 text-violet-400 hover:text-violet-300 transition-colors font-medium"
+              >
+                <ChevronLeft size={16} />
+                Retour
+              </button>
+              {relationTrail.map((entry, index) => {
+                const isLast = index === relationTrail.length - 1;
+                return (
+                  <React.Fragment key={`${entry.collection?.id || 'col'}-${entry.item?.id || index}-${index}`}>
+                    {index > 0 && (
+                      <>
+                        <span className="text-neutral-600">/</span>
+                        <span className="text-neutral-500">{entry.relationName || 'Relation'}</span>
+                        <span className="text-neutral-600">/</span>
+                      </>
+                    )}
+                    {isLast ? (
+                      <span className="font-medium text-neutral-200 truncate max-w-[220px]">{entry.label}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => navigateTrailToIndex(index)}
+                        className="text-neutral-400 hover:text-neutral-200 hover:underline transition-colors truncate max-w-[220px]"
+                      >
+                        {entry.label}
+                      </button>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          )}
 
           {/* Relations en haut sur toute la largeur */}
           {relationPropsForDisplay.length > 0 && (
@@ -1342,7 +1334,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                         setFormData({ ...formData, [property.id]: value });
                       }}
                       readOnly={!canWriteField(selectedCollection?.id, prop.id)}
-                      onNavigateToRelatedItem={(item, targetCol) => navigateToRelatedItem(prop.name, targetCol, item)}
+                      onNavigateToRelatedItem={(item, targetCol) => navigateToRelatedItemClassic(item, targetCol, prop.name)}
                     />
                   </div>
                 ))}
@@ -1591,7 +1583,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             </div>
           )}
           </div>
-          )}
         </div>
         <div className="flex items-center justify-between gap-3 px-8 py-4 border-t border-border shrink-0">
           <div className="flex items-center gap-3">
