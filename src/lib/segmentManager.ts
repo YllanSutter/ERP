@@ -77,11 +77,16 @@ function syncItemDateFieldFromSegments(
  */
 export function addManualSegmentToItem(
   item: any,
-  segment: EventSegment
+  segment: EventSegment,
+  options?: { collection?: any; dateFieldId?: string; label?: string }
 ): any {
   const segments = Array.isArray(item._eventSegments) ? [...item._eventSegments] : [];
   segments.push(segment);
-  return { ...item, _eventSegments: segments, _preserveEventSegments: true };
+  const nextItem = { ...item, _eventSegments: segments, _preserveEventSegments: true };
+  if (!options?.collection || !options?.dateFieldId) {
+    return nextItem;
+  }
+  return syncItemDateFieldFromSegments(nextItem, segments, options);
 }
 
 /**

@@ -197,6 +197,11 @@ const WeekView: React.FC<WeekViewProps> = ({
         start: secondaryPicker.start.toISOString(),
         end: secondaryPicker.end.toISOString(),
         label: dateField?.name || undefined,
+      },
+      {
+        collection: col,
+        dateFieldId: dateField?.id,
+        label: dateField?.name || undefined,
       }
     );
     if (onEdit) onEdit(updatedItem);
@@ -395,6 +400,7 @@ const WeekView: React.FC<WeekViewProps> = ({
           if (a.nearestDelta !== b.nearestDelta) return a.nearestDelta - b.nearestDelta;
           return a.name.localeCompare(b.name, 'fr-FR');
         })
+        .slice(0, 10)
     : [];
 
   useEffect(() => {
