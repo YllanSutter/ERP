@@ -381,6 +381,15 @@ const TableView: React.FC<TableViewProps> = ({
     [user?.user_preferences, totalsPersistKey, groups.length]
   );
   const [totalsWidgetPreferences, setTotalsWidgetPreferences] = useState<TotalsWidgetPreferences>(() => incomingTotalsPreferences);
+  const handleTotalsPreferencesChange = useCallback((next: TotalsWidgetPreferences) => {
+    setTotalsWidgetPreferences((prev) => {
+      const normalizedNext = normalizeTotalsWidgetPreferences(next, groups.length > 0);
+      const prevSerialized = JSON.stringify(prev);
+      const nextSerialized = JSON.stringify(normalizedNext);
+      if (prevSerialized === nextSerialized) return prev;
+      return normalizedNext;
+    });
+  }, [groups.length]);
   const hiddenTotalFieldIds = totalsWidgetPreferences.hiddenFieldIds || [];
   const visibleTotalProperties = displayProperties.filter((prop: any) => !hiddenTotalFieldIds.includes(prop.id));
   const [activeGroupSelectByDepth, setActiveGroupSelectByDepth] = useState<Record<number, string>>({});
@@ -1095,7 +1104,7 @@ const TableView: React.FC<TableViewProps> = ({
             persistKey={totalsPersistKey}
             contextPath={contextPath}
             preferences={totalsWidgetPreferences}
-            onPreferencesChange={setTotalsWidgetPreferences}
+            onPreferencesChange={handleTotalsPreferencesChange}
           />
         );
       })()}

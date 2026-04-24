@@ -250,6 +250,42 @@ function resolveChoiceEntry(entry: any): { raw: string; label: string } | null {
   return null;
 }
 
+function arraysEqual<T>(left: T[] = [], right: T[] = []): boolean {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    if (left[i] !== right[i]) return false;
+  }
+  return true;
+}
+
+function moduleMapEqual(
+  left: Record<ModuleKey, boolean> | undefined,
+  right: Record<ModuleKey, boolean> | undefined
+): boolean {
+  if (!left || !right) return left === right;
+  return (
+    left.stats === right.stats &&
+    left.bar === right.bar &&
+    left.donut === right.donut &&
+    left.table === right.table
+  );
+}
+
+function selectedByDepthEqual(
+  left: Record<number, string | null> | undefined,
+  right: Record<number, string | null> | undefined
+): boolean {
+  const leftEntries = Object.entries(left || {}).sort(([a], [b]) => Number(a) - Number(b));
+  const rightEntries = Object.entries(right || {}).sort(([a], [b]) => Number(a) - Number(b));
+  if (leftEntries.length !== rightEntries.length) return false;
+  for (let i = 0; i < leftEntries.length; i += 1) {
+    if (leftEntries[i][0] !== rightEntries[i][0]) return false;
+    if ((leftEntries[i][1] ?? null) !== (rightEntries[i][1] ?? null)) return false;
+  }
+  return true;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Module types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -481,22 +517,37 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   const lastAppliedPreferencesSignatureRef = React.useRef<string>('');
   const lastEmittedPreferencesSignatureRef = React.useRef<string>('');
 
-  React.useEffect(() => { setCollapsedGroups(new Set(rowsWithChildren)); }, [rowsWithChildren]);
+  React.useEffect(() => {
+    setCollapsedGroups((prev) => {
+      if (prev.size === rowsWithChildren.size && Array.from(prev).every((id) => rowsWithChildren.has(id))) {
+        return prev;
+      }
+      return new Set(rowsWithChildren);
+    });
+  }, [rowsWithChildren]);
   React.useEffect(() => {
     if (preferencesSignature === lastAppliedPreferencesSignatureRef.current) return;
     lastAppliedPreferencesSignatureRef.current = preferencesSignature;
 
-    setExpanded(Boolean(normalizedPreferences.widgetExpanded ?? true));
-    setModules(normalizedPreferences.widgetModules || createDefaultTotalsWidgetPreferences(hasGroups).widgetModules!);
-    setActiveMetricId(normalizedPreferences.activeMetricId || '');
+    const nextExpanded = Boolean(normalizedPreferences.widgetExpanded ?? true);
+    const nextModules = normalizedPreferences.widgetModules || createDefaultTotalsWidgetPreferences(hasGroups).widgetModules!;
+    const nextActiveMetricId = normalizedPreferences.activeMetricId || '';
+    const nextSelectedByDepth = normalizedPreferences.selectedByDepth || {};
+    const nextHiddenFieldIds = normalizedPreferences.hiddenFieldIds || [];
+    const nextFieldOrderIds = normalizedPreferences.fieldOrderIds || [];
+
+    setExpanded((prev) => (prev === nextExpanded ? prev : nextExpanded));
+    setModules((prev) => (moduleMapEqual(prev, nextModules) ? prev : nextModules));
+    setActiveMetricId((prev) => (prev === nextActiveMetricId ? prev : nextActiveMetricId));
     // Quand contextPath est fourni par la vue parent (onglets du bas),
     // on évite de réinjecter la sélection depuis les préférences pour ne pas créer de ping-pong.
     if (!contextPath) {
-      setActiveLevelDepth(normalizedPreferences.activeLevelDepth ?? 'overview');
-      setSelectedByDepth(normalizedPreferences.selectedByDepth || {});
+      const nextActiveLevelDepth = normalizedPreferences.activeLevelDepth ?? 'overview';
+      setActiveLevelDepth((prev) => (prev === nextActiveLevelDepth ? prev : nextActiveLevelDepth));
+      setSelectedByDepth((prev) => (selectedByDepthEqual(prev, nextSelectedByDepth) ? prev : nextSelectedByDepth));
     }
-    setHiddenTotalFieldIds(normalizedPreferences.hiddenFieldIds || []);
-    setTotalFieldOrderIds(normalizedPreferences.fieldOrderIds || []);
+    setHiddenTotalFieldIds((prev) => (arraysEqual(prev, nextHiddenFieldIds) ? prev : nextHiddenFieldIds));
+    setTotalFieldOrderIds((prev) => (arraysEqual(prev, nextFieldOrderIds) ? prev : nextFieldOrderIds));
   }, [preferencesSignature, normalizedPreferences, hasGroups, contextPath]);
 
   React.useEffect(() => {
