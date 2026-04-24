@@ -678,19 +678,10 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   }, [selectedByDepth, contextPath, debugLog]);
 
   React.useEffect(() => {
-    const isContextDriven = Boolean(contextPath);
     const snapshot = {
       showTotalsWidget: normalizedPreferences.showTotalsWidget,
       widgetExpanded: expanded,
       widgetModules: modules,
-      activeMetricId,
-      activeLevelDepth: isContextDriven
-        ? (normalizedPreferences.activeLevelDepth ?? 'overview')
-        : activeLevelDepth,
-      selectedByDepth: isContextDriven
-        ? (normalizedPreferences.selectedByDepth || {})
-        : selectedByDepth,
-      collapsedGroupIds: Array.from(collapsedGroups),
       hiddenFieldIds: hiddenTotalFieldIds,
       fieldOrderIds: totalFieldOrderIds,
     };
@@ -703,13 +694,8 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     normalizedPreferences.showTotalsWidget,
     expanded,
     modules,
-    activeMetricId,
-    activeLevelDepth,
-    selectedByDepth,
-    collapsedGroups,
     hiddenTotalFieldIds,
     totalFieldOrderIds,
-    contextPath,
   ]);
 
   // ── Garde ─────────────────────────────────────────────────────────────────
