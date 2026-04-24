@@ -13,6 +13,7 @@ import {
 } from '@/lib/calendarUtils';
 import { addManualSegmentToItem, removeSegmentFromItem, updateSegmentInItem } from '@/lib/segmentManager';
 import { Search } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface WeekViewProps {
   currentDate: Date;
@@ -84,6 +85,7 @@ const WeekView: React.FC<WeekViewProps> = ({
     search: string;
   }>(null);
   const pickerRef = useRef<HTMLDivElement | null>(null);
+  const [pickerViewportPos, setPickerViewportPos] = useState<{ x: number; y: number } | null>(null);
 
   const collectionsForProps = collectionsAll?.length ? collectionsAll : collections;
   const collectionsPool = collectionsAll && collectionsAll.length ? collectionsAll : collections;
@@ -326,19 +328,99 @@ const WeekView: React.FC<WeekViewProps> = ({
     ? collectionsPool.find((c: any) => c.id === secondaryPicker.collectionId)
     : null;
   const pickerItems = secondaryPicker && pickerCollection ? (pickerCollection.items || []) : [];
+  const weekDayKeys = useMemo(() => new Set(weekDays.map((d) => toDateKey(d))), [weekDays]);
   const pickerSuggestions = secondaryPicker && pickerCollection
     ? findNearestItems(pickerCollection, secondaryPicker.start)
     : { before: null, after: null };
-  const primaryPickerSuggestions = secondaryPicker && primaryCollection
-    ? findNearestItems(primaryCollection, secondaryPicker.start)
-    : { before: null, after: null };
+  const getClosestSegmentMeta = (item: any, referenceDate: Date) => {
+    const segments = Array.isArray(item?._eventSegments) ? item._eventSegments : [];
+    const refTime = referenceDate.getTime();
+    let nearestDelta = Number.POSITIVE_INFINITY;
+    let hasSegmentInWeek = false;
+
+    segments.forEach((seg: any) => {
+      const segStart = new Date(seg.start || seg.__eventStart || seg.end || seg.__eventEnd);
+      const segEnd = new Date(seg.end || seg.__eventEnd || seg.start || seg.__eventStart);
+      if (weekDayKeys.has(toDateKey(segStart))) hasSegmentInWeek = true;
+      const center = (segStart.getTime() + segEnd.getTime()) / 2;
+      const delta = Math.abs(center - refTime);
+      if (delta < nearestDelta) {
+        nearestDelta = delta;
+      }
+    });
+
+    return {
+      hasSegmentInWeek,
+      nearestDelta,
+    };
+  };
+
+  const handleQuickCreatePrimary = () => {
+    if (!secondaryPicker || !primaryCollection || !onShowNewItemModalForCollection) return;
+    const dateField = primaryCollection.properties?.find(
+      (p: any) => p.type === 'date' || p.type === 'date_range'
+    );
+    const newItem: any = { isNew: true, __collectionId: primaryCollection.id };
+    if (dateField?.type === 'date_range') {
+      newItem[dateField.id] = {
+        start: secondaryPicker.start.toISOString(),
+        end: secondaryPicker.end.toISOString(),
+      };
+    } else if (dateField) {
+      newItem[dateField.id] = secondaryPicker.start.toISOString();
+      const durationHours = Math.max(
+        0.25,
+        (secondaryPicker.end.getTime() - secondaryPicker.start.getTime()) / (1000 * 60 * 60)
+      );
+      newItem[`${dateField.id}_duration`] = Number(durationHours.toFixed(2));
+    }
+    onShowNewItemModalForCollection(primaryCollection, newItem);
+    setSecondaryPicker(null);
+  };
+
   const filteredPickerItems = secondaryPicker && pickerCollection
-    ? pickerItems.filter((it: any) => {
-        const name = getCollectionDisplayName(it, pickerCollection).toLowerCase();
-        const q = (secondaryPicker.search || '').toLowerCase();
-        return name.includes(q);
-      })
+    ? pickerItems
+        .map((it: any) => {
+          const name = getCollectionDisplayName(it, pickerCollection);
+          const meta = getClosestSegmentMeta(it, secondaryPicker.start);
+          return { item: it, name, ...meta };
+        })
+        .filter((entry: any) => {
+          const q = (secondaryPicker.search || '').toLowerCase().trim();
+          if (!q) return true;
+          return entry.name.toLowerCase().includes(q);
+        })
+        .sort((a: any, b: any) => {
+          if (a.hasSegmentInWeek !== b.hasSegmentInWeek) return a.hasSegmentInWeek ? -1 : 1;
+          if (a.nearestDelta !== b.nearestDelta) return a.nearestDelta - b.nearestDelta;
+          return a.name.localeCompare(b.name, 'fr-FR');
+        })
     : [];
+
+  useEffect(() => {
+    if (!secondaryPicker) {
+      setPickerViewportPos(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      if (!pickerRef.current) return;
+      const margin = 10;
+      const rect = pickerRef.current.getBoundingClientRect();
+      const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
+      const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
+      const x = Math.min(Math.max(margin, secondaryPicker.x), maxX);
+      const y = Math.min(Math.max(margin, secondaryPicker.y), maxY);
+      setPickerViewportPos({ x, y });
+    };
+
+    const rafId = window.requestAnimationFrame(updatePosition);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [secondaryPicker, filteredPickerItems.length]);
 
   const getRangeStyleForDay = (date: Date) => {
     if (!dragState) return null;
@@ -739,16 +821,90 @@ const WeekView: React.FC<WeekViewProps> = ({
       {secondaryPicker && pickerCollection && (
         <div
           className="fixed z-[200]"
-          style={{ left: secondaryPicker.x, top: secondaryPicker.y }}
+          style={{
+            left: pickerViewportPos?.x ?? secondaryPicker.x,
+            top: pickerViewportPos?.y ?? secondaryPicker.y,
+          }}
         >
           <div
             ref={pickerRef}
-            className="w-72 rounded-xl border border-white/10 bg-neutral-950/95 text-white shadow-xl backdrop-blur p-3"
+            className="w-[20rem] max-w-[90vw] rounded-xl border border-sky-200/20 bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-white shadow-2xl shadow-black/40 backdrop-blur-md p-2.5"
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-semibold text-neutral-300">Ajouter une plage (secondaire)</div>
+            <div className="mb-1 flex items-start gap-2">
+              {primaryCollection && onShowNewItemModalForCollection && (
+                <div className="flex-1 rounded-lg border border-violet-400/30 bg-violet-500/10 p-1.5">
+                  <TooltipProvider>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            className={cn(
+                              'h-8 rounded-md border flex items-center justify-center transition-colors',
+                              pickerSuggestions.before
+                                ? 'bg-emerald-500/20 border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-100'
+                                : 'bg-white/5 border-white/10 text-neutral-500 cursor-not-allowed'
+                            )}
+                            onClick={() => pickerSuggestions.before && finalizeSecondarySelection(pickerSuggestions.before.id)}
+                            disabled={!pickerSuggestions.before}
+                            aria-label="Ajouter sur l'élément précédent"
+                          >
+                            <span className="text-[11px] font-medium">Précédent</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="bg-black text-neutral-100 border-neutral-700">
+                          {pickerSuggestions.before
+                            ? `Précédent: ${getCollectionDisplayName(pickerSuggestions.before, pickerCollection)}`
+                            : 'Aucun élément précédent'}
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            className="h-8 rounded-md border flex items-center justify-center transition-colors bg-violet-500/20 border-violet-500/30 hover:bg-violet-500/30 text-violet-100"
+                            onClick={handleQuickCreatePrimary}
+                            aria-label="Créer un nouvel élément"
+                          >
+                            <span className="text-[11px] font-medium">Nouveau</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="bg-black text-neutral-100 border-neutral-700">
+                          {`Nouvel élément dans ${primaryCollection.name}`}
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            className={cn(
+                              'h-8 rounded-md border flex items-center justify-center transition-colors',
+                              pickerSuggestions.after && pickerSuggestions.after?.id !== pickerSuggestions.before?.id
+                                ? 'bg-cyan-500/15 border-cyan-500/30 hover:bg-cyan-500/25 text-cyan-100'
+                                : 'bg-white/5 border-white/10 text-neutral-500 cursor-not-allowed'
+                            )}
+                            onClick={() => {
+                              if (pickerSuggestions.after && pickerSuggestions.after?.id !== pickerSuggestions.before?.id) {
+                                finalizeSecondarySelection(pickerSuggestions.after.id);
+                              }
+                            }}
+                            disabled={!pickerSuggestions.after || pickerSuggestions.after?.id === pickerSuggestions.before?.id}
+                            aria-label="Ajouter sur l'élément suivant"
+                          >
+                            <span className="text-[11px] font-medium">Suivant</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="bg-black text-neutral-100 border-neutral-700">
+                          {pickerSuggestions.after && pickerSuggestions.after?.id !== pickerSuggestions.before?.id
+                            ? `Suivant: ${getCollectionDisplayName(pickerSuggestions.after, pickerCollection)}`
+                            : 'Aucun élément suivant'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TooltipProvider>
+                </div>
+              )}
               <button
-                className="text-neutral-400 hover:text-white p-1 rounded hover:bg-white/10"
+                className="text-neutral-400 hover:text-white p-1.5 rounded-md hover:bg-white/10 shrink-0"
                 onClick={() => setSecondaryPicker(null)}
                 title="Annuler"
               >
@@ -756,91 +912,52 @@ const WeekView: React.FC<WeekViewProps> = ({
               </button>
             </div>
             <div className="relative mb-2">
-              <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
               <input
                 type="text"
-                placeholder="Rechercher..."
+                placeholder="Filtrer par nom d'élément..."
                 value={secondaryPicker.search}
                 onChange={(e) =>
                   setSecondaryPicker((prev) => (prev ? { ...prev, search: e.target.value } : prev))
                 }
-                className="w-full pl-8 pr-2 py-1.5 bg-neutral-900/70 border border-white/10 rounded text-sm text-neutral-200 placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+                className="w-full pl-9 pr-2 py-1.5 bg-black/25 border border-white/10 rounded-lg text-sm text-neutral-200 placeholder-neutral-500 focus:border-sky-400/80 focus:outline-none"
               />
             </div>
-            <div className="max-h-52 overflow-auto space-y-1">
-              {primaryCollection && onShowNewItemModalForCollection && (
-                <button
-                  className="w-full text-left px-2 py-1.5 rounded text-sm transition-colors bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30"
-                  onClick={() => {
-                    const dateField = primaryCollection.properties?.find(
-                      (p: any) => p.type === 'date' || p.type === 'date_range'
+            <div className="max-h-[16rem] overflow-auto space-y-1.5 pr-1">
+              <div className="rounded-lg border border-white/10 bg-black/15 p-1.5 space-y-1">
+                <div className="grid grid-cols-1 gap-1">
+                  {filteredPickerItems.map((entry: any) => {
+                    const it = entry.item;
+                    const isDefault = it.id === secondaryPicker.selectedItemId;
+                    return (
+                      <button
+                        key={it.id}
+                        className={cn(
+                          'w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors border min-h-[48px]',
+                          isDefault
+                            ? 'bg-violet-500/20 text-violet-200 border-violet-500/30'
+                            : 'hover:bg-white/5 text-neutral-200 border-transparent'
+                        )}
+                        onClick={() => finalizeSecondarySelection(it.id)}
+                      >
+                        <div className="flex items-center justify-between gap-2 leading-tight">
+                          <span className="truncate font-medium">{entry.name}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {entry.hasSegmentInWeek && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 border border-emerald-500/25">
+                                semaine
+                              </span>
+                            )}
+                            {isDefault && <span className="text-[10px] text-violet-300">par défaut</span>}
+                          </div>
+                        </div>
+                      </button>
                     );
-                    const newItem: any = { isNew: true, __collectionId: primaryCollection.id };
-                    if (dateField?.type === 'date_range') {
-                      newItem[dateField.id] = {
-                        start: secondaryPicker.start.toISOString(),
-                        end: secondaryPicker.end.toISOString(),
-                      };
-                    } else if (dateField) {
-                      newItem[dateField.id] = secondaryPicker.start.toISOString();
-                      const durationHours = Math.max(
-                        0.25,
-                        (secondaryPicker.end.getTime() - secondaryPicker.start.getTime()) / (1000 * 60 * 60)
-                      );
-                      newItem[`${dateField.id}_duration`] = Number(durationHours.toFixed(2));
-                    }
-                    onShowNewItemModalForCollection(primaryCollection, newItem);
-                    setSecondaryPicker(null);
-                  }}
-                >
-                  + Nouvel élément : {primaryCollection.name}
-                </button>
-              )}
-              {pickerSuggestions.before && (
-                <button
-                  className="w-full text-left px-2 py-1.5 rounded text-sm transition-colors bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30"
-                  onClick={() => finalizeSecondarySelection(pickerSuggestions.before.id)}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate">{getCollectionDisplayName(pickerSuggestions.before, pickerCollection)}</span>
-                    <span className="text-[10px] text-neutral-400">précédent</span>
-                  </div>
-                </button>
-              )}
-              {pickerSuggestions.after && pickerSuggestions.after?.id !== pickerSuggestions.before?.id && (
-                <button
-                  className="w-full text-left px-2 py-1.5 rounded text-sm transition-colors bg-white/5 hover:bg-white/10"
-                  onClick={() => finalizeSecondarySelection(pickerSuggestions.after.id)}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate">{getCollectionDisplayName(pickerSuggestions.after, pickerCollection)}</span>
-                    <span className="text-[10px] text-neutral-400">suivant</span>
-                  </div>
-                </button>
-              )}
-              {filteredPickerItems.map((it: any) => {
-                const name = getCollectionDisplayName(it, pickerCollection);
-                const isDefault = it.id === secondaryPicker.selectedItemId;
-                return (
-                  <button
-                    key={it.id}
-                    className={cn(
-                      'w-full text-left px-2 py-1.5 rounded text-sm transition-colors',
-                      isDefault
-                        ? 'bg-violet-500/20 text-violet-200 border border-violet-500/30'
-                        : 'hover:bg-white/5 text-neutral-200'
-                    )}
-                    onClick={() => finalizeSecondarySelection(it.id)}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate">{name}</span>
-                      {isDefault && <span className="text-[10px] text-violet-300">par défaut</span>}
-                    </div>
-                  </button>
-                );
-              })}
+                  })}
+                </div>
+              </div>
               {filteredPickerItems.length === 0 && (
-                <div className="text-xs text-neutral-500 px-2 py-1">Aucun résultat</div>
+                <div className="text-xs text-neutral-500 px-2 py-1">Aucun résultat pour cette recherche</div>
               )}
             </div>
           </div>
