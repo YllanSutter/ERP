@@ -1110,6 +1110,11 @@ const AccessManager = ({
       const next: Record<string, UserPreferenceDraft> = {};
       mergedUsers.forEach((u) => {
         const merged = normalizeUserPreferences(u.user_preferences);
+        // Si l'utilisateur est en cours de sauvegarde, conserver le brouillon actuel
+        if (preferencesBusyByUser[u.id]) {
+          next[u.id] = prev[u.id] || merged;
+          return;
+        }
         next[u.id] = merged;
         if (JSON.stringify(prev[u.id]) !== JSON.stringify(merged)) {
           changed = true;
@@ -1117,7 +1122,7 @@ const AccessManager = ({
       });
       return changed ? next : prev;
     });
-  }, [users, memberCandidates]);
+  }, [users, memberCandidates, preferencesBusyByUser]);
 
   useEffect(() => {
     setOrganizationNameEdits((prev) => {

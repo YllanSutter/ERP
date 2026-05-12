@@ -568,21 +568,39 @@ export const registerAccessRoutes = ({
       if (!currentUserRes.rowCount) return res.status(404).json({ error: 'user not found' });
 
       const currentPreferences = currentUserRes.rows[0]?.user_preferences || {};
-      const mergedPreferences = mergePreferences(currentPreferences, payload);
 
-      const normalized = {
-        accentColor: typeof payload.accentColor === 'string' ? payload.accentColor : '#06b6d4',
-        workStart: typeof payload.workStart === 'string' ? payload.workStart : '09:00',
-        workEnd: typeof payload.workEnd === 'string' ? payload.workEnd : '18:00',
-        breakStart: typeof payload.breakStart === 'string' ? payload.breakStart : '12:30',
-        breakEnd: typeof payload.breakEnd === 'string' ? payload.breakEnd : '13:30',
-        timezone: typeof payload.timezone === 'string' ? payload.timezone : 'Europe/Paris',
-        weekStartsOn: payload.weekStartsOn === 'sunday' ? 'sunday' : 'monday',
-        density: ['compact', 'comfortable', 'spacious'].includes(payload.density) ? payload.density : 'comfortable',
-        notificationsEnabled: Boolean(payload.notificationsEnabled),
-      };
+      // Normaliser UNIQUEMENT les valeurs fournis dans le payload
+      const normalized = {};
+      if (typeof payload.accentColor === 'string') {
+        normalized.accentColor = payload.accentColor;
+      }
+      if (typeof payload.workStart === 'string') {
+        normalized.workStart = payload.workStart;
+      }
+      if (typeof payload.workEnd === 'string') {
+        normalized.workEnd = payload.workEnd;
+      }
+      if (typeof payload.breakStart === 'string') {
+        normalized.breakStart = payload.breakStart;
+      }
+      if (typeof payload.breakEnd === 'string') {
+        normalized.breakEnd = payload.breakEnd;
+      }
+      if (typeof payload.timezone === 'string') {
+        normalized.timezone = payload.timezone;
+      }
+      if (payload.weekStartsOn === 'sunday' || payload.weekStartsOn === 'monday') {
+        normalized.weekStartsOn = payload.weekStartsOn;
+      }
+      if (['compact', 'comfortable', 'spacious'].includes(payload.density)) {
+        normalized.density = payload.density;
+      }
+      if (typeof payload.notificationsEnabled === 'boolean') {
+        normalized.notificationsEnabled = payload.notificationsEnabled;
+      }
 
-      const nextPreferences = mergePreferences(mergedPreferences, normalized);
+      // Fusionner les valeurs normalisées avec les préférences existantes
+      const nextPreferences = mergePreferences(currentPreferences, normalized);
 
       const updated = await pool.query(
         `UPDATE users
