@@ -302,6 +302,20 @@ export const registerStateRoutes = ({
         },
       };
 
+      // Clean up _preserveEventSegments flag from all items before saving (it's transitive only)
+      if (stateDataWithSegments.collections && Array.isArray(stateDataWithSegments.collections)) {
+        stateDataWithSegments.collections = stateDataWithSegments.collections.map((col) => {
+          if (!col.items || !Array.isArray(col.items)) return col;
+          return {
+            ...col,
+            items: col.items.map((item) => {
+              const { _preserveEventSegments, ...cleanItem } = item;
+              return cleanItem;
+            }),
+          };
+        });
+      }
+
       // ── Automation triggers: item_created / item_deleted ──────────────────
       // Snapshot du nombre total d'items avant automations, pour détecter si
       // elles ont créé de nouveaux items (nécessaire pour sync client).

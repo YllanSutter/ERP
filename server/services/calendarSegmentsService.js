@@ -115,12 +115,15 @@ const hasDateOrDurationChange = (prevItem, nextItem, collection, prevCollection)
 
 export const shouldRecalculateSegments = (prevItem, nextItem, collection, prevCollection) => {
   if (!nextItem) return true;
-  if (!Array.isArray(nextItem._eventSegments) || nextItem._eventSegments.length === 0) return true;
-  if (!prevItem) return true;
 
+  // IMPORTANT: Check _preserveEventSegments FIRST before any other condition
+  // This allows manually edited segments to be preserved even on creation
   if (nextItem?._preserveEventSegments) {
     return false;
   }
+
+  if (!Array.isArray(nextItem._eventSegments) || nextItem._eventSegments.length === 0) return true;
+  if (!prevItem) return true;
 
   if (hasDateOrDurationChange(prevItem, nextItem, collection, prevCollection)) return true;
 

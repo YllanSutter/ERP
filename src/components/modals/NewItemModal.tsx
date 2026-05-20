@@ -1081,7 +1081,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
     if (!isReallyEditing && (!dataToSave._eventSegments || dataToSave._eventSegments.length === 0) && previewSegments.length > 0) {
       dataToSave._eventSegments = previewSegments;
-      dataToSave._preserveEventSegments = false;
+      // For new items with pre-calculated segments, preserve them (don't recalculate on server)
+      dataToSave._preserveEventSegments = true;
     }
 
     if (!isReallyEditing && !dataToSave.id) {
