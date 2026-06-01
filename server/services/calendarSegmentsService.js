@@ -3,6 +3,7 @@ export const DEFAULT_CALENDAR_CONFIG = {
   breakEnd: 13.5,
   workDayStart: 9,
   workDayEnd: 18,
+  timezone: 'Europe/Paris',
 };
 
 const clampHour = (value, min = 0, max = 24) => {
@@ -35,9 +36,53 @@ const decimalHourToHM = (value) => {
   return { hour, minute };
 };
 
-const setDateToDecimalHour = (date, value) => {
+const getTimeZoneParts = (date, timeZone) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = formatter.formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+    second: Number(values.second),
+  };
+};
+
+const getTimeZoneOffsetMs = (date, timeZone) => {
+  const parts = getTimeZoneParts(date, timeZone);
+  const utcAsIfZoned = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second || 0, 0);
+  return utcAsIfZoned - date.getTime();
+};
+
+const getWeekdayInTimeZone = (date, timeZone) => {
+  const parts = getTimeZoneParts(date, timeZone);
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+};
+
+const shiftDateByDaysInTimeZone = (date, days, timeZone) => {
+  const parts = getTimeZoneParts(date, timeZone);
+  const utcGuess = Date.UTC(parts.year, parts.month - 1, parts.day + days, parts.hour, parts.minute, parts.second || 0, 0);
+  const offsetMs = getTimeZoneOffsetMs(new Date(utcGuess), timeZone);
+  date.setTime(utcGuess - offsetMs);
+};
+
+const setDateToDecimalHour = (date, value, timeZone) => {
   const { hour, minute } = decimalHourToHM(value);
-  date.setHours(hour, minute, 0, 0);
+  const parts = getTimeZoneParts(date, timeZone);
+  const utcGuess = Date.UTC(parts.year, parts.month - 1, parts.day, hour, minute, 0, 0);
+  const offsetMs = getTimeZoneOffsetMs(new Date(utcGuess), timeZone);
+  date.setTime(utcGuess - offsetMs);
 };
 
 export const getCalendarConfigForUser = (user) => {
@@ -69,6 +114,7 @@ export const getCalendarConfigForUser = (user) => {
     workDayEnd: nextEnd,
     breakStart: nextBreakStart,
     breakEnd: nextBreakEnd,
+    timezone: typeof prefs.timezone === 'string' && prefs.timezone ? prefs.timezone : DEFAULT_CALENDAR_CONFIG.timezone,
   };
 };
 
@@ -137,6 +183,7 @@ export function calculateEventSegments(item, collection, calendarConfig = DEFAUL
   if (!collection || !collection.properties) return item;
 
   const segments = [];
+  const timeZone = calendarConfig.timezone || DEFAULT_CALENDAR_CONFIG.timezone;
 
   collection.properties.forEach((prop) => {
     if (prop.type === 'date' && item[prop.id]) {
@@ -158,13 +205,13 @@ export function calculateEventSegments(item, collection, calendarConfig = DEFAUL
       let startDate = item[prop.id];
       let startDateObj = new Date(startDate);
 
-      if (startDateObj.getDay() === 6) { // samedi
-        startDateObj.setDate(startDateObj.getDate() + 2);
-        startDateObj.setHours(0, 0, 0, 0);
+      if (getWeekdayInTimeZone(startDateObj, timeZone) === 6) { // samedi
+        shiftDateByDaysInTimeZone(startDateObj, 2, timeZone);
+        setDateToDecimalHour(startDateObj, 0, timeZone);
         startDate = startDateObj.toISOString();
-      } else if (startDateObj.getDay() === 0) { // dimanche
-        startDateObj.setDate(startDateObj.getDate() + 1);
-        startDateObj.setHours(0, 0, 0, 0);
+      } else if (getWeekdayInTimeZone(startDateObj, timeZone) === 0) { // dimanche
+        shiftDateByDaysInTimeZone(startDateObj, 1, timeZone);
+        setDateToDecimalHour(startDateObj, 0, timeZone);
         startDate = startDateObj.toISOString();
       }
 
@@ -176,6 +223,7 @@ export function calculateEventSegments(item, collection, calendarConfig = DEFAUL
           endCal: calendarConfig.workDayEnd,
           breakStart: calendarConfig.breakStart,
           breakEnd: calendarConfig.breakEnd,
+          timeZone,
         }
       );
 
@@ -196,7 +244,7 @@ export function calculateEventSegments(item, collection, calendarConfig = DEFAUL
  * Découpe un événement sur plusieurs jours ouvrés (version serveur)
  */
 function splitEventByWorkdaysServer(item, opts) {
-  const { startCal, endCal, breakStart, breakEnd } = opts;
+  const { startCal, endCal, breakStart, breakEnd, timeZone = DEFAULT_CALENDAR_CONFIG.timezone } = opts;
   const start = new Date(item.startDate || item.start);
 
   let durationMs = 0;
@@ -214,23 +262,23 @@ function splitEventByWorkdaysServer(item, opts) {
 
   while (remainingMs > 0) {
     // Saute les weekends
-    while (current.getDay() === 0 || current.getDay() === 6) {
-      current.setDate(current.getDate() + 1);
-      setDateToDecimalHour(current, startCal);
+    while (getWeekdayInTimeZone(current, timeZone) === 0 || getWeekdayInTimeZone(current, timeZone) === 6) {
+      shiftDateByDaysInTimeZone(current, 1, timeZone);
+      setDateToDecimalHour(current, startCal, timeZone);
     }
 
     // Définit les bornes de la journée
     let dayStart = new Date(current);
     let dayEnd = new Date(current);
-    setDateToDecimalHour(dayStart, startCal);
-    setDateToDecimalHour(dayEnd, endCal);
+    setDateToDecimalHour(dayStart, startCal, timeZone);
+    setDateToDecimalHour(dayEnd, endCal, timeZone);
 
     let segmentStart = new Date(Math.max(dayStart.getTime(), current.getTime()));
 
     let pauseStart = new Date(current);
-    setDateToDecimalHour(pauseStart, breakStart);
+    setDateToDecimalHour(pauseStart, breakStart, timeZone);
     let pauseEnd = new Date(current);
-    setDateToDecimalHour(pauseEnd, breakEnd);
+    setDateToDecimalHour(pauseEnd, breakEnd, timeZone);
 
     // Matin (avant pause)
     if (segmentStart < pauseStart && segmentStart < dayEnd && remainingMs > 0) {
@@ -261,8 +309,8 @@ function splitEventByWorkdaysServer(item, opts) {
     }
 
     // Passe au jour suivant
-    current.setDate(current.getDate() + 1);
-    setDateToDecimalHour(current, startCal);
+    shiftDateByDaysInTimeZone(current, 1, timeZone);
+    setDateToDecimalHour(current, startCal, timeZone);
   }
 
   return events;
