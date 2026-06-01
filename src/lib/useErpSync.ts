@@ -399,18 +399,14 @@ export function useErpSync({
               console.log(`[useErpSync] Full POST succeeded`);
               const result = await res.json().catch(() => ({}));
 
-              // Si des automations ont créé de nouveaux items côté serveur,
-              // le serveur renvoie les collections complètes mises à jour.
-              // On les applique directement pour que le client les voie aussitôt
-              // (le client filtre son propre event socket stateUpdated, donc sans
-              // ce mécanisme les items automation ne seraient jamais affichés).
-              if (result?.automationCollections) {
-                console.log(`[useErpSync] Applying automation-created collections from server`);
-                setCollections(result.automationCollections);
-                lastSavedCollectionsRef.current = result.automationCollections;
+              const serverCollections = result?.collections || result?.automationCollections || null;
+              if (serverCollections) {
+                console.log(`[useErpSync] Applying server-returned collections after save`);
+                setCollections(serverCollections);
+                lastSavedCollectionsRef.current = serverCollections;
                 lastSavedPayloadRef.current = JSON.stringify({
                   ...fullPayload,
-                  collections: result.automationCollections,
+                  collections: serverCollections,
                 });
               } else {
                 lastSavedPayloadRef.current = fullPayloadStr;

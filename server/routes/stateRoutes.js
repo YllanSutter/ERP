@@ -113,7 +113,7 @@ export const registerStateRoutes = ({
             pool,
             organizationId,
             calculateEventSegments,
-            getDefaultCalendarConfig: () => defaultCalendarConfig,
+            getDefaultCalendarConfig: () => calendarConfig,
           });
         }
       } catch (autoErr) {
@@ -358,7 +358,7 @@ export const registerStateRoutes = ({
               pool,
               organizationId,
               calculateEventSegments,
-              getDefaultCalendarConfig: () => defaultCalendarConfig,
+              getDefaultCalendarConfig: () => calendarConfig,
             });
           }
 
@@ -373,7 +373,7 @@ export const registerStateRoutes = ({
               pool,
               organizationId,
               calculateEventSegments,
-              getDefaultCalendarConfig: () => defaultCalendarConfig,
+              getDefaultCalendarConfig: () => calendarConfig,
             });
           }
         }
@@ -406,11 +406,13 @@ export const registerStateRoutes = ({
       // le client ignore son propre event socket (userId filter), donc sans ça
       // il ne verrait jamais les items créés côté serveur.
       const hasAutomationChanges = postAutoItemCount > preAutoItemCount;
+      const responsePayload = { ok: true, collections: stateDataWithSegments.collections };
+
       if (hasAutomationChanges) {
-        return res.json({ ok: true, automationCollections: stateDataWithSegments.collections });
+        return res.json({ ...responsePayload, automationCollections: stateDataWithSegments.collections });
       }
 
-      return res.json({ ok: true });
+      return res.json(responsePayload);
     } catch (err) {
       console.error('Failed to save state', err);
       return res.status(500).json({ error: 'Failed to save state' });
