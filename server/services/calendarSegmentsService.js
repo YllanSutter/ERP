@@ -65,6 +65,14 @@ const getTimeZoneOffsetMs = (date, timeZone) => {
   return utcAsIfZoned - date.getTime();
 };
 
+const parseDateOnlyToDateInTimeZone = (dateString, timeZone) => {
+  const [y, m, d] = dateString.split('-').map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return new Date(dateString);
+  const utcGuess = Date.UTC(y, m - 1, d, 0, 0, 0, 0);
+  const offsetMs = getTimeZoneOffsetMs(new Date(utcGuess), timeZone);
+  return new Date(utcGuess - offsetMs);
+};
+
 const getWeekdayInTimeZone = (date, timeZone) => {
   const parts = getTimeZoneParts(date, timeZone);
   return new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
@@ -201,9 +209,15 @@ export function calculateEventSegments(item, collection, calendarConfig = DEFAUL
         return;
       }
 
-      // Décale la date au lundi si samedi/dimanche
+      // Normalise les dates sans heure (YYYY-MM-DD) en minuit local du fuseau
       let startDate = item[prop.id];
-      let startDateObj = new Date(startDate);
+      let startDateObj = null;
+      if (typeof startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        startDateObj = parseDateOnlyToDateInTimeZone(startDate, timeZone);
+        startDate = startDateObj.toISOString();
+      } else {
+        startDateObj = new Date(startDate);
+      }
 
       if (getWeekdayInTimeZone(startDateObj, timeZone) === 6) { // samedi
         shiftDateByDaysInTimeZone(startDateObj, 2, timeZone);

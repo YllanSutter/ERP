@@ -1079,9 +1079,37 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     }
     let dataToSave = { ...formData, __collectionId: selectedCollectionId };
 
+    // Normalize date-only values (YYYY-MM-DD) to local-midnight ISO so they
+    // are interpreted consistently (avoid UTC-midnight -> shift issues).
+    // Detect if the user changed any date field from the initial default.
+    let userChangedDate = false;
+    const normalized = { ...dataToSave };
+    (dateProps || []).forEach((prop: any) => {
+      const key = prop.id;
+      const val = dataToSave?.[key];
+      if (typeof val === 'string') {
+        const m = val.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (m) {
+          const y = Number(m[1]);
+          const mo = Number(m[2]) - 1;
+          const d = Number(m[3]);
+          const localDate = new Date(y, mo, d);
+          normalized[key] = localDate.toISOString();
+        }
+      }
+      const initialVal = initialDataRef.current ? initialDataRef.current[key] : undefined;
+      if (!areValuesEqual(normalized[key], initialVal)) {
+        userChangedDate = true;
+      }
+    });
+    dataToSave = { ...normalized, __collectionId: selectedCollectionId };
+
+    // If the user provided preview segments, or if they manually changed a date
+    // on creation, preserve the segments (don't let server blindly recalc them).
     if (!isReallyEditing && (!dataToSave._eventSegments || dataToSave._eventSegments.length === 0) && previewSegments.length > 0) {
       dataToSave._eventSegments = previewSegments;
-      // For new items with pre-calculated segments, preserve them (don't recalculate on server)
+    }
+    if (!isReallyEditing && userChangedDate) {
       dataToSave._preserveEventSegments = true;
     }
 

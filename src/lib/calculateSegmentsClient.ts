@@ -37,8 +37,17 @@ export function calculateSegmentsClient(item: any, collection: any): EventSegmen
         return;
       }
 
-      // Décale la date au lundi si samedi/dimanche
+      // Interpréter les valeurs date-only (YYYY-MM-DD) comme minuit LOCAL
       let startDate = item[prop.id];
+      if (typeof startDate === 'string') {
+        const m = startDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (m) {
+          const y = Number(m[1]);
+          const mo = Number(m[2]) - 1;
+          const d = Number(m[3]);
+          startDate = new Date(y, mo, d).toISOString();
+        }
+      }
       let startDateObj = new Date(startDate);
 
       if (startDateObj.getDay() === 6) { // samedi
