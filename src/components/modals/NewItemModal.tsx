@@ -25,6 +25,8 @@ import {
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/auth/AuthProvider';
+import { ItemPdfBlock } from '@/components/fields/ItemPdfBlock';
+import { usePdfPluginConfig } from '@/lib/plugins/pdf/usePdfPlugin';
 import {
   getRoundedNow, workDayStart, workDayEnd,
   calculateSegmentsClient, formatSegmentDisplay,
@@ -82,7 +84,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   groupContext,
   fieldGroups = [],
 }) => {
-  const { user, isAdmin, isEditor, permissions } = useAuth();
+  const { user, isAdmin, isEditor, permissions, activeOrganizationId } = useAuth();
+
+  // Plugin PDF : configuration globale (modèle lié + mappings par collection)
+  const pdfPluginConfig = usePdfPluginConfig(activeOrganizationId);
 
   const canReadCollection = React.useCallback((collectionId?: string | null) => {
     if (!collectionId) return false;
@@ -1609,6 +1614,23 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Plugin PDF : prévisualisation / édition / sauvegarde du PDF de l'objet */}
+          {pdfPluginConfig &&
+            pdfPluginConfig.templateId &&
+            selectedCollection?.id &&
+            pdfPluginConfig.enabledCollectionIds.includes(selectedCollection.id) && (
+            <div className="pt-2">
+              <ItemPdfBlock
+                organizationId={activeOrganizationId || 'default'}
+                config={pdfPluginConfig}
+                collection={selectedCollection}
+                item={editingItem}
+                formData={formData}
+                collections={collections}
+              />
             </div>
           )}
           </div>

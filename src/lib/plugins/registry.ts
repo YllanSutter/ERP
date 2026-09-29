@@ -6,6 +6,7 @@
 
 import { Plugin } from './types';
 import { steamPlugin } from './steam';
+import { pdfPlugin } from './pdf';
 import { pluginManager } from './PluginManager';
 
 /**
@@ -13,6 +14,7 @@ import { pluginManager } from './PluginManager';
  */
 const AVAILABLE_PLUGINS: Plugin[] = [
   steamPlugin,
+  pdfPlugin,
   // Ajoutez d'autres plugins ici
 ];
 

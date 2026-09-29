@@ -3,15 +3,17 @@ import { pluginManager, PluginManifest, PluginContext, getAllAvailablePlugins } 
 import { useAuth } from '@/auth/AuthProvider';
 import { Power, Settings } from 'lucide-react';
 import SteamPluginConfig from './SteamPluginConfig';
+import PdfPluginConfigUI from './PdfPluginConfig';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 interface PluginManagerProps {
   organizationId: string;
   collectionProperties?: any[];
+  collections?: any[];
 }
 
-export const PluginManagerUI: React.FC<PluginManagerProps> = ({ organizationId, collectionProperties = [] }) => {
+export const PluginManagerUI: React.FC<PluginManagerProps> = ({ organizationId, collectionProperties = [], collections = [] }) => {
   const { user } = useAuth();
   const [plugins, setPlugins] = useState<PluginManifest[]>([]);
   const [activePlugins, setActivePlugins] = useState<Set<string>>(new Set());
@@ -177,6 +179,14 @@ export const PluginManagerUI: React.FC<PluginManagerProps> = ({ organizationId, 
         <SteamPluginConfig
           organizationId={organizationId}
           properties={collectionProperties}
+          onClose={() => setConfigPluginId(null)}
+        />
+      )}
+
+      {configPluginId === 'pdf' && (
+        <PdfPluginConfigUI
+          organizationId={organizationId}
+          collections={collections}
           onClose={() => setConfigPluginId(null)}
         />
       )}

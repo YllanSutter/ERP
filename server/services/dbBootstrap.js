@@ -262,6 +262,24 @@ export const bootstrapDatabase = async ({ pool, ensureDefaultOrganization }) => 
   `);
   await pool.query('CREATE INDEX IF NOT EXISTS automations_org_idx ON automations (organization_id);');
 
+  // Plugin PDF : index des PDFs sauvegardés par item (binaires stockés sur disque)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pdf_plugin_saved_pdfs (
+      id TEXT PRIMARY KEY,
+      organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+      collection_id TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      template_id TEXT,
+      storage_key TEXT NOT NULL,
+      values JSONB DEFAULT '{}',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+  await pool.query(
+    'CREATE UNIQUE INDEX IF NOT EXISTS pdf_plugin_saved_item_unique ON pdf_plugin_saved_pdfs (organization_id, collection_id, item_id);'
+  );
+
   const firstUser = await pool.query('SELECT id FROM users ORDER BY created_at ASC, id ASC LIMIT 1');
   if (firstUser.rowCount > 0) {
     await ensureDefaultOrganization(firstUser.rows[0].id);

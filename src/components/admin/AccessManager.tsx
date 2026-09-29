@@ -1932,7 +1932,7 @@ const AccessManager = ({
                 {(() => {
                   const orgId = activeOrganizationId || 'default';
                   const props = collections[0]?.properties || [];
-                  return <PluginManagerUI organizationId={orgId} collectionProperties={props} />;
+                  return <PluginManagerUI organizationId={orgId} collectionProperties={props} collections={collections} />;
                 })()}
               </div>
 
