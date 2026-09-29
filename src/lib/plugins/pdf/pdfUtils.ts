@@ -7,7 +7,19 @@
  * sauvegarde via pdf-lib côté navigateur.
  */
 
-import { PDFDocument, PDFName, PDFArray, PDFDict, PDFHexString, PDFString } from 'pdf-lib';
+import {
+  PDFDocument,
+  PDFName,
+  PDFArray,
+  PDFDict,
+  PDFHexString,
+  PDFString,
+  PDFTextField,
+  PDFCheckBox,
+  PDFDropdown,
+  PDFOptionList,
+  PDFRadioGroup,
+} from 'pdf-lib';
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -97,12 +109,7 @@ export async function detectPdfFields(bytes: Uint8Array): Promise<PdfFieldInfo[]
     }
     if (!name || seen.has(name)) continue;
     seen.add(name);
-    let type = 'text';
-    try {
-      type = field.constructor.name.replace(/Field$/, '').toLowerCase();
-    } catch {
-      /* ignore */
-    }
+    const type = getPdfFieldType(field);
     fields.push({ name, type, pages: [] });
   }
 
@@ -164,6 +171,15 @@ export async function detectPdfFields(bytes: Uint8Array): Promise<PdfFieldInfo[]
   }
 
   return fields;
+}
+
+function getPdfFieldType(field: any): string {
+  if (field instanceof PDFTextField) return 'text';
+  if (field instanceof PDFCheckBox) return 'checkbox';
+  if (field instanceof PDFDropdown) return 'dropdown';
+  if (field instanceof PDFOptionList) return 'optionlist';
+  if (field instanceof PDFRadioGroup) return 'radiogroup';
+  return 'field';
 }
 
 // ---------------------------------------------------------------------------
@@ -307,24 +323,23 @@ export async function fillPdfBytes(
     try {
       const field = form.getFieldMaybe(name);
       if (!field) continue;
-      const ctor = field.constructor.name;
-      if (ctor === 'PDFTextField') {
-        (field as any).setText(value ?? '');
-      } else if (ctor === 'PDFCheckBox') {
+      if (field instanceof PDFTextField) {
+        field.setText(value ?? '');
+      } else if (field instanceof PDFCheckBox) {
         const truthy = /^(true|1|oui|yes|on|x)$/i.test(String(value ?? '').trim());
-        if (truthy) (field as any).check();
-        else (field as any).uncheck();
-      } else if (ctor === 'PDFDropdown') {
-        if (value) (field as any).select(value);
-      } else if (ctor === 'PDFOptionList') {
-        if (value) (field as any).select([value]);
+        if (truthy) field.check();
+        else field.uncheck();
+      } else if (field instanceof PDFDropdown) {
+        if (value) field.select(value);
+      } else if (field instanceof PDFOptionList) {
+        if (value) field.select([value]);
       }
       // radio : value attend l'état ("On"/nom d'option) — best effort
-      if (ctor === 'PDFRadioGroup') {
+      if (field instanceof PDFRadioGroup) {
         try {
-          const states = (field as any).getOptions?.() || [];
+          const states = field.getOptions();
           const target = states.find((s: string) => s === value) || states[0];
-          if (target) (field as any).select(target);
+          if (target) field.select(target);
         } catch {
           /* ignore */
         }
@@ -342,6 +357,9 @@ export async function fillPdfBytes(
     }
   }
 
+  // Les apparences doivent être régénérées pour que les valeurs soient visibles
+  // dans les lecteurs PDF et dans l'aperçu intégré du navigateur.
+  form.updateFieldAppearances();
   return doc.save();
 }
 
