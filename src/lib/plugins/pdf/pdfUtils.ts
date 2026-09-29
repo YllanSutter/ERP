@@ -108,14 +108,17 @@ export async function detectPdfFields(bytes: Uint8Array): Promise<PdfFieldInfo[]
 
   // Localise chaque champ terminal sur une page (pour affichage ordonné / infos)
   try {
-    const acroForm = doc.catalog.getIfExists(doc.context.lookup(doc.catalog.AcroForm()));
+    const acroFormRef = doc.catalog.get(PDFName.of('AcroForm'));
+    const acroForm = acroFormRef ? doc.context.lookup(acroFormRef) : undefined;
     const fieldsRef =
       acroForm instanceof PDFDict ? (acroForm as PDFDict).get(PDFName.of('Fields')) : undefined;
     const topFields = fieldsRef instanceof PDFArray ? (fieldsRef as PDFArray) : null;
     if (topFields) {
       const pageRefs: any[] = [];
       for (let p = 0; p < doc.getPageCount(); p++) {
-        pageRefs.push(doc.getPage(p).node.ref());
+        // `PDFPageLeaf` does not expose `ref()` in the TypeScript typings,
+        // although the underlying node provides it at runtime.
+        pageRefs.push((doc.getPage(p).node as any).ref());
       }
       const walk = (ref: any, pageIndexes: Set<number>) => {
         const obj: any = doc.context.lookup(ref);
@@ -306,7 +309,7 @@ export async function fillPdfBytes(
       if (!field) continue;
       const ctor = field.constructor.name;
       if (ctor === 'PDFTextField') {
-        field.setText(value ?? '');
+        (field as any).setText(value ?? '');
       } else if (ctor === 'PDFCheckBox') {
         const truthy = /^(true|1|oui|yes|on|x)$/i.test(String(value ?? '').trim());
         if (truthy) (field as any).check();
@@ -365,14 +368,15 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 export async function uploadPdfTemplate(organizationId: string, file: File): Promise<PdfTemplateMeta> {
   const buffer = await file.arrayBuffer();
-  const fields = await detectPdfFields(new Uint8Array(buffer)).catch(() => [] as PdfFieldInfo[]);
+  const bytes = new Uint8Array(buffer); // ✅ Conversion nécessaire
+  const fields = await detectPdfFields(bytes).catch(() => [] as PdfFieldInfo[]);
   const res = await fetch(`${API_URL}/plugins/pdf/templates/${encodeURIComponent(organizationId)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({
       name: file.name,
-      data: bytesToBase64(buffer),
+      data: bytesToBase64(bytes), // ✅ Utilise bytes (Uint8Array) au lieu de buffer (ArrayBuffer)
       fields,
     }),
   });
