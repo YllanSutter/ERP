@@ -66,6 +66,8 @@ export type TableGroupDisplayMode = 'accordion' | 'columns' | 'tabs' | 'select';
 export type TableGroupColumnCount = 1 | 2 | 3;
 
 /** Groupe de champs dans la section Détails de NewItemModal */
+export type FieldGroupsLayout = 'stacked' | 'tabs';
+
 export interface FieldGroup {
   id: string;
   label: string;

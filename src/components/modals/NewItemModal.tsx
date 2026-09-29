@@ -35,6 +35,7 @@ import {
   diffLines, areValuesEqual, computePatch, applyPatch, buildSnapshotAt,
   formatValueForDisplay,
   type FieldGroup,
+  type FieldGroupsLayout,
 } from '@/components/modals/modalLib';
 
 
@@ -53,6 +54,7 @@ interface NewItemModalProps {
   groupContext?: Record<string, any> | null;
   /** Groupes de champs configurés dans les paramètres de la vue (section Détails) */
   fieldGroups?: FieldGroup[];
+  fieldGroupsLayout?: FieldGroupsLayout;
 }
 
 interface RelationTrailEntry {
@@ -83,6 +85,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   onOpenRelatedItem,
   groupContext,
   fieldGroups = [],
+  fieldGroupsLayout = 'stacked',
 }) => {
   const { user, isAdmin, isEditor, permissions, activeOrganizationId } = useAuth();
 
@@ -948,6 +951,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     [richTextPropsForDisplay]
   );
   const [activeRichTextTab, setActiveRichTextTab] = useState<string>('');
+  const [activeFieldGroupId, setActiveFieldGroupId] = useState<string>('');
   React.useEffect(() => {
     if (!richTextTabs.length) {
       if (activeRichTextTab !== '') setActiveRichTextTab('');
@@ -956,6 +960,15 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     const exists = richTextTabs.some((tab: { id: string; label: string }) => tab.id === activeRichTextTab);
     if (!exists) setActiveRichTextTab(richTextTabs[0].id);
   }, [richTextTabs, activeRichTextTab]);
+
+  React.useEffect(() => {
+    if (fieldGroupsLayout !== 'tabs' || fieldGroups.length === 0) {
+      if (activeFieldGroupId !== '') setActiveFieldGroupId('');
+      return;
+    }
+    const exists = fieldGroups.some((group) => group.id === activeFieldGroupId);
+    if (!exists) setActiveFieldGroupId(fieldGroups[0].id);
+  }, [fieldGroups, fieldGroupsLayout, activeFieldGroupId]);
 
   // État pour gérer l'ouverture du modal d'édition des plages
   const [editingDateProp, setEditingDateProp] = useState<any>(null);
@@ -1434,18 +1447,45 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               // IDs de tous les champs affectés à au moins un groupe
               const allGroupedIds = new Set(fieldGroups.flatMap((g) => g.fieldIds));
               const ungroupedProps = detailsPropsForDisplay.filter((p: any) => !allGroupedIds.has(p.id));
+              const groupsWithProps = fieldGroups
+                .map((group) => ({
+                  group,
+                  props: group.fieldIds
+                    .map((fid) => detailsPropsForDisplay.find((p: any) => p.id === fid))
+                    .filter(Boolean),
+                }))
+                .filter(({ props }) => props.length > 0);
+              const visibleGroups = fieldGroupsLayout === 'tabs'
+                ? groupsWithProps.filter(({ group }) => group.id === activeFieldGroupId)
+                : groupsWithProps;
 
               return (
                 <div className="flex flex-col space-y-0.5">
                   {/* Champs non-groupés */}
                   {ungroupedProps.map(renderFieldRow)}
 
+                  {fieldGroupsLayout === 'tabs' && groupsWithProps.length > 0 && (
+                    <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06] mb-2">
+                      {groupsWithProps.map(({ group }) => (
+                        <button
+                          key={group.id}
+                          type="button"
+                          onClick={() => setActiveFieldGroupId(group.id)}
+                          className={cn(
+                            'shrink-0 px-3 py-2 text-[10px] tracking-wide transition-colors border-b-2',
+                            group.id === activeFieldGroupId
+                              ? 'text-violet-300 border-violet-400'
+                              : 'text-neutral-600 border-transparent hover:text-neutral-300'
+                          )}
+                        >
+                          {group.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Groupes de champs */}
-                  {fieldGroups.map((group) => {
-                    const groupProps = group.fieldIds
-                      .map((fid) => detailsPropsForDisplay.find((p: any) => p.id === fid))
-                      .filter(Boolean);
-                    if (groupProps.length === 0) return null;
+                  {visibleGroups.map(({ group, props: groupProps }) => {
                     return (
                       <div key={group.id} className="pt-2">
                         <div className="flex items-center gap-2 mb-1 px-1">

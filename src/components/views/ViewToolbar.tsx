@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { FieldGroup } from '@/lib/types';
+import type { FieldGroup, FieldGroupsLayout } from '@/lib/types';
 import {
   Plus,
   Filter,
@@ -71,6 +71,7 @@ interface ViewToolbarProps {
   onOpenItemFromSearch: (collection: any, item: any) => void;
   /** Met à jour les groupes de champs de la vue courante */
   onUpdateFieldGroups: (groups: FieldGroup[]) => void;
+  onUpdateFieldGroupsLayout: (layout: FieldGroupsLayout) => void;
 }
 
 const ViewToolbar: React.FC<ViewToolbarProps> = ({
@@ -110,6 +111,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onDuplicateView,
   onOpenItemFromSearch,
   onUpdateFieldGroups,
+  onUpdateFieldGroupsLayout,
 }) => {
   const settingsRef = useRef<HTMLDivElement>(null);
   
@@ -756,6 +758,27 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     <div className="mt-4 pt-3 border-t border-black/10 dark:border-white/10">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide">Groupes de champs</span>
+                      </div>
+                      <div className="flex items-center gap-1 mb-3">
+                        <span className="text-[10px] text-neutral-500 mr-1">Affichage</span>
+                        {([
+                          { value: 'stacked', label: 'Empilés' },
+                          { value: 'tabs', label: 'Onglets' },
+                        ] as const).map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => onUpdateFieldGroupsLayout(option.value)}
+                            className={cn(
+                              'px-2 py-1 text-[10px] rounded border transition-colors',
+                              (currentViewConfig?.fieldGroupsLayout || 'stacked') === option.value
+                                ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-300'
+                                : 'border-black/10 dark:border-white/10 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+                            )}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
                       </div>
 
                       {/* Liste des groupes existants */}

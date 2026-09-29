@@ -5,7 +5,7 @@
  */
 
 // ─── Re-exports lib/* ─────────────────────────────────────────────────────────
-export type { TableGroupDisplayMode, TableGroupColumnCount, FieldGroup } from '@/lib/types';
+export type { TableGroupDisplayMode, TableGroupColumnCount, FieldGroup, FieldGroupsLayout } from '@/lib/types';
 export { DATE_GRANULARITIES } from '@/lib/types';
 export { MONTH_NAMES, workDayStart, workDayEnd } from '@/lib/calendarUtils';
 export { getOrderedProperties } from '@/lib/filterUtils';
