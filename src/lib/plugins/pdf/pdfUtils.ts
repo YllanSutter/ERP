@@ -270,6 +270,7 @@ export function resolvePdfValues(params: {
   collections: any[];
   manualValues?: Record<string, string>; // éditions manuelles utilisateur
   manualOverride?: boolean; // défaut true : le manuel prend le dessus
+  revealPasswords?: boolean; // export uniquement : révèle les propriétés password dans le PDF
 }): ResolvedPdfValues {
   const {
     fields,
@@ -279,6 +280,7 @@ export function resolvePdfValues(params: {
     collections,
     manualValues = {},
     manualOverride = true,
+    revealPasswords = false,
   } = params;
 
   const mappedValues: Record<string, string> = {};
@@ -292,7 +294,10 @@ export function resolvePdfValues(params: {
     let mapped = '';
     if (propId) {
       const prop = properties.find((p: any) => p.id === propId);
-      if (prop) mapped = extractPropertyValue(prop, formData?.[propId], collections);
+      if (prop) {
+        const rawMapped = extractPropertyValue(prop, formData?.[propId], collections);
+        mapped = prop.type === 'password' && rawMapped && !revealPasswords ? '********' : rawMapped;
+      }
     }
     if (customText) {
       mapped = customText.includes('{{valeur}}')

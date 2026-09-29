@@ -35,7 +35,10 @@ export const pdfPlugin: Plugin = {
       name: 'Get Property Types',
       description: 'Expose les types de propriétés ajoutés par le plugin',
       handler: async () => {
-        return [{ value: 'pdf', label: 'PDF (Formulaire)' }];
+        return [
+          { value: 'pdf', label: 'PDF (Formulaire)' },
+          { value: 'password', label: 'Password (masqué)' },
+        ];
       },
     },
 
