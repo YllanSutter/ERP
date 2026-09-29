@@ -39,6 +39,7 @@ services:
       BACKUP_RETENTION_DAYS: 7
     volumes:
       - app_backups:/app/backups
+      - pdf_plugin_data:/app/data/pdf-plugin
     ports:
       - "4000:4000"
     networks:
@@ -49,7 +50,8 @@ services:
     command: >
       sh -c "
         apk add --no-cache git python3 make g++ postgresql-client &&
-        rm -rf /tmp/erp_clone /app/* /app/.git 2>/dev/null || true &&
+        rm -rf /tmp/erp_clone /app/.git 2>/dev/null || true &&
+        find /app -mindepth 1 -maxdepth 1 ! -name data ! -name backups -exec rm -rf {} + &&
         git clone https://github.com/YllanSutter/ERP.git /tmp/erp_clone &&
         cp -r /tmp/erp_clone/* /app/ &&
         cd /app &&
@@ -63,6 +65,7 @@ services:
 volumes:
   postgres_data:
   app_backups:
+  pdf_plugin_data:
 
 networks:
   erp_network:

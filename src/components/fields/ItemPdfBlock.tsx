@@ -69,12 +69,19 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
   const manualBaselineRef = useRef<Record<string, string>>({});
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const [previewSource, setPreviewSource] = useState<PreviewSource>('template');
   const [showPreview, setShowPreview] = useState(true);
 
   const [savedMeta, setSavedMeta] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    };
+  }, []);
 
   const properties = useMemo(
     () => (Array.isArray(collection?.properties) ? collection.properties : []),
@@ -186,6 +193,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
       const url = URL.createObjectURL(blob);
       setPreviewUrl((old) => {
         if (old) URL.revokeObjectURL(old);
+        previewUrlRef.current = url;
         return url;
       });
       setPreviewSource('live');
@@ -204,6 +212,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
       const url = URL.createObjectURL(blob);
       setPreviewUrl((old) => {
         if (old) URL.revokeObjectURL(old);
+        previewUrlRef.current = url;
         return url;
       });
       setPreviewSource('saved');
@@ -458,19 +467,12 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
                 </button>
               </div>
               {showPreview && (
-                <object data={previewUrl} type="application/pdf" className="w-full h-[480px] bg-black/20">
-                  <div className="p-3 text-xs text-neutral-400">
-                    Prévisualisation indisponible dans ce navigateur —{' '}
-                    <a
-                      href={`${API_URL}/plugins/pdf/templates/${config.templateId}/file`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-cyan-400 underline"
-                    >
-                      ouvrir le modèle
-                    </a>
-                  </div>
-                </object>
+                <iframe
+                  key={previewUrl}
+                  src={previewUrl}
+                  title="Prévisualisation du PDF"
+                  className="w-full h-[480px] border-0 bg-black/20"
+                />
               )}
             </div>
           )}
