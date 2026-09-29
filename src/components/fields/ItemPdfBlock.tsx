@@ -22,7 +22,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { PdfPluginConfig } from '@/lib/plugins/pdf/usePdfPlugin';
+import { getPdfMappingPropertyId, type PdfPluginConfig } from '@/lib/plugins/pdf/usePdfPlugin';
 import {
   detectPdfFields,
   fillPdfBytes,
@@ -188,7 +188,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
     try {
       setError(null);
       const bytes = await loadPdfBytes('template', config.templateId);
-      const filled = await fillPdfBytes(bytes, resolved.values);
+      const filled = await fillPdfBytes(bytes, resolved.values, { flatten: true });
       const blob = new Blob([filled as BlobPart], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       setPreviewUrl((old) => {
@@ -324,7 +324,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
           {/* Champs modifiables */}
           <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] divide-y divide-white/[0.05] overflow-hidden">
             {fields.map((field) => {
-              const propId = mapping[field.name];
+              const propId = getPdfMappingPropertyId(mapping[field.name]);
               const propName = propId ? properties.find((p: any) => p.id === propId)?.name : null;
               const isManual = Object.prototype.hasOwnProperty.call(manualValues, field.name);
               const finalValue = resolved.values[field.name] ?? '';

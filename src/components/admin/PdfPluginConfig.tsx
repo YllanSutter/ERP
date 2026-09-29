@@ -11,7 +11,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Save, Upload, FileText, RefreshCw, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { pluginManager } from '@/lib/plugins';
-import { normalizePdfConfig, type PdfPluginConfig } from '@/lib/plugins/pdf/usePdfPlugin';
+import {
+  getPdfMappingPropertyId,
+  normalizePdfConfig,
+  type PdfFieldMapping,
+  type PdfPluginConfig,
+} from '@/lib/plugins/pdf/usePdfPlugin';
 import { detectPdfFields, loadPdfBytes, uploadPdfTemplate, type PdfFieldInfo } from '@/lib/plugins/pdf/pdfUtils';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -136,14 +141,19 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
     });
   };
 
-  const setMapping = (fieldName: string, propertyId: string) => {
+  const updateMapping = (fieldName: string, changes: Partial<PdfFieldMapping>) => {
     setConfig((prev) => ({
       ...prev,
       mappings: {
         ...prev.mappings,
         [activeCollectionId]: {
           ...(prev.mappings?.[activeCollectionId] || {}),
-          [fieldName]: propertyId,
+          [fieldName]: {
+            ...(typeof prev.mappings?.[activeCollectionId]?.[fieldName] === 'object'
+              ? prev.mappings[activeCollectionId][fieldName]
+              : { propertyId: getPdfMappingPropertyId(prev.mappings?.[activeCollectionId]?.[fieldName]) }),
+            ...changes,
+          },
         },
       },
     }));
@@ -312,8 +322,8 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
                       <div className="text-[10px] uppercase text-neutral-500">{field.type}</div>
                     </div>
                     <select
-                      value={currentMapping[field.name] || ''}
-                      onChange={(e) => setMapping(field.name, e.target.value)}
+                      value={getPdfMappingPropertyId(currentMapping[field.name])}
+                      onChange={(e) => updateMapping(field.name, { propertyId: e.target.value })}
                       className="w-[220px] px-2 py-1.5 rounded border border-white/10 bg-white dark:bg-neutral-900 text-sm"
                     >
                       <option value="">— aucun —</option>
@@ -323,6 +333,18 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
                         </option>
                       ))}
                     </select>
+                    <input
+                      type="text"
+                      value={
+                        typeof currentMapping[field.name] === 'object'
+                          ? currentMapping[field.name].customText || ''
+                          : ''
+                      }
+                      onChange={(e) => updateMapping(field.name, { customText: e.target.value })}
+                      placeholder="Texte personnalisé ({{valeur}})"
+                      title="Utilisez {{valeur}} pour placer la valeur mappée. Sans marqueur, le texte est ajouté après la valeur."
+                      className="w-[220px] px-2 py-1.5 rounded border border-white/10 bg-white dark:bg-neutral-900 text-sm"
+                    />
                   </div>
                 ))}
               </div>

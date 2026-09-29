@@ -21,6 +21,7 @@ import {
   PDFRadioGroup,
 } from 'pdf-lib';
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
+import type { PdfMappingEntry } from './usePdfPlugin';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -263,7 +264,7 @@ export interface ResolvedPdfValues {
 
 export function resolvePdfValues(params: {
   fields: PdfFieldInfo[];
-  mapping: Record<string, string>; // champPdf -> propertyId
+  mapping: Record<string, PdfMappingEntry>; // champPdf -> propertyId ou mapping enrichi
   properties: any[]; // propriétés de la collection
   formData: Record<string, any>; // données de l'item en cours d'édition
   collections: any[];
@@ -285,11 +286,20 @@ export function resolvePdfValues(params: {
   const values: Record<string, string> = {};
 
   for (const field of fields) {
-    const propId = mapping?.[field.name];
+    const mappingEntry = mapping?.[field.name];
+    const propId = typeof mappingEntry === 'string' ? mappingEntry : mappingEntry?.propertyId || '';
+    const customText = typeof mappingEntry === 'string' ? '' : mappingEntry?.customText?.trim() || '';
     let mapped = '';
     if (propId) {
       const prop = properties.find((p: any) => p.id === propId);
       if (prop) mapped = extractPropertyValue(prop, formData?.[propId], collections);
+    }
+    if (customText) {
+      mapped = customText.includes('{{valeur}}')
+        ? customText.replace(/\{\{valeur\}\}/gi, mapped)
+        : mapped
+          ? `${mapped} ${customText}`
+          : customText;
     }
     mappedValues[field.name] = mapped;
 
@@ -349,6 +359,10 @@ export async function fillPdfBytes(
     }
   }
 
+  // Les apparences doivent être régénérées pour que les valeurs soient visibles
+  // dans les lecteurs PDF et dans l'aperçu intégré du navigateur.
+  form.updateFieldAppearances();
+
   if (options.flatten) {
     try {
       form.flatten();
@@ -357,9 +371,6 @@ export async function fillPdfBytes(
     }
   }
 
-  // Les apparences doivent être régénérées pour que les valeurs soient visibles
-  // dans les lecteurs PDF et dans l'aperçu intégré du navigateur.
-  form.updateFieldAppearances();
   return doc.save();
 }
 

@@ -13,11 +13,22 @@ import { pluginManager } from '@/lib/plugins';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
+export interface PdfFieldMapping {
+  propertyId: string;
+  customText?: string;
+}
+
+export type PdfMappingEntry = string | PdfFieldMapping;
+
+export function getPdfMappingPropertyId(entry: PdfMappingEntry | undefined): string {
+  return typeof entry === 'string' ? entry : entry?.propertyId || '';
+}
+
 export interface PdfPluginConfig {
   templateId: string | null;
   templateName: string | null;
   enabledCollectionIds: string[];
-  mappings: Record<string, Record<string, string>>;
+  mappings: Record<string, Record<string, PdfMappingEntry>>;
   manualOverride: boolean;
 }
 
