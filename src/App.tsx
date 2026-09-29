@@ -1233,9 +1233,13 @@ const App = () => {
             const col = modalCollection || currentCollection;
             if (!col) return [];
             const view = views[col.id]?.find((v: any) => v.id === activeView);
-            return view?.fieldOrder
-              ? view.fieldOrder.map((fid: string) => col.properties.find((p: any) => p.id === fid)).filter(Boolean)
-              : col.properties;
+            if (!Array.isArray(view?.fieldOrder)) return col.properties;
+            const orderedIds = new Set(view.fieldOrder);
+            const orderedProperties = view.fieldOrder
+              .map((fid: string) => col.properties.find((p: any) => p.id === fid))
+              .filter(Boolean);
+            const newlyAddedProperties = col.properties.filter((p: any) => !orderedIds.has(p.id));
+            return [...orderedProperties, ...newlyAddedProperties];
           })()}
           onClose={() => {
             setShowNewItemModal(false);
