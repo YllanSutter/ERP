@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Star, Trash2, Clock, Edit2, History, ChevronLeft } from 'lucide-react';
+import { Star, Trash2, Clock, Edit2, History, ChevronLeft, FileText, ChevronDown } from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { Button } from '@/components/ui/button';
 import {
@@ -202,6 +202,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const [historySelectedIndex, setHistorySelectedIndex] = useState<number | null>(null);
   const [historyPreview, setHistoryPreview] = useState<any | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [pdfPopoverOpen, setPdfPopoverOpen] = useState(false);
   const [actionToast, setActionToast] = useState<string | null>(null);
   const actionToastTimeoutRef = useRef<number | null>(null);
 
@@ -1308,6 +1309,45 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 <Star size={16} fill={isFavorite ? "currentColor" : "none"} />
               </button>
             )}
+            {pdfPluginConfig &&
+              pdfPluginConfig.templateId &&
+              selectedCollection?.id &&
+              pdfPluginConfig.enabledCollectionIds.includes(selectedCollection.id) && (
+              <Popover open={pdfPopoverOpen} onOpenChange={setPdfPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all',
+                      pdfPopoverOpen
+                        ? 'text-violet-300 bg-violet-500/10'
+                        : 'text-muted-foreground hover:text-violet-300 hover:bg-violet-500/10'
+                    )}
+                    title="Ouvrir les options PDF"
+                  >
+                    <FileText size={15} />
+                    <ChevronDown
+                      size={13}
+                      className={cn('transition-transform', pdfPopoverOpen && 'rotate-180')}
+                    />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  sideOffset={10}
+                  className="w-[min(900px,calc(100vw-2rem))] max-h-[min(78vh,760px)] overflow-y-auto bg-background border-border p-4 shadow-2xl"
+                >
+                  <ItemPdfBlock
+                    organizationId={activeOrganizationId || 'default'}
+                    config={pdfPluginConfig}
+                    collection={selectedCollection}
+                    item={editingItem}
+                    formData={formData}
+                    collections={collections}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
             <button
               onClick={onClose}
               className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all ml-1"
@@ -1662,22 +1702,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             </div>
           )}
 
-          {/* Plugin PDF : prévisualisation / édition / sauvegarde du PDF de l'objet */}
-          {pdfPluginConfig &&
-            pdfPluginConfig.templateId &&
-            selectedCollection?.id &&
-            pdfPluginConfig.enabledCollectionIds.includes(selectedCollection.id) && (
-            <div className="pt-2">
-              <ItemPdfBlock
-                organizationId={activeOrganizationId || 'default'}
-                config={pdfPluginConfig}
-                collection={selectedCollection}
-                item={editingItem}
-                formData={formData}
-                collections={collections}
-              />
-            </div>
-          )}
           </div>
         </div>
         <div className="flex items-center justify-between gap-3 px-8 py-4 border-t border-border shrink-0">
