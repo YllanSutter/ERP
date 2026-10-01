@@ -164,7 +164,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
     const filterProp = (allProperties || visibleProperties).find((p: any) => p.id === fieldId);
     const optionLabelMap = new Map<string, string>();
 
-    if (filterProp && (filterProp.type === 'select' || filterProp.type === 'multi_select' || filterProp.type === 'multiselect')) {
+    if (filterProp && (filterProp.type === 'select' || filterProp.type === 'multiselect')) {
       (filterProp.options || []).forEach((opt: any) => {
         const raw = typeof opt === 'string' ? opt : opt?.value;
         const label = typeof opt === 'string' ? opt : (opt?.label || opt?.value);
@@ -175,10 +175,11 @@ const TableHeader: React.FC<TableHeaderProps> = ({
     }
 
     const relationLabelMap = new Map<string, string>();
-    if (filterProp?.type === 'relation' && filterProp?.relation?.targetCollectionId) {
-      const targetCollection = collections.find((c: any) => c.id === filterProp.relation.targetCollectionId);
-      const displayFieldIds = Array.isArray(filterProp?.relation?.displayFieldIds) && filterProp.relation.displayFieldIds.length > 0
-        ? filterProp.relation.displayFieldIds
+    const relation = filterProp?.type === 'relation' ? filterProp.relation : undefined;
+    if (relation?.targetCollectionId) {
+      const targetCollection = collections.find((c: any) => c.id === relation.targetCollectionId);
+      const displayFieldIds = Array.isArray(relation.displayFieldIds) && relation.displayFieldIds.length > 0
+        ? relation.displayFieldIds
         : ['name'];
 
       (targetCollection?.items || []).forEach((targetItem: any) => {

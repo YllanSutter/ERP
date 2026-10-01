@@ -385,7 +385,7 @@ export function useErpSync({
           };
           const fullPayloadStr = JSON.stringify(fullPayload);
           if (fullPayloadStr !== lastSavedPayloadRef.current) {
-            console.log(`[useErpSync] Sending full POST with ${cleanedCollections.reduce((acc, c) => acc + (c.items?.length ?? 0), 0)} items`);
+            console.log(`[useErpSync] Sending full POST with ${cleanedCollections.reduce((acc: number, c: any) => acc + (c.items?.length ?? 0), 0)} items`);
             const res = await fetch(`${API_URL}/state`, {
               method: 'POST',
               headers: {

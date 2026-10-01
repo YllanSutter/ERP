@@ -266,7 +266,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     let didApplyDurationChange = false;
     let hasPendingDurationChange = false;
 
-    const props = (orderedProperties && orderedProperties.length > 0 ? orderedProperties : selectedCollection.properties) || [];
+    const props = selectedCollection.properties || [];
     const templateSourceFieldIds = new Set(
       props.flatMap((prop: any) =>
         (Array.isArray(prop.defaultTemplates) ? prop.defaultTemplates : [])
@@ -371,7 +371,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   function getInitialFormData(col = selectedCollection, prefill: any = editingItem) {
     const data: any = { ...(prefill || {}) };
     const autoFilled: Record<string, boolean> = {};
-    const props = orderedProperties && orderedProperties.length > 0 ? orderedProperties : col.properties;
+    const props = col.properties || [];
     
     // Marquer les champs du prefill comme NON auto-remplis pour qu'ils ne soient pas écrasés par les templates
     const prefillFieldIds = new Set(prefill ? Object.keys(prefill) : []);
@@ -899,10 +899,15 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const classicPropsSansRichText = classicProps.filter((p: any) => p.type !== 'rich_text');
   const relationProps = propsList.filter((p: any) => p.type === 'relation');
   const dateProps = propsList.filter((p: any) => p.type === 'date');
+  const titleProperty = classicPropsSansRichText.find(
+    (prop: any) => prop.isNameField || prop.id === 'name' || prop.name === 'Nom'
+  ) || classicPropsSansRichText[0];
 
-  // On affiche toujours tous les champs si la collection en possède —
-  // masquer uniquement quand la collection n'a aucun champ de ce type.
-  const detailsPropsForDisplay = classicPropsSansRichText.slice(1);
+  // Le titre est identifié par sa propriété, pas par sa position dans la vue.
+  // Cela évite de masquer un nouveau champ quand une vue réordonne les propriétés.
+  const detailsPropsForDisplay = classicPropsSansRichText.filter(
+    (prop: any) => prop.id !== titleProperty?.id
+  );
   const relationPropsForDisplay = relationProps;
 
   // Calcule les segments prégénérés côté client (pour aperçu dans le modal)
@@ -1251,9 +1256,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             {classicPropsSansRichText.length > 0 && (
               <div className="[&_input]:text-[22px] [&_input]:font-semibold [&_input]:tracking-tight [&_input]:text-foreground [&_input]:placeholder:text-muted-foreground [&_input]:bg-transparent [&_input]:border-0 [&_input]:outline-none [&_input]:w-full [&_input]:p-0 [&_textarea]:text-[22px] [&_textarea]:font-semibold [&_textarea]:text-foreground">
                 <EditableProperty
-                  property={classicPropsSansRichText[0]}
-                  value={formData[classicPropsSansRichText[0].id]}
-                  onChange={(val) => handleChange(classicPropsSansRichText[0].id, val)}
+                  property={titleProperty}
+                  value={formData[titleProperty.id]}
+                  onChange={(val) => handleChange(titleProperty.id, val)}
                   size="xl"
                   collections={readableCollections}
                   collection={selectedCollection}
@@ -1266,7 +1271,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       setFormData(item);
                     }
                   }}
-                  readOnly={!canWriteField(selectedCollection?.id, classicPropsSansRichText[0].id)}
+                  readOnly={!canWriteField(selectedCollection?.id, titleProperty.id)}
                   forceRichEditor={true}
                 />
               </div>

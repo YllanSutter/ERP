@@ -825,12 +825,26 @@ const App = () => {
                   });
                 }}
                 onUpdateFieldGroups={(groups) => {
-                  if (!activeView) return;
-                  viewHooks.updateView(activeView, { fieldGroups: groups });
+                  if (!activeCollection) return;
+                  const collectionViews = views[activeCollection] || [];
+                  setViews({
+                    ...views,
+                    [activeCollection]: collectionViews.map((view: any) => ({
+                      ...view,
+                      fieldGroups: groups,
+                    })),
+                  });
                 }}
                 onUpdateFieldGroupsLayout={(layout) => {
-                  if (!activeView) return;
-                  viewHooks.updateView(activeView, { fieldGroupsLayout: layout });
+                  if (!activeCollection) return;
+                  const collectionViews = views[activeCollection] || [];
+                  setViews({
+                    ...views,
+                    [activeCollection]: collectionViews.map((view: any) => ({
+                      ...view,
+                      fieldGroupsLayout: layout,
+                    })),
+                  });
                 }}
                 onOpenItemFromSearch={(collection, item) => {
                   setEditingItem(item);
@@ -1279,13 +1293,17 @@ const App = () => {
           fieldGroups={(() => {
             const col = modalCollection || currentCollection;
             if (!col) return [];
-            const view = views[col.id]?.find((v: any) => v.id === activeView);
+            const collectionViews = views[col.id] || [];
+            const view = collectionViews.find((v: any) => Array.isArray(v.fieldGroups) && v.fieldGroups.length > 0)
+              || collectionViews.find((v: any) => v.id === activeView);
             return view?.fieldGroups || [];
           })()}
           fieldGroupsLayout={(() => {
             const col = modalCollection || currentCollection;
             if (!col) return 'stacked' as const;
-            const view = views[col.id]?.find((v: any) => v.id === activeView);
+            const collectionViews = views[col.id] || [];
+            const view = collectionViews.find((v: any) => Array.isArray(v.fieldGroups) && v.fieldGroups.length > 0)
+              || collectionViews.find((v: any) => v.id === activeView);
             return view?.fieldGroupsLayout === 'tabs' ? 'tabs' as const : 'stacked' as const;
           })()}
           onToggleFavoriteItem={(itemId: string) => {

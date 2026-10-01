@@ -21,8 +21,8 @@ function normalizeSteamGames(raw: any): SteamGame[] {
     : (Array.isArray(raw?.applist?.apps) ? raw.applist.apps : []);
 
   return source
-    .filter((g) => g && typeof g.appid === 'number' && typeof g.name === 'string' && g.name.trim())
-    .map((g) => ({ appid: g.appid, name: g.name.trim() }));
+    .filter((g: any) => g && typeof g.appid === 'number' && typeof g.name === 'string' && g.name.trim())
+    .map((g: any) => ({ appid: g.appid, name: g.name.trim() }));
 }
 
 /**

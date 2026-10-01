@@ -437,7 +437,14 @@ function buildXYData(module: DashboardModuleConfig, data: DashboardItemData) {
 }
 
 /** Construit les données pour un graphique circulaire */
-function buildPieData(module: DashboardModuleConfig, data: DashboardItemData) {
+interface PieDataPoint {
+  name: string;
+  value: number;
+  __sampleItem?: Item;
+  __durationValue?: number;
+}
+
+function buildPieData(module: DashboardModuleConfig, data: DashboardItemData): PieDataPoint[] {
   const { filteredItems, properties } = data;
   const xField = module.chartXField;
   const yMode = module.chartYMode ?? 'aggregation';
@@ -449,7 +456,7 @@ function buildPieData(module: DashboardModuleConfig, data: DashboardItemData) {
   if (!xField) return [];
 
   const groups = groupItemsByField(filteredItems, xField, properties);
-  const result: { name: string; value: number }[] = [];
+  const result: PieDataPoint[] = [];
 
   groups.forEach((items, key) => {
     let label = key === EMPTY_GROUP_KEY || key === NO_DATE_KEY ? 'Vide' : key;

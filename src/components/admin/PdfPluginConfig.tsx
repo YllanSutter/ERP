@@ -336,8 +336,8 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
                     <input
                       type="text"
                       value={
-                        typeof currentMapping[field.name] === 'object'
-                          ? currentMapping[field.name].customText || ''
+                        currentMapping[field.name] && typeof currentMapping[field.name] === 'object'
+                          ? (currentMapping[field.name] as PdfFieldMapping).customText || ''
                           : ''
                       }
                       onChange={(e) => updateMapping(field.name, { customText: e.target.value })}
