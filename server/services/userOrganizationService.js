@@ -48,7 +48,7 @@ export const createUserOrganizationService = ({
     if (existing.rowCount) {
       throw new Error('email_exists');
     }
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
     const userId = uuidv4();
     await pool.query(
       'INSERT INTO users (id, email, name, provider, password_hash) VALUES ($1, $2, $3, $4, $5)',

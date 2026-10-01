@@ -32,7 +32,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 4000
-      CLIENT_ORIGIN: localhost:4000
+      CLIENT_ORIGIN: http://localhost:4000
       JWT_SECRET: ${JWT_SECRET:?Définissez JWT_SECRET dans le fichier .env}
       FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?Définissez FIELD_ENCRYPTION_KEY dans le fichier .env}
       DATABASE_PUBLIC_URL: postgresql://postgres:4GSUWF4XQB699@postgres:5432/erp_db

@@ -1,3 +1,5 @@
+import { ZodError } from 'zod';
+import { statePayloadSchema } from '../../shared/validation.js';
 import { loadAutomations, triggerAutomations } from '../services/automationService.js';
 import {
   decryptStateSecrets,
@@ -291,9 +293,11 @@ export const registerStateRoutes = ({
       const organizationId = req.auth.activeOrganization?.id;
       if (!organizationId) return res.status(400).json({ error: 'No active organization' });
 
-      const userStateResult = await pool.query('SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
+      const userStateResult = await pool.query('SELECT data, version FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
+      let stateVersion = 1;
       let rawState = INITIAL_APP_STATE;
       if (userStateResult.rows.length > 0) {
+        stateVersion = Number(userStateResult.rows[0].version) || 1;
         const storedState = JSON.parse(userStateResult.rows[0].data);
         const migratedState = encryptStateSecrets(storedState);
         if (JSON.stringify(storedState) !== JSON.stringify(migratedState)) {
@@ -310,7 +314,7 @@ export const registerStateRoutes = ({
         favorites: rawState?.favorites || { views: [], items: [] },
       };
       const filtered = filterStateForUser(state, req.auth, hasPermission);
-      return res.json(maskStateSecrets(filtered));
+      return res.json({ ...maskStateSecrets(filtered), stateVersion });
     } catch (err) {
       console.error('Failed to load state', err);
       return res.status(500).json({ error: 'Failed to load state' });
@@ -319,16 +323,25 @@ export const registerStateRoutes = ({
 
   app.post('/api/state', requireAuth, async (req, res) => {
     try {
-      const payload = req.body ?? {};
+      const payload = statePayloadSchema.parse(req.body ?? {});
+      const expectedVersion = payload.stateVersion;
       const userId = req.auth.user.id;
       const organizationId = req.auth.activeOrganization?.id;
       const calendarConfig = getCalendarConfigForUser(req.auth.user);
       if (!organizationId) return res.status(400).json({ error: 'No active organization' });
-
-      const { ...stateData } = payload;
+      const { stateVersion: _stateVersion, ...stateData } = payload;
       const collections = stateData.collections || [];
 
-      const prevStateResult = await pool.query('SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
+      const prevStateResult = await pool.query('SELECT data, version FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
+      const currentVersion = prevStateResult.rows.length > 0
+        ? Number(prevStateResult.rows[0].version) || 1
+        : 1;
+      if (currentVersion !== expectedVersion) {
+        return res.status(409).json({
+          error: 'State changed since it was loaded',
+          stateVersion: currentVersion,
+        });
+      }
       const prevState = prevStateResult.rows.length > 0
         ? decryptStateSecrets(JSON.parse(prevStateResult.rows[0].data))
         : {};
@@ -464,10 +477,24 @@ export const registerStateRoutes = ({
 
       const stateStr = JSON.stringify(prepareStateForStorage(stateDataWithSegments, prevState));
 
-      const updateRes = await pool.query('UPDATE app_state SET data = $1 WHERE organization_id = $2', [stateStr, organizationId]);
+      const updateRes = await pool.query(
+        'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3',
+        [stateStr, organizationId, expectedVersion]
+      );
+      const nextVersion = expectedVersion + 1;
       if (updateRes.rowCount === 0) {
+        const latestState = await pool.query('SELECT version FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
+        if (latestState.rowCount > 0) {
+          return res.status(409).json({
+            error: 'State changed since it was loaded',
+            stateVersion: Number(latestState.rows[0].version) || expectedVersion,
+          });
+        }
         await syncAppStateIdSequence();
-        await pool.query('INSERT INTO app_state (organization_id, data) VALUES ($1, $2)', [organizationId, stateStr]);
+        await pool.query(
+          'INSERT INTO app_state (organization_id, data, version) VALUES ($1, $2, $3)',
+          [organizationId, stateStr, nextVersion]
+        );
       }
 
       await logAudit(userId, 'state.save', 'organization', organizationId, { collections: processedCollections.length });
@@ -481,7 +508,11 @@ export const registerStateRoutes = ({
       // le client ignore son propre event socket (userId filter), donc sans ça
       // il ne verrait jamais les items créés côté serveur.
       const hasAutomationChanges = postAutoItemCount > preAutoItemCount;
-      const responsePayload = { ok: true, collections: stateDataWithSegments.collections };
+      const responsePayload = {
+        ok: true,
+        collections: stateDataWithSegments.collections,
+        stateVersion: nextVersion,
+      };
 
       if (hasAutomationChanges) {
         return res.json({ ...responsePayload, automationCollections: stateDataWithSegments.collections });
@@ -489,6 +520,9 @@ export const registerStateRoutes = ({
 
       return res.json(responsePayload);
     } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ error: 'Invalid state payload', details: err.issues });
+      }
       console.error('Failed to save state', err);
       return res.status(500).json({ error: 'Failed to save state' });
     }

@@ -1,3 +1,21 @@
+import rateLimit from 'express-rate-limit';
+import { ZodError } from 'zod';
+import { authPayloadSchema } from '../../shared/validation.js';
+
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+});
+
+const registerRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+});
+
 export const registerAccessRoutes = ({
   app,
   pool,
@@ -95,16 +113,18 @@ export const registerAccessRoutes = ({
   };
 
   // --- Auth routes --------------------------------------------------------
-  app.post('/api/auth/register', async (req, res) => {
+  app.post('/api/auth/register', registerRateLimiter, async (req, res) => {
     try {
-      const { email, password, name } = req.body || {};
-      if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-      const userId = await createLocalUser({ email: String(email).trim().toLowerCase(), password, name });
+      const { email, password, name } = authPayloadSchema.parse(req.body || {});
+      const userId = await createLocalUser({ email: email.toLowerCase(), password, name });
       const token = signToken(userId);
       setAuthCookie(res, token);
       const ctx = await loadUserContext(userId);
       return res.json({ user: ctx?.user || null, roles: ctx?.roles || [] });
     } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ error: 'Invalid registration payload', details: err.issues });
+      }
       if (err.message === 'email_exists') {
         return res.status(400).json({ error: 'email already registered' });
       }
@@ -113,11 +133,10 @@ export const registerAccessRoutes = ({
     }
   });
 
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
     try {
-      const { email, password } = req.body || {};
-      if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-      const userRes = await pool.query('SELECT * FROM users WHERE email = $1 AND provider = $2', [String(email).trim().toLowerCase(), 'local']);
+      const { email, password } = authPayloadSchema.omit({ name: true }).parse(req.body || {});
+      const userRes = await pool.query('SELECT * FROM users WHERE email = $1 AND provider = $2', [email.toLowerCase(), 'local']);
       if (!userRes.rowCount) return res.status(401).json({ error: 'Invalid credentials' });
       const user = userRes.rows[0];
       const ok = await bcrypt.compare(password, user.password_hash || '');
@@ -127,6 +146,9 @@ export const registerAccessRoutes = ({
       const ctx = await loadUserContext(user.id);
       return res.json({ user: ctx?.user || null, roles: ctx?.roles || [] });
     } catch (err) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ error: 'Invalid login payload', details: err.issues });
+      }
       console.error('Login failed', err);
       return res.status(500).json({ error: 'Login failed' });
     }
@@ -634,7 +656,7 @@ export const registerAccessRoutes = ({
         return res.status(400).json({ error: 'password update not allowed for non-local user' });
       }
 
-      const passwordHash = await bcrypt.hash(password, 10);
+      const passwordHash = await bcrypt.hash(password, 12);
       await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
       await logAudit(req.auth?.user?.id, 'user.password.update', 'user', userId, { userId });
       return res.json({ ok: true });

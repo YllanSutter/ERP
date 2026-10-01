@@ -16,22 +16,22 @@
   - **Action** : Supprimer `|| 'dev-secret'` pour `JWT_SECRET` et `FIELD_ENCRYPTION_KEY`. Ajouter un `if (!process.env.JWT_SECRET) throw new Error('Missing JWT_SECRET')` au démarrage.
   - **Vérif** : `node --check server/index.js`
 
-- [ ] **TASK 1.2 : Durcir la politique CORS**
+- [x] **TASK 1.2 : Durcir la politique CORS**
   - **Cible** : `server/index.js` ou fichier de config CORS.
   - **Action** : Remplacer `callback(null, true)` par une allowlist stricte (ex: `const allowed = [process.env.CLIENT_URL]; if (allowed.includes(origin)) callback(null, true);`).
   - **Vérif** : `grep -n "cors" server/index.js`
 
-- [ ] **TASK 1.3 : Rate Limiting & Bcrypt**
+- [x] **TASK 1.3 : Rate Limiting & Bcrypt**
   - **Cible** : Routes d'authentification (`server/routes/auth.js` ou similaire).
   - **Action** : Ajouter `express-rate-limit` sur `/api/auth/login` et `/register`. Augmenter le coût de `bcrypt.hash` de 10 à 12.
   - **Vérif** : `grep -n "bcrypt.hash" server/` et `grep -n "rateLimit" server/`
 
-- [ ] **TASK 1.4 : Prévenir l'écrasement d'état (Concurrency)**
+- [x] **TASK 1.4 : Prévenir l'écrasement d'état (Concurrency)**
   - **Cible** : Route `POST /api/state` (ou équivalent).
   - **Action** : Remplacer le POST full-state par une logique de patch (ex: `PATCH /api/state/:id`) ou ajouter un champ `version`/`updatedAt` avec vérification avant écriture.
   - **Vérif** : `grep -rn "POST.*state" server/`
 
-- [ ] **TASK 1.5 : Validation des entrées avec Zod**
+- [x] **TASK 1.5 : Validation des entrées avec Zod**
   - **Cible** : `shared/` (nouveau dossier) ou `src/types/`, et routes serveur.
   - **Action** : Créer des schémas Zod partagés pour les payloads critiques (Auth, State). Remplacer les validations manuelles par `schema.parse(req.body)`.
   - **Vérif** : `npx tsc --noEmit`

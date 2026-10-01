@@ -147,6 +147,7 @@ export function useErpSync({
   const lastSavedPayloadRef = useRef<string | null>(null);
   const lastSavedCollectionsRef = useRef<Collection[]>([]);
   const lastSavedStructureRef = useRef<string | null>(null);
+  const stateVersionRef = useRef<number | null>(null);
 
   useEffect(() => {
     setIsLoaded(false);
@@ -154,6 +155,7 @@ export function useErpSync({
     lastReloadRef.current = 0;
     lastSavedCollectionsRef.current = [];
     lastSavedStructureRef.current = null;
+    stateVersionRef.current = null;
   }, [organizationId]);
 
   // --- Chargement initial -----------------------------------------------
@@ -174,6 +176,7 @@ export function useErpSync({
             setDashboardSort(data.dashboardSort || 'created');
             setDashboardFilters(data.dashboardFilters || {});
             setFavorites(data.favorites || { views: [], items: [] });
+            stateVersionRef.current = Number(data.stateVersion) || 1;
             lastSavedCollectionsRef.current = data.collections || [];
             lastSavedStructureRef.current = buildStructureSnapshot(
               data.views || {},
@@ -383,6 +386,7 @@ export function useErpSync({
             dashboardSort,
             dashboardFilters: cleanedFilters,
             favorites: cleanedFavorites,
+            stateVersion: stateVersionRef.current,
           };
           const fullPayloadStr = JSON.stringify(fullPayload);
           if (fullPayloadStr !== lastSavedPayloadRef.current) {
@@ -399,6 +403,7 @@ export function useErpSync({
             if (res.ok) {
               console.log(`[useErpSync] Full POST succeeded`);
               const result = await res.json().catch(() => ({}));
+              stateVersionRef.current = Number(result?.stateVersion) || stateVersionRef.current;
 
               const serverCollections = result?.collections || result?.automationCollections || null;
               if (serverCollections) {

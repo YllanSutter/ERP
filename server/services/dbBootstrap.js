@@ -184,6 +184,7 @@ export const bootstrapDatabase = async ({ pool, ensureDefaultOrganization }) => 
       id SERIAL PRIMARY KEY,
       user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       data TEXT NOT NULL,
+      version BIGINT NOT NULL DEFAULT 1,
       UNIQUE(user_id)
     );
   `);
@@ -225,6 +226,9 @@ export const bootstrapDatabase = async ({ pool, ensureDefaultOrganization }) => 
       END IF;
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='app_state' AND column_name='organization_id') THEN
         ALTER TABLE app_state ADD COLUMN organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='app_state' AND column_name='version') THEN
+        ALTER TABLE app_state ADD COLUMN version BIGINT NOT NULL DEFAULT 1;
       END IF;
     END$$;
   `);
