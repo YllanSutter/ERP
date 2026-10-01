@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { encryptStateSecrets } from '../../services/secretFieldService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -384,7 +385,7 @@ export const steamServerPlugin = {
           }
         }
 
-        const stateStr = JSON.stringify(state);
+        const stateStr = JSON.stringify(encryptStateSecrets(state));
         const updateRes = await pool.query(
           'UPDATE app_state SET data = $1 WHERE organization_id = $2',
           [stateStr, activeOrganizationId]

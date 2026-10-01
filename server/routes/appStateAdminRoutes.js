@@ -1,3 +1,5 @@
+import { encryptStateSecrets } from '../services/secretFieldService.js';
+
 export const registerAppStateAdminRoutes = ({
   app,
   requireAuth,
@@ -232,7 +234,12 @@ export const registerAppStateAdminRoutes = ({
              ON CONFLICT (organization_id) DO UPDATE SET
                user_id = EXCLUDED.user_id,
                data = EXCLUDED.data`,
-            [row.id, userIdMap.get(row.user_id) || row.user_id || null, organizationId, row.data]
+            [
+              row.id,
+              userIdMap.get(row.user_id) || row.user_id || null,
+              organizationId,
+              JSON.stringify(encryptStateSecrets(typeof row.data === 'string' ? JSON.parse(row.data) : row.data)),
+            ]
           );
         }
 
@@ -310,7 +317,12 @@ export const registerAppStateAdminRoutes = ({
       for (const row of app_state) {
         await pool.query(
           'INSERT INTO app_state (id, user_id, organization_id, data) VALUES ($1, $2, $3, $4)',
-          [row.id, row.user_id || null, row.organization_id || null, row.data]
+          [
+            row.id,
+            row.user_id || null,
+            row.organization_id || null,
+            JSON.stringify(encryptStateSecrets(typeof row.data === 'string' ? JSON.parse(row.data) : row.data)),
+          ]
         );
       }
       await syncAppStateIdSequence();

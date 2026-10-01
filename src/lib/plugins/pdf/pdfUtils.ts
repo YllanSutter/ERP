@@ -24,6 +24,7 @@ import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 import type { PdfMappingEntry } from './usePdfPlugin';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+export const PASSWORD_MASK = '__ERP_PASSWORD_MASK__';
 
 export interface PdfFieldInfo {
   name: string;
@@ -296,7 +297,11 @@ export function resolvePdfValues(params: {
       const prop = properties.find((p: any) => p.id === propId);
       if (prop) {
         const rawMapped = extractPropertyValue(prop, formData?.[propId], collections);
-        mapped = prop.type === 'password' && rawMapped && !revealPasswords ? '********' : rawMapped;
+        if (prop.type === 'password' && rawMapped === PASSWORD_MASK) {
+          mapped = revealPasswords ? '' : '********';
+        } else {
+          mapped = prop.type === 'password' && rawMapped && !revealPasswords ? '********' : rawMapped;
+        }
       }
     }
     if (customText) {
@@ -320,6 +325,24 @@ export function resolvePdfValues(params: {
   }
 
   return { values, mappedValues, manualFields };
+}
+
+export async function loadPasswordValues(
+  organizationId: string,
+  collectionId: string,
+  itemId: string,
+  propertyIds: string[]
+): Promise<Record<string, string>> {
+  if (!propertyIds.length) return {};
+  const res = await fetch(`${API_URL}/state/password-values`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ organizationId, collectionId, itemId, propertyIds }),
+  });
+  if (!res.ok) throw new Error(`Impossible de charger les secrets pour le PDF (HTTP ${res.status})`);
+  const json = await res.json();
+  return json?.values && typeof json.values === 'object' ? json.values : {};
 }
 
 // ---------------------------------------------------------------------------

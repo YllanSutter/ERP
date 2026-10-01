@@ -125,19 +125,13 @@ const PasswordInput = ({
   className?: string;
   readOnly?: boolean;
 }) => {
-  const [focused, setFocused] = useState(false);
   const rawValue = value == null ? '' : String(value);
-  const displayValue = focused || !rawValue ? rawValue : '********';
 
   return (
     <input
-      type="text"
-      value={displayValue}
+      type="password"
+      value={rawValue}
       onChange={(e) => onChange(e.target.value)}
-      onFocus={() => {
-        if (!readOnly) setFocused(true);
-      }}
-      onBlur={() => setFocused(false)}
       disabled={readOnly}
       placeholder={rawValue ? '' : '...'}
       className={cn(
@@ -1080,7 +1074,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     return <CheckboxInput value={value} onChange={onChange} readOnly={readOnly} />;
   }
   
-  // Le secret reste lisible pendant la saisie, puis est masqué quand le champ perd le focus.
+  // Les secrets restent masqués pendant toute la saisie.
   if (property.type === 'password') {
     return <PasswordInput value={value} onChange={onChange} sizeClasses={sizeClasses} className={className} readOnly={readOnly} />;
   }

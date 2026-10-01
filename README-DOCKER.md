@@ -56,6 +56,7 @@ Pour modifier les valeurs par défaut, créez un fichier `.env` :
 cat > .env << EOF
 POSTGRES_PASSWORD=votre_mot_de_passe
 JWT_SECRET=votre_clé_secrète_32_caractères_minimum
+FIELD_ENCRYPTION_KEY=une_clé_aléatoire_dédiée_aux_champs_password
 CLIENT_ORIGIN=http://votre-domaine.com
 EOF
 

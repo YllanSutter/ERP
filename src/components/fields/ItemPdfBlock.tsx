@@ -27,6 +27,8 @@ import {
   detectPdfFields,
   fillPdfBytes,
   loadPdfBytes,
+  loadPasswordValues,
+  PASSWORD_MASK,
   resolvePdfValues,
   saveItemPdf,
   getSavedItemPdf,
@@ -168,20 +170,37 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
     [fields, mapping, properties, formData, collections, manualValues, config.manualOverride]
   );
 
-  const resolvedForExport = useMemo(
-    () =>
-      resolvePdfValues({
-        fields,
-        mapping,
-        properties,
-        formData,
-        collections,
-        manualValues,
-        manualOverride: config.manualOverride !== false,
-        revealPasswords: true,
-      }),
-    [fields, mapping, properties, formData, collections, manualValues, config.manualOverride]
-  );
+  const getExportValues = useCallback(async () => {
+    const passwordPropertyIds = properties
+      .filter((property: any) =>
+        property.type === 'password' &&
+        fields.some((field) => getPdfMappingPropertyId(mapping[field.name]) === property.id)
+      )
+      .map((property: any) => property.id)
+      .filter((propertyId: string) => formData?.[propertyId] === PASSWORD_MASK);
+
+    let exportFormData = formData;
+    if (itemId && collectionId && passwordPropertyIds.length > 0) {
+      const passwordValues = await loadPasswordValues(
+        organizationId,
+        collectionId,
+        itemId,
+        passwordPropertyIds
+      );
+      exportFormData = { ...formData, ...passwordValues };
+    }
+
+    return resolvePdfValues({
+      fields,
+      mapping,
+      properties,
+      formData: exportFormData,
+      collections,
+      manualValues,
+      manualOverride: config.manualOverride !== false,
+      revealPasswords: true,
+    }).values;
+  }, [collectionId, collections, config.manualOverride, fields, formData, itemId, mapping, manualValues, organizationId, properties]);
 
   const handleFieldChange = (fieldName: string, value: string) => {
     setManualValues((prev) => ({ ...prev, [fieldName]: value }));
@@ -259,7 +278,8 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
     setSaveMessage(null);
     try {
       const templateBytes = await loadPdfBytes('template', config.templateId);
-      const filled = await fillPdfBytes(templateBytes, resolvedForExport.values);
+      const exportValues = await getExportValues();
+      const filled = await fillPdfBytes(templateBytes, resolved.values);
       const passwordFieldNames = new Set(
         fields
           .filter((field) => {
@@ -269,7 +289,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
           .map((field) => field.name)
       );
       const savedValues = Object.fromEntries(
-        Object.entries(resolvedForExport.values).filter(([fieldName]) => !passwordFieldNames.has(fieldName))
+        Object.entries(exportValues).filter(([fieldName]) => !passwordFieldNames.has(fieldName))
       );
       const meta = await saveItemPdf({
         organizationId,
@@ -299,7 +319,8 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
     try {
       setError(null);
       const templateBytes = await loadPdfBytes('template', config.templateId);
-      const filled = await fillPdfBytes(templateBytes, resolvedForExport.values);
+      const exportValues = await getExportValues();
+      const filled = await fillPdfBytes(templateBytes, exportValues);
       downloadBlob(filled, buildFilename());
     } catch (err: any) {
       setError(err?.message || 'Téléchargement impossible.');
@@ -353,7 +374,9 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
           <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] divide-y divide-white/[0.05] overflow-hidden">
             {fields.map((field) => {
               const propId = getPdfMappingPropertyId(mapping[field.name]);
-              const propName = propId ? properties.find((p: any) => p.id === propId)?.name : null;
+              const prop = propId ? properties.find((p: any) => p.id === propId) : null;
+              const propName = prop?.name || null;
+              const isPassword = prop?.type === 'password';
               const isManual = Object.prototype.hasOwnProperty.call(manualValues, field.name);
               const finalValue = resolved.values[field.name] ?? '';
               const overridden = isManual && config.manualOverride !== false && finalValue !== resolved.mappedValues[field.name];
@@ -386,7 +409,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
                       />
                     ) : (
                       <input
-                        type="text"
+                        type={isPassword ? 'password' : 'text'}
                         value={finalValue}
                         onChange={(e) => handleFieldChange(field.name, e.target.value)}
                         placeholder={propName ? '(vide — valeur du champ lié)' : '(aucune source)'}

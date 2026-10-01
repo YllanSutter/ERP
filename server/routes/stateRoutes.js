@@ -1,4 +1,10 @@
 import { loadAutomations, triggerAutomations } from '../services/automationService.js';
+import {
+  decryptStateSecrets,
+  maskStateSecrets,
+  encryptStateSecrets,
+  prepareStateForStorage,
+} from '../services/secretFieldService.js';
 
 const filterStateForUser = (data, ctx, hasPermission) => {
   if (!data || !data.collections) return data;
@@ -74,7 +80,7 @@ export const registerStateRoutes = ({
         return res.status(404).json({ error: 'State not found' });
       }
 
-      const state = JSON.parse(stateResult.rows[0].data);
+      const state = decryptStateSecrets(JSON.parse(stateResult.rows[0].data));
       const collections = Array.isArray(state.collections) ? state.collections : [];
 
       const colIdx = collections.findIndex((c) => c.id === collectionId);
@@ -121,7 +127,7 @@ export const registerStateRoutes = ({
       }
       // ──────────────────────────────────────────────────────────────────────
 
-      const stateStr = JSON.stringify(newState);
+      const stateStr = JSON.stringify(prepareStateForStorage(newState, state));
 
       const updateRes = await pool.query(
         'UPDATE app_state SET data = $1 WHERE organization_id = $2',
@@ -142,11 +148,14 @@ export const registerStateRoutes = ({
           collectionId,
           itemId,
           fields: Object.keys(fields),
-          item: processedItem,
+          item: maskStateSecrets({ collections: [{ ...col, items: [processedItem] }] }).collections[0].items[0],
         });
       }
 
-      return res.json({ ok: true, item: processedItem });
+      return res.json({
+        ok: true,
+        item: maskStateSecrets({ collections: [{ ...col, items: [processedItem] }] }).collections[0].items[0],
+      });
     } catch (err) {
       console.error('Failed to patch item', err);
       return res.status(500).json({ error: 'Failed to patch item' });
@@ -168,7 +177,7 @@ export const registerStateRoutes = ({
         [organizationId]
       );
       const existingState = stateResult.rows.length > 0
-        ? JSON.parse(stateResult.rows[0].data)
+        ? decryptStateSecrets(JSON.parse(stateResult.rows[0].data))
         : { ...INITIAL_APP_STATE };
 
       let newState = { ...existingState };
@@ -200,7 +209,7 @@ export const registerStateRoutes = ({
         };
       }
 
-      const stateStr = JSON.stringify(newState);
+      const stateStr = JSON.stringify(prepareStateForStorage(newState, existingState));
       const updateRes = await pool.query(
         'UPDATE app_state SET data = $1 WHERE organization_id = $2',
         [stateStr, organizationId]
@@ -224,20 +233,75 @@ export const registerStateRoutes = ({
     }
   });
 
+  // Les secrets ne sont jamais inclus dans /api/state. Cette route très ciblée
+  // sert uniquement à préparer un export PDF autorisé.
+  app.post('/api/state/password-values', requireAuth, async (req, res) => {
+    try {
+      const { collectionId, itemId, propertyIds } = req.body ?? {};
+      const organizationId = req.auth.activeOrganization?.id;
+      if (!organizationId || !collectionId || !itemId || !Array.isArray(propertyIds)) {
+        return res.status(400).json({ error: 'collectionId, itemId and propertyIds are required' });
+      }
+
+      const stateResult = await pool.query(
+        'SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1',
+        [organizationId]
+      );
+      if (stateResult.rows.length === 0) return res.status(404).json({ error: 'State not found' });
+
+      const state = decryptStateSecrets(JSON.parse(stateResult.rows[0].data));
+      const collection = (state.collections || []).find((entry) => entry.id === collectionId);
+      const item = collection?.items?.find((entry) => entry.id === itemId);
+      if (!collection || !item) return res.status(404).json({ error: 'Collection or item not found' });
+
+      const values = {};
+      for (const propertyId of propertyIds) {
+        const property = (collection.properties || []).find((entry) => entry.id === propertyId);
+        if (!property || property.type !== 'password') {
+          return res.status(400).json({ error: `Property ${propertyId} is not a password field` });
+        }
+        if (!hasPermission(req.auth, {
+          collection_id: collectionId,
+          item_id: itemId,
+          field_id: propertyId,
+        }, 'can_read')) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+        values[propertyId] = item[propertyId] ?? '';
+      }
+
+      return res.json({ values });
+    } catch (err) {
+      console.error('Failed to load password values for PDF export', err);
+      return res.status(500).json({ error: 'Failed to load password values' });
+    }
+  });
+
   app.get('/api/state', requireAuth, async (req, res) => {
     try {
       const organizationId = req.auth.activeOrganization?.id;
       if (!organizationId) return res.status(400).json({ error: 'No active organization' });
 
       const userStateResult = await pool.query('SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
-      const rawState = userStateResult.rows.length > 0 ? JSON.parse(userStateResult.rows[0].data) : INITIAL_APP_STATE;
+      let rawState = INITIAL_APP_STATE;
+      if (userStateResult.rows.length > 0) {
+        const storedState = JSON.parse(userStateResult.rows[0].data);
+        const migratedState = encryptStateSecrets(storedState);
+        if (JSON.stringify(storedState) !== JSON.stringify(migratedState)) {
+          await pool.query(
+            'UPDATE app_state SET data = $1 WHERE organization_id = $2',
+            [JSON.stringify(migratedState), organizationId]
+          );
+        }
+        rawState = decryptStateSecrets(migratedState);
+      }
       const state = {
         ...INITIAL_APP_STATE,
         ...rawState,
         favorites: rawState?.favorites || { views: [], items: [] },
       };
       const filtered = filterStateForUser(state, req.auth, hasPermission);
-      return res.json(filtered);
+      return res.json(maskStateSecrets(filtered));
     } catch (err) {
       console.error('Failed to load state', err);
       return res.status(500).json({ error: 'Failed to load state' });
@@ -256,7 +320,9 @@ export const registerStateRoutes = ({
       const collections = stateData.collections || [];
 
       const prevStateResult = await pool.query('SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
-      const prevState = prevStateResult.rows.length > 0 ? JSON.parse(prevStateResult.rows[0].data) : {};
+      const prevState = prevStateResult.rows.length > 0
+        ? decryptStateSecrets(JSON.parse(prevStateResult.rows[0].data))
+        : {};
       const prevCollections = Array.isArray(prevState.collections) ? prevState.collections : [];
       const prevCollectionsById = new Map(prevCollections.map((col) => [col.id, col]));
 
@@ -387,7 +453,7 @@ export const registerStateRoutes = ({
         (acc, c) => acc + (c.items?.length || 0), 0
       );
 
-      const stateStr = JSON.stringify(stateDataWithSegments);
+      const stateStr = JSON.stringify(prepareStateForStorage(stateDataWithSegments, prevState));
 
       const updateRes = await pool.query('UPDATE app_state SET data = $1 WHERE organization_id = $2', [stateStr, organizationId]);
       if (updateRes.rowCount === 0) {
