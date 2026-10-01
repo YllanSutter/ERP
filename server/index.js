@@ -88,16 +88,43 @@ if (process.env.DATABASE_PUBLIC_URL) {
   });
 }
 
-// CORS configuration - allow same-origin or CLIENT_ORIGIN
-const allowedCorsOrigins = new Set([CLIENT_ORIGIN]);
-app.use(cors({ 
+// CORS configuration - liste blanche configurable via CORS_ORIGINS (ou CLIENT_ORIGIN en secours)
+// Exemple: CORS_ORIGINS="http://localhost:5173,http://192.168.1.20:5173,http://mon-pc:4000"
+// Les entrées peuvent aussi être de simples hostnames/IPs (on génère http/https + ports usuels).
+const corsAllowlist = new Set(
+  (process.env.CORS_ORIGINS || CLIENT_ORIGIN)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // requêtes sans Origin (curl, mobile, même serveur)
+  if (corsAllowlist.has(origin)) return true;
+  try {
+    const parsed = new URL(origin);
+    const host = parsed.hostname;
+    for (const o of corsAllowlist) {
+      // L'entrée autorisée est un simple hostname/IP -> on accepte tous protocoles/ports
+      if (!o.includes('://') && o === host) return true;
+      // L'entrée autorisée est une origine complète -> on compare host + port
+      if (o.includes('://')) {
+        const allowed = new URL(o);
+        if (allowed.hostname === host && allowed.port === parsed.port) return true;
+      }
+    }
+  } catch {
+    return false;
+  }
+  return false;
+};
+
+app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-    if (allowedCorsOrigins.has(origin)) return callback(null, true);
+    if (isAllowedOrigin(origin)) return callback(null, true);
     callback(new Error('Origin not allowed by CORS'));
-  }, 
-  credentials: true 
+  },
+  credentials: true
 }));
 app.use(cookieParser());
 app.use(express.json({ limit: '20mb' }));
@@ -425,7 +452,10 @@ let serverInstance;
     serverInstance = app.listen(PORT, () => {});
     // Initialisation socket.io
     const io = new SocketIOServer(serverInstance, {
-      cors: { origin: CLIENT_ORIGIN, credentials: true }
+      cors: { origin: (origin, callback) => {
+        if (isAllowedOrigin(origin)) return callback(null, true);
+        callback(new Error('Origin not allowed by CORS'));
+      }, credentials: true }
     });
     global.io = io;
 
