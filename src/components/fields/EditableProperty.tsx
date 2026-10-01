@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 import * as Icons from 'lucide-react';
-import RichTextEditor from '@/components/fields/RichTextEditor';
 import SteamPropertyField from '@/components/fields/SteamPropertyField';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -15,6 +14,8 @@ import { cn } from '@/lib/utils';
 import { workDayStart, workDayEnd } from '@/lib/calendarUtils';
 import { formatDateByGranularity } from '@/lib/groupingUtils';
 import { calculateSegmentsClient } from '@/lib/calculateSegmentsClient';
+
+const LazyRichTextEditor = React.lazy(() => import('@/components/fields/RichTextEditor'));
 
 interface EditablePropertyProps {
   property: any;
@@ -1481,13 +1482,15 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     }
 
     return (
-      <RichTextEditor
-        value={value}
-        onChange={onChange}
-        readOnly={readOnly}
-        className={className}
-        showToolbar={!readOnly}
-      />
+      <React.Suspense fallback={<div className={cn('min-h-8 text-xs text-neutral-500', className)}>Chargement de l’éditeur…</div>}>
+        <LazyRichTextEditor
+          value={value}
+          onChange={onChange}
+          readOnly={readOnly}
+          className={className}
+          showToolbar={!readOnly}
+        />
+      </React.Suspense>
     );
   }
 

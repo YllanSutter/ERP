@@ -3,12 +3,13 @@ import ModalWrapper, { FormField, FormInput, FormSelect, FormHint, FormCheckbox,
 import OptionListEditor from '@/components/inputs/OptionListEditor';
 import * as Icons from 'lucide-react';
 import { OptionType } from '@/components/inputs/LightSelect';
-import RichTextEditor from '@/components/fields/RichTextEditor';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 import { DATE_GRANULARITIES, getPluginPropertyTypeOptions } from '@/components/modals/modalLib';
 import { useAuth } from '@/auth/AuthProvider';
 import { cn } from '@/lib/utils';
+
+const LazyRichTextEditor = React.lazy(() => import('@/components/fields/RichTextEditor'));
 
 interface PropertyModalProps {
   onClose: () => void;
@@ -588,7 +589,9 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                     <div className="px-4 py-3 border-t border-black/10 dark:border-white/10">
                       <span className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider block mb-2">→ Définir à</span>
                       {type === 'rich_text' ? (
-                        <RichTextEditor value={tpl.value} onChange={(val) => updateTemplate({ value: val })} className="bg-gray-200 dark:bg-neutral-800/50" />
+                        <React.Suspense fallback={<div className="text-xs text-neutral-500 py-2">Chargement de l’éditeur…</div>}>
+                          <LazyRichTextEditor value={tpl.value} onChange={(val) => updateTemplate({ value: val })} className="bg-gray-200 dark:bg-neutral-800/50" />
+                        </React.Suspense>
                       ) : type === 'date' || type === 'date_range' ? (
                         <div className="space-y-2">
                           <FormInput type="text" value={tpl.value ?? ''} onChange={(e) => updateTemplate({ value: e.target.value })} placeholder="Ex: {{now:month}}, {{now:year}}, {{now}}" />

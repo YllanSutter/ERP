@@ -698,6 +698,17 @@ const App = () => {
                 setShowNewItemModal(true);
               }}
             />
+          ) : !isLoaded ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex-1 flex items-center justify-center"
+            >
+              <div className="text-center text-neutral-400">
+                <div className="mx-auto mb-3 h-5 w-5 rounded-full border-2 border-violet-400/30 border-t-violet-400 animate-spin" />
+                <p>Chargement de votre espace…</p>
+              </div>
+            </motion.div>
           ) : !activeCollection ? (
             <motion.div
               initial={{ opacity: 0 }}

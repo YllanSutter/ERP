@@ -149,6 +149,7 @@ export function useErpSync({
   const lastSavedStructureRef = useRef<string | null>(null);
 
   useEffect(() => {
+    setIsLoaded(false);
     lastSavedPayloadRef.current = null;
     lastReloadRef.current = 0;
     lastSavedCollectionsRef.current = [];
