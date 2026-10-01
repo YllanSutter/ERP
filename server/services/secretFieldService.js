@@ -4,7 +4,7 @@ export const PASSWORD_MASK = '__ERP_PASSWORD_MASK__';
 const ENCRYPTED_PREFIX = 'enc:v1:';
 
 function getEncryptionKey() {
-  const configured = process.env.FIELD_ENCRYPTION_KEY || process.env.JWT_SECRET;
+  const configured = process.env.FIELD_ENCRYPTION_KEY;
   if (!configured) {
     throw new Error('FIELD_ENCRYPTION_KEY doit être configurée pour chiffrer les champs secrets');
   }

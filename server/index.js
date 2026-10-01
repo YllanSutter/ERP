@@ -51,7 +51,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 4000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('Missing JWT_SECRET');
+}
+const FIELD_ENCRYPTION_KEY = process.env.FIELD_ENCRYPTION_KEY;
+if (!FIELD_ENCRYPTION_KEY) {
+  throw new Error('Missing FIELD_ENCRYPTION_KEY');
+}
 const TOKEN_EXPIRES = process.env.JWT_EXPIRES || '7d';
 
 const INITIAL_APP_STATE = {
