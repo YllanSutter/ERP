@@ -8,26 +8,35 @@ import {
 
 const filterStateForUser = (data, ctx, hasPermission) => {
   if (!data || !data.collections) return data;
+  const permissionCache = new Map();
+  const checkPermission = (scope, action) => {
+    const key = `${scope.collection_id || ''}|${scope.item_id || ''}|${scope.field_id || ''}|${action}`;
+    if (permissionCache.has(key)) return permissionCache.get(key);
+    const result = hasPermission(ctx, scope, action);
+    permissionCache.set(key, result);
+    return result;
+  };
+
   const filteredCollections = (data.collections || []).map((col) => {
-    const canReadCollection = hasPermission(ctx, { collection_id: col.id }, 'can_read');
+    const canReadCollection = checkPermission({ collection_id: col.id }, 'can_read');
     const visibleProps = (col.properties || []).filter((prop) =>
-      hasPermission(ctx, { collection_id: col.id, field_id: prop.id }, 'can_read')
+      checkPermission({ collection_id: col.id, field_id: prop.id }, 'can_read')
     );
 
     if (!canReadCollection) {
       const allowedItems = (col.items || []).filter((item) =>
-        hasPermission(ctx, { collection_id: col.id, item_id: item.id }, 'can_read')
+        checkPermission({ collection_id: col.id, item_id: item.id }, 'can_read')
       );
       if (allowedItems.length === 0) return null;
       return { ...col, properties: visibleProps, items: allowedItems };
     }
 
     const items = (col.items || []).map((item) => {
-      const canReadItem = hasPermission(ctx, { collection_id: col.id, item_id: item.id }, 'can_read') || canReadCollection;
+      const canReadItem = checkPermission({ collection_id: col.id, item_id: item.id }, 'can_read') || canReadCollection;
       if (!canReadItem) return null;
       let next = { ...item };
       visibleProps.forEach((prop) => {
-        const canReadField = hasPermission(ctx, { collection_id: col.id, item_id: item.id, field_id: prop.id }, 'can_read');
+        const canReadField = checkPermission({ collection_id: col.id, item_id: item.id, field_id: prop.id }, 'can_read');
         if (!canReadField) {
           next = { ...next };
           delete next[prop.id];
