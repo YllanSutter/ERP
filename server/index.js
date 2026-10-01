@@ -88,14 +88,12 @@ if (process.env.DATABASE_PUBLIC_URL) {
   });
 }
 
-// CORS configuration - allow same-origin or CLIENT_ORIGIN
-const allowedCorsOrigins = new Set([CLIENT_ORIGIN]);
+// CORS configuration - reflect any requesting origin for remote access
 app.use(cors({ 
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
-    if (allowedCorsOrigins.has(origin)) return callback(null, true);
-    callback(new Error('Origin not allowed by CORS'));
+    callback(null, true);
   }, 
   credentials: true 
 }));

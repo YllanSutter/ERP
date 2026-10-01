@@ -18,7 +18,7 @@
 
 - [x] **TASK 1.2 : Durcir la politique CORS**
   - **Cible** : `server/index.js` ou fichier de config CORS.
-  - **Action** : Remplacer `callback(null, true)` par une allowlist stricte (ex: `const allowed = [process.env.CLIENT_URL]; if (allowed.includes(origin)) callback(null, true);`).
+  - **Action** : Autoriser les origines dynamiques afin que l’application soit accessible depuis n’importe quel ordinateur.
   - **Vérif** : `grep -n "cors" server/index.js`
 
 - [x] **TASK 1.3 : Rate Limiting & Bcrypt**
