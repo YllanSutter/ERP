@@ -1,4 +1,3 @@
-import { logger } from '../services/logger.js';
 import { ZodError } from 'zod';
 import { statePayloadSchema } from '../../shared/validation.js';
 import { loadAutomations, triggerAutomations } from '../services/automationService.js';
@@ -54,20 +53,21 @@ const filterStateForUser = (data, ctx, hasPermission) => {
   return { ...data, collections: filteredCollections };
 };
 
-export const registerStateRoutes = ({
-  app,
-  requireAuth,
-  requirePermission,
-  pool,
-  hasPermission,
-  INITIAL_APP_STATE,
-  syncAppStateIdSequence,
-  getCalendarConfigForUser,
-  shouldRecalculateSegments,
-  calculateEventSegments,
-  logAudit,
-  defaultCalendarConfig,
-}) => {
+export const registerStateRoutes = ({ app, appContext }) => {
+  const {
+    logger,
+    requireAuth,
+    requirePermission,
+    pool,
+    hasPermission,
+    INITIAL_APP_STATE,
+    syncAppStateIdSequence,
+    getCalendarConfigForUser,
+    shouldRecalculateSegments,
+    calculateEventSegments,
+    logAudit,
+    defaultCalendarConfig,
+  } = appContext;
   // PATCH /api/state/item
   app.patch('/api/state/item', requireAuth, async (req, res) => {
     try {

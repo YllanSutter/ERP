@@ -1,7 +1,7 @@
-import { logger } from '../services/logger.js';
 import fs from 'fs';
 
-export const registerBackupRoutes = ({ app, requireAuth, logAudit, backup }) => {
+export const registerBackupRoutes = ({ app, appContext }) => {
+  const { logger, requireAuth, logAudit, backup } = appContext;
   const {
     listBackups,
     createDbBackup,

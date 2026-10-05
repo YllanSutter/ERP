@@ -1,4 +1,3 @@
-import { logger } from '../services/logger.js';
 import rateLimit from 'express-rate-limit';
 import { ZodError } from 'zod';
 import { authPayloadSchema } from '../../shared/validation.js';
@@ -17,36 +16,37 @@ const registerRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-export const registerAccessRoutes = ({
-  app,
-  pool,
-  uuidv4,
-  bcrypt,
-  requireAuth,
-  requirePermission,
-  requireBaseAdminOrPermission,
-  signToken,
-  setAuthCookie,
-  clearAuthCookie,
-  loadUserContext,
-  createLocalUser,
-  logAudit,
-  sanitizeMappedOrganizations,
-  buildImportPreviewOrganizations,
-  applyOrganizationNameOverride,
-  INITIAL_APP_STATE,
-  ensureSystemRolesForOrganization,
-  getRoleByNameInOrganization,
-  syncAppStateIdSequence,
-  getUserOrganizations,
-  ensureAppStateForOrganization,
-  isUserAdminInOrganization,
-  ensureDefaultOrganization,
-  wouldRemoveLastOrganizationAdmin,
-  getAdminRoleForOrganization,
-  countOrganizationAdmins,
-  upsertPermission,
-}) => {
+export const registerAccessRoutes = ({ app, appContext }) => {
+  const {
+    logger,
+    pool,
+    uuidv4,
+    bcrypt,
+    requireAuth,
+    requirePermission,
+    requireBaseAdminOrPermission,
+    signToken,
+    setAuthCookie,
+    clearAuthCookie,
+    loadUserContext,
+    createLocalUser,
+    logAudit,
+    sanitizeMappedOrganizations,
+    buildImportPreviewOrganizations,
+    applyOrganizationNameOverride,
+    INITIAL_APP_STATE,
+    ensureSystemRolesForOrganization,
+    getRoleByNameInOrganization,
+    syncAppStateIdSequence,
+    getUserOrganizations,
+    ensureAppStateForOrganization,
+    isUserAdminInOrganization,
+    ensureDefaultOrganization,
+    wouldRemoveLastOrganizationAdmin,
+    getAdminRoleForOrganization,
+    countOrganizationAdmins,
+    upsertPermission,
+  } = appContext;
   const mergePreferences = (baseValue, patchValue) => {
     if (Array.isArray(baseValue) || Array.isArray(patchValue)) {
       return Array.isArray(patchValue) ? patchValue : baseValue;

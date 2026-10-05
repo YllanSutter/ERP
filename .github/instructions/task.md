@@ -69,7 +69,7 @@
   - **Action** : Extraire les sous-composants (ex: `RoleTable`, `PermissionMatrix`) dans un dossier `src/features/access/`. Utiliser `react-window` ou `tanstack/react-virtual` pour les tableaux si >100 lignes.
   - **Vérif** : `wc -l src/features/access/AccessManager.tsx` (doit être < 500 lignes).
 
-- [ ] **TASK 3.2 : Injection de dépendances serveur**
+- [x] **TASK 3.2 : Injection de dépendances serveur**
   - **Cible** : `server/routes/` et `server/index.js`.
   - **Action** : Remplacer le passage massif d'objets de dépendances par un objet `appContext` unique (contenant db, logger, services) passé aux routeurs.
   - **Vérif** : `grep -rn "require.*db" server/routes/` (doit utiliser le context).

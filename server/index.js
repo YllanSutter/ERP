@@ -313,47 +313,43 @@ const {
 // --- Segment calculation function (shared logic) ---
 const logAudit = createAuditLogger({ pool, uuidv4 });
 
-// --- Routes: health -----------------------------------------------------
-app.get('/api', (_req, res) => {
-  res.json({ ok: true, message: 'API server is running' });
-});
-
-registerAccessRoutes({
-  app,
+const appContext = {
   pool,
-  uuidv4,
+  logger,
   bcrypt,
+  uuidv4,
+  jwt,
+  JWT_SECRET,
+  TOKEN_EXPIRES,
   requireAuth,
   requirePermission,
   requireBaseAdminOrPermission,
+  hasPermission,
   signToken,
   setAuthCookie,
   clearAuthCookie,
   loadUserContext,
   createLocalUser,
+  getUserOrganizations,
+  ensureDefaultOrganization,
+  ensureAppStateForOrganization,
+  ensureSystemRolesForOrganization,
+  getRoleByNameInOrganization,
+  isUserAdminInOrganization,
+  wouldRemoveLastOrganizationAdmin,
+  getAdminRoleForOrganization,
+  countOrganizationAdmins,
+  upsertPermission,
+  syncAppStateIdSequence,
   logAudit,
   sanitizeMappedOrganizations,
   buildImportPreviewOrganizations,
   applyOrganizationNameOverride,
   INITIAL_APP_STATE,
-  ensureSystemRolesForOrganization,
-  getRoleByNameInOrganization,
-  syncAppStateIdSequence,
-  getUserOrganizations,
-  ensureAppStateForOrganization,
-  isUserAdminInOrganization,
-  ensureDefaultOrganization,
-  wouldRemoveLastOrganizationAdmin,
-  getAdminRoleForOrganization,
-  countOrganizationAdmins,
-  upsertPermission,
-});
-
-// --- DB Backups (admin only) ------------------------------------------
-registerBackupRoutes({
-  app,
-  requireAuth,
-  logAudit,
+  getCalendarConfigForUser,
+  shouldRecalculateSegments,
+  calculateEventSegments,
+  defaultCalendarConfig: DEFAULT_CALENDAR_CONFIG,
   backup: {
     listBackups,
     createDbBackup,
@@ -361,54 +357,36 @@ registerBackupRoutes({
     resolveBackupPath,
     formatBackupError,
   },
+};
+
+// --- Routes: health -----------------------------------------------------
+app.get('/api', (_req, res) => {
+  res.json({ ok: true, message: 'API server is running' });
 });
+
+registerAccessRoutes({ app, appContext });
+
+// --- DB Backups (admin only) ------------------------------------------
+registerBackupRoutes({ app, appContext });
 
 // --- State routes (protected + filtered) -------------------------------
-registerAppStateAdminRoutes({
-  app,
-  requireAuth,
-  pool,
-  upsertPermission,
-  syncAppStateIdSequence,
-  ensureSystemRolesForOrganization,
-  countOrganizationAdmins,
-  getAdminRoleForOrganization,
-  ensureAppStateForOrganization,
-});
+registerAppStateAdminRoutes({ app, appContext });
 
-registerStateRoutes({
-  app,
-  requireAuth,
-  requirePermission,
-  pool,
-  hasPermission,
-  INITIAL_APP_STATE,
-  syncAppStateIdSequence,
-  getCalendarConfigForUser,
-  shouldRecalculateSegments,
-  calculateEventSegments,
-  logAudit,
-  defaultCalendarConfig: DEFAULT_CALENDAR_CONFIG,
-});
+registerStateRoutes({ app, appContext });
 
-registerAutomationRoutes({ app, requireAuth, requirePermission, pool });
+registerAutomationRoutes({ app, appContext });
 
 // Serve static files from the dist folder
 app.use(express.static(path.join(__dirname, '../dist')));
 
 // --- Plugin Configuration Management -----------------------------------
-registerPluginConfigRoutes({ app, requireAuth, pool });
+registerPluginConfigRoutes({ app, appContext });
 
 // --- Server plugin mounts (route injection point) ----------------------
 loadBuiltinServerPlugins();
 mountServerPlugins({
   app,
-  deps: {
-    requireAuth,
-    hasPermission,
-    pool,
-    syncAppStateIdSequence,
-  },
+  appContext,
 });
 
 // Catch-all: serve index.html for any non-API routes (SPA routing)

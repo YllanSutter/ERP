@@ -1,4 +1,3 @@
-import { logger } from '../../services/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,8 +10,8 @@ const STEAM_LIST_PATH = path.join(PROJECT_ROOT, 'public/steamList.json');
 
 export const steamServerPlugin = {
   id: 'steam',
-  register: ({ app, deps }) => {
-    const { requireAuth, hasPermission, pool, syncAppStateIdSequence } = deps;
+  register: ({ app, appContext }) => {
+    const { logger, requireAuth, hasPermission, pool, syncAppStateIdSequence } = appContext;
 
     app.get('/api/plugins/steam/games', requireAuth, async (_req, res) => {
       try {
@@ -89,7 +88,7 @@ export const steamServerPlugin = {
         const shops = Array.isArray(config.itadShops) ? config.itadShops : [61];
         const capacity = config.itadCapacity || 3;
 
-        logger.log(`[ITAD Plugin] Starting price import for ${sanitizedItemIds.length} items`);
+        logger.info(`[ITAD Plugin] Starting price import for ${sanitizedItemIds.length} items`);
 
         const updates = [];
         const errors = [];

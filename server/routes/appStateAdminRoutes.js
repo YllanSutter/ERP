@@ -1,17 +1,17 @@
-import { logger } from '../services/logger.js';
 import { encryptStateSecrets } from '../services/secretFieldService.js';
 
-export const registerAppStateAdminRoutes = ({
-  app,
-  requireAuth,
-  pool,
-  upsertPermission,
-  syncAppStateIdSequence,
-  ensureSystemRolesForOrganization,
-  countOrganizationAdmins,
-  getAdminRoleForOrganization,
-  ensureAppStateForOrganization,
-}) => {
+export const registerAppStateAdminRoutes = ({ app, appContext }) => {
+  const {
+    logger,
+    requireAuth,
+    pool,
+    upsertPermission,
+    syncAppStateIdSequence,
+    ensureSystemRolesForOrganization,
+    countOrganizationAdmins,
+    getAdminRoleForOrganization,
+    ensureAppStateForOrganization,
+  } = appContext;
   // --- Export/Import app_state (admin only) ---
   // --- Export/Import global state (admin only) ---
   app.get('/api/appstate', requireAuth, async (req, res) => {

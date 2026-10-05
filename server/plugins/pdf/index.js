@@ -1,4 +1,3 @@
-import { logger } from '../../services/logger.js';
 /**
  * Plugin PDF - Serveur
  *
@@ -45,8 +44,8 @@ const readMetaFile = (file) => {
 
 export const pdfServerPlugin = {
   id: 'pdf',
-  register: ({ app, deps }) => {
-    const { requireAuth, pool } = deps;
+  register: ({ app, appContext }) => {
+    const { logger, requireAuth, pool } = appContext;
 
     ensureDir(TEMPLATES_DIR);
     ensureDir(SAVED_DIR);

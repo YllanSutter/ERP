@@ -1,5 +1,5 @@
-import { logger } from '../services/logger.js';
-export const registerPluginConfigRoutes = ({ app, requireAuth, pool }) => {
+export const registerPluginConfigRoutes = ({ app, appContext }) => {
+  const { logger, requireAuth, pool } = appContext;
   // GET plugin config for an organization
   app.get('/api/plugins/config/:organizationId', requireAuth, async (req, res) => {
     try {

@@ -1,4 +1,3 @@
-import { logger } from '../services/logger.js';
 /**
  * automationRoutes.js
  * CRUD REST pour les automations d'une organisation.
@@ -11,7 +10,8 @@ import { logger } from '../services/logger.js';
 
 import { randomUUID } from 'crypto';
 
-export const registerAutomationRoutes = ({ app, requireAuth, requirePermission, pool }) => {
+export const registerAutomationRoutes = ({ app, appContext }) => {
+  const { logger, requireAuth, requirePermission, pool } = appContext;
 
   // ── GET /api/automations ───────────────────────────────────────────────────
   app.get('/api/automations', requireAuth, async (req, res) => {
