@@ -40,7 +40,7 @@
 
 ## 🟡 PHASE 2 : Outillage & Qualité (Fondation)
 
-- [ ] **TASK 2.1 : Configuration Linting & Formatting**
+- [x] **TASK 2.1 : Configuration Linting & Formatting**
   - **Cible** : Racine du projet.
   - **Action** : Ajouter/configurer `eslint` (typescript-eslint, react-hooks) et `prettier`. Ajouter un script `"lint": "eslint ."` dans `package.json`.
   - **Vérif** : `npm run lint` (corriger uniquement les erreurs critiques introduites, ignorer le bruit préexistant hors périmètre).
