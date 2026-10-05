@@ -1,3 +1,4 @@
+import { logger } from '../services/logger.js';
 const serverPlugins = [];
 
 export const registerServerPlugin = (plugin) => {
@@ -23,9 +24,9 @@ export const mountServerPlugins = ({ app, deps }) => {
   for (const plugin of serverPlugins) {
     try {
       plugin.register({ app, deps });
-      console.log(`[Server Plugins] Mounted: ${plugin.id}`);
+      logger.log(`[Server Plugins] Mounted: ${plugin.id}`);
     } catch (error) {
-      console.error(`[Server Plugins] Failed to mount ${plugin.id}:`, error);
+      logger.error(`[Server Plugins] Failed to mount ${plugin.id}:`, error);
     }
   }
 };

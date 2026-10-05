@@ -1,3 +1,4 @@
+import { logger } from '../services/logger.js';
 export const registerPluginConfigRoutes = ({ app, requireAuth, pool }) => {
   // GET plugin config for an organization
   app.get('/api/plugins/config/:organizationId', requireAuth, async (req, res) => {
@@ -30,7 +31,7 @@ export const registerPluginConfigRoutes = ({ app, requireAuth, pool }) => {
 
       res.json(configs);
     } catch (error) {
-      console.error('[Plugins] GET config error:', error);
+      logger.error('[Plugins] GET config error:', error);
       res.status(500).json({ error: 'Failed to load plugin config' });
     }
   });
@@ -66,7 +67,7 @@ export const registerPluginConfigRoutes = ({ app, requireAuth, pool }) => {
         config: result.rows[0].config,
       });
     } catch (error) {
-      console.error('[Plugins] POST config error:', error);
+      logger.error('[Plugins] POST config error:', error);
       res.status(500).json({ error: 'Failed to save plugin config' });
     }
   });

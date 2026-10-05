@@ -45,17 +45,17 @@
   - **Action** : Ajouter/configurer `eslint` (typescript-eslint, react-hooks) et `prettier`. Ajouter un script `"lint": "eslint ."` dans `package.json`.
   - **Vérif** : `npm run lint` (corriger uniquement les erreurs critiques introduites, ignorer le bruit préexistant hors périmètre).
 
-- [ ] **TASK 2.2 : Remplacement des logs console**
+- [x] **TASK 2.2 : Remplacement des logs console**
   - **Cible** : `server/` (106 occurrences).
   - **Action** : Installer `pino` (ou `winston`). Remplacer `console.log/error` par `logger.info/error`. Configurer pour masquer les logs en production si nécessaire.
   - **Vérif** : `grep -rn "console\." server/ | wc -l` (doit diminuer drastiquement).
 
-- [ ] **TASK 2.3 : Arrêt gracieux (Graceful Shutdown)**
+- [x] **TASK 2.3 : Arrêt gracieux (Graceful Shutdown)**
   - **Cible** : `server/index.js`.
   - **Action** : Ajouter un listener `process.on('SIGTERM', ...)` qui ferme le serveur HTTP, les connexions Socket.IO et les intervalles de backup avant `process.exit(0)`.
   - **Vérif** : `node --check server/index.js`
 
-- [ ] **TASK 2.4 : Nettoyage des dépendances**
+- [x] **TASK 2.4 : Nettoyage des dépendances**
   - **Cible** : `package.json`.
   - **Action** : Supprimer `@types/socket.io-client` si il n'est pas nécessaire uniquement (déprécié/inutile). Vérifier les doublons OAuth. Ajouter `npm audit` dans le script CI si existant.
   - **Vérif** : `npm install` réussit sans warnings critiques.

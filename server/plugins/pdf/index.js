@@ -1,3 +1,4 @@
+import { logger } from '../services/logger.js';
 /**
  * Plugin PDF - Serveur
  *
@@ -27,7 +28,7 @@ const ensureDir = (dir) => {
   try {
     fs.mkdirSync(dir, { recursive: true });
   } catch (err) {
-    console.error('[PDF Plugin] Impossible de créer le dossier', dir, err);
+    logger.error('[PDF Plugin] Impossible de créer le dossier', dir, err);
   }
 };
 
@@ -92,7 +93,7 @@ export const pdfServerPlugin = {
 
         return res.json(meta);
       } catch (error) {
-        console.error('[PDF Plugin] Template upload error:', error);
+        logger.error('[PDF Plugin] Template upload error:', error);
         return res.status(500).json({ error: 'Failed to store PDF template' });
       }
     });
@@ -112,7 +113,7 @@ export const pdfServerPlugin = {
         );
         return fs.createReadStream(binPath).pipe(res);
       } catch (error) {
-        console.error('[PDF Plugin] Template file error:', error);
+        logger.error('[PDF Plugin] Template file error:', error);
         return res.status(500).json({ error: 'Failed to read template' });
       }
     });
@@ -129,7 +130,7 @@ export const pdfServerPlugin = {
         metas.sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
         return res.json(metas);
       } catch (error) {
-        console.error('[PDF Plugin] Templates list error:', error);
+        logger.error('[PDF Plugin] Templates list error:', error);
         return res.status(500).json({ error: 'Failed to list templates' });
       }
     });
@@ -189,12 +190,12 @@ export const pdfServerPlugin = {
             );
           }
         } catch (dbErr) {
-          console.warn('[PDF Plugin] Index DB indisponible (stockage fichier uniquement):', dbErr?.message);
+          logger.warn('[PDF Plugin] Index DB indisponible (stockage fichier uniquement):', dbErr?.message);
         }
 
         return res.json(meta);
       } catch (error) {
-        console.error('[PDF Plugin] Save error:', error);
+        logger.error('[PDF Plugin] Save error:', error);
         return res.status(500).json({ error: 'Failed to save item PDF' });
       }
     });
@@ -216,7 +217,7 @@ export const pdfServerPlugin = {
           if (!meta) return res.json(null);
           return res.json(meta);
         } catch (error) {
-          console.error('[PDF Plugin] Saved lookup error:', error);
+          logger.error('[PDF Plugin] Saved lookup error:', error);
           return res.status(500).json({ error: 'Failed to load saved PDF' });
         }
       }
@@ -237,7 +238,7 @@ export const pdfServerPlugin = {
         res.setHeader('Content-Disposition', `inline; filename="${savedId}.pdf"`);
         return fs.createReadStream(binPath).pipe(res);
       } catch (error) {
-        console.error('[PDF Plugin] Saved file error:', error);
+        logger.error('[PDF Plugin] Saved file error:', error);
         return res.status(500).json({ error: 'Failed to read saved PDF' });
       }
     });

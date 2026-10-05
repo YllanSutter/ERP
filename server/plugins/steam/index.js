@@ -1,3 +1,4 @@
+import { logger } from '../services/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -47,12 +48,12 @@ export const steamServerPlugin = {
         try {
           fs.writeFileSync(STEAM_LIST_PATH, JSON.stringify(normalized));
         } catch (writeErr) {
-          console.warn('[Steam] Failed to cache steamList.json:', writeErr);
+          logger.warn('[Steam] Failed to cache steamList.json:', writeErr);
         }
 
         return res.json(normalized);
       } catch (error) {
-        console.error('[Steam] Games endpoint error:', error);
+        logger.error('[Steam] Games endpoint error:', error);
         return res.status(500).json({ error: 'Failed to load Steam games list' });
       }
     });
@@ -88,7 +89,7 @@ export const steamServerPlugin = {
         const shops = Array.isArray(config.itadShops) ? config.itadShops : [61];
         const capacity = config.itadCapacity || 3;
 
-        console.log(`[ITAD Plugin] Starting price import for ${sanitizedItemIds.length} items`);
+        logger.log(`[ITAD Plugin] Starting price import for ${sanitizedItemIds.length} items`);
 
         const updates = [];
         const errors = [];
@@ -108,7 +109,7 @@ export const steamServerPlugin = {
             ? JSON.parse(stateResult.rows[0].data)
             : stateResult.rows[0].data;
         } catch (e) {
-          console.error('[ITAD Plugin] Failed to parse app state:', e);
+          logger.error('[ITAD Plugin] Failed to parse app state:', e);
           return res.status(500).json({ error: 'Failed to parse organization state' });
         }
 
@@ -146,7 +147,7 @@ export const steamServerPlugin = {
             }
           }
         } catch (e) {
-          console.warn('[ITAD Plugin] Failed to load local steamList.json:', e);
+          logger.warn('[ITAD Plugin] Failed to load local steamList.json:', e);
         }
 
         const getUniqueSteamAppIdByName = (name) => {
@@ -412,7 +413,7 @@ export const steamServerPlugin = {
           details: { updates, errors },
         });
       } catch (error) {
-        console.error('[ITAD Plugin] Error:', error);
+        logger.error('[ITAD Plugin] Error:', error);
         res.status(500).json({ error: 'Internal server error', details: error.message });
       }
     });

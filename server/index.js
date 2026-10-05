@@ -1,3 +1,4 @@
+import { logger } from './services/logger.js';
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -417,6 +418,9 @@ app.get('*', (req, res) => {
 
 // --- Bootstrap and start -----------------------------------------------
 let serverInstance;
+let socketInstance;
+let backupInterval;
+let isShuttingDown = false;
 (async () => {
   try {
     await bootstrap();
@@ -425,28 +429,29 @@ let serverInstance;
     const io = new SocketIOServer(serverInstance, {
       cors: { origin: CLIENT_ORIGIN, credentials: true }
     });
+    socketInstance = io;
     global.io = io;
 
     // Sauvegardes automatiques (optionnelles)
     if (BACKUP_INTERVAL_MINUTES > 0 && !isNaN(BACKUP_INTERVAL_MINUTES)) {
       const intervalMs = BACKUP_INTERVAL_MINUTES * 60 * 1000;
-      console.log(`[BACKUP] Sauvegardes automatiques toutes les ${BACKUP_INTERVAL_MINUTES} minutes`);
-      setInterval(async () => {
+      logger.info(`[BACKUP] Sauvegardes automatiques toutes les ${BACKUP_INTERVAL_MINUTES} minutes`);
+      backupInterval = setInterval(async () => {
         try {
           await createDbBackup('auto');
         } catch (err) {
-          console.error('[BACKUP] Échec sauvegarde automatique', err);
+          logger.error('[BACKUP] Échec sauvegarde automatique', err);
         }
       }, intervalMs);
     } else {
-      console.log('[BACKUP] Sauvegardes automatiques désactivées');
+      logger.info('[BACKUP] Sauvegardes automatiques désactivées');
     }
 
     // Nettoyage initial des anciennes sauvegardes
     try {
       await pruneBackups();
     } catch (err) {
-      console.error('[BACKUP] Échec du nettoyage initial', err);
+      logger.error('[BACKUP] Échec du nettoyage initial', err);
     }
 
     // --- Gestion utilisateurs connectés ---
@@ -457,25 +462,35 @@ let serverInstance;
       jwtSecret: JWT_SECRET,
     });
   } catch (err) {
-    console.error('Failed to bootstrap server', err);
+    logger.error('Failed to bootstrap server', err);
     process.exit(1);
   }
 })();
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-   console.log('SIGTERM signal received: closing HTTP server');
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  logger.info('SIGTERM signal received: closing server');
+
+  if (backupInterval) clearInterval(backupInterval);
+  if (socketInstance) await socketInstance.close();
+  if (serverInstance) {
+    await new Promise((resolve, reject) => {
+      serverInstance.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
   await pool.end();
   process.exit(0);
 });
 
 // Better error logging
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
+  logger.error('Uncaught Exception:', err);
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
 });

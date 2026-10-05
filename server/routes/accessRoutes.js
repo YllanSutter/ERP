@@ -1,3 +1,4 @@
+import { logger } from '../services/logger.js';
 import rateLimit from 'express-rate-limit';
 import { ZodError } from 'zod';
 import { authPayloadSchema } from '../../shared/validation.js';
@@ -128,7 +129,7 @@ export const registerAccessRoutes = ({
       if (err.message === 'email_exists') {
         return res.status(400).json({ error: 'email already registered' });
       }
-      console.error('Register failed', err);
+      logger.error('Register failed', err);
       return res.status(500).json({ error: 'Register failed' });
     }
   });
@@ -149,7 +150,7 @@ export const registerAccessRoutes = ({
       if (err instanceof ZodError) {
         return res.status(400).json({ error: 'Invalid login payload', details: err.issues });
       }
-      console.error('Login failed', err);
+      logger.error('Login failed', err);
       return res.status(500).json({ error: 'Login failed' });
     }
   });
@@ -243,7 +244,7 @@ export const registerAccessRoutes = ({
 
       return res.status(201).json({ ok: true, createdCount: created.length, organizations: created });
     } catch (err) {
-      console.error('Import organizations failed', err);
+      logger.error('Import organizations failed', err);
       return res.status(500).json({ error: 'Import organizations failed' });
     }
   });
@@ -270,7 +271,7 @@ export const registerAccessRoutes = ({
 
       return res.json({ ok: true, organizations });
     } catch (err) {
-      console.error('Import preview failed', err);
+      logger.error('Import preview failed', err);
       return res.status(500).json({ error: 'Import preview failed' });
     }
   });
@@ -320,7 +321,7 @@ export const registerAccessRoutes = ({
         activeOrganizationId: orgId,
       });
     } catch (err) {
-      console.error('Create organization failed', err);
+      logger.error('Create organization failed', err);
       return res.status(500).json({ error: 'Create organization failed' });
     }
   });
@@ -358,7 +359,7 @@ export const registerAccessRoutes = ({
         activeOrganizationId: req.auth.activeOrganization?.id || organizations[0]?.id || null,
       });
     } catch (err) {
-      console.error('Rename organization failed', err);
+      logger.error('Rename organization failed', err);
       return res.status(500).json({ error: 'Rename organization failed' });
     }
   });
@@ -424,7 +425,7 @@ export const registerAccessRoutes = ({
 
       return res.json({ ok: true, organizations, activeOrganizationId: nextActiveId });
     } catch (err) {
-      console.error('Delete organization failed', err);
+      logger.error('Delete organization failed', err);
       return res.status(500).json({ error: 'Delete organization failed' });
     }
   });
@@ -636,7 +637,7 @@ export const registerAccessRoutes = ({
       await logAudit(req.auth?.user?.id, 'user.preferences.update', 'user', userId, { userId });
       return res.json({ ok: true, user: updated.rows[0] });
     } catch (err) {
-      console.error('Update user preferences failed', err);
+      logger.error('Update user preferences failed', err);
       return res.status(500).json({ error: 'Update user preferences failed' });
     }
   });
@@ -661,7 +662,7 @@ export const registerAccessRoutes = ({
       await logAudit(req.auth?.user?.id, 'user.password.update', 'user', userId, { userId });
       return res.json({ ok: true });
     } catch (err) {
-      console.error('Update password failed', err);
+      logger.error('Update password failed', err);
       return res.status(500).json({ error: 'Update password failed' });
     }
   });
@@ -689,7 +690,7 @@ export const registerAccessRoutes = ({
       await logAudit(req.auth?.user?.id, 'user.delete', 'user', userId, { userId });
       return res.json({ ok: true });
     } catch (err) {
-      console.error('Delete user failed', err);
+      logger.error('Delete user failed', err);
       return res.status(500).json({ error: 'Delete user failed' });
     }
   });

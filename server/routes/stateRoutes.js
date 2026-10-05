@@ -1,3 +1,4 @@
+import { logger } from '../services/logger.js';
 import { ZodError } from 'zod';
 import { statePayloadSchema } from '../../shared/validation.js';
 import { loadAutomations, triggerAutomations } from '../services/automationService.js';
@@ -134,7 +135,7 @@ export const registerStateRoutes = ({
           });
         }
       } catch (autoErr) {
-        console.error('[Automation] item_updated trigger error', autoErr);
+        logger.error('[Automation] item_updated trigger error', autoErr);
       }
       // ──────────────────────────────────────────────────────────────────────
 
@@ -168,7 +169,7 @@ export const registerStateRoutes = ({
         item: maskStateSecrets({ collections: [{ ...col, items: [processedItem] }] }).collections[0].items[0],
       });
     } catch (err) {
-      console.error('Failed to patch item', err);
+      logger.error('Failed to patch item', err);
       return res.status(500).json({ error: 'Failed to patch item' });
     }
   });
@@ -239,7 +240,7 @@ export const registerStateRoutes = ({
 
       return res.json({ ok: true });
     } catch (err) {
-      console.error('Failed to patch structure', err);
+      logger.error('Failed to patch structure', err);
       return res.status(500).json({ error: 'Failed to patch structure' });
     }
   });
@@ -283,7 +284,7 @@ export const registerStateRoutes = ({
 
       return res.json({ values });
     } catch (err) {
-      console.error('Failed to load password values for PDF export', err);
+      logger.error('Failed to load password values for PDF export', err);
       return res.status(500).json({ error: 'Failed to load password values' });
     }
   });
@@ -316,7 +317,7 @@ export const registerStateRoutes = ({
       const filtered = filterStateForUser(state, req.auth, hasPermission);
       return res.json({ ...maskStateSecrets(filtered), stateVersion });
     } catch (err) {
-      console.error('Failed to load state', err);
+      logger.error('Failed to load state', err);
       return res.status(500).json({ error: 'Failed to load state' });
     }
   });
@@ -466,7 +467,7 @@ export const registerStateRoutes = ({
           }
         }
       } catch (autoErr) {
-        console.error('[Automation] state.post trigger error', autoErr);
+        logger.error('[Automation] state.post trigger error', autoErr);
       }
       // ──────────────────────────────────────────────────────────────────────
 
@@ -523,7 +524,7 @@ export const registerStateRoutes = ({
       if (err instanceof ZodError) {
         return res.status(400).json({ error: 'Invalid state payload', details: err.issues });
       }
-      console.error('Failed to save state', err);
+      logger.error('Failed to save state', err);
       return res.status(500).json({ error: 'Failed to save state' });
     }
   });

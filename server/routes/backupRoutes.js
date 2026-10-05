@@ -1,3 +1,4 @@
+import { logger } from '../services/logger.js';
 import fs from 'fs';
 
 export const registerBackupRoutes = ({ app, requireAuth, logAudit, backup }) => {
@@ -16,7 +17,7 @@ export const registerBackupRoutes = ({ app, requireAuth, logAudit, backup }) => 
       const backups = await listBackups();
       return res.json(backups);
     } catch (err) {
-      console.error('Failed to list backups', err);
+      logger.error('Failed to list backups', err);
       return res.status(500).json({ error: 'Failed to list backups' });
     }
   });
@@ -30,7 +31,7 @@ export const registerBackupRoutes = ({ app, requireAuth, logAudit, backup }) => 
       await logAudit(req.auth?.user?.id, 'db.backup.create', 'backup', backupResult.name, backupResult);
       return res.json({ ok: true, backup: backupResult });
     } catch (err) {
-      console.error('Failed to create backup', err);
+      logger.error('Failed to create backup', err);
       return res.status(500).json({ error: 'Failed to create backup', detail: formatBackupError(err) });
     }
   });
@@ -45,7 +46,7 @@ export const registerBackupRoutes = ({ app, requireAuth, logAudit, backup }) => 
       await logAudit(req.auth?.user?.id, 'db.backup.download', 'backup', req.params.name, {});
       return res.download(filePath);
     } catch (err) {
-      console.error('Failed to download backup', err);
+      logger.error('Failed to download backup', err);
       return res.status(404).json({ error: 'Backup not found' });
     }
   });
@@ -60,7 +61,7 @@ export const registerBackupRoutes = ({ app, requireAuth, logAudit, backup }) => 
       await logAudit(req.auth?.user?.id, 'db.backup.delete', 'backup', req.params.name, {});
       return res.json({ ok: true });
     } catch (err) {
-      console.error('Failed to delete backup', err);
+      logger.error('Failed to delete backup', err);
       return res.status(404).json({ error: 'Backup not found' });
     }
   });
@@ -78,7 +79,7 @@ export const registerBackupRoutes = ({ app, requireAuth, logAudit, backup }) => 
       }
       return res.json({ ok: true });
     } catch (err) {
-      console.error('Failed to restore backup', err);
+      logger.error('Failed to restore backup', err);
       return res.status(500).json({ error: 'Failed to restore backup' });
     }
   });

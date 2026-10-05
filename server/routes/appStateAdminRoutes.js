@@ -1,3 +1,4 @@
+import { logger } from '../services/logger.js';
 import { encryptStateSecrets } from '../services/secretFieldService.js';
 
 export const registerAppStateAdminRoutes = ({
@@ -88,7 +89,7 @@ export const registerAppStateAdminRoutes = ({
       const user_roles = (await pool.query('SELECT * FROM user_roles ORDER BY user_id, role_id ASC')).rows;
       res.json({ scope, users, app_state, organizations, organization_members, roles, permissions, user_roles });
     } catch (err) {
-      console.error('Failed to export global state', err);
+      logger.error('Failed to export global state', err);
       res.status(500).json({ error: 'Failed to export global state' });
     }
   });
@@ -336,7 +337,7 @@ export const registerAppStateAdminRoutes = ({
       await pool.query('SET session_replication_role = DEFAULT;');
       res.json({ ok: true, scope });
     } catch (err) {
-      console.error('Failed to import global state', err);
+      logger.error('Failed to import global state', err);
       // Toujours réactiver les contraintes FK en cas d'erreur
       await pool.query('SET session_replication_role = DEFAULT;');
       res.status(500).json({ error: 'Failed to import global state' });

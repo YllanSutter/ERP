@@ -1,3 +1,4 @@
+import { logger } from '../services/logger.js';
 /**
  * automationRoutes.js
  * CRUD REST pour les automations d'une organisation.
@@ -38,7 +39,7 @@ export const registerAutomationRoutes = ({ app, requireAuth, requirePermission, 
 
       return res.json(automations);
     } catch (err) {
-      console.error('GET /api/automations error', err);
+      logger.error('GET /api/automations error', err);
       return res.status(500).json({ error: 'Failed to load automations' });
     }
   });
@@ -60,7 +61,7 @@ export const registerAutomationRoutes = ({ app, requireAuth, requirePermission, 
 
       return res.status(201).json({ id, name, enabled, trigger, actions });
     } catch (err) {
-      console.error('POST /api/automations error', err);
+      logger.error('POST /api/automations error', err);
       return res.status(500).json({ error: 'Failed to create automation' });
     }
   });
@@ -103,7 +104,7 @@ export const registerAutomationRoutes = ({ app, requireAuth, requirePermission, 
 
       return res.json({ id, ...next });
     } catch (err) {
-      console.error('PATCH /api/automations/:id error', err);
+      logger.error('PATCH /api/automations/:id error', err);
       return res.status(500).json({ error: 'Failed to update automation' });
     }
   });
@@ -123,7 +124,7 @@ export const registerAutomationRoutes = ({ app, requireAuth, requirePermission, 
 
       return res.json({ ok: true });
     } catch (err) {
-      console.error('DELETE /api/automations/:id error', err);
+      logger.error('DELETE /api/automations/:id error', err);
       return res.status(500).json({ error: 'Failed to delete automation' });
     }
   });

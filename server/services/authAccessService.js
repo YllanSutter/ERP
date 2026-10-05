@@ -1,3 +1,4 @@
+import { logger } from './logger.js';
 export const createAuthAccessService = ({
   pool,
   jwt,
@@ -145,7 +146,7 @@ export const createAuthAccessService = ({
       }
       return next();
     } catch (err) {
-      console.error('Auth error', err);
+      logger.error('Auth error', err);
       return res.status(401).json({ error: 'Unauthenticated' });
     }
   };

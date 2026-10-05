@@ -1,3 +1,4 @@
+import { logger } from './logger.js';
 export const createAuditLogger = ({ pool, uuidv4 }) => {
   return async (userId, action, targetType, targetId, details = {}) => {
     try {
@@ -6,7 +7,7 @@ export const createAuditLogger = ({ pool, uuidv4 }) => {
         [uuidv4(), userId || null, action, targetType || null, targetId || null, details]
       );
     } catch (err) {
-      console.error('Failed to log audit', err);
+      logger.error('Failed to log audit', err);
     }
   };
 };
