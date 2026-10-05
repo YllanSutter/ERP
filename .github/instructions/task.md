@@ -64,7 +64,7 @@
 
 ## 🟠 PHASE 3 : Architecture & Maintenabilité
 
-- [ ] **TASK 3.1 : Découpage du "God Component" AccessManager**
+- [x] **TASK 3.1 : Découpage du "God Component" AccessManager**
   - **Cible** : `src/components/AccessManager.tsx` (ou chemin similaire, ~3k lignes).
   - **Action** : Extraire les sous-composants (ex: `RoleTable`, `PermissionMatrix`) dans un dossier `src/features/access/`. Utiliser `react-window` ou `tanstack/react-virtual` pour les tableaux si >100 lignes.
   - **Vérif** : `wc -l src/features/access/AccessManager.tsx` (doit être < 500 lignes).
