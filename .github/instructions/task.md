@@ -79,7 +79,7 @@
   - **Action** : Renommer en ressources plurielles cohérentes (ex: `/api/roles`, `/api/permissions`). Séparer en routeurs dédiés si le fichier dépasse 200 lignes.
   - **Vérif** : `grep -rn "router\." server/routes/`
 
-- [ ] **TASK 3.4 : Migration State Management (Optionnel / Progressif)**
+- [x] **TASK 3.4 : Migration State Management (Optionnel / Progressif)**
   - **Cible** : `src/` et `server/`.
   - **Action** : Identifier un premier module (ex: `UserPreferences`) et le migrer vers TanStack Query (côté client pour les données serveur) et Zustand (état local). Centraliser `localStorage` dans `src/lib/storage.ts`.
   - **Vérif** : `npx tsc --noEmit`
