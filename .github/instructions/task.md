@@ -57,7 +57,7 @@
 
 - [ ] **TASK 2.4 : Nettoyage des dépendances**
   - **Cible** : `package.json`.
-  - **Action** : Supprimer `@types/socket.io-client` (déprécié/inutile). Vérifier les doublons OAuth. Ajouter `npm audit` dans le script CI si existant.
+  - **Action** : Supprimer `@types/socket.io-client` si il n'est pas nécessaire uniquement (déprécié/inutile). Vérifier les doublons OAuth. Ajouter `npm audit` dans le script CI si existant.
   - **Vérif** : `npm install` réussit sans warnings critiques.
 
 ---

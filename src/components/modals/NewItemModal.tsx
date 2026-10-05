@@ -360,10 +360,43 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     return `erp-item-versions:${collectionId}:${itemId}`;
   };
 
+  const passwordHistoryMask = '********';
+  const passwordPropertyIds = new Set<string>(
+    (selectedCollection?.properties || [])
+      .filter((property: any) => property?.type === 'password')
+      .map((property: any) => String(property.id))
+  );
+
   const sanitizeVersionData = (data: any) => {
     if (!data || typeof data !== 'object') return data;
     const { __collectionId, ...rest } = data as any;
-    return rest;
+    const sanitized = { ...rest };
+    passwordPropertyIds.forEach((propertyId) => {
+      if (Object.prototype.hasOwnProperty.call(sanitized, propertyId) &&
+          sanitized[propertyId] !== null &&
+          sanitized[propertyId] !== undefined &&
+          sanitized[propertyId] !== '') {
+        sanitized[propertyId] = passwordHistoryMask;
+      }
+    });
+    return sanitized;
+  };
+
+  const sanitizeHistoryData = (history: any) => {
+    if (!history || typeof history !== 'object') return history;
+    return {
+      ...history,
+      base: sanitizeVersionData(history.base || {}),
+      versions: Array.isArray(history.versions)
+        ? history.versions.map((version: any) => ({
+            ...version,
+            patch: {
+              ...(version.patch || {}),
+              set: sanitizeVersionData(version.patch?.set || {}),
+            },
+          }))
+        : [],
+    };
   };
 
 
@@ -865,7 +898,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         setHistoryData(null);
         return;
       }
-      setHistoryData(parsed);
+      const sanitized = sanitizeHistoryData(parsed);
+      if (JSON.stringify(sanitized) !== JSON.stringify(parsed)) {
+        localStorage.setItem(historyKey, JSON.stringify(sanitized));
+      }
+      setHistoryData(sanitized);
     } catch {
       setHistoryData(null);
     }
