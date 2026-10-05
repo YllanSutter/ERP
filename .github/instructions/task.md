@@ -74,7 +74,7 @@
   - **Action** : Remplacer le passage massif d'objets de dépendances par un objet `appContext` unique (contenant db, logger, services) passé aux routeurs.
   - **Vérif** : `grep -rn "require.*db" server/routes/` (doit utiliser le context).
 
-- [ ] **TASK 3.3 : Normalisation des routes**
+- [x] **TASK 3.3 : Normalisation des routes**
   - **Cible** : `server/routes/accessRoutes.js` (ou similaire).
   - **Action** : Renommer en ressources plurielles cohérentes (ex: `/api/roles`, `/api/permissions`). Séparer en routeurs dédiés si le fichier dépasse 200 lignes.
   - **Vérif** : `grep -rn "router\." server/routes/`
