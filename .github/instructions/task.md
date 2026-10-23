@@ -98,11 +98,6 @@
   - **Action** : Réduire la limite de `express.json({ limit: '1mb' })` (au lieu de 10mb+). Ajouter `compression()` middleware.
   - **Vérif** : `grep -n "express.json" server/index.js`
 
-- [ ] **TASK 4.3 : Accessibilité (A11y) de base**
-  - **Cible** : Composants UI complexes (boutons icônes, tableaux).
-  - **Action** : Ajouter `aria-label` aux boutons sans texte visible. Vérifier la navigation au clavier (tabindex) sur les éléments interactifs custom.
-  - **Vérif** : `grep -rn "aria-label" src/` (doit augmenter).
-
 ---
 
 ## 🛑 Comment l'IA doit procéder pour chaque tâche

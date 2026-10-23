@@ -17,6 +17,9 @@ CLAUDE.md
 claude/
 .claude
 
+#erp
+ERP
+
 # Logs
 *.log
 npm-debug.log*
@@ -24,3 +27,81 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-lock.yaml
 pnpm-workspace.yaml
+
+# harness-export:noyau debut
+# === Secrets ===
+# .env.* en bloc, plus l'exception du gabarit ; le deny utilisateur fait de même (.env.*, puis !.env.example).
+# Mêmes motifs que les refus de lecture du noyau, MOTIFS_SECRETS_SUPPLEMENTAIRES compris, sauf : *.crt n'est qu'ici ;
+# .envrc n'est ici qu'en commentaire ; les magasins du HOME (~/…) sont hors du projet ; .claude.json* (configuration
+# de Claude Code) est toujours hors du projet, l'installateur refusant une configuration de Claude dans le projet ;
+# !.env.sample et !.env.template, actifs dans le deny, sont à décommenter ici selon le projet. Un refus de lecture ne
+# couvre ni git add ni git diff --cached : ce bloc est la seule barrière contre le commit d'un fichier secret.
+.env
+.env.*
+!.env.example
+# Autre nom de gabarit : décommenter.
+# !.env.sample
+# !.env.template
+# À décommenter si le projet ne versionne pas son .envrc.
+# .envrc
+secrets/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.ppk
+*.jks
+*.keystore
+*.kdbx
+id_rsa
+id_ed25519
+id_ecdsa
+.credentials.json
+**/backups/**
+backup_local.sql
+
+# === Réglages locaux de Claude Code ===
+# Une approbation « Yes, and don't ask again » recrée ce fichier : le relire, puis le purger ou reporter la règle
+# dans la bonne couche.
+.claude/settings.local.json
+
+# === Dossiers communs à ignorer ===
+# Environnements et dépendances : exemples interchangeables ; décommenter ceux des langages du projet.
+# venv/
+# .venv/
+# __pycache__/
+# *.pyc
+# .pytest_cache/
+# node_modules/
+# Dépendances vendorisées : à décommenter seulement si le projet ne les versionne pas.
+# vendor/
+
+# Logs et caches
+*.log
+.cache/
+# Dossiers aux noms courants, qu'un paquet de code peut porter (cache, logs…) : décommenter, ou ancrer à la racine
+# (/logs/), selon le projet ; un dossier ignoré échappe à git add -A, à git status et à la recherche de l'agent.
+# logs/
+# tmp/
+# temp/
+# cache/
+
+# Dumps et archives : à décommenter si aucun n'est versionné.
+# *.sql
+# *.sqlite
+# *.sqlite3
+# *.bak
+# *.zip
+# *.tar
+# *.tar.gz
+
+# scratch dirs jetables (automate de navigateur, validation ad-hoc) : exemple, à adapter au brouillon de l'outil.
+# scratch*/
+# harness-export:noyau fin
+
+# harness-export:tableau-kiro debut
+# === Mod kiro-board ===
+# Types de l'API des mods, réécrits par Claude Code à chaque chargement du mod : jamais versionnés.
+mods/kiro-board/.claude-plugin/types/
+# harness-export:tableau-kiro fin
