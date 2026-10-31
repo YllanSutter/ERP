@@ -872,103 +872,6 @@ const App = () => {
                     transition={{ delay: 0.2 }}
                     className="flex-1 overflow-auto lg:p-6 p-2 z-[1]"
                   >
-                {activeViewConfig?.type === 'table' && (
-                  <TableView
-                    collection={currentCollection}
-                    items={filteredItems}
-                    favoriteItemIds={favorites.items}
-                    onEdit={(item: any) => itemHooks.updateItem(item)}
-                    onBulkUpdate={itemHooks.bulkUpdateItems}
-                    onDelete={itemHooks.deleteItem}
-                    onToggleFavoriteItem={(itemId: string) => {
-                      setFavorites((prev) => ({
-                        ...prev,
-                        items: prev.items.includes(itemId)
-                          ? prev.items.filter((id) => id !== itemId)
-                          : [...prev.items, itemId],
-                      }));
-                    }}
-                    onBulkDelete={itemHooks.bulkDeleteItems}
-                    onViewDetail={(item: any) => {
-                      const itemCollection = collectionsWithCalculatedFields.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
-                      setEditingItem(item);
-                      setModalCollection(itemCollection || null);
-                      setShowNewItemModal(true);
-                    }}
-                    hiddenFields={activeViewConfig?.hiddenFields || []}
-                    orderedProperties={orderedProperties}
-                    onReorderItems={(nextItems: any[]) => {
-                      const sourceCollection = collections.find((col) => col.id === activeCollection);
-                      const sanitizedItems = sourceCollection
-                        ? nextItems.map((item) => stripCalculatedNumberFieldsFromItem(item, sourceCollection))
-                        : nextItems;
-                      const updatedCollections = collections.map((col) => {
-                        if (col.id === activeCollection) {
-                          return { ...col, items: sanitizedItems };
-                        }
-                        return col;
-                      });
-                      setCollections(updatedCollections);
-                    }}
-                    onToggleField={viewHooks.toggleFieldVisibility}
-                    onDeleteProperty={collectionHooks.deleteProperty}
-                    onDuplicateProperty={collectionHooks.duplicateProperty}
-                    onEditProperty={(prop: any) => {
-                      setEditingProperty(prop);
-                      setShowPropertyModal(true);
-                    }}
-                    collections={collectionsWithCalculatedFields}
-                    onRelationChange={(prop: any, item: any, val: any) => {
-                      const updatedItem = { ...item, [prop.id]: val };
-                      itemHooks.updateItem(updatedItem);
-                      
-                      // Les nouveaux items créés dans une relation sont déjà dans targetCollection.items
-                      // (ajoutés par handleCreateNew), donc on les laisse là et on nettoie juste le marker
-                      const targetCollectionId = prop.relation?.targetCollectionId;
-                      if (targetCollectionId) {
-                        const targetCollection = collections.find((c: any) => c.id === targetCollectionId);
-                        if (targetCollection && targetCollection.__newItems) {
-                          delete targetCollection.__newItems;
-                        }
-                      }
-                    }}
-                    onNavigateToCollection={handleNavigateToCollection}
-                    groups={activeViewConfig?.groups || []}
-                    groupDisplayMode={activeViewConfig?.groupDisplayMode || 'accordion'}
-                    groupDisplayModes={activeViewConfig?.groupDisplayModes || {}}
-                    groupDisplayColumnCount={activeViewConfig?.groupDisplayColumnCount || 3}
-                    groupDisplayColumnCounts={activeViewConfig?.groupDisplayColumnCounts || {}}
-                    groupTabStyleFieldIds={activeViewConfig?.groupTabStyleFieldIds || {}}
-                    groupTotalsByGroupId={activeViewConfig?.groupTotalsByGroupId || {}}
-                    onShowNewItemModal={(prefill) => { if (prefill && Object.keys(prefill).length > 0) { setEditingItem(prefill); setGroupContext(prefill); } setShowNewItemModal(true); }}
-                    onGroupContextChange={(prefill) => { console.log('[GroupContext] set from TableView:', prefill); setGroupContext(prefill); }}
-                    onQuickCreateItem={handleQuickCreateItem}
-                    initialSortState={activeViewConfig?.tableSortState || { column: null, direction: 'asc' }}
-                    onSortStateChange={(state) => {
-                      if (!activeView) return;
-                      viewHooks.updateView(activeView, { tableSortState: state });
-                    }}
-                    initialExpandedGroups={activeViewConfig?.expandedGroups}
-                    onExpandedGroupsChange={(groupPaths) => {
-                      if (!activeView) return;
-                      viewHooks.updateView(activeView, { expandedGroups: groupPaths });
-                    }}
-                    totalFields={activeViewConfig?.totalFields || {}}
-                    onSetTotalField={(fieldId: string, totalType: string | null) => {
-                      if (!activeView) return;
-                      const currentTotalFields = activeViewConfig?.totalFields || {};
-                      const nextTotalFields = { ...currentTotalFields };
-                      if (totalType === null) {
-                        delete nextTotalFields[fieldId];
-                      } else {
-                        nextTotalFields[fieldId] = totalType;
-                      }
-                      viewHooks.updateView(activeView, { totalFields: nextTotalFields });
-                    }}
-                    onBulkImportItad={isSteamPluginActive ? handleBulkImportItad : undefined}
-                    onReorderField={viewHooks.updateViewFieldOrder}
-                  />
-                )}
                 {activeViewConfig?.type === 'kanban' && (
                   <KanbanView
                     collection={currentCollection}
@@ -1100,7 +1003,92 @@ const App = () => {
                     onBulkImportItad={isSteamPluginActive ? handleBulkImportItad : undefined}
                   />
                 )}
-                  </motion.div>
+                {(activeViewConfig?.type === 'table' || activeViewConfig?.type === 'steamcards') && (
+                  <TableView
+                    collection={currentCollection}
+                    items={filteredItems}
+                    favoriteItemIds={favorites.items}
+                    onEdit={(item: any) => itemHooks.updateItem(item)}
+                    onBulkUpdate={itemHooks.bulkUpdateItems}
+                    onDelete={itemHooks.deleteItem}
+                    onToggleFavoriteItem={(itemId: string) => {
+                      setFavorites((prev) => ({
+                        ...prev,
+                        items: prev.items.includes(itemId)
+                          ? prev.items.filter((id) => id !== itemId)
+                          : [...prev.items, itemId],
+                      }));
+                    }}
+                    onBulkDelete={itemHooks.bulkDeleteItems}
+                    onViewDetail={(item: any) => {
+                      const itemCollection = collectionsWithCalculatedFields.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
+                      setEditingItem(item);
+                      setModalCollection(itemCollection || null);
+                      setShowNewItemModal(true);
+                    }}
+                    hiddenFields={activeViewConfig?.hiddenFields || []}
+                    orderedProperties={orderedProperties}
+                    onReorderItems={(nextItems: any[]) => {
+                      const sourceCollection = collections.find((col) => col.id === activeCollection);
+                      const sanitizedItems = sourceCollection
+                        ? nextItems.map((item) => stripCalculatedNumberFieldsFromItem(item, sourceCollection))
+                        : nextItems;
+                      const updatedCollections = collections.map((col) => {
+                        if (col.id === activeCollection) {
+                          return { ...col, items: sanitizedItems };
+                        }
+                        return col;
+                      });
+                      setCollections(updatedCollections);
+                    }}
+                    onToggleField={viewHooks.toggleFieldVisibility}
+                    onDeleteProperty={collectionHooks.deleteProperty}
+                    onDuplicateProperty={collectionHooks.duplicateProperty}
+                    onEditProperty={(prop: any) => {
+                      setEditingProperty(prop);
+                      setShowPropertyModal(true);
+                    }}
+                    collections={collectionsWithCalculatedFields}
+                    onRelationChange={(prop: any, item: any, val: any) => {
+                      const updatedItem = { ...item, [prop.id]: val };
+                      itemHooks.updateItem(updatedItem);
+                      
+                      const targetCollectionId = prop.relation?.targetCollectionId;
+                      if (targetCollectionId) {
+                        const targetCollection = collections.find((c: any) => c.id === targetCollectionId);
+                        if (targetCollection && targetCollection.__newItems) {
+                          delete targetCollection.__newItems;
+                        }
+                      }
+                    }}
+                    onNavigateToCollection={handleNavigateToCollection}
+                    groups={activeViewConfig?.groups || []}
+                    groupDisplayMode={activeViewConfig?.groupDisplayMode || 'accordion'}
+                    groupDisplayModes={activeViewConfig?.groupDisplayModes || {}}
+                    groupDisplayColumnCount={activeViewConfig?.groupDisplayColumnCount || 3}
+                    groupDisplayColumnCounts={activeViewConfig?.groupDisplayColumnCounts || {}}
+                    groupTabStyleFieldIds={activeViewConfig?.groupTabStyleFieldIds || {}}
+                    groupTotalsByGroupId={activeViewConfig?.groupTotalsByGroupId || {}}
+                    onShowNewItemModal={(prefill) => { if (prefill && Object.keys(prefill).length > 0) { setEditingItem(prefill); setGroupContext(prefill); } setShowNewItemModal(true); }}
+                    onGroupContextChange={(prefill) => { console.log('[GroupContext] set from TableView:', prefill); setGroupContext(prefill); }}
+                    onQuickCreateItem={handleQuickCreateItem}
+                    initialSortState={activeViewConfig?.tableSortState || { column: null, direction: 'asc' }}
+                    onSortStateChange={(state) => {
+                      if (!activeView) return;
+                      viewHooks.updateView(activeView, { tableSortState: state });
+                    }}
+                    initialExpandedGroups={activeViewConfig?.expandedGroups}
+                    onExpandedGroupsChange={(groupPaths) => {
+                      if (!activeView) return;
+                      viewHooks.updateView(activeView, { expandedGroups: groupPaths });
+                    }}
+                    totalFields={activeViewConfig?.totalFields || {}}
+                    onBulkImportItad={isSteamPluginActive ? handleBulkImportItad : undefined}
+                    onReorderField={viewHooks.updateViewFieldOrder}
+                    displayAsCards={activeViewConfig?.type === 'steamcards'}
+                  />
+                )}
+              </motion.div>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="min-w-[200px]">
                   <ContextMenuItem

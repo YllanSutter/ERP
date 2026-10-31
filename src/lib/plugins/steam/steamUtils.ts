@@ -13,6 +13,24 @@ export interface SteamGame {
 // Export vide - sera chargée dynamiquement à runtime
 export const steamGames: SteamGame[] = [];
 
+export function getSteamImageUrl(appid: number | string | undefined | null, type: 'header' | 'capsule' | 'portrait' | 'hero' | 'logo' = 'header'): string | null {
+  if (appid === undefined || appid === null || appid === '') return null;
+  const id = typeof appid === 'string' ? appid : String(appid);
+  switch (type) {
+    case 'portrait':
+      return `https://cdn.akamai.steamstatic.com/steam/apps/${id}/library_600x900.jpg`;
+    case 'hero':
+      return `https://cdn.akamai.steamstatic.com/steam/apps/${id}/library_hero.jpg`;
+    case 'capsule':
+      return `https://cdn.akamai.steamstatic.com/steam/apps/${id}/capsule_616x353.jpg`;
+    case 'logo':
+      return `https://cdn.akamai.steamstatic.com/steam/apps/${id}/logo.png`;
+    case 'header':
+    default:
+      return `https://cdn.akamai.steamstatic.com/steam/apps/${id}/header.jpg`;
+  }
+}
+
 let cachedSteamGames: SteamGame[] | null = null;
 
 function normalizeSteamGames(raw: any): SteamGame[] {

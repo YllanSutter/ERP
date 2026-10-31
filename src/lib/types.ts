@@ -119,4 +119,5 @@ export interface TableViewProps {
   onBulkImportItad?: (itemIds: string[]) => Promise<void>;
   onGroupContextChange?: (prefill: Record<string, any> | null) => void;
   onReorderField?: (newOrder: string[]) => void;
+  displayAsCards?: boolean;
 }

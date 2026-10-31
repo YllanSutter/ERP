@@ -55,7 +55,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
 }) => {
   const groupableProperties = useMemo(
     () => properties.filter((p: any) => (
-      ['select', 'multi_select', 'relation', 'checkbox', 'text', 'number', 'date', 'date_range'].includes(p.type)
+      ['select', 'multiselect', 'multi_select', 'relation', 'checkbox', 'text', 'number', 'date', 'date_range'].includes(p.type)
     )),
     [properties]
   );
@@ -199,7 +199,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
             ? (collections || []).find((c: any) => c.id === relationTargetCollectionId)
             : null;
           const relationStyleFieldOptions = (relationTargetCollection?.properties || [])
-            .filter((p: any) => p.type === 'select' || p.type === 'multi_select');
+            .filter((p: any) => p.type === 'select' || p.type === 'multiselect' || p.type === 'multi_select');
 
           return (
             <div key={row.uid} className="rounded-lg border border-black/10 dark:border-white/10 p-3 bg-black/[0.03] dark:bg-white/[0.03]">

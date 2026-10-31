@@ -7,6 +7,8 @@ import {
   Layers,
   Table,
   Layout,
+  Columns,
+  LayoutGrid,
   X,
   Settings,
   Calendar as CalendarIcon,
@@ -279,9 +281,10 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
 
   const viewTypeMeta = [
     { type: 'table', label: 'Tableau', icon: Table },
-    { type: 'kanban', label: 'Kanban', icon: Layout },
+    { type: 'kanban', label: 'Kanban', icon: Columns },
     { type: 'calendar', label: 'Calendrier', icon: CalendarIcon },
-    { type: 'layout', label: 'Layout', icon: Layers }
+    { type: 'layout', label: 'Layout', icon: Layers },
+    { type: 'steamcards', label: 'Cartes', icon: LayoutGrid }
   ];
 
   const viewsByType = useMemo(() => {

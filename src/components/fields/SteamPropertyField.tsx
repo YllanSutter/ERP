@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Loader } from 'lucide-react';
-import { searchSteamGames, loadSteamGamesList, SteamGame } from '@/lib/plugins/steam/steamUtils';
+import { searchSteamGames, loadSteamGamesList, SteamGame, getSteamImageUrl } from '@/lib/plugins/steam/steamUtils';
 
 interface SteamPropertyFieldProps {
   value?: any;
@@ -94,7 +94,23 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
 
   return (
     <div ref={containerRef} className="relative inline-block max-w-full">
-      <div className="relative">
+      <div className="relative flex items-center gap-1.5">
+        {(() => {
+          const appid = typeof value === 'object' && value?.appid ? value.appid : undefined;
+          const imgUrl = getSteamImageUrl(appid, 'header');
+          if (imgUrl && !isOpen) {
+            return (
+              <img
+                src={imgUrl}
+                alt=""
+                loading="lazy"
+                className="w-14 h-6 object-cover rounded flex-shrink-0 bg-neutral-200 dark:bg-neutral-800"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            );
+          }
+          return null;
+        })()}
         <input
           ref={inputRef}
           type="text"
@@ -124,16 +140,25 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
       </div>
 
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute top-full mt-1 min-w-[22rem] max-w-[32rem] bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded shadow-lg z-50">
-          <ul className="max-h-64 overflow-y-auto">
+        <div className="absolute top-full mt-1 min-w-[26rem] max-w-[38rem] bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded shadow-lg z-50">
+          <ul className="max-h-72 overflow-y-auto">
             {suggestions.map((game, index) => (
               <li key={`${game.appid}-${index}`}>
                 <button
                   onClick={() => handleSelectGame(game)}
-                  className="w-full text-left px-3 py-2 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition text-sm"
+                  className="w-full text-left px-2 py-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition text-sm flex items-center gap-2"
                 >
-                  <div className="font-medium whitespace-normal break-words">{game.name}</div>
-                  <div className="text-xs text-gray-500">App ID: {game.appid}</div>
+                  <img
+                    src={getSteamImageUrl(game.appid, 'header') || ''}
+                    alt=""
+                    loading="lazy"
+                    className="w-16 h-7 object-cover rounded flex-shrink-0 bg-neutral-200 dark:bg-neutral-800"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium whitespace-normal break-words line-clamp-1">{game.name}</div>
+                    <div className="text-xs text-gray-500">App ID: {game.appid}</div>
+                  </div>
                 </button>
               </li>
             ))}

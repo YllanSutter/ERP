@@ -61,7 +61,7 @@ export function buildGroupStructure(
           .filter((v: any) => v !== undefined && v !== null && v !== '');
 
         if (!values.length) return null;
-        if (linkedProp.type === 'multiselect') {
+        if (linkedProp.type === 'multiselect' || linkedProp.type === 'multi_select') {
           return values.flatMap((v: any) => Array.isArray(v) ? v : [v]);
         }
         if (linkedProp.type === 'checkbox') {
@@ -76,7 +76,7 @@ export function buildGroupStructure(
         groupValues = [formatDateByGranularity(rawValue, (prop as any).dateGranularity)];
       } else if (rawValue === null || rawValue === undefined || rawValue === '' || (Array.isArray(rawValue) && rawValue.length === 0)) {
         groupValues = ['(vide)'];
-      } else if (prop.type === 'multiselect' && Array.isArray(rawValue)) {
+      } else if ((prop.type === 'multiselect' || (prop.type as string) === 'multi_select') && Array.isArray(rawValue)) {
         groupValues = rawValue.map((v: any) => String(v));
       } else {
         groupValues = [String(rawValue)];
@@ -146,7 +146,7 @@ export function buildGroupStructure(
       });
     }
 
-    if (!property || (property.type !== 'select' && property.type !== 'multiselect')) {
+    if (!property || (property.type !== 'select' && property.type !== 'multiselect' && (property.type as string) !== 'multi_select')) {
       return [...paths].sort((a, b) => String(extractGroupValueFromPath(a)).localeCompare(String(extractGroupValueFromPath(b)), 'fr', { numeric: true }));
     }
 
@@ -228,7 +228,7 @@ export function getGroupLabel(
 ): string {
   if (!value && value !== 0 && value !== false) return '(vide)';
 
-  if (property.type === 'select' || property.type === 'multiselect') {
+  if (property.type === 'select' || property.type === 'multiselect' || (property.type as string) === 'multi_select') {
     const options = Array.isArray((property as any).options) ? (property as any).options : [];
     const values = Array.isArray(value) ? value : [value];
 
@@ -291,7 +291,7 @@ export function resolveGroupVisualStyle(
     prop: any,
     raw: any
   ): { color?: string; icon?: string } | null => {
-    if (!prop || (prop.type !== 'select' && prop.type !== 'multiselect')) return null;
+    if (!prop || (prop.type !== 'select' && prop.type !== 'multiselect' && (prop.type as string) !== 'multi_select')) return null;
     const options = Array.isArray(prop.options) ? prop.options : [];
     const rawValues = Array.isArray(raw) ? raw : [raw];
     const firstValue = rawValues.find((v: any) => v !== null && v !== undefined && v !== '');
@@ -310,7 +310,7 @@ export function resolveGroupVisualStyle(
     };
   };
 
-  if (property.type === 'select' || property.type === 'multiselect') {
+  if (property.type === 'select' || property.type === 'multiselect' || (property.type as string) === 'multi_select') {
     return resolveSelectOptionStyle(property as any, value);
   }
 

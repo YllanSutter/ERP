@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Plus, Zap, Sigma } from 'lucide-react';
+import { ChevronRight, Plus, Zap, Sigma } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useGrouping } from '@/lib/hooks/useGrouping';
 import { TableViewProps } from '@/lib/types';
+import { getSteamImageUrl } from '@/lib/plugins/steam/steamUtils';
 import GroupRenderer from '@/components/TableView/GroupRenderer';
 import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
@@ -95,7 +96,7 @@ const normalizeTotalsWidgetPreferences = (value: any, hasGroups: boolean): Total
   };
 };
 
-const TableView: React.FC<TableViewProps> = ({
+const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
   collection,
   items,
   favoriteItemIds = [],
@@ -133,10 +134,27 @@ const TableView: React.FC<TableViewProps> = ({
   onBulkImportItad,
   onGroupContextChange,
   onReorderField,
+  displayAsCards = false,
 }) => {
-    const normalizeGroupColumnCount = useCallback((count: any): 1 | 2 | 3 => {
-      return count === 1 || count === 2 || count === 3 ? count : 3;
-    }, []);
+  const normalizeGroupColumnCount = useCallback((count: any): 1 | 2 | 3 => {
+    return count === 1 || count === 2 || count === 3 ? count : 3;
+  }, []);
+
+  const steamPropCard = useMemo(() => (orderedProperties || collection?.properties || []).find((p: any) => p.type === 'steam'), [orderedProperties, collection?.properties]);
+  const visibleCardProps = useMemo(() => (orderedProperties || []).filter((p: any) => p.id !== steamPropCard?.id && !hiddenFields.includes(p.id)), [orderedProperties, hiddenFields]);
+
+  const getSteamAppIdForItem = useCallback((item: any): string | number | null => {
+    if (!steamPropCard) return null;
+    const val = item?.[steamPropCard.id];
+    if (!val) return null;
+    if (typeof val === 'object') {
+      if (val.appid !== undefined && val.appid !== null) return val.appid;
+      if (val.id !== undefined && val.id !== null) return val.id;
+    }
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string' && /^\d+$/.test(val)) return val;
+    return null;
+  }, [steamPropCard]);
 
     const getGroupColumnsClassName = useCallback((count: 1 | 2 | 3) => {
       if (count === 1) return 'grid-cols-1';
@@ -1344,44 +1362,77 @@ const TableView: React.FC<TableViewProps> = ({
             />
           );
 
-          const renderFlatRows = (sourceItems: any[] = items) =>
-            sourceItems.map(item => (
-              <TableItemRow
-                key={item.id}
-                item={item}
-                isFavorite={favoriteItemIds.includes(item.id)}
-                visibleProperties={visibleProperties}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onToggleFavoriteItem={onToggleFavoriteItem}
-                onViewDetail={onViewDetail}
-                collections={collections}
-                onRelationChange={onRelationChange}
-                onNavigateToCollection={onNavigateToCollection}
-                canEdit={canEdit}
-                canEditField={canEditFieldFn}
-                animate={false}
-                collection = {collection}
-                enableSelection={showSelectionColumn}
-                isSelected={selectedItemIds.has(item.id)}
-                onSelectionChange={handleSelectionChange}
-                enableDragReorder={canReorderRows}
-                isDragging={dragItemId === item.id}
-                isDragOver={dragOverItemId === item.id && dragItemId !== item.id}
-                onDragStart={(itemId, e) => {
-                  e.dataTransfer!.effectAllowed = 'move';
-                  handleRowDragStart(itemId);
-                }}
-                onDragEnter={handleRowDragEnter}
-                onDragOver={(e) => {
-                  if (!canReorderRows) return;
-                  e.preventDefault();
-                  e.dataTransfer!.dropEffect = 'move';
-                }}
-                onDrop={handleRowDrop}
-                onDragEnd={handleRowDragEnd}
-              />
-            ));
+          const renderCards = (sourceItems: any[] = items) => {
+    if (!displayAsCards) return null;
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 p-4">
+        {sourceItems.map((item: any) => {
+          const appid = getSteamAppIdForItem(item);
+          const imgUrl = getSteamImageUrl(appid, 'header');
+          const title = steamPropCard && item?.[steamPropCard.id]
+            ? (typeof item[steamPropCard.id] === 'object' ? item[steamPropCard.id]?.name : item[steamPropCard.id])
+            : (item?.name || item?.title || Object.values(item).find((v: any) => typeof v === 'string' && v.length > 0));
+          return (
+            <div
+              key={item.id}
+              className="group/card cursor-default rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 shadow-sm hover:shadow-md hover:border-violet-500/40 transition-all overflow-hidden flex flex-col min-h-[240px]"
+            >
+              <div
+                className="relative w-full aspect-[460/215] bg-neutral-200 dark:bg-neutral-800 cursor-pointer"
+                onClick={() => onViewDetail(item)}
+              >
+                {imgUrl ? (
+                  <img
+                    src={imgUrl}
+                    alt={String(title || '')}
+                    loading="lazy"
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-xs text-neutral-400">
+                    Pas d'image
+                  </div>
+                )}
+              </div>
+              <div className="p-2 space-y-1 flex-1">
+                <div
+                  className="text-sm font-medium text-neutral-900 dark:text-white truncate cursor-pointer"
+                  title={String(title || '')}
+                  onClick={() => onViewDetail(item)}
+                >
+                  {String(title || 'Sans nom')}
+                </div>
+                {visibleCardProps.slice(0, 6).map((prop: any) => (
+                  <div key={prop.id} className="text-xs" onClick={(e) => e.stopPropagation()}>
+                    <div className="text-neutral-500 dark:text-neutral-400 truncate mb-0.5">{prop.name}</div>
+                    <div className="text-neutral-700 dark:text-neutral-200">
+                      <EditableProperty
+                        property={prop}
+                        value={item[prop.id]}
+                        onChange={(newVal: any) => {
+                          onEdit({ ...item, [prop.id]: newVal });
+                        }}
+                        collection={collection}
+                        item={item as any}
+                        collections={collections}
+                        onRelationChange={(p: any, it: any, v: any) => {
+                          onRelationChange(p, it, v);
+                        }}
+                        sizeClasses="text-sm"
+                        className="w-full"
+                        readOnly={false}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
           const renderTableShell = (body: React.ReactNode, footerItems?: any[], selectionScopeItems?: any[]) => {
             const scopedItems = selectionScopeItems || items;
@@ -1512,6 +1563,229 @@ const TableView: React.FC<TableViewProps> = ({
               renderFlatRows(paginatedFlatItems),
               paginatedFlatItems,
               paginatedFlatItems
+            );
+          }
+
+          if (displayAsCards) {
+            const flatCards = sortedFlatItems.slice((effectivePage - 1) * rowsPerPage, effectivePage * rowsPerPage);
+            if (groups.length > 0 && displayRootGroups.length > 0) {
+              const renderCardGroup = (groupPath: string) => {
+                const groupValue = groupPath.split('/').pop() || groupPath;
+                const groupDepth = groupPath.split('/').length - 1;
+                const groupProperty = orderedProperties.find((p: any) => p.id === groups[groupDepth]);
+                const groupMode = (groups[groupDepth] && (groupDisplayModes as any)?.[groups[groupDepth]])
+                  || (groupDepth === 0 ? rootGroupMode : 'accordion');
+                const groupLabel = groupProperty
+                  ? getGroupLabel(groupProperty, groupValue === '(vide)' ? undefined : groupValue, collections)
+                  : groupValue;
+                const groupItems = getItemsForGroupPath(groupPath);
+                const isExpanded = expandedGroups.has(groupPath);
+                const canCollapse = groupMode === 'accordion';
+                const childGroupId = groups[groupDepth + 1];
+                const childGroupMode = childGroupId
+                  ? ((groupDisplayModes as any)?.[childGroupId] || 'accordion')
+                  : null;
+                const childGroups = groupedStructure.structure[groupPath]?.subGroups || [];
+                const hasTabbedChildren = childGroupMode === 'tabs' && childGroups.length > 0;
+                const activeChildTab = activeSubGroupPathByRoot[groupPath] && childGroups.includes(activeSubGroupPathByRoot[groupPath])
+                  ? activeSubGroupPathByRoot[groupPath]
+                  : childGroups[0];
+                const childProperty = childGroupId
+                  ? orderedProperties.find((p: any) => p.id === childGroupId)
+                  : null;
+
+                return (
+                  <section key={groupPath} className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => canCollapse && toggleGroup(groupPath)}
+                      className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left ${
+                        canCollapse ? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5' : 'cursor-default'
+                      }`}
+                      aria-expanded={canCollapse ? isExpanded : true}
+                    >
+                      {canCollapse && (
+                        <ChevronRight
+                          size={18}
+                          className={`shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                        />
+                      )}
+                      <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-800 dark:text-white">
+                        {groupProperty?.name ? `${groupProperty.name}: ` : ''}{groupLabel}
+                      </h3>
+                      <span className="text-xs text-neutral-500 dark:text-neutral-400">{groupItems.length}</span>
+                    </button>
+                    {(!canCollapse || isExpanded) && (
+                      hasTabbedChildren ? (
+                        <Tabs
+                          value={activeChildTab}
+                          onValueChange={(nextPath) => setActiveSubGroupPathByRoot((prev) => ({
+                            ...prev,
+                            [groupPath]: nextPath,
+                          }))}
+                          className="w-full"
+                        >
+                          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0">
+                            {childGroups.map((childPath) => {
+                              const childValue = childPath.split('/').pop() || childPath;
+                              const childLabel = childProperty
+                                ? getGroupLabel(childProperty, childValue === '(vide)' ? undefined : childValue, collections)
+                                : childValue;
+                              const childCount = countItemsInGroup(childPath, groupedStructure.structure);
+                              return (
+                                <TabsTrigger key={childPath} value={childPath}>
+                                  {childLabel} ({childCount})
+                                </TabsTrigger>
+                              );
+                            })}
+                          </TabsList>
+                          {childGroups.map((childPath) => (
+                            <TabsContent key={childPath} value={childPath} className="mt-2">
+                              {renderCardGroup(childPath)}
+                            </TabsContent>
+                          ))}
+                        </Tabs>
+                      ) : (
+                        renderCards(groupItems)
+                      )
+                    )}
+                  </section>
+                );
+              };
+
+              if (rootGroupMode === 'select') {
+                const selectLevels: Array<{
+                  depth: number;
+                  property: any;
+                  options: Array<{ id: string; label: string; itemCount: number }>;
+                  selectedId: string;
+                }> = [];
+                let currentOptions = displayRootGroups;
+                let selectedPath = displayRootGroups[0];
+
+                for (let depth = 0; depth < groups.length && currentOptions.length > 0; depth++) {
+                  const groupId = groups[depth];
+                  const mode = (groupDisplayModes as any)?.[groupId] || (depth === 0 ? rootGroupMode : 'accordion');
+                  if (mode !== 'select') break;
+                  const property = orderedProperties.find((p: any) => p.id === groupId);
+                  if (!property) break;
+                  const options = currentOptions.map((pathId: string) => {
+                    const rawValue = pathId.split('/').pop() || pathId;
+                    return {
+                      id: pathId,
+                      label: getGroupLabel(property, rawValue === '(vide)' ? undefined : rawValue, collections),
+                      itemCount: countItemsInGroup(pathId, groupedStructure.structure),
+                    };
+                  });
+                  const persisted = activeGroupSelectByDepth[depth];
+                  const selectedId = options.some((option) => option.id === persisted) ? persisted : options[0].id;
+                  selectLevels.push({ depth, property, options, selectedId });
+                  selectedPath = selectedId;
+                  currentOptions = groupedStructure.structure[selectedId]?.subGroups || [];
+                }
+
+                return (
+                  <div className="max-h-[calc(100vh-280px)] overflow-auto space-y-3">
+                    <div className="px-3 pt-3 grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(selectLevels.length, 1)}, minmax(180px, 1fr))` }}>
+                      {selectLevels.map((level) => (
+                        <div key={`card-group-select-${level.depth}`} className="min-w-0">
+                          <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">
+                            {level.property?.name || `Niveau ${level.depth + 1}`}
+                          </label>
+                          <Select
+                            value={level.selectedId}
+                            onValueChange={(nextId) => {
+                              setActiveGroupSelectByDepth((prev) => {
+                                const next: Record<number, string> = { ...prev, [level.depth]: nextId };
+                                Object.keys(next).forEach((key) => {
+                                  if (Number(key) > level.depth) delete next[Number(key)];
+                                });
+                                return next;
+                              });
+                            }}
+                          >
+                            <SelectTrigger className="w-full rounded-lg border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {level.options.map((option) => (
+                                <SelectItem key={option.id} value={option.id}>{option.label} ({option.itemCount})</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                    {renderCardGroup(selectedPath)}
+                  </div>
+                );
+              }
+
+              if (rootGroupMode === 'tabs') {
+                const selectedRoot = displayRootGroups.includes(activeGroupTab) ? activeGroupTab : displayRootGroups[0];
+                return (
+                  <div className="max-h-[calc(100vh-280px)] overflow-auto">
+                    <Tabs value={selectedRoot} onValueChange={setActiveGroupTab} className="w-full">
+                      <TabsList className="m-2 mt-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+                        {rootGroupCards.map((group) => (
+                          <TabsTrigger key={group.id} value={group.id}>{group.label} ({group.itemCount})</TabsTrigger>
+                        ))}
+                      </TabsList>
+                      {rootGroupCards.map((group) => (
+                        <TabsContent key={group.id} value={group.id} className="mt-0">
+                          {renderCardGroup(group.id)}
+                        </TabsContent>
+                      ))}
+                    </Tabs>
+                  </div>
+                );
+              }
+
+              if (rootGroupMode === 'columns') {
+                return (
+                  <div className={`grid gap-4 p-5 ${rootGroupColumnsClassName} overflow-auto max-h-[calc(100vh-280px)]`}>
+                    {displayRootGroups.map(renderCardGroup)}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-5 overflow-auto max-h-[calc(100vh-280px)] p-3">
+                  {displayRootGroups.map(renderCardGroup)}
+                </div>
+              );
+            }
+
+            return (
+              <div className="flex flex-col max-h-[calc(100vh-280px)]">
+                <div className="overflow-auto flex-1">
+                  {renderCards(flatCards)}
+                </div>
+                {sortedFlatItems.length > rowsPerPage && (
+                  <div className="flex items-center justify-between px-4 py-2 border-t border-black/5 dark:border-white/5">
+                    <div className="text-xs text-neutral-500">
+                      {sortedFlatItems.length} élément{sortedFlatItems.length > 1 ? 's' : ''}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={effectivePage === 1}
+                    className="px-2 py-1 text-xs rounded disabled:opacity-50"
+                  >
+                    Précédent
+                  </button>
+                  <span className="text-xs">{effectivePage} / {Math.max(1, Math.ceil(sortedFlatItems.length / rowsPerPage))}</span>
+                  <button
+                    onClick={() => setPage(p => Math.min(Math.max(1, Math.ceil(sortedFlatItems.length / rowsPerPage)), p + 1))}
+                    disabled={effectivePage === Math.max(1, Math.ceil(sortedFlatItems.length / rowsPerPage))}
+                    className="px-2 py-1 text-xs rounded disabled:opacity-50"
+                  >
+                        Suivant
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             );
           }
 

@@ -440,7 +440,7 @@ let isShuttingDown = false;
       jwtSecret: JWT_SECRET,
     });
   } catch (err) {
-    logger.error('Failed to bootstrap server', err);
+    logger.error({ err }, 'Failed to bootstrap server');
     process.exit(1);
   }
 })();

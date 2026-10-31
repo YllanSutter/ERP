@@ -16,13 +16,14 @@ export { isEmptyValue } from '@/lib/utils/valueUtils';
 export { calculateSegmentsClient, formatSegmentDisplay } from '@/lib/calculateSegmentsClient';
 
 // ─── Types de vues ────────────────────────────────────────────────────────────
-import { LayoutList, Columns, CalendarDays, LayoutDashboard } from 'lucide-react';
+import { LayoutList, Columns, CalendarDays, LayoutDashboard, LayoutGrid } from 'lucide-react';
 
 export const VIEW_TYPES = [
-  { value: 'table',    label: 'Tableau',     icon: LayoutList },
-  { value: 'kanban',   label: 'Kanban',      icon: Columns },
-  { value: 'calendar', label: 'Calendrier',  icon: CalendarDays },
-  { value: 'layout',   label: 'Multi-vues',  icon: LayoutDashboard },
+  { value: 'table',      label: 'Tableau',     icon: LayoutList },
+  { value: 'kanban',     label: 'Kanban',      icon: Columns },
+  { value: 'calendar',   label: 'Calendrier',  icon: CalendarDays },
+  { value: 'layout',     label: 'Multi-vues',  icon: LayoutDashboard },
+  { value: 'steamcards', label: 'Cartes',      icon: LayoutGrid },
 ] as const;
 
 export type ViewTypeValue = typeof VIEW_TYPES[number]['value'];
