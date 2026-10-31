@@ -3,8 +3,8 @@ import { ChevronRight, Plus, Zap, Sigma } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useGrouping } from '@/lib/hooks/useGrouping';
 import { TableViewProps } from '@/lib/types';
-import { getSteamImageUrl } from '@/lib/plugins/steam/steamUtils';
 import GroupRenderer from '@/components/TableView/GroupRenderer';
+import SteamCardFullArt from '@/components/views/SteamCardFullArt';
 import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
 import TotalsBar from '@/components/TableView/TotalsBar';
@@ -142,19 +142,6 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
 
   const steamPropCard = useMemo(() => (orderedProperties || collection?.properties || []).find((p: any) => p.type === 'steam'), [orderedProperties, collection?.properties]);
   const visibleCardProps = useMemo(() => (orderedProperties || []).filter((p: any) => p.id !== steamPropCard?.id && !hiddenFields.includes(p.id)), [orderedProperties, hiddenFields]);
-
-  const getSteamAppIdForItem = useCallback((item: any): string | number | null => {
-    if (!steamPropCard) return null;
-    const val = item?.[steamPropCard.id];
-    if (!val) return null;
-    if (typeof val === 'object') {
-      if (val.appid !== undefined && val.appid !== null) return val.appid;
-      if (val.id !== undefined && val.id !== null) return val.id;
-    }
-    if (typeof val === 'number') return val;
-    if (typeof val === 'string' && /^\d+$/.test(val)) return val;
-    return null;
-  }, [steamPropCard]);
 
     const getGroupColumnsClassName = useCallback((count: 1 | 2 | 3) => {
       if (count === 1) return 'grid-cols-1';
@@ -1367,67 +1354,14 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 p-4">
         {sourceItems.map((item: any) => {
-          const appid = getSteamAppIdForItem(item);
-          const imgUrl = getSteamImageUrl(appid, 'header');
-          const title = steamPropCard && item?.[steamPropCard.id]
-            ? (typeof item[steamPropCard.id] === 'object' ? item[steamPropCard.id]?.name : item[steamPropCard.id])
-            : (item?.name || item?.title || Object.values(item).find((v: any) => typeof v === 'string' && v.length > 0));
           return (
-            <div
+            <SteamCardFullArt
               key={item.id}
-              className="group/card cursor-default rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 shadow-sm hover:shadow-md hover:border-violet-500/40 transition-all overflow-hidden flex flex-col min-h-[240px]"
-            >
-              <div
-                className="relative w-full aspect-[460/215] bg-neutral-200 dark:bg-neutral-800 cursor-pointer"
-                onClick={() => onViewDetail(item)}
-              >
-                {imgUrl ? (
-                  <img
-                    src={imgUrl}
-                    alt={String(title || '')}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xs text-neutral-400">
-                    Pas d'image
-                  </div>
-                )}
-              </div>
-              <div className="p-2 space-y-1 flex-1">
-                <div
-                  className="text-sm font-medium text-neutral-900 dark:text-white truncate cursor-pointer"
-                  title={String(title || '')}
-                  onClick={() => onViewDetail(item)}
-                >
-                  {String(title || 'Sans nom')}
-                </div>
-                {visibleCardProps.slice(0, 6).map((prop: any) => (
-                  <div key={prop.id} className="text-xs" onClick={(e) => e.stopPropagation()}>
-                    <div className="text-neutral-500 dark:text-neutral-400 truncate mb-0.5">{prop.name}</div>
-                    <div className="text-neutral-700 dark:text-neutral-200">
-                      <EditableProperty
-                        property={prop}
-                        value={item[prop.id]}
-                        onChange={(newVal: any) => {
-                          onEdit({ ...item, [prop.id]: newVal });
-                        }}
-                        collection={collection}
-                        item={item as any}
-                        collections={collections}
-                        onRelationChange={(p: any, it: any, v: any) => {
-                          onRelationChange(p, it, v);
-                        }}
-                        sizeClasses="text-sm"
-                        className="w-full"
-                        readOnly={false}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+              item={item}
+              steamProperty={steamPropCard}
+              properties={visibleCardProps}
+              onViewDetail={onViewDetail}
+            />
           );
         })}
       </div>
