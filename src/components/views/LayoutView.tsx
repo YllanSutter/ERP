@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react';
 import TableView from '@/components/views/TableView';
-import KanbanView from '@/components/views/KanbanView';
-import CalendarView from '@/components/views/CalendarView';
 import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
+import { getViewRegistration } from '@/lib/views';
 
 interface LayoutPanelConfig {
   id: string;
@@ -112,6 +111,7 @@ const LayoutView: React.FC<LayoutViewProps> = ({
         );
 
         const panelOrderedProps = getOrderedProperties(targetCollection, viewConfig, collections);
+        const PanelRenderer = getViewRegistration(viewConfig.type).Renderer;
 
         return (
           <div
@@ -146,42 +146,22 @@ const LayoutView: React.FC<LayoutViewProps> = ({
                   onBulkImportItad={onBulkImportItad}
                 />
               )}
-              {viewConfig.type === 'kanban' && (
-                <KanbanView
+              {PanelRenderer && (
+                <PanelRenderer
+                  view={viewConfig}
                   collection={targetCollection}
-                  items={filteredItems}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  onViewDetail={onViewDetail}
-                  groupBy={viewConfig.groupBy}
-                  hiddenFields={viewConfig.hiddenFields || []}
                   collections={collections}
-                  onRelationChange={onRelationChange}
-                  orderedProperties={panelOrderedProps}
-                  filters={viewConfig.filters || []}
-                  columnSettings={viewConfig.kanbanColumnSettings || {}}
-                  showFieldsOnHover={Boolean(viewConfig.kanbanShowFieldsOnHover)}
-                  onUpdateViewConfig={(updates: Record<string, any>) => onUpdateViewConfig?.(viewConfig.id, updates)}
-                />
-              )}
-              {viewConfig.type === 'calendar' && (
-                <CalendarView
-                  collection={targetCollection}
                   items={filteredItems}
+                  properties={panelOrderedProps}
+                  onUpdateView={(updates) => onUpdateViewConfig?.(viewConfig.id, updates)}
                   onEdit={onEdit}
                   onDelete={onDelete}
                   onViewDetail={onViewDetail}
                   onRelationChange={onRelationChange}
-                  dateProperty={viewConfig.dateProperty}
-                  hiddenFields={viewConfig.hiddenFields || []}
-                  collections={collections}
-                  viewConfig={viewConfig}
+                  onNavigateToCollection={() => {}}
                   views={views}
                   relationFilter={relationFilter}
                   activeCollectionId={activeCollectionId}
-                  viewModeStorageKey={`${viewConfig.id}:panel:${panel.id || panel.viewId}`}
-                  showCollectionsSelector={false}
-                  onUpdateViewConfig={(updates) => onUpdateViewConfig?.(viewConfig.id, updates)}
                   onShowNewItemModalForCollection={onShowNewItemModalForCollection}
                 />
               )}

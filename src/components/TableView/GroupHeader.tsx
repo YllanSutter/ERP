@@ -32,8 +32,16 @@ const GroupHeader: React.FC<GroupHeaderProps> = ({
   return (
     <tr className="bg-gray-200 dark:bg-neutral-800/40 hover:bg-gray-300/60 dark:hover:bg-neutral-800/60 border-b border-black/10 dark:border-white/5">
       <td colSpan={colSpan} className="px-6 py-3">
-        <button
+        <div
           onClick={onToggle}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onToggle();
+            }
+          }}
+          role="button"
+          tabIndex={0}
           className="flex items-center gap-2 text-sm font-semibold text-neutral-600 dark:text-white transition-colors w-full text-left"
         >
           {depth > 0 && (
@@ -69,7 +77,7 @@ const GroupHeader: React.FC<GroupHeaderProps> = ({
               <Icons.Plus size={13} />
             </button>
           )}
-        </button>
+        </div>
       </td>
     </tr>
   );

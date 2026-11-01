@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Settings,
   Star,
@@ -99,7 +99,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [expandedFavorites, setExpandedFavorites] = useState(true);
   const { state, isMobile, setOpenMobile } = useSidebar();
-  const collapsed = state === 'collapsed';
+  const collapsed = !isMobile && state === 'collapsed';
   const { isAdmin, isEditor, permissions } = useAuth();
 
   const canReadCollection = useMemo(() => {
@@ -140,7 +140,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     return roleOk || userOk;
   };
 
-  const canSeeDashboard = (dashboard: any) => {
+  const canSeeDashboard = useCallback((dashboard: any) => {
     if (isAdmin) return true; // Admins voient tout
     const allowedRoles = dashboard?.visibleToRoles || [];
     const allowedUsers = dashboard?.visibleToUsers || [];
@@ -150,11 +150,11 @@ const Sidebar: React.FC<SidebarProps> = ({
     const roleOk = hasRoleRestriction ? allowedRoles.some((rid: string) => userRoleIds.includes(rid)) : false;
     const userOk = hasUserRestriction ? allowedUsers.includes(userId) : false;
     return roleOk || userOk;
-  };
+  }, [isAdmin, userId, userRoleIds]);
 
   const visibleDashboards = useMemo(
     () => (dashboards || []).filter(canSeeDashboard),
-    [dashboards, userRoleIds, userId, isAdmin]
+    [dashboards, canSeeDashboard]
   );
 
   // Construire la liste des vues favorites avec leurs infos

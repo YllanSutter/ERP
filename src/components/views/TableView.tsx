@@ -1,10 +1,12 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { ChevronRight, Plus, Zap, Sigma } from 'lucide-react';
-import * as LucideIcons from 'lucide-react';
-import { useGrouping } from '@/lib/hooks/useGrouping';
+import { useViewGrouping } from '@/components/views/ViewGrouping';
+import { useViewPagination } from '@/lib/hooks/useViewPagination';
 import { TableViewProps } from '@/lib/types';
 import GroupRenderer from '@/components/TableView/GroupRenderer';
-import SteamCardFullArt from '@/components/views/SteamCardFullArt';
+import CardsGrid from '@/components/views/CardsGrid';
+import ViewGroupTabs from '@/components/views/ViewGroupTabs';
+import ViewGrouping from '@/components/views/ViewGrouping';
 import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
 import TotalsBar from '@/components/TableView/TotalsBar';
@@ -12,7 +14,7 @@ import TotalsWidget, { type TotalsWidgetPreferences } from '@/components/TableVi
 import EditableProperty from '@/components/fields/EditableProperty';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { countItemsInGroup, getGroupLabel, resolveGroupVisualStyle } from '@/lib/groupingUtils';
 import { isCalculatedNumberProperty } from '@/lib/calculatedFields';
@@ -144,7 +146,10 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
 
   const steamPropCard = useMemo(() => (orderedProperties || collection?.properties || []).find((p: any) => p.type === 'steam'), [orderedProperties, collection?.properties]);
   const cardStyleProperty = useMemo(() => (collection?.properties || []).find((p: any) => p.id === cardStyleFieldId), [collection?.properties, cardStyleFieldId]);
-  const visibleCardProps = useMemo(() => (orderedProperties || []).filter((p: any) => p.id !== steamPropCard?.id && !hiddenFields.includes(p.id)), [orderedProperties, hiddenFields]);
+  const visibleCardProps = useMemo(
+    () => (orderedProperties || []).filter((p: any) => p.id !== steamPropCard?.id && !hiddenFields.includes(p.id)),
+    [orderedProperties, hiddenFields, steamPropCard?.id]
+  );
 
     const getGroupColumnsClassName = useCallback((count: 1 | 2 | 3) => {
       if (count === 1) return 'grid-cols-1';
@@ -180,7 +185,7 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
     onSortStateChangeRef.current = onSortStateChange;
   }, [onSortStateChange]);
 
-  const { itemsMap, groupedStructure, expandedGroups, toggleGroup } = useGrouping(
+  const { itemsMap, groupedStructure, expandedGroups, toggleGroup } = useViewGrouping(
     items,
     groups,
     orderedProperties,
@@ -366,8 +371,6 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [dragItemId, setDragItemId] = useState<string | null>(null);
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
-  const [rowsPerPage, setRowsPerPage] = useState<number>(50);
-  const [page, setPage] = useState<number>(1);
   const [activeSubGroupPathByRoot, setActiveSubGroupPathByRoot] = useState<Record<string, string>>({});
 
   if (!collection) {
@@ -911,23 +914,24 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
     if (!groupedStructure || groups.length === 0) return 0;
     return Math.max(1, ...Object.values(groupedStructure.structure).map((g: any) => g.itemIds.length));
   }, [groupedStructure, groups]);
-  const totalPages = Math.max(1, Math.ceil(
-    groups.length > 0 ? maxGroupItemCount / rowsPerPage : sortedFlatItems.length / rowsPerPage
-  ));
-  const effectivePage = Math.min(page, totalPages);
-  const paginatedFlatItems = useMemo(() => {
-    const start = (effectivePage - 1) * rowsPerPage;
-    return sortedFlatItems.slice(start, start + rowsPerPage);
-  }, [sortedFlatItems, effectivePage, rowsPerPage]);
-
-
-  useEffect(() => {
-    setPage(1);
-  }, [collection?.id, rowsPerPage, sortState.column, sortState.direction, groups.join(','), groups.length]);
-
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  const {
+    rowsPerPage,
+    setRowsPerPage,
+    page: effectivePage,
+    setPage,
+    totalPages,
+    paginatedItems: paginatedFlatItems,
+  } = useViewPagination({
+    items: sortedFlatItems,
+    groupedItemCount: maxGroupItemCount,
+    hasGroups: groups.length > 0,
+    resetKey: [
+      collection.id,
+      sortState.column || '',
+      sortState.direction,
+      groups.join(','),
+    ].join('|'),
+  });
 
   const reorderItemsById = useCallback((sourceId: string, targetId: string) => {
     if (sourceId === targetId) return;
@@ -1369,6 +1373,7 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
               canEditField={canEditFieldFn}
               collection={collection}
               enableSelection={showSelectionColumn}
+              enableDragReorder={canReorderRows}
               isSelected={selectedItemIds.has(item.id)}
               onSelectionChange={handleSelectionChange}
               draggableRow={canReorderRows}
@@ -1384,34 +1389,21 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
           const renderCards = (sourceItems: any[] = items) => {
     if (!displayAsCards) return null;
     return (
-      <div
-        className="grid gap-4 p-4"
-        style={{
-          gridTemplateColumns: cardColumns === 'auto'
-            ? 'repeat(auto-fill, minmax(250px, 1fr))'
-            : `repeat(${Math.max(1, Math.min(6, Number(cardColumns) || 1))}, minmax(0, 1fr))`,
-        }}
-      >
-        {sourceItems.map((item: any) => {
-          return (
-            <SteamCardFullArt
-              key={item.id}
-              item={item}
-              steamProperty={steamPropCard}
-              styleProperty={cardStyleProperty}
-              properties={visibleCardProps}
-              onViewDetail={onViewDetail}
-              onEdit={onEdit}
-              canEdit={canEdit}
-              canEditField={canEditFieldFn}
-              collections={collections}
-              collection={collection}
-              onRelationChange={onRelationChange}
-              onNavigateToCollection={onNavigateToCollection}
-            />
-          );
-        })}
-      </div>
+      <CardsGrid
+        items={sourceItems}
+        cardColumns={cardColumns}
+        steamProperty={steamPropCard}
+        styleProperty={cardStyleProperty}
+        properties={visibleCardProps}
+        onViewDetail={onViewDetail}
+        onEdit={onEdit}
+        canEdit={canEdit}
+        canEditField={canEditFieldFn}
+        collections={collections}
+        collection={collection}
+        onRelationChange={onRelationChange}
+        onNavigateToCollection={onNavigateToCollection}
+      />
     );
   };
 
@@ -1547,6 +1539,27 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
             );
           }
 
+          return (
+            <ViewGrouping
+              items={items}
+              groups={groups}
+              properties={orderedProperties}
+              collections={collections}
+              initialExpandedGroups={initialExpandedGroups}
+              onExpandedGroupsChange={onExpandedGroupsChange}
+              groupDisplayMode={groupDisplayMode}
+              groupDisplayModes={groupDisplayModes}
+              groupDisplayColumnCount={normalizeGroupColumnCount(groupDisplayColumnCount)}
+              groupDisplayColumnCounts={groupDisplayColumnCounts}
+              renderItems={(groupItems) => renderTableShell(
+                renderFlatRows(groupItems),
+                groupItems,
+                groupItems,
+              )}
+              className="overflow-auto max-h-[calc(100vh-280px)]"
+            />
+          );
+
           if (displayAsCards) {
             const flatCards = sortedFlatItems.slice((effectivePage - 1) * rowsPerPage, effectivePage * rowsPerPage);
             if (groups.length > 0 && displayRootGroups.length > 0) {
@@ -1566,7 +1579,7 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
                 const childGroupMode = childGroupId
                   ? ((groupDisplayModes as any)?.[childGroupId] || 'accordion')
                   : null;
-                const childGroups = groupedStructure.structure[groupPath]?.subGroups || [];
+                const childGroups = groupedStructure!.structure[groupPath]?.subGroups || [];
                 const hasTabbedChildren = childGroupMode === 'tabs' && childGroups.length > 0;
                 const activeChildTab = activeSubGroupPathByRoot[groupPath] && childGroups.includes(activeSubGroupPathByRoot[groupPath])
                   ? activeSubGroupPathByRoot[groupPath]
@@ -1606,20 +1619,19 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
                           }))}
                           className="w-full"
                         >
-                          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0">
-                            {childGroups.map((childPath) => {
+                          <ViewGroupTabs
+                            items={childGroups.map((childPath) => {
                               const childValue = childPath.split('/').pop() || childPath;
-                              const childLabel = childProperty
-                                ? getGroupLabel(childProperty, childValue === '(vide)' ? undefined : childValue, collections)
-                                : childValue;
-                              const childCount = countItemsInGroup(childPath, groupedStructure.structure);
-                              return (
-                                <TabsTrigger key={childPath} value={childPath}>
-                                  {childLabel} ({childCount})
-                                </TabsTrigger>
-                              );
+                              return {
+                                id: childPath,
+                                label: childProperty
+                                  ? getGroupLabel(childProperty, childValue === '(vide)' ? undefined : childValue, collections)
+                                  : childValue,
+                                itemCount: countItemsInGroup(childPath, groupedStructure!.structure),
+                              };
                             })}
-                          </TabsList>
+                            activeId={activeChildTab}
+                          />
                           {childGroups.map((childPath) => (
                             <TabsContent key={childPath} value={childPath} className="mt-2">
                               {renderCardGroup(childPath)}
@@ -1654,15 +1666,15 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
                     const rawValue = pathId.split('/').pop() || pathId;
                     return {
                       id: pathId,
-                      label: getGroupLabel(property, rawValue === '(vide)' ? undefined : rawValue, collections),
-                      itemCount: countItemsInGroup(pathId, groupedStructure.structure),
+                      label: getGroupLabel(property!, rawValue === '(vide)' ? undefined : rawValue, collections),
+                      itemCount: countItemsInGroup(pathId, groupedStructure!.structure),
                     };
                   });
                   const persisted = activeGroupSelectByDepth[depth];
                   const selectedId = options.some((option) => option.id === persisted) ? persisted : options[0].id;
                   selectLevels.push({ depth, property, options, selectedId });
                   selectedPath = selectedId;
-                  currentOptions = groupedStructure.structure[selectedId]?.subGroups || [];
+                  currentOptions = groupedStructure!.structure[selectedId]?.subGroups || [];
                 }
 
                 return (
@@ -1707,11 +1719,17 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
                 return (
                   <div className="max-h-[calc(100vh-280px)] overflow-auto">
                     <Tabs value={selectedRoot} onValueChange={setActiveGroupTab} className="w-full">
-                      <TabsList className="m-2 mt-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
-                        {rootGroupCards.map((group) => (
-                          <TabsTrigger key={group.id} value={group.id}>{group.label} ({group.itemCount})</TabsTrigger>
-                        ))}
-                      </TabsList>
+                      <ViewGroupTabs
+                        className="m-2 mt-3 w-auto"
+                        activeId={selectedRoot}
+                        items={rootGroupCards.map((group) => ({
+                          id: group.id,
+                          label: group.label,
+                          itemCount: group.itemCount,
+                          icon: group.icon,
+                          color: group.color,
+                        }))}
+                      />
                       {rootGroupCards.map((group) => (
                         <TabsContent key={group.id} value={group.id} className="mt-0">
                           {renderCardGroup(group.id)}
@@ -1819,31 +1837,17 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
             return (
               <div className="max-h-[calc(100vh-280px)] overflow-auto flex flex-col">
                 <Tabs value={safeActiveGroupTab} onValueChange={setActiveGroupTab} className="w-full flex flex-col">
-                  <TabsList className="m-2 mt-3 h-auto flex-wrap justify-start gap-1 bg-transparent p-0 shrink-0">
-                    {rootGroupCards.map((group: any) => (
-                      (() => {
-                        const GroupIcon = group.icon ? (LucideIcons as any)[group.icon] : null;
-                        const isActive = safeActiveGroupTab === group.id;
-                        return (
-                          <TabsTrigger
-                            key={group.id}
-                            value={group.id}
-                            className="rounded-full border border-black/10 dark:border-white/10 bg-white/60 px-3 py-1.5 text-xs dark:bg-white/5"
-                            style={group.color ? {
-                              borderColor: `${group.color}55`,
-                              backgroundColor: isActive ? `${group.color}30` : `${group.color}1a`,
-                              color: isActive ? group.color : undefined,
-                            } : undefined}
-                          >
-                            <span className="inline-flex items-center gap-1.5">
-                              {GroupIcon ? <GroupIcon size={12} style={{ color: group.color || undefined }} /> : null}
-                              <span>{group.label} ({group.itemCount})</span>
-                            </span>
-                          </TabsTrigger>
-                        );
-                      })()
-                    ))}
-                  </TabsList>
+                  <ViewGroupTabs
+                    className="m-2 mt-3 w-auto shrink-0"
+                    activeId={safeActiveGroupTab}
+                    items={rootGroupCards.map((group: any) => ({
+                      id: group.id,
+                      label: group.label,
+                      itemCount: group.itemCount,
+                      icon: group.icon,
+                      color: group.color,
+                    }))}
+                  />
 
                   <div className="overflow-auto flex-1">
                     {rootGroupCards.map((group: any) => (
@@ -1887,9 +1891,9 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
 
               const options = currentOptions.map((pathId: string) => {
                 const rawValue = pathId.split('/').pop() || pathId;
-                const label = getGroupLabel(property, rawValue === '(vide)' ? undefined : rawValue, collections);
+                const label = getGroupLabel(property!, rawValue === '(vide)' ? undefined : rawValue, collections);
                 const itemCount = groupedStructure
-                  ? countItemsInGroup(pathId, groupedStructure.structure)
+                  ? countItemsInGroup(pathId, groupedStructure!.structure)
                   : 0;
                 return { id: pathId, label, itemCount };
               });
@@ -1902,7 +1906,7 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
               selectLevels.push({ depth, groupId, property, options, selectedId });
 
               parentPath = selectedId;
-              const node = groupedStructure?.structure?.[selectedId];
+              const node = groupedStructure!.structure[selectedId];
               currentOptions = node?.subGroups || [];
             }
 

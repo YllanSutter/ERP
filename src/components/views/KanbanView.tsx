@@ -8,6 +8,7 @@ import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCan
 import { getNameValue } from '@/lib/calendarUtils';
 import { compareValues } from '@/lib/utils/sortUtils';
 import { shouldShowColumn } from '@/lib/utils/columnFilterUtils';
+import { useViewGrouping } from './ViewGrouping';
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -22,7 +23,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 
-type KanbanColumnSettings = {
+export type KanbanColumnSettings = {
   visibleFieldIds?: string[];
   sortFieldId?: string | null;
   sortDirection?: 'asc' | 'desc';
@@ -72,6 +73,12 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   const canEdit = useCanEdit(collection?.id);
   const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, collection?.id);
   const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, collection?.id);
+  const sharedGrouping = useViewGrouping(
+    items,
+    groupBy ? [groupBy] : [],
+    orderedProperties || collection.properties,
+    collections,
+  );
 
   if (!collection) {
     return (
@@ -105,13 +112,17 @@ const KanbanView: React.FC<KanbanViewProps> = ({
       });
     }
     
-    // Distribute items into columns (skip items without value)
-    items.forEach(item => {
-      const key = item[groupByProp.id];
-      if (key && groupedItems[key]) {
-        groupedItems[key].push(item);
-      }
-    });
+    const sharedGroups = sharedGrouping.groupedStructure?.rootGroups || [];
+    if (sharedGroups.length > 0) {
+      sharedGroups.forEach((path) => {
+        groupedItems[path] = sharedGrouping.getItemsForGroup(path);
+      });
+    } else {
+      items.forEach(item => {
+        const key = item[groupByProp.id];
+        if (key && groupedItems[key]) groupedItems[key].push(item);
+      });
+    }
   } else {
     groupedItems['Toutes les données'] = items;
     columnColors['Toutes les données'] = '#8b5cf6';

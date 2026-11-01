@@ -14,6 +14,14 @@ export function migrateViewConfig(input: ViewDefinition): ViewDefinition {
     config.cardColorFieldId = legacyCardField;
   }
 
+  if (config.type === 'steamcards' && typeof config.cardStyle !== 'string') {
+    config.cardStyle = 'steamFullArt';
+  }
+
+  if (config.type === 'cards' && typeof config.cardStyle !== 'string') {
+    config.cardStyle = 'default';
+  }
+
   config.configVersion = CURRENT_VIEW_CONFIG_VERSION;
   return config;
 }

@@ -1,7 +1,8 @@
 import type { ComponentType } from 'react';
 import type { Collection, Item, Property } from '@/lib/types';
 
-export type ViewType = 'table' | 'cards' | 'steamcards' | 'kanban' | 'calendar' | 'layout';
+export type NativeViewType = 'table' | 'cards' | 'steamcards' | 'kanban' | 'calendar' | 'layout';
+export type ViewType = NativeViewType | (string & {});
 
 export interface ViewDefinition {
   id: string;
@@ -33,6 +34,16 @@ export interface ViewRenderContext {
 
 export interface ViewRendererProps extends ViewRenderContext {
   onUpdateView: (updates: Record<string, unknown>) => void;
+  views?: Record<string, ViewDefinition[]>;
+  relationFilter?: { collectionId: string | null; ids: string[] };
+  activeCollectionId?: string | null;
+  onEdit?: (item: Item) => void;
+  onDelete?: (id: string) => void;
+  onViewDetail?: (item: Item) => void;
+  onRelationChange?: (property: Property, item: Item, value: unknown) => void;
+  onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
+  onShowNewItemModal?: (prefill?: Record<string, unknown>) => void;
+  onShowNewItemModalForCollection?: (collection: Collection, item?: Item) => void;
   [key: string]: unknown;
 }
 

@@ -1,19 +1,135 @@
-import React from 'react';
-import TableView from './TableView';
+import React, { useCallback, useMemo } from 'react';
+import { Plus, Zap } from 'lucide-react';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import ViewShell from './ViewShell';
+import ViewGrouping from './ViewGrouping';
+import CardsGrid from './CardsGrid';
 import type { TableViewProps } from '@/lib/types';
+import { useCanEdit } from '@/lib/hooks/useCanEdit';
+import { useViewPagination } from '@/lib/hooks/useViewPagination';
 
 type CardsViewProps = Omit<TableViewProps, 'displayAsCards'> & {
   cardStyleFieldId?: string;
 };
 
-/**
- * Card renderer compatibility boundary.
- *
- * The implementation still reuses the table data/grouping pipeline while the
- * card-specific renderer is migrated out of the legacy component.
- */
-const CardsView: React.FC<CardsViewProps> = (props) => (
-  <TableView {...props} displayAsCards />
-);
+const CardsView: React.FC<CardsViewProps> = ({
+  collection,
+  items,
+  orderedProperties,
+  hiddenFields,
+  collections,
+  onEdit,
+  onViewDetail,
+  onRelationChange,
+  onNavigateToCollection,
+  groups = [],
+  onShowNewItemModal,
+  onQuickCreateItem,
+  initialExpandedGroups,
+  onExpandedGroupsChange,
+  groupDisplayMode = 'accordion',
+  groupDisplayModes = {},
+  groupDisplayColumnCount = 3,
+  groupDisplayColumnCounts = {},
+  cardStyleFieldId,
+  cardColumns = 'auto',
+}) => {
+  const canEdit = useCanEdit(collection.id);
+  const steamProperty = useMemo(
+    () => orderedProperties.find((property) => property.type === 'steam'),
+    [orderedProperties],
+  );
+  const styleProperty = useMemo(
+    () => collection.properties?.find((property) => property.id === cardStyleFieldId),
+    [collection.properties, cardStyleFieldId],
+  );
+  const visibleProperties = useMemo(
+    () => orderedProperties.filter((property) => property.id !== steamProperty?.id && !hiddenFields.includes(property.id)),
+    [hiddenFields, orderedProperties, steamProperty?.id],
+  );
+  const canEditField = useCallback(() => canEdit, [canEdit]);
+  const { rowsPerPage, page } = useViewPagination({
+    items,
+    groupedItemCount: items.length,
+    hasGroups: groups.length > 0,
+    resetKey: `${collection.id}|${groups.join(',')}`,
+  });
+  const paginateItems = useCallback((groupItems: typeof items) => {
+    const start = (page - 1) * rowsPerPage;
+    return groupItems.slice(start, start + rowsPerPage);
+  }, [page, rowsPerPage]);
+  const renderCards = useCallback((groupItems: typeof items) => (
+    <CardsGrid
+      items={groupItems}
+      cardColumns={cardColumns}
+      steamProperty={steamProperty}
+      styleProperty={styleProperty}
+      properties={visibleProperties}
+      collection={collection}
+      collections={collections}
+      canEdit={canEdit}
+      canEditField={canEditField}
+      onViewDetail={onViewDetail}
+      onEdit={onEdit}
+      onRelationChange={onRelationChange}
+      onNavigateToCollection={onNavigateToCollection}
+    />
+  ), [
+    canEdit,
+    canEditField,
+    cardColumns,
+    collection,
+    collections,
+    onEdit,
+    onNavigateToCollection,
+    onRelationChange,
+    onViewDetail,
+    steamProperty,
+    styleProperty,
+    visibleProperties,
+  ]);
+
+  const content = (
+    <ViewGrouping
+      items={items}
+      groups={groups}
+      properties={orderedProperties}
+      collections={collections}
+      initialExpandedGroups={initialExpandedGroups}
+      onExpandedGroupsChange={onExpandedGroupsChange}
+      groupDisplayMode={groupDisplayMode}
+      groupDisplayModes={groupDisplayModes}
+      groupDisplayColumnCount={groupDisplayColumnCount}
+      groupDisplayColumnCounts={groupDisplayColumnCounts}
+      paginateItems={paginateItems}
+      renderItems={renderCards}
+      className="min-h-0 flex-1 overflow-auto"
+    />
+  );
+  const wrappedContent = <ViewShell>{content}</ViewShell>;
+
+  if (!onShowNewItemModal && !onQuickCreateItem) return wrappedContent;
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild><div className="flex min-h-0 flex-1">{wrappedContent}</div></ContextMenuTrigger>
+      <ContextMenuContent className="min-w-[200px]">
+        <ContextMenuItem disabled={!canEdit || !onShowNewItemModal} onSelect={() => onShowNewItemModal?.()}>
+          <Plus size={14} className="mr-2 text-emerald-400" /> Nouveau {collection.name}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem disabled={!canEdit || !onQuickCreateItem} onSelect={() => onQuickCreateItem?.()}>
+          <Zap size={14} className="mr-2 text-amber-400" /> Création rapide
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+};
 
 export default CardsView;

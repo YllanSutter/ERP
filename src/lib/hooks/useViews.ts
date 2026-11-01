@@ -7,7 +7,9 @@ export const useViews = (
   activeView: string | null,
   setActiveView: (id: string) => void
 ) => {
-  const currentViews = activeCollection ? views[activeCollection] || [] : [];
+  const currentViews: any[] = activeCollection
+    ? (views[activeCollection] || []).map((view: any) => migrateViewConfig(view) as any)
+    : [];
   const currentViewConfig = currentViews.find((v: any) => v.id === activeView) || currentViews[0];
 
   const addView = (name: string, type: string, config?: any) => {
@@ -28,6 +30,8 @@ export const useViews = (
     }
     if (config?.dateProperty) newView.dateProperty = config.dateProperty;
     if (config?.cardStyleFieldId) newView.cardStyleFieldId = config.cardStyleFieldId;
+    if (config?.cardColorFieldId) newView.cardColorFieldId = config.cardColorFieldId;
+    if (config?.cardStyle) newView.cardStyle = config.cardStyle;
     if (config?.groupDisplayMode) newView.groupDisplayMode = config.groupDisplayMode;
     if (config?.groupDisplayColumnCount) newView.groupDisplayColumnCount = config.groupDisplayColumnCount;
 

@@ -6,10 +6,6 @@ import { io } from 'socket.io-client';
 import { useErpSync } from '@/lib/useErpSync';
 import { motion } from 'framer-motion';
 import { Plus, Zap } from 'lucide-react';
-import KanbanView from '@/components/views/KanbanView';
-import CalendarView from '@/components/views/CalendarView';
-import TableView from '@/components/views/TableView';
-import CardsView from '@/components/views/CardsView';
 import { ViewRendererHost } from '@/components/views/ViewRendererHost';
 import { getViewRegistration } from '@/lib/views';
 import ShinyButton from '@/components/ui/ShinyButton';
@@ -21,7 +17,7 @@ import Sidebar from '@/components/menus/Sidebar';
 import CommandMenu from '@/components/menus/CommandMenu';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import ViewToolbar from '@/components/views/ViewToolbar';
-import LayoutView from '@/components/views/LayoutView';
+import ViewShell from '@/components/views/ViewShell';
 import { useAuth } from '@/auth/AuthProvider';
 import NewCollectionModal from '@/components/modals/NewCollectionModal';
 import EditCollectionModal from '@/components/modals/EditCollectionModal';
@@ -31,7 +27,8 @@ import FilterModal from '@/components/modals/FilterModal';
 import GroupModal from '@/components/modals/GroupModal';
 import NewViewModal from '@/components/modals/NewViewModal';
 import ViewVisibilityModal from '@/components/modals/ViewVisibilityModal';
-import DashboardView from '@/components/dashboard/DashboardView';
+import { getDashboardRegistration } from '@/lib/dashboardRegistry';
+import { defaultDashboardRegistration } from '@/components/dashboard/DashboardRendererHost';
 import { API_URL, defaultCollections, defaultDashboards, defaultViews } from '@/lib/constants';
 import { useErpState } from '@/lib/useErpState';
 import { useCanEdit, useCanEditField, useCanManagePermissions } from '@/lib/hooks/useCanEdit';
@@ -264,6 +261,7 @@ const App = () => {
   );
   const { currentViews } = viewHooks;
   const activeDashboardConfig = dashboards.find((d) => d.id === activeDashboard) || null;
+  const dashboardRegistration = getDashboardRegistration() || defaultDashboardRegistration;
 
 
 
@@ -593,7 +591,6 @@ const App = () => {
       ),
     [currentCollection, activeViewConfig, relationFilter, activeCollection, collectionsWithCalculatedFields]
   );
-  const ActiveViewRenderer = activeViewConfig?.type === 'steamcards' ? CardsView : TableView;
   const activeViewRegistration = getViewRegistration(activeViewConfig?.type);
 
   if (authLoading) {
@@ -707,7 +704,7 @@ const App = () => {
           {showAutomations ? (
             <AutomationsPage collections={collections} />
           ) : activeDashboard ? (
-            <DashboardView
+            <dashboardRegistration.Renderer
               dashboard={activeDashboardConfig}
               collections={collections}
               onUpdate={(patch) => activeDashboard && handleUpdateDashboard(activeDashboard, patch)}
@@ -768,7 +765,7 @@ const App = () => {
               </div>
             </motion.div>
           ) : (
-            <>
+            <ViewShell>
               <ViewToolbar
                 currentCollection={currentCollection}
                 currentViews={visibleViews}
@@ -906,150 +903,11 @@ const App = () => {
                     transition={{ delay: 0.2 }}
                     className="min-w-0 flex-1 overflow-auto p-2 sm:p-4 lg:p-6 z-[1]"
                   >
-                {activeViewConfig?.type === 'kanban' && (
-                  <KanbanView
-                    collection={currentCollection}
-                    items={filteredItems}
-                    onEdit={(item: any) => itemHooks.updateItem(item)}
-                    onDelete={itemHooks.deleteItem}
-                    onViewDetail={(item: any) => {
-                      const itemCollection = collectionsWithCalculatedFields.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
-                      setEditingItem(item);
-                      setModalCollection(itemCollection || null);
-                      setShowNewItemModal(true);
-                    }}
-                    groupBy={activeViewConfig?.groupBy}
-                    hiddenFields={activeViewConfig?.hiddenFields || []}
-                    filters={activeViewConfig?.filters || []}
-                    orderedProperties={orderedProperties}
-                    onChangeGroupBy={(groupBy: string) => {
-                      const updatedViews = { ...views } as Record<string, any[]>;
-                      const viewIndex = updatedViews[activeCollection].findIndex(
-                        (v) => v.id === activeView
-                      );
-                      updatedViews[activeCollection][viewIndex].groupBy = groupBy;
-                      setViews(updatedViews);
-                    }}
-                    collections={collectionsWithCalculatedFields}
-                    onRelationChange={(prop: any, item: any, val: any) => {
-                      const updatedItem = { ...item, [prop.id]: val };
-                      itemHooks.updateItem(updatedItem);
-                    }}
-                    onNavigateToCollection={handleNavigateToCollection}
-                    columnSettings={activeViewConfig?.kanbanColumnSettings || {}}
-                    showFieldsOnHover={Boolean(activeViewConfig?.kanbanShowFieldsOnHover)}
-                    onUpdateViewConfig={(updates: Record<string, any>) => {
-                      if (!activeView) return;
-                      viewHooks.updateView(activeView, updates);
-                    }}
-                    onShowNewItemModal={(prefill) => { if (prefill && Object.keys(prefill).length > 0) { setEditingItem(prefill); setGroupContext(prefill); } setShowNewItemModal(true); }}
-                  />
-                )}
-                {activeViewConfig?.type === 'calendar' && (
-                  <CalendarView
-                    collection={currentCollection}
-                    items={filteredItems}
-                    onEdit={(item: any) => itemHooks.updateItem(item)}
-                    onDelete={itemHooks.deleteItem}
-                    onViewDetail={(item: any) => {
-                      const itemCollection = collectionsWithCalculatedFields.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
-                      setEditingItem(item);
-                      setModalCollection(itemCollection || null);
-                      setShowNewItemModal(true);
-                    }}
-                    onRelationChange={(prop: any, item: any, val: any) => {
-                      const updatedItem = { ...item, [prop.id]: val };
-                      itemHooks.updateItem(updatedItem);
-                    }}
-                    dateProperty={activeViewConfig?.dateProperty}
-                    hiddenFields={activeViewConfig?.hiddenFields || []}
-                    collections={collectionsWithCalculatedFields}
-                    viewConfig={activeViewConfig}
-                    showCollectionsSelector={activeViewConfig?.showCollectionsSelector !== false}
-                    views={views}
-                    relationFilter={relationFilter}
-                    activeCollectionId={activeCollection}
-                    onChangeDateProperty={(propId: string) => {
-                      const updatedViews = { ...views } as Record<string, any[]>;
-                      const viewIndex = updatedViews[activeCollection].findIndex(
-                        (v) => v.id === activeView
-                      );
-                      updatedViews[activeCollection][viewIndex].dateProperty = propId;
-                      setViews(updatedViews);
-                    }}
-                    onUpdateViewConfig={(updates: Record<string, any>) => {
-                      if (!activeCollection) return;
-                      const updatedViews = { ...views } as Record<string, any[]>;
-                      const viewIndex = updatedViews[activeCollection].findIndex(
-                        (v) => v.id === activeView
-                      );
-                      if (viewIndex === -1) return;
-                      updatedViews[activeCollection][viewIndex] = {
-                        ...updatedViews[activeCollection][viewIndex],
-                        ...updates,
-                      };
-                      setViews(updatedViews);
-                    }}
-                    onShowNewItemModalForCollection={(collection, item) => {
-                      setModalCollection(collection);
-                      setEditingItem(item || null);
-                      setShowNewItemModal(true);
-                    }}
-                  />
-                )}
-                {activeViewConfig?.type === 'layout' && (
-                  <LayoutView
-                    viewConfig={activeViewConfig}
-                    collection={currentCollection}
-                    collections={collectionsWithCalculatedFields}
-                    views={views}
-                    items={filteredItems}
-                    orderedProperties={orderedProperties}
-                    relationFilter={relationFilter}
-                    activeCollectionId={activeCollection}
-                    onEdit={(item: any) => itemHooks.updateItem(item)}
-                    onDelete={itemHooks.deleteItem}
-                    onViewDetail={(item: any) => {
-                      const itemCollection = collectionsWithCalculatedFields.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
-                      setEditingItem(item);
-                      setModalCollection(itemCollection || null);
-                      setShowNewItemModal(true);
-                    }}
-                    onRelationChange={(prop: any, item: any, val: any) => {
-                      const updatedItem = { ...item, [prop.id]: val };
-                      itemHooks.updateItem(updatedItem);
-                    }}
-                    onUpdateViewConfig={(viewId, updates) => {
-                      if (!activeCollection) return;
-                      const updatedViews = { ...views } as Record<string, any[]>;
-                      const viewIndex = updatedViews[activeCollection].findIndex((v) => v.id === viewId);
-                      if (viewIndex === -1) return;
-                      updatedViews[activeCollection][viewIndex] = {
-                        ...updatedViews[activeCollection][viewIndex],
-                        ...updates,
-                      };
-                      setViews(updatedViews);
-                    }}
-                    onShowNewItemModalForCollection={(collection, item) => {
-                      setModalCollection(collection);
-                      setEditingItem(item || null);
-                      setShowNewItemModal(true);
-                    }}
-                    onBulkImportItad={isSteamPluginActive ? handleBulkImportItad : undefined}
-                  />
-                )}
                 {activeViewRegistration.Renderer && activeViewConfig && currentCollection && (
                   <ViewRendererHost
                     view={activeViewConfig}
-                    collection={currentCollection}
-                    collections={collectionsWithCalculatedFields}
-                    items={filteredItems}
                     properties={orderedProperties}
                     onUpdateView={(updates) => viewHooks.updateView(activeViewConfig.id, updates)}
-                  />
-                )}
-                {(activeViewConfig?.type === 'table' || activeViewConfig?.type === 'steamcards') && (
-                  <ActiveViewRenderer
                     collection={currentCollection}
                     items={filteredItems}
                     favoriteItemIds={favorites.items}
@@ -1114,16 +972,16 @@ const App = () => {
                     groupDisplayColumnCounts={activeViewConfig?.groupDisplayColumnCounts || {}}
                     groupTabStyleFieldIds={activeViewConfig?.groupTabStyleFieldIds || {}}
                     groupTotalsByGroupId={activeViewConfig?.groupTotalsByGroupId || {}}
-                    onShowNewItemModal={(prefill) => { if (prefill && Object.keys(prefill).length > 0) { setEditingItem(prefill); setGroupContext(prefill); } setShowNewItemModal(true); }}
-                    onGroupContextChange={(prefill) => { console.log('[GroupContext] set from TableView:', prefill); setGroupContext(prefill); }}
+                    onShowNewItemModal={(prefill?: Record<string, any>) => { if (prefill && Object.keys(prefill).length > 0) { setEditingItem(prefill); setGroupContext(prefill); } setShowNewItemModal(true); }}
+                    onGroupContextChange={(prefill: Record<string, any> | null) => { console.log('[GroupContext] set from TableView:', prefill); setGroupContext(prefill); }}
                     onQuickCreateItem={handleQuickCreateItem}
                     initialSortState={activeViewConfig?.tableSortState || { column: null, direction: 'asc' }}
-                    onSortStateChange={(state) => {
+                    onSortStateChange={(state: { column: string | null; direction: 'asc' | 'desc' }) => {
                       if (!activeView) return;
                       viewHooks.updateView(activeView, { tableSortState: state });
                     }}
                     initialExpandedGroups={activeViewConfig?.expandedGroups}
-                    onExpandedGroupsChange={(groupPaths) => {
+                    onExpandedGroupsChange={(groupPaths: string[]) => {
                       if (!activeView) return;
                       viewHooks.updateView(activeView, { expandedGroups: groupPaths });
                     }}
@@ -1164,7 +1022,7 @@ const App = () => {
                   </ContextMenuItem>
                 </ContextMenuContent>
               </ContextMenu>
-            </>
+            </ViewShell>
           )}
         </SidebarInset>
       </SidebarProvider>
