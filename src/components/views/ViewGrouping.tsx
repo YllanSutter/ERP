@@ -7,6 +7,10 @@ import { useGrouping } from '@/lib/hooks/useGrouping';
 import type { Collection, Item, Property, TableGroupDisplayMode } from '@/lib/types';
 import { countItemsInGroup, getGroupLabel } from '@/lib/groupingUtils';
 
+// TabsContent is a general-purpose panel with a border and generous padding.
+// In a view grouping, the renderer already owns its surface (table, cards, etc.).
+const groupedTabsContentClass = 'mt-2 rounded-none border-0 p-0';
+
 interface ViewGroupingProps {
   items: Item[];
   groups: string[];
@@ -95,7 +99,10 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
         const children = groupedStructure.structure[path]?.subGroups || [];
         if (!children.length) break;
         const mode = groupDisplayModes[groups[depth]] || 'accordion';
-        if (mode !== 'select') break;
+        if (mode !== 'select') {
+          if (mode === 'tabs') return activeTabs[path] && children.includes(activeTabs[path]) ? activeTabs[path] : children[0];
+          break;
+        }
         path = activeSelects[depth] && children.includes(activeSelects[depth]) ? activeSelects[depth] : children[0];
       }
       return path;
@@ -150,7 +157,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
             activeId={activeTab}
           />
           {children.map((child) => (
-            <TabsContent key={child} value={child}>{renderRecursive(child)}</TabsContent>
+            <TabsContent key={child} value={child} className={groupedTabsContentClass}>{renderRecursive(child)}</TabsContent>
           ))}
         </Tabs>
       ) : childMode === 'select' ? (
@@ -183,7 +190,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
       ) : children.map((child) => renderRecursive(child));
 
       return (
-        <section key={path} className="space-y-2">
+        <section key={path} className="space-y-2 px-3 py-2">
           <GroupHeader
             onClick={() => collapsible && toggleGroup(path)}
             collapsible={collapsible}
@@ -217,7 +224,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
 
   if (!groupedStructure || groups.length === 0) {
     return (
-      <div className={`p-3 ${className || ''}`}>
+      <div className={className || ''}>
         {renderItems(paginateItems ? paginateItems(items) : items)}
       </div>
     );
@@ -237,10 +244,10 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
 
   if (rootMode === 'tabs') {
     return (
-      <div className={`p-3 ${className || ''}`}>
+      <div className={className || ''}>
         <Tabs value={activeRoot} onValueChange={(next) => setActiveTabs((previous) => ({ ...previous, root: next }))}>
           <ViewGroupTabs items={rootTabs} activeId={activeRoot} />
-          {roots.map((root) => <TabsContent key={root} value={root}>{renderGroup(root)}</TabsContent>)}
+          {roots.map((root) => <TabsContent key={root} value={root} className={groupedTabsContentClass}>{renderGroup(root)}</TabsContent>)}
         </Tabs>
       </div>
     );
@@ -280,54 +287,90 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
       currentOptions = groupedStructure.structure[selectedId]?.subGroups || [];
     }
 
-    return (
-      <div className={`space-y-3 p-3 ${className || ''}`}>
-        <div
-          className="grid gap-2"
-          style={{ gridTemplateColumns: `repeat(${Math.max(selectLevels.length, 1)}, minmax(180px, 1fr))` }}
+    const children = groupedStructure.structure[selectedPath]?.subGroups || [];
+    const nextGroupId = groups[selectLevels.length];
+    const nextMode = nextGroupId ? groupDisplayModes[nextGroupId] || 'accordion' : 'accordion';
+    const renderDirectItems = (path: string) => {
+      const directItems = (groupedStructure.structure[path]?.itemIds || [])
+        .map((id) => itemsMap.get(id))
+        .filter((item): item is Item => Boolean(item));
+      return renderItems(paginateItems ? paginateItems(directItems) : directItems);
+    };
+    const tabbedChildren = children.length > 0 && nextMode === 'tabs';
+    const activeTab = tabbedChildren
+      ? (activeTabs[selectedPath] && children.includes(activeTabs[selectedPath]) ? activeTabs[selectedPath] : children[0])
+      : undefined;
+    const childProperty = properties.find((property) => property.id === nextGroupId);
+    const groupSelectors = (
+      <div className="flex shrink-0 flex-nowrap items-end gap-2">
+        {selectLevels.map((level) => (
+          <div key={`group-select-${level.depth}`} className="w-40 shrink-0">
+            <Select
+              value={level.selectedId}
+              onValueChange={(next) => setActiveSelects((previous) => {
+                const nextState = { ...previous, [level.depth]: next };
+                Object.keys(nextState).forEach((key) => {
+                  if (Number(key) > level.depth) delete nextState[Number(key)];
+                });
+                return nextState;
+              })}
+            >
+              <SelectTrigger aria-label={level.property.name} className="h-9 w-full bg-transparent text-sm shadow-none"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {level.options.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label} ({option.itemCount})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </div>
+    );
+
+    if (tabbedChildren && activeTab) {
+      return (
+        <Tabs
+          value={activeTab}
+          onValueChange={(next) => setActiveTabs((previous) => ({ ...previous, [selectedPath]: next }))}
+          className={className || ''}
         >
-          {selectLevels.map((level) => (
-            <div key={`group-select-${level.depth}`} className="min-w-0">
-              <label className="mb-1 block truncate text-[11px] text-neutral-500 dark:text-neutral-400">
-                {level.property.name}
-              </label>
-              <Select
-                value={level.selectedId}
-                onValueChange={(next) => setActiveSelects((previous) => {
-                  const nextState = { ...previous, [level.depth]: next };
-                  Object.keys(nextState).forEach((key) => {
-                    if (Number(key) > level.depth) delete nextState[Number(key)];
-                  });
-                  return nextState;
-                })}
-              >
-                <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {level.options.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label} ({option.itemCount})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ))}
-        </div>
-        {renderGroup(selectedPath)}
+          <div className="flex min-w-0 items-end justify-between gap-3 overflow-x-auto px-3 py-2">
+            {groupSelectors}
+            <ViewGroupTabs
+              className="ml-auto shrink-0"
+              items={children.map((path) => ({
+                id: path,
+                label: childProperty ? getGroupLabel(childProperty, path.split('/').pop() === '(vide)' ? undefined : path.split('/').pop(), collections) : path.split('/').pop() || path,
+                itemCount: countItemsInGroup(path, groupedStructure.structure),
+              }))}
+              activeId={activeTab}
+            />
+          </div>
+          {children.map((path) => <TabsContent key={path} value={path} className={groupedTabsContentClass}>{renderDirectItems(path)}</TabsContent>)}
+        </Tabs>
+      );
+    }
+
+    return (
+      <div className={className || ''}>
+        {groupSelectors}
+        {renderDirectItems(selectedPath)}
       </div>
     );
   }
 
   if (rootMode === 'columns') {
     return (
-      <div className={`grid gap-4 p-3 ${getColumnsClassName(groups[0])} ${className || ''}`}>
+      <div className={`grid gap-4 ${getColumnsClassName(groups[0])} ${className || ''}`}>
         {roots.map((root) => <div key={root} className="min-w-0">{renderGroup(root)}</div>)}
       </div>
     );
   }
 
   return (
-    <div className={`space-y-3 p-3 ${className || ''}`}>
+    <div className={`space-y-3 ${className || ''}`}>
       {roots.map((root) => (
         <div key={root}>{renderGroup(root)}</div>
       ))}

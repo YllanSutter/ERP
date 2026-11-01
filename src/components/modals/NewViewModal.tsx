@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ModalWrapper, { FormField, FormInput, FormSelect, FormCheckbox } from '@/components/ui/ModalWrapper';
 import { VIEW_TYPES, type TableGroupColumnCount, type TableGroupDisplayMode } from '@/components/modals/modalLib';
 import { cn } from '@/lib/utils';
+import LayoutPanelsEditor from '@/components/views/LayoutPanelsEditor';
 
 interface NewViewModalProps {
   onClose: () => void;
@@ -161,77 +162,7 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
           </FormField>
         )}
 
-        {type === 'layout' && (
-          <div className="space-y-3">
-            <div className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Vues à combiner</div>
-            {layoutPanels.map((panel, idx) => (
-              <div key={panel.id || idx} className="flex items-center gap-2">
-                <FormSelect
-                  value={panel.collectionId || collection?.id || ''}
-                  onChange={(v) => {
-                    const next = [...layoutPanels];
-                    next[idx] = { ...next[idx], collectionId: v, viewId: '' };
-                    setLayoutPanels(next);
-                  }}
-                  className="w-40"
-                  options={[
-                    { value: '', label: 'Collection…' },
-                    ...collectionOptions.map((col: any) => ({ value: col.id, label: col.name })),
-                  ]}
-                />
-                <FormSelect
-                  value={panel.viewId || ''}
-                  onChange={(v) => {
-                    const next = [...layoutPanels];
-                    next[idx] = { ...next[idx], viewId: v };
-                    setLayoutPanels(next);
-                  }}
-                  className="flex-1"
-                  options={[
-                    { value: '', label: 'Choisir une vue…' },
-                    ...(allViews[panel.collectionId || collection?.id || ''] || availableViews)
-                      .filter((v: any) => v.type !== 'layout')
-                      .map((v: any) => ({ value: v.id, label: v.name })),
-                  ]}
-                />
-                <FormSelect
-                  value={String(panel.colSpan || 6)}
-                  onChange={(v) => {
-                    const next = [...layoutPanels];
-                    next[idx] = { ...next[idx], colSpan: Number(v) };
-                    setLayoutPanels(next);
-                  }}
-                  className="w-20"
-                  options={[3, 4, 6, 8, 12].map((n) => ({ value: String(n), label: `${n}/12` }))}
-                />
-                <FormSelect
-                  value={String(panel.rowSpan || 2)}
-                  onChange={(v) => {
-                    const next = [...layoutPanels];
-                    next[idx] = { ...next[idx], rowSpan: Number(v) };
-                    setLayoutPanels(next);
-                  }}
-                  className="w-20"
-                  options={[1, 2, 3, 4].map((n) => ({ value: String(n), label: `${n}L` }))}
-                />
-                <button
-                  type="button"
-                  onClick={() => setLayoutPanels((prev) => prev.filter((_, i) => i !== idx))}
-                  className="px-2 py-2 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={() => setLayoutPanels((prev) => ([...prev, { id: Date.now().toString(), collectionId: collection?.id || '', viewId: '', colSpan: 6, rowSpan: 2 }]))}
-              className="px-3 py-2 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-sm"
-            >
-              + Ajouter un panneau
-            </button>
-          </div>
-        )}
+        {type === 'layout' && <LayoutPanelsEditor panels={layoutPanels} onChange={setLayoutPanels} collection={collection} collections={collectionOptions} views={allViews} availableViews={availableViews} />}
       </div>
     </ModalWrapper>
   );

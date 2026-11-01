@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import LayoutPanelsEditor, { type LayoutPanelConfig } from './LayoutPanelsEditor';
 
 const fieldClassName =
   'h-8 min-w-0 rounded-md border border-black/10 bg-white/70 px-2.5 text-xs text-neutral-800 outline-none transition-colors hover:border-violet-400/60 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200';
@@ -197,17 +198,18 @@ export const CalendarViewSettings: React.FC<ViewSettingsProps> = ({ view, proper
   </div>
 );
 
-export const LayoutViewSettings: React.FC<ViewSettingsProps> = ({ view, onUpdate }) => (
-  <div className="grid gap-2 sm:grid-cols-2">
-    <SettingsToggle
-      label="Panneaux redimensionnables"
-      checked={view.layoutResizable !== false}
-      onChange={(checked) => onUpdate({ layoutResizable: checked })}
-    />
-    <SettingsToggle
-      label="Adapter la hauteur au contenu"
-      checked={Boolean(view.layoutAutoHeight)}
-      onChange={(checked) => onUpdate({ layoutAutoHeight: checked })}
-    />
-  </div>
-);
+export const LayoutViewSettings: React.FC<ViewSettingsProps> = ({ view, collection, collections, views, onUpdate }) => {
+  const panels = Array.isArray(view.layoutPanels) ? view.layoutPanels as LayoutPanelConfig[] : [];
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <SettingsToggle label="Panneaux redimensionnables" checked={view.layoutResizable !== false} onChange={(checked) => onUpdate({ layoutResizable: checked })} />
+        <SettingsToggle label="Adapter la hauteur au contenu" checked={Boolean(view.layoutAutoHeight)} onChange={(checked) => onUpdate({ layoutAutoHeight: checked })} />
+      </div>
+      <div className="space-y-2 border-t border-black/10 pt-3 dark:border-white/10">
+        <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">Vues à combiner</p>
+        <LayoutPanelsEditor panels={panels} onChange={(layoutPanels) => onUpdate({ layoutPanels })} collection={collection} collections={collections} views={views} />
+      </div>
+    </div>
+  );
+};

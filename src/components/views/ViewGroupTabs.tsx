@@ -17,7 +17,7 @@ interface ViewGroupTabsProps {
 }
 
 const ViewGroupTabs: React.FC<ViewGroupTabsProps> = ({ items, activeId, className = '' }) => (
-  <TabsList className={`h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0 ${className}`}>
+  <TabsList className={`flex h-auto w-fit max-w-full flex-wrap justify-end gap-1 bg-transparent p-0 ${className}`}>
     {items.map((item) => {
       const GroupIcon = item.icon ? (Icons as any)[item.icon] : null;
       const isActive = activeId === item.id;

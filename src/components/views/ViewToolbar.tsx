@@ -50,6 +50,7 @@ interface ViewToolbarProps {
   activeView: string | null;
   orderedProperties: any[];
   collections: any[];
+  allViews?: Record<string, any[]>;
   showViewSettings: boolean;
   relationFilter: { collectionId: string | null; ids: string[] };
   activeCollection: string | null;
@@ -92,6 +93,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   activeView,
   orderedProperties,
   collections,
+  allViews,
   showViewSettings,
   relationFilter,
   activeCollection,
@@ -622,6 +624,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     view={currentViewConfig}
                     collection={currentCollection}
                     properties={orderedProperties}
+                    collections={collections}
+                    views={allViews}
                     onUpdate={onUpdateViewConfig}
                   />
                   <div className="flex items-center justify-between mb-3">
@@ -1010,6 +1014,23 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             </AnimatePresence>
               </div>
             </>
+          )}
+
+          {currentViewConfig?.type === 'layout' && (
+            <div className="relative" ref={settingsRef}>
+              <ToolbarButton onClick={() => onSetShowViewSettings(!showViewSettings)} active={showViewSettings}>
+                <Settings size={14} />
+                Paramètres
+              </ToolbarButton>
+              <AnimatePresence>
+                {showViewSettings && (
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="view-settings-panel absolute left-0 top-full z-[140] -mt-2 w-[520px] max-w-[calc(100vw-1rem)] rounded-[var(--view-control-radius)] border border-black/10 bg-gray-200 p-4 backdrop-blur dark:border-white/10 dark:bg-neutral-900">
+                    <ViewSettingsPanel view={currentViewConfig} collection={currentCollection} properties={orderedProperties} collections={collections} views={allViews} onUpdate={onUpdateViewConfig} />
+                    <div className="flex justify-end"><IconButton onClick={() => onSetShowViewSettings(false)} label="Fermer les paramètres" className="h-7 w-7 text-neutral-700 dark:text-neutral-500 hover:text-black dark:hover:text-white"><X size={14} /></IconButton></div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           )}
 
           {currentViewConfig?.filters.map((filter: any, idx: number) => {

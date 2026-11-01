@@ -1121,7 +1121,7 @@ const TableView: React.FC<TableViewProps> = ({
       })()}
 
       <div className="overflow-hidden rounded-lg border border-black/10 dark:border-white/5">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20 sticky top-0 z-20">
+        <div className="flex  flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20 sticky top-0 z-20">
           <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
             <span>{items.length} ligne{items.length > 1 ? 's' : ''}</span>
             {groups.length > 0 && (

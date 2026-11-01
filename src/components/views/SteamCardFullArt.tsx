@@ -157,8 +157,20 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
       onDrop={(event) => { if (!draggable) return; event.preventDefault(); onDropOnItem(item.id); }}
       onDragEnd={onDragEnd}
     >
-      <label className="absolute left-3 top-3 z-30 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-black/55 shadow ring-1 ring-white/50" onClick={(event) => event.stopPropagation()} onDragStart={(event) => event.preventDefault()}>
-        <Checkbox aria-label={`Sélectionner ${title}`} checked={selected} onChange={(event) => onSelectionChange(item.id, event.target.checked)} className="h-3.5 w-3.5 accent-[var(--or)]" />
+      <label
+        className={`absolute left-[4%] top-[4%] z-30 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-white/40 bg-black/45 shadow-sm backdrop-blur-sm transition-[opacity,background-color,border-color] ${selected ? 'pointer-events-auto border-[var(--or)] bg-[var(--or)]/90 opacity-100' : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100'}`}
+        onClick={(event) => event.stopPropagation()}
+        onDragStart={(event) => event.preventDefault()}
+      >
+        <Checkbox
+          aria-label={`Sélectionner ${title}`}
+          checked={selected}
+          onChange={(event) => onSelectionChange(item.id, event.target.checked)}
+          className="peer sr-only"
+        />
+        <span className="flex h-4 w-4 items-center justify-center rounded-[3px] border border-white/75 bg-black/20 text-white transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-white peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-black/50 peer-checked:border-white peer-checked:bg-white/15">
+          <Icons.Check className={`h-3 w-3 transition-opacity ${selected ? 'opacity-100' : 'opacity-0'}`} strokeWidth={3} />
+        </span>
       </label>
       {/* Art, laid under the frame; the SVG masks its corners and lower part */}
       <div className="absolute left-[2.4%] top-[1.7%] h-[96.6%] w-[95.2%] overflow-hidden">

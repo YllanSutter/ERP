@@ -51,6 +51,8 @@ export interface ViewSettingsProps {
   view: ViewDefinition;
   collection: Collection;
   properties: Property[];
+  collections?: Collection[];
+  views?: Record<string, ViewDefinition[]>;
   onUpdate: (updates: Record<string, unknown>) => void;
 }
 

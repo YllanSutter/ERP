@@ -1,7 +1,6 @@
 import React from 'react';
 import type { Collection, Item, Property } from '@/lib/types';
 import SteamCardFullArt from '@/components/views/SteamCardFullArt';
-import { Checkbox } from '@/components/ui/checkbox';
 
 interface CardsGridProps {
   items: Item[];
@@ -23,7 +22,6 @@ interface CardsGridProps {
   onNavigateToCollection: (collectionId: string, linkedIds?: string[]) => void;
   selectedItemIds: Set<string>;
   onSelectionChange: (itemId: string, checked: boolean) => void;
-  onSelectAll: (checked: boolean) => void;
   canReorder: boolean;
   dragItemId: string | null;
   onDragStart: (itemId: string) => void;
@@ -51,7 +49,6 @@ const CardsGrid: React.FC<CardsGridProps> = ({
   onNavigateToCollection,
   selectedItemIds,
   onSelectionChange,
-  onSelectAll,
   canReorder,
   dragItemId,
   onDragStart,
@@ -71,10 +68,6 @@ const CardsGrid: React.FC<CardsGridProps> = ({
 
   return (
     <div>
-      <label className="mb-1 flex w-fit cursor-pointer items-center gap-2 px-2 text-xs text-muted-foreground">
-        <Checkbox aria-label="Sélectionner toutes les cartes affichées" checked={items.length > 0 && items.every((item) => selectedItemIds.has(item.id))} indeterminate={items.some((item) => selectedItemIds.has(item.id)) && !items.every((item) => selectedItemIds.has(item.id))} onChange={(event) => onSelectAll(event.target.checked)} />
-        Tout sélectionner
-      </label>
       <div className={`grid ${densityGap} ${cardColumns === 'auto' ? 'grid-cols-[repeat(auto-fill,minmax(250px,1fr))]' : columnClassName}`}>
       {items.map((item) => (
         <SteamCardFullArt
