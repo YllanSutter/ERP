@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getViewRegistrations } from '@/lib/views';
+import ViewSettingsPanel from '@/components/views/ViewSettingsPanel';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import ShinyButton from '@/components/ui/ShinyButton';
 import DraggableList from '@/components/inputs/DraggableList';
@@ -74,6 +76,7 @@ interface ViewToolbarProps {
   /** Met à jour les groupes de champs de la vue courante */
   onUpdateFieldGroups: (groups: FieldGroup[]) => void;
   onUpdateFieldGroupsLayout: (layout: FieldGroupsLayout) => void;
+  onUpdateViewConfig: (updates: Record<string, unknown>) => void;
 }
 
 const ViewToolbar: React.FC<ViewToolbarProps> = ({
@@ -114,6 +117,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onOpenItemFromSearch,
   onUpdateFieldGroups,
   onUpdateFieldGroupsLayout,
+  onUpdateViewConfig,
 }) => {
   const settingsRef = useRef<HTMLDivElement>(null);
   
@@ -279,13 +283,18 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
     return { collection: selectedCollection, items: filtered };
   }, [activeCollections, activeSearchCollectionId, searchQuery]);
 
-  const viewTypeMeta = [
-    { type: 'table', label: 'Tableau', icon: Table },
-    { type: 'kanban', label: 'Kanban', icon: Columns },
-    { type: 'calendar', label: 'Calendrier', icon: CalendarIcon },
-    { type: 'layout', label: 'Layout', icon: Layers },
-    { type: 'steamcards', label: 'Cartes', icon: LayoutGrid }
-  ];
+  const viewIcons = {
+    table: Table,
+    cards: LayoutGrid,
+    steamcards: LayoutGrid,
+    kanban: Columns,
+    calendar: CalendarIcon,
+    layout: Layers,
+  } as const;
+  const viewTypeMeta = getViewRegistrations().map((registration) => ({
+    ...registration,
+    icon: viewIcons[registration.type],
+  }));
 
   const viewsByType = useMemo(() => {
     const grouped = new Map<string, any[]>();
@@ -606,6 +615,12 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                   exit={{ opacity: 0, y: 10 }}
                   className="absolute top-full -mt-2 left-0 w-[420px] max-w-[calc(100vw-1rem)] bg-gray-200 dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-lg shadow-xl backdrop-blur z-[140] p-4"
                 >
+                  <ViewSettingsPanel
+                    view={currentViewConfig}
+                    collection={currentCollection}
+                    properties={orderedProperties}
+                    onUpdate={onUpdateViewConfig}
+                  />
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold text-black dark:text-white">Colonnes visibles</h4>
                     <div className="flex items-center gap-2">

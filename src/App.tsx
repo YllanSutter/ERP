@@ -9,6 +9,7 @@ import { Plus, Zap } from 'lucide-react';
 import KanbanView from '@/components/views/KanbanView';
 import CalendarView from '@/components/views/CalendarView';
 import TableView from '@/components/views/TableView';
+import CardsView from '@/components/views/CardsView';
 import ShinyButton from '@/components/ui/ShinyButton';
 import LoginPage from '@/components/pages/LoginPage';
 import AutomationsPage from '@/components/pages/AutomationsPage';
@@ -566,6 +567,7 @@ const App = () => {
       ),
     [currentCollection, activeViewConfig, relationFilter, activeCollection, collectionsWithCalculatedFields]
   );
+  const ActiveViewRenderer = activeViewConfig?.type === 'steamcards' ? CardsView : TableView;
 
   if (authLoading) {
     return (
@@ -859,6 +861,9 @@ const App = () => {
                     })),
                   });
                 }}
+                onUpdateViewConfig={(updates) => {
+                  if (activeView) viewHooks.updateView(activeView, updates);
+                }}
                 onOpenItemFromSearch={(collection, item) => {
                   setEditingItem(item);
                   setModalCollection(collection || null);
@@ -933,6 +938,7 @@ const App = () => {
                     hiddenFields={activeViewConfig?.hiddenFields || []}
                     collections={collectionsWithCalculatedFields}
                     viewConfig={activeViewConfig}
+                    showCollectionsSelector={activeViewConfig?.showCollectionsSelector !== false}
                     views={views}
                     relationFilter={relationFilter}
                     activeCollectionId={activeCollection}
@@ -1006,7 +1012,7 @@ const App = () => {
                   />
                 )}
                 {(activeViewConfig?.type === 'table' || activeViewConfig?.type === 'steamcards') && (
-                  <TableView
+                  <ActiveViewRenderer
                     collection={currentCollection}
                     items={filteredItems}
                     favoriteItemIds={favorites.items}
@@ -1087,8 +1093,12 @@ const App = () => {
                     totalFields={activeViewConfig?.totalFields || {}}
                     onBulkImportItad={isSteamPluginActive ? handleBulkImportItad : undefined}
                     onReorderField={viewHooks.updateViewFieldOrder}
-                    displayAsCards={activeViewConfig?.type === 'steamcards'}
-                    cardStyleFieldId={activeViewConfig?.cardStyleFieldId}
+                    cardStyleFieldId={
+                      activeViewConfig?.cardColorFieldId ||
+                      activeViewConfig?.cardIconFieldId ||
+                      activeViewConfig?.cardStyleFieldId
+                    }
+                    cardColumns={activeViewConfig?.cardColumns || 'auto'}
                   />
                 )}
               </motion.div>

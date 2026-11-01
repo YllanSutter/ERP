@@ -121,4 +121,5 @@ export interface TableViewProps {
   onReorderField?: (newOrder: string[]) => void;
   displayAsCards?: boolean;
   cardStyleFieldId?: string;
+  cardColumns?: number | 'auto';
 }

@@ -1,3 +1,5 @@
+import { migrateViewConfig } from '@/lib/views';
+
 export const useViews = (
   views: Record<string, any[]>,
   setViews: (views: Record<string, any[]>) => void,
@@ -138,10 +140,10 @@ export const useViews = (
     const updatedViews = { ...views } as Record<string, any[]>;
     const viewIndex = updatedViews[activeCollection].findIndex((v: any) => v.id === viewId);
     if (viewIndex === -1) return;
-    updatedViews[activeCollection][viewIndex] = {
+    updatedViews[activeCollection][viewIndex] = migrateViewConfig({
       ...updatedViews[activeCollection][viewIndex],
       ...updates,
-    };
+    } as any);
     setViews(updatedViews);
   };
 

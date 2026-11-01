@@ -136,6 +136,7 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
   onReorderField,
   displayAsCards = false,
   cardStyleFieldId,
+  cardColumns = 'auto',
 }) => {
   const normalizeGroupColumnCount = useCallback((count: any): 1 | 2 | 3 => {
     return count === 1 || count === 2 || count === 3 ? count : 3;
@@ -1383,7 +1384,14 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
           const renderCards = (sourceItems: any[] = items) => {
     if (!displayAsCards) return null;
     return (
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-4 p-4">
+      <div
+        className="grid gap-4 p-4"
+        style={{
+          gridTemplateColumns: cardColumns === 'auto'
+            ? 'repeat(auto-fill, minmax(250px, 1fr))'
+            : `repeat(${Math.max(1, Math.min(6, Number(cardColumns) || 1))}, minmax(0, 1fr))`,
+        }}
+      >
         {sourceItems.map((item: any) => {
           return (
             <SteamCardFullArt

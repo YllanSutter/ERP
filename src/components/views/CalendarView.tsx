@@ -177,7 +177,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const getInitialViewMode = () => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = window.localStorage.getItem('calendarViewMode');
+        const saved = viewConfig?.calendarViewMode || window.localStorage.getItem('calendarViewMode');
         if (saved === 'month' || saved === 'week' || saved === 'day') return saved;
       } catch {}
     }
