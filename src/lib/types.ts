@@ -120,4 +120,5 @@ export interface TableViewProps {
   onGroupContextChange?: (prefill: Record<string, any> | null) => void;
   onReorderField?: (newOrder: string[]) => void;
   displayAsCards?: boolean;
+  cardStyleFieldId?: string;
 }

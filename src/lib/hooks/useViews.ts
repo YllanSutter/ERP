@@ -25,6 +25,7 @@ export const useViews = (
       newView.kanbanShowFieldsOnHover = Boolean(config.kanbanShowFieldsOnHover);
     }
     if (config?.dateProperty) newView.dateProperty = config.dateProperty;
+    if (config?.cardStyleFieldId) newView.cardStyleFieldId = config.cardStyleFieldId;
     if (config?.groupDisplayMode) newView.groupDisplayMode = config.groupDisplayMode;
     if (config?.groupDisplayColumnCount) newView.groupDisplayColumnCount = config.groupDisplayColumnCount;
 

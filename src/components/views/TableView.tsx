@@ -135,12 +135,14 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
   onGroupContextChange,
   onReorderField,
   displayAsCards = false,
+  cardStyleFieldId,
 }) => {
   const normalizeGroupColumnCount = useCallback((count: any): 1 | 2 | 3 => {
     return count === 1 || count === 2 || count === 3 ? count : 3;
   }, []);
 
   const steamPropCard = useMemo(() => (orderedProperties || collection?.properties || []).find((p: any) => p.type === 'steam'), [orderedProperties, collection?.properties]);
+  const cardStyleProperty = useMemo(() => (collection?.properties || []).find((p: any) => p.id === cardStyleFieldId), [collection?.properties, cardStyleFieldId]);
   const visibleCardProps = useMemo(() => (orderedProperties || []).filter((p: any) => p.id !== steamPropCard?.id && !hiddenFields.includes(p.id)), [orderedProperties, hiddenFields]);
 
     const getGroupColumnsClassName = useCallback((count: 1 | 2 | 3) => {
@@ -1349,18 +1351,55 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
             />
           );
 
+          const renderFlatRows = (sourceItems: any[]) => sourceItems.map((item: any) => (
+            <TableItemRow
+              key={item.id}
+              item={item}
+              isFavorite={favoriteItemIds.includes(item.id)}
+              visibleProperties={visibleProperties}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onToggleFavoriteItem={onToggleFavoriteItem}
+              onViewDetail={onViewDetail}
+              collections={collections}
+              onRelationChange={onRelationChange}
+              onNavigateToCollection={onNavigateToCollection}
+              canEdit={canEdit}
+              canEditField={canEditFieldFn}
+              collection={collection}
+              enableSelection={showSelectionColumn}
+              isSelected={selectedItemIds.has(item.id)}
+              onSelectionChange={handleSelectionChange}
+              draggableRow={canReorderRows}
+              isDragging={dragItemId === item.id}
+              isDragOver={dragOverItemId === item.id}
+              onRowDragStart={() => handleRowDragStart(item.id)}
+              onRowDragEnter={() => handleRowDragEnter(item.id)}
+              onRowDrop={(event) => handleRowDrop(item.id, event)}
+              onRowDragEnd={handleRowDragEnd}
+            />
+          ));
+
           const renderCards = (sourceItems: any[] = items) => {
     if (!displayAsCards) return null;
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4 p-4">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-4 p-4">
         {sourceItems.map((item: any) => {
           return (
             <SteamCardFullArt
               key={item.id}
               item={item}
               steamProperty={steamPropCard}
+              styleProperty={cardStyleProperty}
               properties={visibleCardProps}
               onViewDetail={onViewDetail}
+              onEdit={onEdit}
+              canEdit={canEdit}
+              canEditField={canEditFieldFn}
+              collections={collections}
+              collection={collection}
+              onRelationChange={onRelationChange}
+              onNavigateToCollection={onNavigateToCollection}
             />
           );
         })}

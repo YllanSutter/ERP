@@ -1086,6 +1086,7 @@ const App = () => {
                     onBulkImportItad={isSteamPluginActive ? handleBulkImportItad : undefined}
                     onReorderField={viewHooks.updateViewFieldOrder}
                     displayAsCards={activeViewConfig?.type === 'steamcards'}
+                    cardStyleFieldId={activeViewConfig?.cardStyleFieldId}
                   />
                 )}
               </motion.div>

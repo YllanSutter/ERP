@@ -28,6 +28,7 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
   const [type, setType] = useState(view?.type || 'table');
   const [groupBy, setGroupBy] = useState(view?.groupBy || '');
   const [dateProperty] = useState(view?.dateProperty || '');
+  const [cardStyleFieldId, setCardStyleFieldId] = useState(view?.cardStyleFieldId || '');
   const [kanbanShowFieldsOnHover, setKanbanShowFieldsOnHover] = useState<boolean>(
     Boolean(view?.kanbanShowFieldsOnHover)
   );
@@ -60,6 +61,7 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
       if (groupBy) config.groupBy = groupBy;
       config.kanbanShowFieldsOnHover = kanbanShowFieldsOnHover;
     }
+    if (type === 'steamcards') config.cardStyleFieldId = cardStyleFieldId;
     if (type === 'calendar' && dateProperty) config.dateProperty = dateProperty;
     if (type === 'layout') config.layoutPanels = layoutPanels;
     if (mode === 'edit') {
@@ -122,6 +124,21 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
                 />
               </div>
             )}
+          </FormField>
+        )}
+
+        {type === 'steamcards' && (
+          <FormField label="Couleur et icône des cartes" hint="Chaque carte prend la couleur et l'icône de son option dans ce champ.">
+            <FormSelect
+              value={cardStyleFieldId}
+              onChange={setCardStyleFieldId}
+              options={[
+                { value: '', label: 'Aucun (orange par défaut)' },
+                ...(collection?.properties || [])
+                  .filter((p: any) => ['select', 'multiselect', 'multi_select'].includes(p.type))
+                  .map((prop: any) => ({ value: prop.id, label: prop.name })),
+              ]}
+            />
           </FormField>
         )}
 
