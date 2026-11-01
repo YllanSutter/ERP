@@ -6,7 +6,11 @@ interface CardsGridProps {
   items: Item[];
   cardColumns?: number | 'auto';
   steamProperty?: Property;
-  styleProperty?: Property;
+  cardStyle: 'default' | 'steamFullArt';
+  cardDensity: 'compact' | 'comfortable' | 'spacious';
+  iconProperty?: Property;
+  colorProperty?: Property;
+  fieldPlacements: Record<string, string>;
   properties: Property[];
   collection: Collection;
   collections: Collection[];
@@ -22,7 +26,11 @@ const CardsGrid: React.FC<CardsGridProps> = ({
   items,
   cardColumns = 'auto',
   steamProperty,
-  styleProperty,
+  cardStyle,
+  cardDensity,
+  iconProperty,
+  colorProperty,
+  fieldPlacements,
   properties,
   collection,
   collections,
@@ -42,17 +50,22 @@ const CardsGrid: React.FC<CardsGridProps> = ({
     5: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5',
     6: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6',
   }[columnCount as 1 | 2 | 3 | 4 | 5 | 6];
+  const densityGap = cardDensity === 'compact' ? 'gap-2 p-2' : cardDensity === 'spacious' ? 'gap-6 p-6' : 'gap-4 p-4';
 
   return (
     <div
-      className={`grid gap-4 p-4 ${cardColumns === 'auto' ? 'grid-cols-[repeat(auto-fill,minmax(250px,1fr))]' : columnClassName}`}
+      className={`grid ${densityGap} ${cardColumns === 'auto' ? 'grid-cols-[repeat(auto-fill,minmax(250px,1fr))]' : columnClassName}`}
     >
       {items.map((item) => (
         <SteamCardFullArt
           key={item.id}
           item={item}
           steamProperty={steamProperty}
-          styleProperty={styleProperty}
+          styleProperty={colorProperty}
+          iconProperty={iconProperty}
+          fieldPlacements={fieldPlacements}
+          fullArt={cardStyle === 'steamFullArt'}
+          density={cardDensity}
           properties={properties}
           onViewDetail={onViewDetail}
           onEdit={onEdit}

@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import TableView from '@/components/views/TableView';
 import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
 import { getViewRegistration } from '@/lib/views';
 
@@ -121,31 +120,6 @@ const LayoutView: React.FC<LayoutViewProps> = ({
           >
             <div className="text-xs font-semibold text-neutral-500 mb-2">{viewConfig.name}</div>
             <div className="h-[calc(100%-1.5rem)] overflow-auto">
-              {viewConfig.type === 'table' && (
-                <TableView
-                  collection={targetCollection}
-                  items={filteredItems}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  onViewDetail={onViewDetail}
-                  hiddenFields={viewConfig.hiddenFields || []}
-                  orderedProperties={panelOrderedProps}
-                  onReorderItems={() => {}}
-                  onToggleField={() => {}}
-                  onDeleteProperty={() => {}}
-                  onEditProperty={() => {}}
-                  collections={collections}
-                  onRelationChange={onRelationChange || (() => {})}
-                  onNavigateToCollection={() => {}}
-                  groups={viewConfig.groups || []}
-                  groupDisplayMode={viewConfig.groupDisplayMode || 'accordion'}
-                  groupDisplayModes={viewConfig.groupDisplayModes || {}}
-                  groupDisplayColumnCount={viewConfig.groupDisplayColumnCount || 3}
-                  groupDisplayColumnCounts={viewConfig.groupDisplayColumnCounts || {}}
-                  groupTotalsByGroupId={viewConfig.groupTotalsByGroupId || {}}
-                  onBulkImportItad={onBulkImportItad}
-                />
-              )}
               {PanelRenderer && (
                 <PanelRenderer
                   view={viewConfig}

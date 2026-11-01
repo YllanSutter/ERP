@@ -1,6 +1,7 @@
 import { logger } from './services/logger.js';
 import 'dotenv/config';
 import express from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
@@ -99,7 +100,8 @@ app.use(cors({
   credentials: true 
 }));
 app.use(cookieParser());
-app.use(express.json({ limit: '20mb' }));
+app.use(compression());
+app.use(express.json({ limit: '1mb' }));
 
 // --- DB bootstrap -------------------------------------------------------
 const bootstrap = async () => {

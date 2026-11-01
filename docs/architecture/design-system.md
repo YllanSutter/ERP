@@ -11,6 +11,23 @@ explicites et aucune copie locale de classes lorsqu'une primitive existante conv
 Les contrôles booléens utilisent `src/components/ui/switch.tsx` ; les vues ne doivent pas
 réintroduire de checkbox ou de toggle visuellement autonome.
 
+Les contrôles propres aux vues reposent sur quatre primitives, afin que leurs états soient
+modifiables sans parcourir les renderers :
+
+- `ToolbarButton` pour les actions de barre d'outils et leurs états actifs ;
+- `IconButton` pour toute action sans libellé visuel (le libellé accessible est obligatoire) ;
+- `GroupHeader` pour les titres repliables produits par `ViewGrouping` ;
+- `SettingsField` pour le libellé et le contrôle associé dans les paramètres de vue.
+
+Les cartes Full Art conservent leurs calques, leur dégradé et leur cartouche décoratif dans
+`SteamCardFullArt.tsx` : c'est l'exception visuelle documentée. Les contrôles qu'elle affiche
+(options select/multiselect) utilisent néanmoins `OptionTags`, la primitive partagée de rendu
+des options.
+
+Les valeurs transverses des vues sont dans `src/index.css` : `--view-control-radius`,
+`--view-control-gap`, `--view-group-spacing` et `--view-panel-shadow`. Modifier ces tokens
+fait évoluer simultanément les primitives de toolbar, de groupage et de paramètres.
+
 ## Règles
 
 - privilégier les tokens CSS de `src/index.css` ;

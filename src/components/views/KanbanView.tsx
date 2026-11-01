@@ -9,6 +9,8 @@ import { getNameValue } from '@/lib/calendarUtils';
 import { compareValues } from '@/lib/utils/sortUtils';
 import { shouldShowColumn } from '@/lib/utils/columnFilterUtils';
 import { useViewGrouping } from './ViewGrouping';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -217,15 +219,13 @@ const KanbanView: React.FC<KanbanViewProps> = ({
       {selectProps.length > 0 && (
         <div className="flex items-center gap-3 px-2">
           <span className="text-sm font-medium text-neutral-400">Grouper par:</span>
-          <select
+          <Select
             value={groupByProp?.id || ''}
-            onChange={(e) => onChangeGroupBy?.(e.target.value)}
-            className="px-3 py-1.5 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-sm text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+            onValueChange={onChangeGroupBy}
           >
-            {selectProps.map((prop: any) => (
-              <option key={prop.id} value={prop.id}>{prop.name}</option>
-            ))}
-          </select>
+            <SelectTrigger className="w-48"><SelectValue placeholder="Choisir un champ" /></SelectTrigger>
+            <SelectContent>{selectProps.map((prop: any) => <SelectItem key={prop.id} value={prop.id}>{prop.name}</SelectItem>)}</SelectContent>
+          </Select>
         </div>
       )}
 
@@ -309,12 +309,14 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                     {/* Title with Grip */}
                     <div className="flex gap-2 items-center">
                       {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}
-                      <button
+                      <Button
+                        type="button"
                         onClick={() => onViewDetail(item)}
-                        className="font-medium dark:text-white hover:text-cyan-300 text-sm flex-1 line-clamp-2 text-left"
+                        variant="ghost"
+                        className="h-auto flex-1 justify-start whitespace-normal p-0 text-left text-sm font-medium dark:text-white hover:text-cyan-300"
                       >
                         {getNameValue(item, collection)}
-                      </button>
+                      </Button>
                     </div>
 
                     {/* Editable Properties */}
@@ -351,19 +353,25 @@ const KanbanView: React.FC<KanbanViewProps> = ({
 
                     {/* Action Buttons */}
                     <div className="flex justify-end gap-2 pt-2 absolute -top-7 left-1">
-                      <button
+                      <Button
+                        type="button"
                         onClick={() => onViewDetail(item)}
-                        className="px-2 py-0.5 rounded text-xs text-white dark:text-white bg-blue-800/50 hover:bg-blue-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
+                        variant="secondary"
+                        size="sm"
+                        className="h-auto bg-blue-800/50 px-2 py-0.5 text-white opacity-0 transition-all duration-300 hover:bg-blue-800 group-hover:opacity-100 dark:text-white"
                       >
                         Éditer
-                      </button>
+                      </Button>
                       {canEdit && (
-                        <button
+                        <Button
+                          type="button"
                           onClick={() => onDelete(item.id)}
-                          className="px-2 py-0.5 rounded text-xs text-white bg-red-800/50 hover:bg-red-800 transition-all duration-300 opacity-0 group-hover:opacity-100"
+                          variant="destructive"
+                          size="sm"
+                          className="h-auto bg-red-800/50 px-2 py-0.5 opacity-0 transition-all duration-300 hover:bg-red-800 group-hover:opacity-100"
                         >
                           Supprimer
-                        </button>
+                        </Button>
                       )}
                     </div>
                     </motion.div>
@@ -373,14 +381,16 @@ const KanbanView: React.FC<KanbanViewProps> = ({
             </div>
 
             {canEdit && onShowNewItemModal && groupByProp && column !== 'Toutes les données' && (
-              <button
+              <Button
                 type="button"
                 onClick={() => onShowNewItemModal(column !== 'Sans valeur' ? { [groupByProp.id]: column } : {})}
-                className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-white/10 text-xs text-neutral-500 hover:text-neutral-300 hover:border-white/20 hover:bg-white/5 transition-colors"
+                variant="outline"
+                size="sm"
+                className="mt-2 w-full border-dashed border-white/10 text-neutral-500 hover:border-white/20 hover:bg-white/5 hover:text-neutral-300"
               >
                 <Plus size={13} />
                 Ajouter
-              </button>
+              </Button>
             )}
               </motion.div>
             </ContextMenuTrigger>

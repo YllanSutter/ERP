@@ -39,6 +39,12 @@ const CardsRenderer: React.FC<CardsRendererProps> = ({
       onDeleteProperty={legacyProps.onDeleteProperty || (() => {})}
       onEditProperty={legacyProps.onEditProperty || (() => {})}
       groups={Array.isArray(view.groups) ? view.groups as string[] : []}
+      cardStyle={view.cardStyle === 'steamFullArt' ? 'steamFullArt' : 'default'}
+      cardDensity={view.cardDensity === 'compact' || view.cardDensity === 'spacious' ? view.cardDensity : 'comfortable'}
+      cardIconFieldId={typeof view.cardIconFieldId === 'string' ? view.cardIconFieldId : null}
+      cardColorFieldId={typeof view.cardColorFieldId === 'string' ? view.cardColorFieldId : null}
+      fieldGroups={Array.isArray(view.fieldGroups) ? view.fieldGroups as any[] : []}
+      cardGroupPlacements={view.cardGroupPlacements as Record<string, string> || {}}
       {...legacyProps}
     />
   );

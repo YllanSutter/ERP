@@ -2,11 +2,17 @@ import React, { useId, useMemo, useState } from 'react';
 import { getSteamImageUrl } from '@/lib/plugins/steam/steamUtils';
 import * as Icons from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { OptionTags } from '@/components/inputs/OptionTags';
+import { Button } from '@/components/ui/button';
 
 interface SteamCardFullArtProps {
   item: any;
   steamProperty?: any;
   styleProperty?: any;
+  iconProperty?: any;
+  fieldPlacements?: Record<string, string>;
+  fullArt?: boolean;
+  density?: 'compact' | 'comfortable' | 'spacious';
   properties: any[];
   onViewDetail: (item: any) => void;
   onEdit: (item: any) => void;
@@ -60,6 +66,10 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
   item,
   steamProperty,
   styleProperty,
+  iconProperty,
+  fieldPlacements = {},
+  fullArt = true,
+  density = 'comfortable',
   properties,
   onViewDetail,
   onEdit,
@@ -79,29 +89,20 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
   const imageUrl = imageStep < 2 ? getSteamImageUrl(appid, imageStep === 0 ? 'portrait' : 'header') : null;
   const title = getDisplayValue(steamValue) || getDisplayValue(item?.name) || getDisplayValue(item?.title) || 'Sans titre';
 
-  const { subtitle, tags, rarity, serial, extras } = useMemo(() => {
+  const { header, description, footer, tags } = useMemo(() => {
     const filled = properties
-      .filter((property) => property.type !== 'steam' && property.id !== steamProperty?.id)
+      .filter((property) => property.type !== 'steam' && property.id !== steamProperty?.id && fieldPlacements[property.id] !== 'hidden')
       .map((property) => ({ property, value: getDisplayValue(item?.[property.id]) }))
       .filter((entry) => entry.value);
-    const used = new Set<any>();
-    const take = (entries: typeof filled) => {
-      entries.forEach((entry) => used.add(entry));
-      return entries;
-    };
-    const subtitleEntries = take(filled.filter((e) => !TEXT_TYPES_EXCLUDED.includes(e.property.type)).slice(0, 3));
-    const tagEntries = take(filled.filter((e) => ['multiselect', 'multi_select'].includes(e.property.type)));
-    const rarityEntry = take(filled.filter((e) => e.property.type === 'select').slice(0, 1))[0];
-    const serialEntry = take(filled.filter((e) => e.property.type === 'number').slice(0, 1))[0];
-    const serialDigits = serialEntry?.value.replace(/\s/g, '') || '';
+    const inZone = (zone: string, fallback: boolean) => filled.filter((entry) => fieldPlacements[entry.property.id] === zone || (!fieldPlacements[entry.property.id] && fallback));
+    const tagEntries = inZone('tags', false).concat(filled.filter((entry) => !fieldPlacements[entry.property.id] && ['select', 'multiselect', 'multi_select'].includes(entry.property.type)));
     return {
-      subtitle: subtitleEntries.map((e) => e.value),
-      tags: tagEntries.flatMap((e) => e.value.split(' · ')),
-      rarity: rarityEntry?.value || '',
-      serial: /^\d{1,6}$/.test(serialDigits) ? serialDigits.padStart(6, '0').replace(/^(\d{3})/, '$1 ') : serialDigits,
-      extras: filled.filter((e) => !used.has(e)).map((e) => ({ id: e.property.id, label: e.property.name, value: e.value })),
+      header: inZone('header', false),
+      description: inZone('description', true),
+      footer: inZone('footer', false),
+      tags: tagEntries.map((entry) => ({ property: entry.property, value: item?.[entry.property.id] })),
     };
-  }, [item, properties, steamProperty?.id]);
+  }, [fieldPlacements, item, properties, steamProperty?.id]);
 
   // Frame colour and badge icon come from the item's option in the view's style field.
   const styleValue = styleProperty ? item?.[styleProperty.id] : undefined;
@@ -109,9 +110,16 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
     typeof option === 'object' && String(option.value) === String(Array.isArray(styleValue) ? styleValue[0] : styleValue)
   );
   const StyleIcon: React.ElementType | null = (styleOption?.icon && (Icons as any)[styleOption.icon]) || null;
+  const iconValue = iconProperty ? item?.[iconProperty.id] : undefined;
+  const iconOption = (iconProperty?.options || []).find((option: any) =>
+    typeof option === 'object' && String(option.value) === String(Array.isArray(iconValue) ? iconValue[0] : iconValue)
+  );
+  const IconFieldIcon: React.ElementType | null = (iconOption?.icon && (Icons as any)[iconOption.icon]) || null;
+  const BadgeIcon = IconFieldIcon || StyleIcon;
+  const descriptionGap = density === 'compact' ? 'gap-[1.4cqw]' : density === 'spacious' ? 'gap-[3.8cqw]' : 'gap-[2.6cqw]';
 
   // The title banner rises to make room for the extra fields.
-  const lift = Math.min(Math.ceil(extras.length / 2), 5) * 18;
+  const lift = Math.min(Math.ceil((description.length + footer.length) / 2), 5) * 18;
   const T = 557 - lift;
   const B = T + 40;
   const titleSize = Math.min(26, 520 / Math.max(title.length, 1));
@@ -136,6 +144,7 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
         ) : (
           <div className="h-full w-full bg-[radial-gradient(circle_at_50%_25%,#6b2fa0,#2a1240_55%,#0c0b0a)]" />
         )}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
       </div>
 
       <svg viewBox="0 0 500 700" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
@@ -155,9 +164,9 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
 
         {/* Title banner + description panel */}
         <g clipPath={`url(#frame-${uid})`}>
-          <path d={`M0 ${T}Q250 ${T - 38} 500 ${T}V700H0Z`} className="fill-[var(--band)]" />
-          <path d={`M0 ${B}Q250 ${B - 44} 500 ${B}V700H0Z`} className="fill-[var(--cb)]" />
-          <path d={`M0 ${B}Q250 ${B - 44} 500 ${B}V700H0Z`} fill={`url(#hex-${uid})`} />
+          {!fullArt && <path d={`M0 ${T}Q250 ${T - 38} 500 ${T}V700H0Z`} className="fill-[var(--band)]" />}
+          {!fullArt && <path d={`M0 ${B}Q250 ${B - 44} 500 ${B}V700H0Z`} className="fill-[var(--cb)]" />}
+          {!fullArt && <path d={`M0 ${B}Q250 ${B - 44} 500 ${B}V700H0Z`} fill={`url(#hex-${uid})`} />}
           <path d={`M0 ${T}Q250 ${T - 38} 500 ${T}`} fill="none" className="stroke-[var(--or)]" strokeWidth="3" />
           <path d={`M0 ${B}Q250 ${B - 44} 500 ${B}`} fill="none" className="stroke-[var(--or)]" strokeWidth="2" />
           <circle cx="34" cy={T + 18} r="2.6" className="fill-[var(--or)]" />
@@ -192,55 +201,54 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
         {/* Top badge */}
         <path d={RAYS} className="stroke-[var(--or)]" strokeWidth="2" strokeLinecap="round" />
         <path d="M250 2L271.6 14.5V39.5L250 52L228.4 39.5V14.5Z" fill="#0b0a09" className="stroke-[var(--or)]" strokeWidth="3" />
-        {StyleIcon
-          ? <StyleIcon x={236} y={13} width={28} height={28} strokeWidth={2.4} className="text-[var(--or)]" />
+        {BadgeIcon
+          ? <BadgeIcon x={236} y={13} width={28} height={28} strokeWidth={2.4} className="text-[var(--or)]" />
           : <path d={starPath(250, 28, 13)} className="fill-[var(--or)]" />}
 
         {/* Rarity / serial tab */}
         <path d="M112 686L126 674H374L388 686L374 698H126Z" className="fill-[var(--cb)] stroke-[var(--or)]" strokeWidth="2" />
         <path d="M120 686L130 678H370L380 686L370 694H130Z" fill="none" className="stroke-[var(--or)]" strokeWidth="1" opacity="0.7" />
         <path d={diamondPath(250, 686, 12)} className="fill-[var(--cb)] stroke-[var(--or)]" strokeWidth="2" />
-        {StyleIcon
-          ? <StyleIcon x={243} y={680} width={14} height={14} strokeWidth={2.6} className="text-[var(--or)]" />
+        {BadgeIcon
+          ? <BadgeIcon x={243} y={680} width={14} height={14} strokeWidth={2.6} className="text-[var(--or)]" />
           : <path d={starPath(250, 687, 6.5)} className="fill-[var(--or)]" />}
-        <g fontSize="12.5" fontWeight="700" letterSpacing="1.6" textAnchor="middle" className="fill-[var(--ink)]" style={{ fontFamily: SERIF }}>
-          {rarity && <text x="184" y="690.5">{rarity.toUpperCase()}</text>}
-          {serial && <text x="316" y="690.5">{serial}</text>}
-        </g>
       </svg>
+
+      {tags.length > 0 && (
+        <div className={`absolute inset-x-[7%] z-20 flex flex-wrap justify-center gap-1.5 ${fullArt ? 'top-[12%]' : 'top-[58%]'}`} onClick={(event) => event.stopPropagation()}>
+          {tags.map(({ property, value }) => <OptionTags key={property.id} options={property.options || []} value={value} prominent borderless />)}
+        </div>
+      )}
+      {header.length > 0 && <div className="absolute inset-x-[10%] top-[20%] z-10 text-center text-xs font-semibold text-white">{header.map((entry) => <p key={entry.property.id}>{entry.value}</p>)}</div>}
 
       {/* Description zone: click to edit the fields in place */}
       <div
         role={canEdit ? 'button' : undefined}
         title={canEdit ? 'Modifier les champs' : undefined}
         onClick={canEdit ? (event) => { event.stopPropagation(); setEditing(true); } : undefined}
-        className="absolute inset-x-[7%] flex flex-col items-center gap-[2.6cqw] overflow-hidden text-center"
+        className={`absolute inset-x-[7%] z-10 flex flex-col items-center ${descriptionGap} overflow-hidden text-center ${fullArt ? 'text-white' : 'text-[var(--ink)]'}`}
         style={{ top: pct(B + 2), bottom: pct(30) }}
       >
-        {subtitle.length > 0 && (
-          <p className="line-clamp-1 text-[max(9px,2.5cqw)] uppercase tracking-[0.14em] text-[var(--muted)]">{subtitle.join(' · ')}</p>
-        )}
-        {tags.length > 0 && (
-          <p className="line-clamp-2 text-[max(9px,2.4cqw)] font-semibold uppercase tracking-[0.08em] text-[var(--ink)]">
-            {tags.map((tag, index) => (
-              <React.Fragment key={`${tag}-${index}`}>
-                {index > 0 && <span className="mx-[1.2cqw] text-[1.8cqw] text-[var(--or)]">◆</span>}
-                {tag}
-              </React.Fragment>
-            ))}
-          </p>
-        )}
-        {extras.length > 0 && (
+        {description.length > 0 && (
           <dl className="flex w-full flex-wrap justify-center gap-x-[3.5cqw] gap-y-[0.8cqw] text-[max(9px,2.3cqw)] leading-tight">
-            {extras.map((field) => (
-              <div key={field.id} className="flex min-w-0 max-w-full items-baseline gap-[1cqw]">
-                <dt className="shrink-0 uppercase tracking-[0.08em] text-[var(--or)]">{field.label}</dt>
-                <dd className="truncate text-[var(--ink)]">{field.value}</dd>
+            {description.map((entry) => (
+              <div key={entry.property.id} className="flex min-w-0 max-w-full items-baseline gap-[1cqw]">
+                <dt className={`shrink-0 uppercase tracking-[0.08em] ${fullArt ? 'text-white/70' : 'text-[var(--or)]'}`}>{entry.property.name}</dt>
+                {['select', 'multiselect', 'multi_select'].includes(entry.property.type)
+                  ? <dd><OptionTags options={entry.property.options || []} value={item?.[entry.property.id]} prominent={fullArt} borderless /></dd>
+                  : <dd className={`truncate ${fullArt ? 'text-white' : 'text-[var(--ink)]'}`}>{entry.value}</dd>}
               </div>
             ))}
           </dl>
         )}
       </div>
+      {footer.length > 0 && (
+        <div className={`absolute inset-x-[24%] bottom-[0.45%] z-20 grid grid-cols-[1fr_1.8rem_1fr] items-center gap-1 text-center text-[max(8px,1.9cqw)] font-semibold ${fullArt ? 'text-white' : 'text-[var(--ink)]'}`}>
+          <div className="truncate text-right">{footer[0] ? (['select', 'multiselect', 'multi_select'].includes(footer[0].property.type) ? <OptionTags options={footer[0].property.options || []} value={item?.[footer[0].property.id]} prominent={fullArt} borderless /> : `${footer[0].property.name} : ${footer[0].value}`) : ''}</div>
+          <span aria-hidden="true" />
+          <div className="truncate text-left">{footer[1] ? (['select', 'multiselect', 'multi_select'].includes(footer[1].property.type) ? <OptionTags options={footer[1].property.options || []} value={item?.[footer[1].property.id]} prominent={fullArt} borderless /> : `${footer[1].property.name} : ${footer[1].value}`) : ''}</div>
+        </div>
+      )}
 
       {editing && (
         <div
@@ -267,13 +275,14 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
               </div>
             ))}
           </div>
-          <button
+          <Button
             type="button"
-            className="border-t border-[var(--or)] py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--or)] hover:bg-black/5 dark:hover:bg-white/5"
+            variant="ghost"
+            className="h-auto rounded-none border-t border-[var(--or)] py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--or)] hover:bg-black/5 dark:hover:bg-white/5"
             onClick={() => setEditing(false)}
           >
             Terminé
-          </button>
+          </Button>
         </div>
       )}
     </article>

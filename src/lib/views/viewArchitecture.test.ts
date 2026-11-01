@@ -4,7 +4,7 @@ import {
   registerPluginView,
   unregisterPluginViews,
 } from './pluginViewRegistry';
-import { getViewRegistration } from './viewRegistry';
+import { createDefaultViewConfig, getViewRegistration } from './viewRegistry';
 import { migrateViewConfig } from './viewConfigMigration';
 import type { ViewRegistration } from './viewTypes';
 
@@ -36,6 +36,7 @@ afterEach(() => {
 describe('view architecture contracts', () => {
   it('resolves native renderers and falls back to table for unknown types', () => {
     expect(getViewRegistration('cards').label).toBe('Cartes');
+    expect(getViewRegistration('cards').capabilities.supportsSelection).toBe(false);
     expect(getViewRegistration('unknown-view').type).toBe('table');
   });
 
@@ -60,6 +61,12 @@ describe('view architecture contracts', () => {
 
     expect(migrated.cardColorFieldId).toBe('legacy-style');
     expect(migrated.cardStyle).toBe('default');
-    expect(migrated.configVersion).toBe(1);
+    expect(migrated.cardGroupPlacements).toEqual({});
+    expect(migrated.configVersion).toBe(2);
+  });
+
+  it('keeps standard and full-art card defaults distinct', () => {
+    expect(createDefaultViewConfig('cards', 'cards-1', 'collection-1').cardStyle).toBe('default');
+    expect(createDefaultViewConfig('steamcards', 'cards-2', 'collection-1').cardStyle).toBe('steamFullArt');
   });
 });

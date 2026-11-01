@@ -4,8 +4,6 @@ import { useViewGrouping } from '@/components/views/ViewGrouping';
 import { useViewPagination } from '@/lib/hooks/useViewPagination';
 import { TableViewProps } from '@/lib/types';
 import GroupRenderer from '@/components/TableView/GroupRenderer';
-import CardsGrid from '@/components/views/CardsGrid';
-import ViewGroupTabs from '@/components/views/ViewGroupTabs';
 import ViewGrouping from '@/components/views/ViewGrouping';
 import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
@@ -16,6 +14,8 @@ import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { countItemsInGroup, getGroupLabel, resolveGroupVisualStyle } from '@/lib/groupingUtils';
 import { isCalculatedNumberProperty } from '@/lib/calculatedFields';
 import { API_URL } from '@/lib/constants';
@@ -98,7 +98,7 @@ const normalizeTotalsWidgetPreferences = (value: any, hasGroups: boolean): Total
   };
 };
 
-const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
+const TableView: React.FC<TableViewProps> = ({
   collection,
   items,
   favoriteItemIds = [],
@@ -136,20 +136,10 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
   onBulkImportItad,
   onGroupContextChange,
   onReorderField,
-  displayAsCards = false,
-  cardStyleFieldId,
-  cardColumns = 'auto',
 }) => {
   const normalizeGroupColumnCount = useCallback((count: any): 1 | 2 | 3 => {
     return count === 1 || count === 2 || count === 3 ? count : 3;
   }, []);
-
-  const steamPropCard = useMemo(() => (orderedProperties || collection?.properties || []).find((p: any) => p.type === 'steam'), [orderedProperties, collection?.properties]);
-  const cardStyleProperty = useMemo(() => (collection?.properties || []).find((p: any) => p.id === cardStyleFieldId), [collection?.properties, cardStyleFieldId]);
-  const visibleCardProps = useMemo(
-    () => (orderedProperties || []).filter((p: any) => p.id !== steamPropCard?.id && !hiddenFields.includes(p.id)),
-    [orderedProperties, hiddenFields, steamPropCard?.id]
-  );
 
     const getGroupColumnsClassName = useCallback((count: 1 | 2 | 3) => {
       if (count === 1) return 'grid-cols-1';
@@ -1154,44 +1144,42 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
 
           <div className="flex items-center gap-2">
             {Object.keys(totalFields).length > 0 && (
-              <button
+              <Button
                 type="button"
                 onClick={() => setTotalsWidgetPreferences((prev) => ({ ...prev, showTotalsWidget: !prev.showTotalsWidget }))}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs border transition-colors ${totalsWidgetPreferences.showTotalsWidget ? 'bg-violet-50 border-violet-200 text-violet-700 dark:bg-violet-900/20 dark:border-violet-800/60 dark:text-violet-300' : 'border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'}`}
+                variant={totalsWidgetPreferences.showTotalsWidget ? 'secondary' : 'outline'}
+                size="sm"
+                className="gap-1"
                 title={totalsWidgetPreferences.showTotalsWidget ? 'Masquer le tableau de totaux' : 'Afficher le tableau de totaux'}
               >
                 <Sigma size={11} />
                 <span>Tableau</span>
-              </button>
+              </Button>
             )}
             <label className="text-xs text-neutral-600 dark:text-neutral-300">Lignes/page</label>
-            <select
-              className="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900"
-              value={rowsPerPage}
-              onChange={(e) => setRowsPerPage(Number(e.target.value))}
+            <Select
+              value={String(rowsPerPage)}
+              onValueChange={(value) => setRowsPerPage(Number(value))}
             >
-              {[10, 25, 50, 100, 200, 500].map((size) => (
-                <option key={size} value={size}>{size}</option>
-              ))}
-            </select>
+              <SelectTrigger className="h-8 w-20 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>{[10, 25, 50, 100, 200, 500].map((size) => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent>
+            </Select>
 
-            <button
-              type="button"
-              className="px-2 py-1 rounded text-xs border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 disabled:opacity-50"
+            <Button
+              type="button" variant="outline" size="sm"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={effectivePage <= 1}
             >
               ◀
-            </button>
+            </Button>
             <span className="text-xs min-w-[70px] text-center">{effectivePage}/{totalPages}</span>
-            <button
-              type="button"
-              className="px-2 py-1 rounded text-xs border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 disabled:opacity-50"
+            <Button
+              type="button" variant="outline" size="sm"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={effectivePage >= totalPages}
             >
               ▶
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -1200,18 +1188,14 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
             <span className="text-xs text-neutral-600 dark:text-neutral-300">
               {selectedCount} sélectionné{selectedCount > 1 ? 's' : ''}
             </span>
-            <select
-              className="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900"
+            <Select
               value={bulkFieldId}
-              onChange={(e) => handleBulkFieldChange(e.target.value)}
+              onValueChange={handleBulkFieldChange}
               disabled={!bulkEditableProperties.length}
             >
-              {bulkEditableProperties.map((prop) => (
-                <option key={prop.id} value={prop.id}>
-                  {prop.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="h-8 min-w-40 text-xs"><SelectValue placeholder="Champ à modifier" /></SelectTrigger>
+              <SelectContent>{bulkEditableProperties.map((prop) => <SelectItem key={prop.id} value={prop.id}>{prop.name}</SelectItem>)}</SelectContent>
+            </Select>
             <div className="min-w-[220px]">
               {selectedBulkProperty ? (
                 <EditableProperty
@@ -1229,50 +1213,54 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
                   }}
                 />
               ) : (
-                <input
+                <Input
                   type="text"
                   value={String(bulkValue ?? '')}
                   onChange={(e) => setBulkValue(e.target.value)}
                   placeholder="Valeur à appliquer"
-                  className="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900"
+                  className="h-8 text-xs"
                   disabled
                 />
               )}
             </div>
-            <button
+            <Button
               type="button"
               onClick={handleBulkApply}
               disabled={!bulkFieldId || selectedCount === 0}
-              className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-500/10 border border-white/10 hover:bg-white/20 transition cursor-pointer group"
+              variant="secondary"
+              size="sm"
             >
               Appliquer
-            </button>
+            </Button>
             {onBulkImportItad && (
-              <button
+              <Button
                 type="button"
                 onClick={() => onBulkImportItad(Array.from(selectedItemIds))}
                 disabled={selectedCount === 0}
-                className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-500/10 border border-white/10 hover:bg-white/20 transition cursor-pointer group"
+                variant="secondary"
+                size="sm"
               >
                 ⬇️ Importer ITAD ({selectedCount})
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
               onClick={() => setSelectedItemIds(new Set())}
               disabled={selectedCount === 0}
-              className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-violet-500/10 border border-white/10 hover:bg-white/20 transition cursor-pointer group"
+              variant="outline"
+              size="sm"
             >
               Désélectionner
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleBulkDelete}
               disabled={selectedCount === 0}
-              className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-500/10 border border-white/10 hover:bg-white/20 transition cursor-pointer group"
+              variant="destructive"
+              size="sm"
             >
               Supprimer la sélection
-            </button>
+            </Button>
           </div>
         )}
         {(() => {
@@ -1385,27 +1373,6 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
               onRowDragEnd={handleRowDragEnd}
             />
           ));
-
-          const renderCards = (sourceItems: any[] = items) => {
-    if (!displayAsCards) return null;
-    return (
-      <CardsGrid
-        items={sourceItems}
-        cardColumns={cardColumns}
-        steamProperty={steamPropCard}
-        styleProperty={cardStyleProperty}
-        properties={visibleCardProps}
-        onViewDetail={onViewDetail}
-        onEdit={onEdit}
-        canEdit={canEdit}
-        canEditField={canEditFieldFn}
-        collections={collections}
-        collection={collection}
-        onRelationChange={onRelationChange}
-        onNavigateToCollection={onNavigateToCollection}
-      />
-    );
-  };
 
           const renderTableShell = (body: React.ReactNode, footerItems?: any[], selectionScopeItems?: any[]) => {
             const scopedItems = selectionScopeItems || items;
@@ -1560,484 +1527,6 @@ const TableView: React.FC<TableViewProps & { displayAsCards?: boolean }> = ({
             />
           );
 
-          if (displayAsCards) {
-            const flatCards = sortedFlatItems.slice((effectivePage - 1) * rowsPerPage, effectivePage * rowsPerPage);
-            if (groups.length > 0 && displayRootGroups.length > 0) {
-              const renderCardGroup = (groupPath: string) => {
-                const groupValue = groupPath.split('/').pop() || groupPath;
-                const groupDepth = groupPath.split('/').length - 1;
-                const groupProperty = orderedProperties.find((p: any) => p.id === groups[groupDepth]);
-                const groupMode = (groups[groupDepth] && (groupDisplayModes as any)?.[groups[groupDepth]])
-                  || (groupDepth === 0 ? rootGroupMode : 'accordion');
-                const groupLabel = groupProperty
-                  ? getGroupLabel(groupProperty, groupValue === '(vide)' ? undefined : groupValue, collections)
-                  : groupValue;
-                const groupItems = getItemsForGroupPath(groupPath);
-                const isExpanded = expandedGroups.has(groupPath);
-                const canCollapse = groupMode === 'accordion';
-                const childGroupId = groups[groupDepth + 1];
-                const childGroupMode = childGroupId
-                  ? ((groupDisplayModes as any)?.[childGroupId] || 'accordion')
-                  : null;
-                const childGroups = groupedStructure!.structure[groupPath]?.subGroups || [];
-                const hasTabbedChildren = childGroupMode === 'tabs' && childGroups.length > 0;
-                const activeChildTab = activeSubGroupPathByRoot[groupPath] && childGroups.includes(activeSubGroupPathByRoot[groupPath])
-                  ? activeSubGroupPathByRoot[groupPath]
-                  : childGroups[0];
-                const childProperty = childGroupId
-                  ? orderedProperties.find((p: any) => p.id === childGroupId)
-                  : null;
-
-                return (
-                  <section key={groupPath} className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => canCollapse && toggleGroup(groupPath)}
-                      className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left ${
-                        canCollapse ? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5' : 'cursor-default'
-                      }`}
-                      aria-expanded={canCollapse ? isExpanded : true}
-                    >
-                      {canCollapse && (
-                        <ChevronRight
-                          size={18}
-                          className={`shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                        />
-                      )}
-                      <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-800 dark:text-white">
-                        {groupProperty?.name ? `${groupProperty.name}: ` : ''}{groupLabel}
-                      </h3>
-                      <span className="text-xs text-neutral-500 dark:text-neutral-400">{groupItems.length}</span>
-                    </button>
-                    {(!canCollapse || isExpanded) && (
-                      hasTabbedChildren ? (
-                        <Tabs
-                          value={activeChildTab}
-                          onValueChange={(nextPath) => setActiveSubGroupPathByRoot((prev) => ({
-                            ...prev,
-                            [groupPath]: nextPath,
-                          }))}
-                          className="w-full"
-                        >
-                          <ViewGroupTabs
-                            items={childGroups.map((childPath) => {
-                              const childValue = childPath.split('/').pop() || childPath;
-                              return {
-                                id: childPath,
-                                label: childProperty
-                                  ? getGroupLabel(childProperty, childValue === '(vide)' ? undefined : childValue, collections)
-                                  : childValue,
-                                itemCount: countItemsInGroup(childPath, groupedStructure!.structure),
-                              };
-                            })}
-                            activeId={activeChildTab}
-                          />
-                          {childGroups.map((childPath) => (
-                            <TabsContent key={childPath} value={childPath} className="mt-2">
-                              {renderCardGroup(childPath)}
-                            </TabsContent>
-                          ))}
-                        </Tabs>
-                      ) : (
-                        renderCards(groupItems)
-                      )
-                    )}
-                  </section>
-                );
-              };
-
-              if (rootGroupMode === 'select') {
-                const selectLevels: Array<{
-                  depth: number;
-                  property: any;
-                  options: Array<{ id: string; label: string; itemCount: number }>;
-                  selectedId: string;
-                }> = [];
-                let currentOptions = displayRootGroups;
-                let selectedPath = displayRootGroups[0];
-
-                for (let depth = 0; depth < groups.length && currentOptions.length > 0; depth++) {
-                  const groupId = groups[depth];
-                  const mode = (groupDisplayModes as any)?.[groupId] || (depth === 0 ? rootGroupMode : 'accordion');
-                  if (mode !== 'select') break;
-                  const property = orderedProperties.find((p: any) => p.id === groupId);
-                  if (!property) break;
-                  const options = currentOptions.map((pathId: string) => {
-                    const rawValue = pathId.split('/').pop() || pathId;
-                    return {
-                      id: pathId,
-                      label: getGroupLabel(property!, rawValue === '(vide)' ? undefined : rawValue, collections),
-                      itemCount: countItemsInGroup(pathId, groupedStructure!.structure),
-                    };
-                  });
-                  const persisted = activeGroupSelectByDepth[depth];
-                  const selectedId = options.some((option) => option.id === persisted) ? persisted : options[0].id;
-                  selectLevels.push({ depth, property, options, selectedId });
-                  selectedPath = selectedId;
-                  currentOptions = groupedStructure!.structure[selectedId]?.subGroups || [];
-                }
-
-                return (
-                  <div className="max-h-[calc(100vh-280px)] overflow-auto space-y-3">
-                    <div className="px-3 pt-3 grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(selectLevels.length, 1)}, minmax(180px, 1fr))` }}>
-                      {selectLevels.map((level) => (
-                        <div key={`card-group-select-${level.depth}`} className="min-w-0">
-                          <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">
-                            {level.property?.name || `Niveau ${level.depth + 1}`}
-                          </label>
-                          <Select
-                            value={level.selectedId}
-                            onValueChange={(nextId) => {
-                              setActiveGroupSelectByDepth((prev) => {
-                                const next: Record<number, string> = { ...prev, [level.depth]: nextId };
-                                Object.keys(next).forEach((key) => {
-                                  if (Number(key) > level.depth) delete next[Number(key)];
-                                });
-                                return next;
-                              });
-                            }}
-                          >
-                            <SelectTrigger className="w-full rounded-lg border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {level.options.map((option) => (
-                                <SelectItem key={option.id} value={option.id}>{option.label} ({option.itemCount})</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      ))}
-                    </div>
-                    {renderCardGroup(selectedPath)}
-                  </div>
-                );
-              }
-
-              if (rootGroupMode === 'tabs') {
-                const selectedRoot = displayRootGroups.includes(activeGroupTab) ? activeGroupTab : displayRootGroups[0];
-                return (
-                  <div className="max-h-[calc(100vh-280px)] overflow-auto">
-                    <Tabs value={selectedRoot} onValueChange={setActiveGroupTab} className="w-full">
-                      <ViewGroupTabs
-                        className="m-2 mt-3 w-auto"
-                        activeId={selectedRoot}
-                        items={rootGroupCards.map((group) => ({
-                          id: group.id,
-                          label: group.label,
-                          itemCount: group.itemCount,
-                          icon: group.icon,
-                          color: group.color,
-                        }))}
-                      />
-                      {rootGroupCards.map((group) => (
-                        <TabsContent key={group.id} value={group.id} className="mt-0">
-                          {renderCardGroup(group.id)}
-                        </TabsContent>
-                      ))}
-                    </Tabs>
-                  </div>
-                );
-              }
-
-              if (rootGroupMode === 'columns') {
-                return (
-                  <div className={`grid gap-4 p-5 ${rootGroupColumnsClassName} overflow-auto max-h-[calc(100vh-280px)]`}>
-                    {displayRootGroups.map(renderCardGroup)}
-                  </div>
-                );
-              }
-
-              return (
-                <div className="space-y-5 overflow-auto max-h-[calc(100vh-280px)] p-3">
-                  {displayRootGroups.map(renderCardGroup)}
-                </div>
-              );
-            }
-
-            return (
-              <div className="flex flex-col max-h-[calc(100vh-280px)]">
-                <div className="overflow-auto flex-1">
-                  {renderCards(flatCards)}
-                </div>
-                {sortedFlatItems.length > rowsPerPage && (
-                  <div className="flex items-center justify-between px-4 py-2 border-t border-black/5 dark:border-white/5">
-                    <div className="text-xs text-neutral-500">
-                      {sortedFlatItems.length} élément{sortedFlatItems.length > 1 ? 's' : ''}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={effectivePage === 1}
-                    className="px-2 py-1 text-xs rounded disabled:opacity-50"
-                  >
-                    Précédent
-                  </button>
-                  <span className="text-xs">{effectivePage} / {Math.max(1, Math.ceil(sortedFlatItems.length / rowsPerPage))}</span>
-                  <button
-                    onClick={() => setPage(p => Math.min(Math.max(1, Math.ceil(sortedFlatItems.length / rowsPerPage)), p + 1))}
-                    disabled={effectivePage === Math.max(1, Math.ceil(sortedFlatItems.length / rowsPerPage))}
-                    className="px-2 py-1 text-xs rounded disabled:opacity-50"
-                  >
-                        Suivant
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          }
-
-          if (rootGroupMode === 'columns' && displayRootGroups.length > 0) {
-            const hasNestedGroups = groups.length > 1;
-            return (
-              <div className="overflow-auto max-h-[calc(100vh-280px)]">
-                <div
-                  className={`grid gap-4 p-5 ${rootGroupColumnsClassName}`}
-                >
-                  {rootGroupCards.map((group: any) => (
-                    <div
-                      key={group.id}
-                      className="min-w-0 rounded-xl border border-black/10 dark:border-white/10 bg-white/50 dark:bg-neutral-900/30 p-3"
-                    >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-neutral-800 dark:text-white truncate">
-                            {group.label}
-                          </div>
-                          {rootGroupProperty && (
-                            <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                              {rootGroupProperty.name}
-                            </div>
-                          )}
-                        </div>
-                        <span className="shrink-0 rounded-full bg-black/5 dark:bg-white/10 px-2 py-1 text-xs text-neutral-600 dark:text-neutral-300">
-                          {group.itemCount}
-                        </span>
-                      </div>
-                      {hasNestedGroups
-                        ? renderBodyOnlyShell(renderRootGroupRows(group.id, true))
-                        : renderTableShell(
-                            renderRootGroupRows(group.id, true),
-                            undefined,
-                            getItemsForGroupPath(group.id)
-                          )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          }
-
-          if (rootGroupMode === 'tabs' && displayRootGroups.length > 0) {
-            const hasNestedGroups = groups.length > 1;
-            const safeActiveGroupTab = displayRootGroups.includes(activeGroupTab)
-              ? activeGroupTab
-              : displayRootGroups[0];
-            return (
-              <div className="max-h-[calc(100vh-280px)] overflow-auto flex flex-col">
-                <Tabs value={safeActiveGroupTab} onValueChange={setActiveGroupTab} className="w-full flex flex-col">
-                  <ViewGroupTabs
-                    className="m-2 mt-3 w-auto shrink-0"
-                    activeId={safeActiveGroupTab}
-                    items={rootGroupCards.map((group: any) => ({
-                      id: group.id,
-                      label: group.label,
-                      itemCount: group.itemCount,
-                      icon: group.icon,
-                      color: group.color,
-                    }))}
-                  />
-
-                  <div className="overflow-auto flex-1">
-                    {rootGroupCards.map((group: any) => (
-                      <TabsContent key={group.id} value={group.id} className="mt-0 border-0 p-0">
-                        {hasNestedGroups
-                          ? renderBodyOnlyShell(renderRootGroupRows(group.id, true, 'skip'))
-                          : renderTableShell(
-                              renderRootGroupRows(group.id, true, 'skip'),
-                              undefined,
-                              getItemsForGroupPath(group.id)
-                            )}
-                      </TabsContent>
-                    ))}
-                  </div>
-                </Tabs>
-              </div>
-            );
-          }
-
-          if (rootGroupMode === 'select' && displayRootGroups.length > 0) {
-            type SelectLevel = {
-              depth: number;
-              groupId: string;
-              property: any;
-              options: Array<{ id: string; label: string; itemCount: number }>;
-              selectedId: string;
-            };
-
-            const selectLevels: SelectLevel[] = [];
-            let currentOptions = displayRootGroups;
-            let parentPath: string | null = null;
-
-            for (let depth = 0; depth < groups.length; depth++) {
-              const groupId = groups[depth];
-              const mode = (groupDisplayModes as any)?.[groupId] || (depth === 0 ? rootGroupMode : 'accordion');
-              if (mode !== 'select') break;
-              if (!currentOptions.length) break;
-
-              const property = orderedProperties.find((p: any) => p.id === groupId);
-              if (!property) break;
-
-              const options = currentOptions.map((pathId: string) => {
-                const rawValue = pathId.split('/').pop() || pathId;
-                const label = getGroupLabel(property!, rawValue === '(vide)' ? undefined : rawValue, collections);
-                const itemCount = groupedStructure
-                  ? countItemsInGroup(pathId, groupedStructure!.structure)
-                  : 0;
-                return { id: pathId, label, itemCount };
-              });
-
-              const persisted = activeGroupSelectByDepth[depth];
-              const selectedId = options.some((o) => o.id === persisted)
-                ? persisted
-                : options[0].id;
-
-              selectLevels.push({ depth, groupId, property, options, selectedId });
-
-              parentPath = selectedId;
-              const node = groupedStructure!.structure[selectedId];
-              currentOptions = node?.subGroups || [];
-            }
-
-            const finalSelectedPath = selectLevels.length > 0
-              ? selectLevels[selectLevels.length - 1].selectedId
-              : displayRootGroups[0];
-            const selectedDepth = Math.max(0, finalSelectedPath.split('/').length - 1);
-
-            return (
-              <div className="max-h-[calc(100vh-280px)] overflow-auto flex flex-col gap-2">
-                <div className="px-3 pt-3 grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(selectLevels.length, 1)}, minmax(180px, 1fr))` }}>
-                  {selectLevels.map((level) => (
-                    <div key={`group-select-${level.depth}`} className="min-w-0">
-                      <label className="block text-[11px] text-neutral-500 dark:text-neutral-400 mb-1 truncate">
-                        {level.property?.name || `Niveau ${level.depth + 1}`}
-                      </label>
-                      <Select
-                        value={level.selectedId}
-                        onValueChange={(nextId) => {
-                          setActiveGroupSelectByDepth((prev) => {
-                            const next: Record<number, string> = { ...prev, [level.depth]: nextId };
-                            Object.keys(next).forEach((k) => {
-                              const d = Number(k);
-                              if (d > level.depth) delete next[d];
-                            });
-                            return next;
-                          });
-                        }}
-                      >
-                        <SelectTrigger className="w-full rounded-lg border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {level.options.map((opt) => (
-                            <SelectItem key={opt.id} value={opt.id}>{opt.label} ({opt.itemCount})</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="overflow-auto flex-1">
-                  {groups.length > selectedDepth + 1
-                    ? renderBodyOnlyShell(
-                        <GroupRenderer
-                          key={finalSelectedPath}
-                          groupPath={finalSelectedPath}
-                          depth={selectedDepth}
-                          groups={groups}
-                          groupProperties={orderedProperties}
-                          groupDisplayModes={groupDisplayModes}
-                          defaultGroupDisplayMode={groupDisplayMode as any}
-                          groupDisplayColumnCounts={groupDisplayColumnCounts}
-                          groupTabStyleFieldIds={groupTabStyleFieldIds}
-                          defaultGroupDisplayColumnCount={normalizeGroupColumnCount(groupDisplayColumnCount)}
-                          groupTotalsByGroupId={groupTotalsByGroupId}
-                          groupedStructure={groupedStructure!}
-                          collection={collection}
-                          collections={collections}
-                          expandedGroups={expandedGroups}
-                          toggleGroup={handleToggleGroup}
-                          itemsMap={itemsMap}
-                          visibleProperties={visibleProperties}
-                          favoriteItemIds={favoriteItemIds}
-                          onEdit={onEdit}
-                          onDelete={onDelete}
-                          onToggleFavoriteItem={onToggleFavoriteItem}
-                          onViewDetail={onViewDetail}
-                          onRelationChange={onRelationChange}
-                          onNavigateToCollection={onNavigateToCollection}
-                          onEditProperty={onEditProperty}
-                          onToggleField={onToggleField}
-                          onDeleteProperty={onDeleteProperty}
-                          onDuplicateProperty={onDuplicateProperty}
-                          onToggleTotalField={onSetTotalField}
-                          onReorderField={onReorderField ? handleReorderField : undefined}
-                          canEdit={canEdit}
-                          canEditField={canEditFieldFn}
-                          sortItems={sortItems}
-                          enableSelection={showSelectionColumn}
-                          selectedItemIds={selectedItemIds}
-                          onSelectionChange={handleSelectionChange}
-                          draggableRows={canReorderRows}
-                          dragItemId={dragItemId}
-                          dragOverItemId={dragOverItemId}
-                          onRowDragStart={handleRowDragStart}
-                          onRowDragEnter={handleRowDragEnter}
-                          onRowDrop={handleRowDrop}
-                          onRowDragEnd={handleRowDragEnd}
-                          totalFields={totalFields}
-                          calculateTotal={calculateTotal}
-                          formatTotal={formatTotal}
-                          hideCurrentHeader
-                          topTotalRenderMode="skip"
-                          onCreateItemInGroup={(groupPath) => {
-                            const prefill = buildGroupPrefill(groupPath, groups, collection.properties || []);
-                            onShowNewItemModal?.(prefill);
-                          }}
-                          onActiveSubGroupTabChange={(path, tabDepth) => {
-                            if (path) {
-                              // Synchronise aussi la sélection par profondeur pour que
-                              // le contextPath des totaux pointe bien sur le niveau actif (ex: bundle)
-                              setActiveGroupSelectByDepth((prev) => {
-                                const next: Record<number, string> = { ...prev, [tabDepth]: path };
-                                Object.keys(next).forEach((k) => {
-                                  const d = Number(k);
-                                  if (d > tabDepth) delete next[d];
-                                });
-                                if (areStringMapsEqual(prev, next)) return prev;
-                                return next;
-                              });
-
-                              const prefill = buildGroupPrefill(path, groups, collection.properties || []);
-                              const ctx = Object.keys(prefill).length > 0 ? prefill : null;
-                              emitGroupContext(ctx);
-                            }
-                          }}
-                        />
-                      )
-                    : renderTableShell(
-                        renderRootGroupRows(finalSelectedPath, true, 'skip', selectedDepth),
-                        undefined,
-                        getItemsForGroupPath(finalSelectedPath)
-                      )}
-                </div>
-              </div>
-            );
-          }
-
-          return renderTableShell(displayRootGroups.map((rootGroup: string) => renderRootGroupRows(rootGroup)));
         })()}
       </div>
 

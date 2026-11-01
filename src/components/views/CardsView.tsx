@@ -13,9 +13,15 @@ import CardsGrid from './CardsGrid';
 import type { TableViewProps } from '@/lib/types';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useViewPagination } from '@/lib/hooks/useViewPagination';
+import type { FieldGroup } from '@/lib/types';
 
 type CardsViewProps = Omit<TableViewProps, 'displayAsCards'> & {
-  cardStyleFieldId?: string;
+  cardStyle?: 'default' | 'steamFullArt';
+  cardDensity?: 'compact' | 'comfortable' | 'spacious';
+  cardIconFieldId?: string | null;
+  cardColorFieldId?: string | null;
+  fieldGroups?: FieldGroup[];
+  cardGroupPlacements?: Record<string, string>;
 };
 
 const CardsView: React.FC<CardsViewProps> = ({
@@ -37,7 +43,12 @@ const CardsView: React.FC<CardsViewProps> = ({
   groupDisplayModes = {},
   groupDisplayColumnCount = 3,
   groupDisplayColumnCounts = {},
-  cardStyleFieldId,
+  cardStyle = 'default',
+  cardDensity = 'comfortable',
+  cardIconFieldId,
+  cardColorFieldId,
+  fieldGroups = [],
+  cardGroupPlacements = {},
   cardColumns = 'auto',
 }) => {
   const canEdit = useCanEdit(collection.id);
@@ -45,14 +56,31 @@ const CardsView: React.FC<CardsViewProps> = ({
     () => orderedProperties.find((property) => property.type === 'steam'),
     [orderedProperties],
   );
-  const styleProperty = useMemo(
-    () => collection.properties?.find((property) => property.id === cardStyleFieldId),
-    [collection.properties, cardStyleFieldId],
+  const iconProperty = useMemo(
+    () => collection.properties?.find((property) => property.id === cardIconFieldId),
+    [cardIconFieldId, collection.properties],
+  );
+  const colorProperty = useMemo(
+    () => collection.properties?.find((property) => property.id === cardColorFieldId),
+    [cardColorFieldId, collection.properties],
   );
   const visibleProperties = useMemo(
-    () => orderedProperties.filter((property) => property.id !== steamProperty?.id && !hiddenFields.includes(property.id)),
-    [hiddenFields, orderedProperties, steamProperty?.id],
+    () => orderedProperties
+      .filter((property) => property.id !== steamProperty?.id && !hiddenFields.includes(property.id))
+      .map((property) => ({
+        ...(collection.properties?.find((candidate) => candidate.id === property.id) || {}),
+        ...property,
+        options: property.options || collection.properties?.find((candidate) => candidate.id === property.id)?.options || [],
+      })),
+    [collection.properties, hiddenFields, orderedProperties, steamProperty?.id],
   );
+  const fieldPlacements = useMemo(() => {
+    const groupedIds = new Set(fieldGroups.flatMap((group) => group.fieldIds));
+    return Object.fromEntries([
+      ...fieldGroups.flatMap((group) => group.fieldIds.map((fieldId) => [fieldId, cardGroupPlacements[group.id] || 'description'])),
+      ...visibleProperties.filter((property) => !groupedIds.has(property.id)).map((property) => [property.id, cardGroupPlacements.__ungrouped__ || 'description']),
+    ]) as Record<string, string>;
+  }, [cardGroupPlacements, fieldGroups, visibleProperties]);
   const canEditField = useCallback(() => canEdit, [canEdit]);
   const { rowsPerPage, page } = useViewPagination({
     items,
@@ -69,7 +97,11 @@ const CardsView: React.FC<CardsViewProps> = ({
       items={groupItems}
       cardColumns={cardColumns}
       steamProperty={steamProperty}
-      styleProperty={styleProperty}
+      cardStyle={cardStyle}
+      cardDensity={cardDensity}
+      iconProperty={iconProperty}
+      colorProperty={colorProperty}
+      fieldPlacements={fieldPlacements}
       properties={visibleProperties}
       collection={collection}
       collections={collections}
@@ -91,7 +123,11 @@ const CardsView: React.FC<CardsViewProps> = ({
     onRelationChange,
     onViewDetail,
     steamProperty,
-    styleProperty,
+    cardDensity,
+    cardStyle,
+    colorProperty,
+    iconProperty,
+    fieldPlacements,
     visibleProperties,
   ]);
 

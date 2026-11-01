@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ChevronRight } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { GroupHeader } from '@/components/ui/group-header';
 import ViewGroupTabs from './ViewGroupTabs';
 import { useGrouping } from '@/lib/hooks/useGrouping';
 import type { Collection, Item, Property, TableGroupDisplayMode } from '@/lib/types';
@@ -164,22 +164,15 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
 
       return (
         <section key={path} className="space-y-2">
-          <button
-            type="button"
+          <GroupHeader
             onClick={() => collapsible && toggleGroup(path)}
-            aria-expanded={collapsible ? expanded : true}
-            className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left ${
-              collapsible ? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5' : 'cursor-default'
-            }`}
-          >
-            {collapsible && <ChevronRight size={18} className={expanded ? 'rotate-90' : ''} />}
-            <h3 className="min-w-0 flex-1 truncate text-sm font-semibold">
-              {property?.name ? `${property.name}: ` : ''}{property
-                ? getGroupLabel(property, value === '(vide)' ? undefined : value, collections)
-                : value}
-            </h3>
-            <span className="text-xs text-neutral-500">{groupItems.length}</span>
-          </button>
+            collapsible={collapsible}
+            expanded={expanded}
+            count={groupItems.length}
+            label={`${property?.name ? `${property.name}: ` : ''}${property
+              ? getGroupLabel(property, value === '(vide)' ? undefined : value, collections)
+              : value}`}
+          />
           {(!collapsible || expanded) && renderChildren}
         </section>
       );

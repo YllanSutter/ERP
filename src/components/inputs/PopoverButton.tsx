@@ -4,6 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { OptionTags } from './OptionTags';
 
 interface PopoverButtonProps {
   icon?: 'Plus' | 'List' | 'Search'; // Icône à afficher
@@ -98,8 +99,10 @@ export const LinkedItemsViewer: React.FC<LinkedItemsViewerProps> = ({
         return val ? '✓' : '✗';
       case 'url':
         return (<a href={val} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">{val}</a>);
+      case 'select':
+      case 'multiselect':
       case 'multi_select':
-        return Array.isArray(val) ? val.join(', ') : String(val);
+        return <OptionTags options={prop.options || []} value={val} />;
       case 'relation':
         return Array.isArray(val) ? `${val.length} lié(s)` : (val ? '1 lié' : '-');
       default:

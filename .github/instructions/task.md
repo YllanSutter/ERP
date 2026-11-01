@@ -113,15 +113,35 @@
 
 ## 🟢 PHASE 4 : Performance & UX Polish
 
-- [ ] **TASK 4.1 : Code-Splitting des vues majeures**
+- [x] **TASK 4.1 : Code-Splitting des vues majeures**
   - **Cible** : Fichier de routing principal (ex: `src/App.tsx` ou `src/router.tsx`).
   - **Action** : Remplacer les imports statiques de `Calendar`, `Dashboard`, `Admin` par `React.lazy(() => import('...'))` avec un `<Suspense fallback={<Spinner />}>`.
   - **Vérif** : `grep -n "React.lazy" src/App.tsx`
 
-- [ ] **TASK 4.2 : Réduction de la payload API**
+- [x] **TASK 4.2 : Réduction de la payload API**
   - **Cible** : `server/index.js`.
   - **Action** : Réduire la limite de `express.json({ limit: '1mb' })` (au lieu de 10mb+). Ajouter `compression()` middleware.
   - **Vérif** : `grep -n "express.json" server/index.js`
+
+- [x] **TASK 4.3 : Unifier l'exécution des renderers et supprimer les chemins hérités**
+  - **Cible** : `src/components/views/LayoutView.tsx`, `src/components/views/TableView.tsx`, `src/components/views/ViewRendererHost.tsx` et tests des vues.
+  - **Action** : Ne rendre chaque panneau Layout que par le renderer résolu dans le registry ; supprimer les branches Tableau/Cartes devenues inatteignables et leurs états, imports et props associés, sans modifier le comportement du chemin `ViewGrouping`.
+  - **Vérif** : test de non-double rendu d'un panneau Tableau, `npm run typecheck`, `npm test`, `git diff --check`.
+
+- [x] **TASK 4.4 : Rendre effectif le contrat de configuration des vues Cartes**
+  - **Cible** : `src/lib/views/`, `src/components/views/CardsRenderer.tsx`, `CardsView.tsx`, `CardsGrid.tsx`, `SteamCardFullArt.tsx` et tests de migration.
+  - **Action** : Faire appliquer `cardStyle`, `cardDensity`, `cardIconFieldId` et `cardColorFieldId` de bout en bout. Enregistrer le style Standard et `SteamCardFullArt` comme renderers de carte indépendants ; ne pas fusionner les champs icône/couleur ; ajouter des tests de configuration et de rétrocompatibilité.
+  - **Vérif** : tests de registry/migration/rendu de style, `npm run typecheck`, `npm run build`.
+
+- [x] **TASK 4.5 : Centraliser les primitives et variantes de l'interface des vues**
+  - **Cible** : `src/components/ui/`, `src/components/views/ViewToolbar.tsx`, `TableView.tsx`, `KanbanView.tsx`, `ViewGrouping.tsx` et documentation design system.
+  - **Action** : Créer ou compléter les primitives `ToolbarButton`, `IconButton`, `GroupHeader`, `SettingsField` et les variantes de `Button`. Remplacer les boutons, champs et `<select>` locaux des vues par ces primitives, y compris pagination, actions groupées et groupage ; documenter les points d'extension.
+  - **Vérif** : aucune balise `<select>` dans les vues, lint ciblé, `npm run typecheck`, `npm run build`.
+
+- [x] **TASK 4.6 : Consolider les tokens visuels et aligner les capacités de vues**
+  - **Cible** : `src/index.css`, `src/components/ui/`, `src/components/views/`, `src/lib/views/viewRegistry.ts` et docs.
+  - **Action** : Remplacer les couleurs, rayons, ombres, espacements et états réutilisables locaux par des tokens et variantes partagés. Documenter l'exception Full Art. Déclarer uniquement les capacités effectivement disponibles ; intégrer la sélection Cartes lors de la clôture de TASK 3.6.
+  - **Vérif** : audit des classes locales restantes, tests de capacités, `npm run typecheck`, `npm run build`.
 
 ---
 

@@ -20,6 +20,12 @@ import { getViewRegistrations } from '@/lib/views';
 import ViewSettingsPanel from '@/components/views/ViewSettingsPanel';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import ShinyButton from '@/components/ui/ShinyButton';
+import { ToolbarButton } from '@/components/ui/toolbar-button';
+import { IconButton } from '@/components/ui/icon-button';
+import { SettingsField } from '@/components/ui/settings-field';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import DraggableList from '@/components/inputs/DraggableList';
 import FilterValueDisplay from '@/components/filters/FilterValueDisplay';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
@@ -315,20 +321,16 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
     >
 
       <div className="flex min-w-0 items-center gap-2 flex-wrap">
-        <button
+        <ToolbarButton
           type="button"
           onClick={() => setShowToolbarTools((prev) => !prev)}
-          className={
-            'h-8 w-8 rounded-full flex items-center justify-center border transition-all ' +
-            (showToolbarTools
-              ? 'bg-violet-500 dark:bg-violet-500/30 text-white dark:text-violet-100 border-violet-400/40'
-              : 'bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 border-black/10 dark:border-white/10 hover:bg-white/10')
-          }
+          active={showToolbarTools}
+          size="icon"
           title="Outils de vue"
           aria-label="Outils de vue"
         >
           <Settings size={14} />
-        </button>
+        </ToolbarButton>
         <div className="inline-flex min-w-0 max-w-full shrink overflow-x-auto rounded-full bg-white/5 p-1 border border-black/10 dark:border-white/10">
           {viewTypeMeta
             .filter((meta) => (viewsByType.get(meta.type) || []).length > 0)
@@ -339,21 +341,17 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
               const firstViewId = typeViews[0]?.id || null;
               return (
                 <div key={meta.type} className="relative group">
-                  <button
+                  <ToolbarButton
                     type="button"
                     onClick={() => {
                       if (firstViewId) onSetActiveView(firstViewId);
                     }}
-                    className={
-                      'px-3 py-1 text-xs rounded-full transition-all inline-flex items-center gap-1 ' +
-                      (isActiveType
-                        ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
-                        : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
-                    }
+                    active={isActiveType}
+                    className="h-auto rounded-full px-3 py-1"
                   >
                     <Icon size={12} />
                     {meta.label}
-                  </button>
+                  </ToolbarButton>
                   <div className="absolute left-0 top-full min-w-[220px] rounded-xl border border-black/10 dark:border-white/10 bg-background dark:bg-neutral-950/95 p-2 shadow-xl backdrop-blur z-20 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto">
                     {/* <div className="text-[11px] uppercase tracking-wide text-neutral-500 mb-1 px-2">
                       {meta.label}
@@ -365,18 +363,20 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                         return (
                           <ContextMenu key={view.id}>
                             <ContextMenuTrigger asChild>
-                              <button
+                              <Button
                                 type="button"
                                 onClick={() => onSetActiveView(view.id)}
+                                variant={isActive ? 'secondary' : 'ghost'}
+                                size="sm"
                                 className={cn(
-                                  'w-full text-left px-2 py-1 rounded-md text-xs transition-all',
+                                  'h-auto w-full justify-start px-2 py-1 text-left text-xs transition-all',
                                   isActive
                                     ? 'bg-violet-500/20 text-neutral-600 dark:text-violet-100 border border-violet-400/30'
                                     : 'dark:text-neutral-300 text-neutral-700 hover:bg-white/10 dark:hover:bg-black/10'
                                 )}
                               >
                                 <span>{isFavorite ? '★ ' : ''}{view.name}</span>
-                              </button>
+                              </Button>
                             </ContextMenuTrigger>
                             <ContextMenuContent className="min-w-[200px]">
                               <ContextMenuItem onSelect={() => onEditView(view.id)} className="gap-2">
@@ -421,19 +421,18 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button
-                    type="button"
+                  <IconButton
                     onClick={() => canEdit && onShowNewViewModal()}
+                    label="Nouvelle vue"
                     className={
-                      'h-6 w-6 rounded-full flex items-center justify-center border transition-all ' +
+                      'h-6 w-6 rounded-full border transition-all ' +
                       (!canEdit
                         ? 'opacity-60 pointer-events-none bg-black/5 dark:bg-white/5 text-neutral-400 border-black/10 dark:border-white/10'
                         : 'bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300 border-black/10 dark:border-white/10 hover:bg-white/10')
                     }
-                    aria-label="Nouvelle vue"
                   >
                     <Plus size={14} />
-                  </button>
+                  </IconButton>
                 </TooltipTrigger>
                 <TooltipContent side="top" align="center">
                   Nouvelle vue
@@ -445,7 +444,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         <div className="flex min-w-0 items-center gap-2 flex-wrap">
           <div className="flex min-w-0 items-center gap-2 flex-wrap">
               <div className="relative">
-            <input
+            <Input
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -454,7 +453,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
               onFocus={() => setIsSearchOpen(true)}
               onBlur={() => setTimeout(() => setIsSearchOpen(false), 150)}
               placeholder="Rechercher un projet…"
-              className="w-[min(16rem,calc(100vw-7rem))] max-w-full bg-background border-b border-black/15 dark:border-white/15 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200 placeholder:text-neutral-500 focus:outline-none"
+              className="h-9 w-[min(16rem,calc(100vw-7rem))] max-w-full text-xs"
             />
             {isSearchOpen && activeCollections.length > 0 && (
               <div className="absolute left-0 mt-2 w-[28rem] max-w-[80vw] rounded-lg border border-black/10 dark:border-white/10 bg-background dark:bg-neutral-900 shadow-xl backdrop-blur z-30 p-3">
@@ -465,34 +464,36 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                 </div>
                 {activeCollections.length > 1 && (
                   <div className="flex items-center gap-2 mb-3">
-                    <button
+                    <ToolbarButton
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => setSearchCollectionId('all')}
+                      active={activeSearchCollectionId === 'all'}
                       className={cn(
-                        'px-2.5 py-1 rounded-md text-sm font-semibold transition-all',
+                        'h-auto px-2.5 py-1 text-sm font-semibold',
                         activeSearchCollectionId === 'all'
                           ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30'
                           : 'text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 border border-black/10 dark:border-white/10 '
                       )}
                     >
                       Tout
-                    </button>
+                    </ToolbarButton>
                     {activeCollections.map((col: any) => (
-                      <button
+                      <ToolbarButton
                         key={col.id}
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => setSearchCollectionId(col.id)}
+                        active={activeSearchCollectionId === col.id}
                         className={cn(
-                          'px-2.5 py-1 rounded-md text-sm font-semibold transition-all',
+                          'h-auto px-2.5 py-1 text-sm font-semibold',
                           activeSearchCollectionId === col.id
                             ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30'
                             : 'text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 border border-black/10 dark:border-white/10'
                         )}
                       >
                         {col.name}
-                      </button>
+                      </ToolbarButton>
                     ))}
                   </div>
                 )}
@@ -500,7 +501,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                   {activeSearchCollectionId === 'all' ? (
                     searchResults.items.length > 0 ? (
                       searchResults.items.map(({ collection, item }: any) => (
-                        <button
+                        <Button
                           key={`${collection.id}-${item.id}`}
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
@@ -508,18 +509,20 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                             onOpenItemFromSearch(collection, item);
                             setIsSearchOpen(false);
                           }}
-                          className="w-full flex items-center justify-between rounded-md px-2 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-white/10"
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto w-full justify-between px-2 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-white/10"
                         >
                           <span className="truncate">{getItemLabel(collection, item)}</span>
                           <span className="text-[11px] text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 ">{collection.name}</span>
-                        </button>
+                        </Button>
                       ))
                     ) : (
                       <div className="text-sm text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 ">Aucun résultat.</div>
                     )
                   ) : searchResults.collection && searchResults.items.length > 0 ? (
                     searchResults.items.map((item: any) => (
-                      <button
+                      <Button
                         key={item.id}
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
@@ -527,10 +530,12 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                           onOpenItemFromSearch(searchResults.collection, item);
                           setIsSearchOpen(false);
                         }}
-                        className="w-full flex items-center justify-between rounded-md px-2 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-white/10"
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto w-full justify-between px-2 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-white/10"
                       >
                         <span className="truncate">{getItemLabel(searchResults.collection, item)}</span>
-                      </button>
+                      </Button>
                     ))
                   ) : (
                     <div className="text-sm text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 ">Aucun résultat.</div>
@@ -584,28 +589,26 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         <div className="flex items-center gap-2 flex-wrap mt-4">
           {currentViewConfig?.type !== 'layout' && (
             <>
-              <button
+              <ToolbarButton
                 onClick={onShowFilterModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 lg:text-sm text-xs transition-all duration-300"
               >
                 <Filter size={14} />
                 Filtrer
-              </button>
-              <button
+              </ToolbarButton>
+              <ToolbarButton
                 onClick={onShowGroupModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 lg:text-sm text-xs transition-all duration-300"
               >
                 <Layers size={14} />
                 Grouper
-              </button>
+              </ToolbarButton>
               <div className="relative" ref={settingsRef}>
-                <button
+                <ToolbarButton
                   onClick={() => onSetShowViewSettings(!showViewSettings)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-neutral-700 dark:text-neutral-400 rounded-lg hover:bg-white/10 lg:text-sm text-xs transition-all duration-300"
+                  active={showViewSettings}
                 >
                   <Settings size={14} />
                   Paramètres
-                </button>
+                </ToolbarButton>
 
             <AnimatePresence>
               {showViewSettings && (
@@ -613,7 +616,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute top-full -mt-2 left-0 w-[420px] max-w-[calc(100vw-1rem)] bg-gray-200 dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-lg shadow-xl backdrop-blur z-[140] p-4"
+                  className="view-settings-panel absolute top-full -mt-2 left-0 w-[420px] max-w-[calc(100vw-1rem)] rounded-[var(--view-control-radius)] bg-gray-200 p-4 backdrop-blur dark:bg-neutral-900 border border-black/10 dark:border-white/10 z-[140]"
                 >
                   <ViewSettingsPanel
                     view={currentViewConfig}
@@ -625,21 +628,22 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     <h4 className="text-sm font-semibold text-black dark:text-white">Colonnes visibles</h4>
                     <div className="flex items-center gap-2">
                       {canEdit && (
-                        <button
+                        <ToolbarButton
                           onClick={() => { onSetShowViewSettings(false); onShowNewPropertyModal(); }}
-                          className="flex items-center gap-1 px-2 py-1 text-xs text-neutral-500 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-colors"
+                          className="h-auto px-2 py-1 text-neutral-500 dark:text-neutral-400 hover:text-black dark:hover:text-white"
                           title="Ajouter une propriété"
                         >
                           <Plus size={12} />
                           Propriété
-                        </button>
+                        </ToolbarButton>
                       )}
-                      <button
+                      <IconButton
                         onClick={() => onSetShowViewSettings(false)}
-                        className="text-neutral-700 dark:text-neutral-500 hover:text-black dark:hover:text-white"
+                        label="Fermer les paramètres"
+                        className="h-7 w-7 text-neutral-700 dark:text-neutral-500 hover:text-black dark:hover:text-white"
                       >
                         <X size={14} />
-                      </button>
+                      </IconButton>
                     </div>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
@@ -670,16 +674,14 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                         <span className="truncate">{prop.name}</span>
                                       </div>
                                       <div className="flex items-center gap-1 shrink-0">
-                                        <button
-                                          type="button"
+                                        <IconButton
                                           onClick={(e) => { e.preventDefault(); if (!canEdit) return; onEditProperty(prop); }}
-                                          className="opacity-0 group-hover:opacity-100 text-neutral-500 hover:text-cyan-400 p-0.5 rounded transition-opacity"
-                                          title="Modifier la propriété"
+                                          label="Modifier la propriété"
+                                          className="h-5 w-5 opacity-0 text-neutral-500 transition-opacity hover:text-cyan-400 group-hover:opacity-100"
                                         >
                                           <Icons.Edit2 size={11} />
-                                        </button>
-                                        <button
-                                          type="button"
+                                        </IconButton>
+                                        <Button
                                           role="checkbox"
                                           aria-checked={isVisible}
                                           onClick={(e) => {
@@ -690,15 +692,17 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                             const normalized = next.length ? next : (props[0] ? [props[0].id] : []);
                                             onUpdateCollectionVisibleFields(col.id, normalized);
                                           }}
+                                          variant="outline"
+                                          size="sm"
                                           className={cn(
-                                            'size-4 shrink-0 rounded-[4px] border flex items-center justify-center transition-colors',
+                                            'size-4 shrink-0 rounded-[4px] border p-0 transition-colors',
                                             isVisible
                                               ? 'bg-violet-500 border-violet-500 text-white'
                                               : 'border-neutral-400 dark:border-neutral-600 text-transparent'
                                           )}
                                         >
                                           <Icons.Check size={10} strokeWidth={3} />
-                                        </button>
+                                        </Button>
                                       </div>
                                     </label>
                                   );
@@ -743,27 +747,29 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                               <PropIcon size={13} className="text-neutral-400 shrink-0" />
                               <span className="flex-1 truncate">{prop.name}</span>
                               {!isSystemOption && (
-                                <button
+                                <IconButton
                                   onClick={(e) => { e.stopPropagation(); if (!canEdit) return; onEditProperty(prop); }}
-                                  className="opacity-0 group-hover:opacity-100 text-neutral-500 hover:text-cyan-400 p-0.5 rounded transition-opacity shrink-0"
-                                  title="Modifier la propriété"
+                                  label="Modifier la propriété"
+                                  className="h-5 w-5 shrink-0 opacity-0 text-neutral-500 transition-opacity hover:text-cyan-400 group-hover:opacity-100"
                                 >
                                   <Icons.Edit2 size={11} />
-                                </button>
+                                </IconButton>
                               )}
-                              <button
+                              <Button
                                 role="checkbox"
                                 aria-checked={!isHidden}
                                 onClick={(e) => { e.stopPropagation(); onToggleFieldVisibility(prop.id); }}
+                                variant="outline"
+                                size="sm"
                                 className={cn(
-                                  'size-4 shrink-0 rounded-[4px] border flex items-center justify-center transition-colors',
+                                  'size-4 shrink-0 rounded-[4px] border p-0 transition-colors',
                                   !isHidden
                                     ? 'bg-violet-500 border-violet-500 text-white'
                                     : 'border-neutral-400 dark:border-neutral-600 text-transparent'
                                 )}
                               >
                                 <Icons.Check size={10} strokeWidth={3} />
-                              </button>
+                              </Button>
                             </div>
                           );
                         }}
@@ -783,19 +789,20 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                           { value: 'stacked', label: 'Empilés' },
                           { value: 'tabs', label: 'Onglets' },
                         ] as const).map((option) => (
-                          <button
+                          <ToolbarButton
                             key={option.value}
                             type="button"
                             onClick={() => onUpdateFieldGroupsLayout(option.value)}
+                            active={(currentViewConfig?.fieldGroupsLayout || 'stacked') === option.value}
                             className={cn(
-                              'px-2 py-1 text-[10px] rounded border transition-colors',
+                              'h-auto px-2 py-1 text-[10px] border',
                               (currentViewConfig?.fieldGroupsLayout || 'stacked') === option.value
                                 ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-300'
                                 : 'border-black/10 dark:border-white/10 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
                             )}
                           >
                             {option.label}
-                          </button>
+                          </ToolbarButton>
                         ))}
                       </div>
 
@@ -829,26 +836,48 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                   className="flex-1 text-xs bg-transparent border-b border-violet-500 outline-none text-neutral-800 dark:text-neutral-200 py-0.5"
                                 />
                               ) : (
-                                <button
+                                <Button
+                                  type="button"
                                   onClick={() => { setEditingGroupId(group.id); setEditingGroupLabel(group.label); }}
-                                  className="flex-1 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300 hover:text-black dark:hover:text-white truncate"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-auto flex-1 justify-start truncate p-0 text-left text-xs font-medium text-neutral-700 hover:text-black dark:text-neutral-300 dark:hover:text-white"
                                   title="Cliquer pour renommer"
                                 >
                                   {group.label}
-                                </button>
+                                </Button>
                               )}
-                              <button
+                              <IconButton
                                 onClick={() => {
                                   const next = (currentViewConfig?.fieldGroups || []).filter((g: FieldGroup) => g.id !== group.id);
                                   onUpdateFieldGroups(next);
                                   if (groupFieldPickerOpen === group.id) setGroupFieldPickerOpen(null);
                                 }}
-                                className="p-0.5 text-neutral-500 hover:text-red-500 transition-colors"
-                                title="Supprimer le groupe"
+                                label="Supprimer le groupe"
+                                className="h-6 w-6 p-0.5 text-neutral-500 hover:text-red-500"
                               >
                                 <Icons.X size={12} />
-                              </button>
+                              </IconButton>
                             </div>
+                            {currentViewConfig?.type === 'cards' || currentViewConfig?.type === 'steamcards' ? (
+                              <SettingsField label="Emplacement" className="mb-2">
+                                <Select
+                                  value={(currentViewConfig.cardGroupPlacements || {})[group.id] || 'description'}
+                                  onValueChange={(placement) => {
+                                    onUpdateViewConfig({ cardGroupPlacements: { ...(currentViewConfig.cardGroupPlacements || {}), [group.id]: placement } });
+                                  }}
+                                >
+                                  <SelectTrigger className="h-7 w-full text-xs"><SelectValue placeholder="Emplacement" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="header">En-tête</SelectItem>
+                                    <SelectItem value="description">Description</SelectItem>
+                                    <SelectItem value="footer">Encart bas</SelectItem>
+                                    <SelectItem value="tags">Tags sur l’image</SelectItem>
+                                    <SelectItem value="hidden">Masqué</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </SettingsField>
+                            ) : null}
 
                             {/* Champs du groupe */}
                             <div className="flex flex-wrap gap-1 min-h-[22px]">
@@ -858,27 +887,31 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                 return (
                                   <span key={fid} className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300">
                                     {prop.name}
-                                    <button
+                                    <IconButton
                                       onClick={() => {
                                         const next = (currentViewConfig?.fieldGroups || []).map((g: FieldGroup) =>
                                           g.id === group.id ? { ...g, fieldIds: g.fieldIds.filter((id) => id !== fid) } : g
                                         );
                                         onUpdateFieldGroups(next);
                                       }}
-                                      className="text-neutral-400 hover:text-red-400 transition-colors"
+                                      label={`Retirer ${prop.name}`}
+                                      className="h-4 w-4 text-neutral-400 hover:text-red-400"
                                     >
                                       <Icons.X size={9} />
-                                    </button>
+                                    </IconButton>
                                   </span>
                                 );
                               })}
                               {/* Bouton + ajouter un champ */}
-                              <button
+                              <Button
+                                type="button"
                                 onClick={() => setGroupFieldPickerOpen(isPickerOpen ? null : group.id)}
-                                className="text-[10px] px-1.5 py-0.5 rounded border border-dashed border-neutral-400 dark:border-neutral-600 text-neutral-500 hover:border-violet-500 hover:text-violet-500 transition-colors"
+                                variant="outline"
+                                size="sm"
+                                className="h-auto border-dashed border-neutral-400 px-1.5 py-0.5 text-[10px] text-neutral-500 hover:border-violet-500 hover:text-violet-500 dark:border-neutral-600"
                               >
                                 + champ
-                              </button>
+                              </Button>
                             </div>
 
                             {/* Picker de champs — exclut relations, titre et champs déjà dans un groupe */}
@@ -895,8 +928,9 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                               return (
                                 <div className="mt-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-gray-100 dark:bg-neutral-800 p-1.5 max-h-32 overflow-y-auto">
                                   {available.map((prop) => (
-                                    <button
+                                    <Button
                                       key={prop.id}
+                                      type="button"
                                       onClick={() => {
                                         const next = (currentViewConfig?.fieldGroups || []).map((g: FieldGroup) =>
                                           g.id === group.id ? { ...g, fieldIds: [...g.fieldIds, prop.id] } : g
@@ -904,10 +938,12 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                         onUpdateFieldGroups(next);
                                         setGroupFieldPickerOpen(null);
                                       }}
-                                      className="w-full text-left text-xs px-2 py-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-neutral-700 dark:text-neutral-300 truncate transition-colors"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-auto w-full justify-start truncate px-2 py-1 text-left text-xs text-neutral-700 hover:bg-black/5 dark:text-neutral-300 dark:hover:bg-white/10"
                                     >
                                       {prop.name}
-                                    </button>
+                                    </Button>
                                   ))}
                                   {available.length === 0 && (
                                     <div className="text-xs text-neutral-500 px-2 py-1">Tous les champs sont déjà assignés</div>
@@ -919,9 +955,23 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                         );
                       })}
 
+                      {(currentViewConfig?.type === 'cards' || currentViewConfig?.type === 'steamcards') && (() => {
+                        const groupedIds = new Set((currentViewConfig?.fieldGroups || []).flatMap((group: FieldGroup) => group.fieldIds));
+                        const ungroupedCount = viewableProperties.filter((property) => !groupedIds.has(property.id)).length;
+                        if (!ungroupedCount) return null;
+                        return (
+                          <SettingsField label={`Autres champs visibles · ${ungroupedCount}`} className="mb-2 rounded-lg border border-dashed border-border p-2">
+                            <Select value={(currentViewConfig.cardGroupPlacements || {}).__ungrouped__ || 'description'} onValueChange={(placement) => onUpdateViewConfig({ cardGroupPlacements: { ...(currentViewConfig.cardGroupPlacements || {}), __ungrouped__: placement } })}>
+                              <SelectTrigger className="h-7 w-full text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent><SelectItem value="header">En-tête</SelectItem><SelectItem value="description">Description</SelectItem><SelectItem value="footer">Encart bas</SelectItem><SelectItem value="tags">Tags sur l’image</SelectItem><SelectItem value="hidden">Masqué</SelectItem></SelectContent>
+                            </Select>
+                          </SettingsField>
+                        );
+                      })()}
+
                       {/* Créer un nouveau groupe */}
                       <div className="flex items-center gap-1.5 mt-1">
-                        <input
+                        <Input
                           type="text"
                           value={newGroupLabel}
                           onChange={(e) => setNewGroupLabel(e.target.value)}
@@ -935,9 +985,9 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                               setNewGroupLabel('');
                             }
                           }}
-                          className="flex-1 text-xs px-2 py-1.5 bg-transparent border border-black/10 dark:border-white/10 rounded-lg outline-none focus:border-violet-500 text-neutral-700 dark:text-neutral-300 placeholder-neutral-400"
+                          className="h-auto flex-1 py-1.5 text-xs text-neutral-700 dark:text-neutral-300"
                         />
-                        <button
+                        <IconButton
                           onClick={() => {
                             const trimmed = newGroupLabel.trim();
                             if (!trimmed) return;
@@ -946,10 +996,12 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                             setNewGroupLabel('');
                           }}
                           disabled={!newGroupLabel.trim()}
-                          className="px-2 py-1.5 text-xs bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                          label="Créer le groupe"
+                          variant="default"
+                          className="h-7 w-7 bg-violet-600 text-white hover:bg-violet-500"
                         >
                           <Icons.Plus size={12} />
-                        </button>
+                        </IconButton>
                       </div>
                     </div>
                   )}
@@ -1003,29 +1055,29 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     />
                   </div>
                 )}
-                <button
+                <IconButton
                   onClick={() => {
                     if (!canEdit) return;
                     onEditFilter(idx);
                   }}
-                  className={cn('ml-0.5 rounded-full p-1 inline-flex items-center gap-1', !canEdit && 'opacity-60 pointer-events-none')}
+                  label="Modifier la règle"
+                  className={cn('ml-0.5 h-6 w-6 rounded-full p-1', !canEdit && 'pointer-events-none opacity-60')}
                   style={{ backgroundColor: 'transparent' }}
                   onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${accentColor}33`; }}
                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                  title="Modifier la règle (champ/opérateur)"
-                  aria-label="Modifier la règle"
                 >
                   <Icons.SlidersHorizontal size={13} />
-                </button>
-                <button
+                </IconButton>
+                <IconButton
                   onClick={() => onRemoveFilter(idx)}
-                  className="rounded-full p-1"
+                  label="Retirer le filtre"
+                  className="h-6 w-6 rounded-full p-1"
                   style={{ backgroundColor: 'transparent' }}
                   onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${accentColor}33`; }}
                   onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                 >
                   <X size={13} />
-                </button>
+                </IconButton>
               </motion.div>
             </React.Fragment>
             );
@@ -1038,9 +1090,9 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
               className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-neutral-700 dark:text-whiterounded-lg text-sm border border-cyan-500/30"
             >
               <span>Filtre relation : {relationFilter.ids.length} élément(s)</span>
-              <button onClick={onClearRelationFilter} className="hover:bg-cyan-500/30 rounded p-0.5">
+              <IconButton onClick={onClearRelationFilter} label="Retirer le filtre relation" className="h-6 w-6 rounded p-0.5 hover:bg-cyan-500/30">
                 <X size={14} />
-              </button>
+              </IconButton>
             </motion.div>
           )}
 
@@ -1055,13 +1107,13 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                   <span>
                     Groupé par: {orderedProperties.find((p: any) => p.id === group)?.name || currentCollection?.properties.find((p: any) => p.id === group)?.name || group}
                   </span>
-                  <button
+                  <IconButton
                     onClick={() => onRemoveGroup(group)}
-                    className="hover:bg-cyan-500/30 rounded p-0.5"
-                    title="Retirer ce groupage"
+                    label="Retirer ce groupage"
+                    className="h-6 w-6 rounded p-0.5 hover:bg-cyan-500/30"
                   >
                     <X size={14} />
-                  </button>
+                  </IconButton>
                 </motion.div>
               </ContextMenuTrigger>
               <ContextMenuContent className="min-w-[220px]">

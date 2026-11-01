@@ -1,6 +1,6 @@
 import type { ViewDefinition } from './viewTypes';
 
-const CURRENT_VIEW_CONFIG_VERSION = 1;
+const CURRENT_VIEW_CONFIG_VERSION = 2;
 
 export function migrateViewConfig(input: ViewDefinition): ViewDefinition {
   const config = { ...input };
@@ -20,6 +20,10 @@ export function migrateViewConfig(input: ViewDefinition): ViewDefinition {
 
   if (config.type === 'cards' && typeof config.cardStyle !== 'string') {
     config.cardStyle = 'default';
+  }
+
+  if ((config.type === 'cards' || config.type === 'steamcards') && (!config.cardGroupPlacements || typeof config.cardGroupPlacements !== 'object')) {
+    config.cardGroupPlacements = {};
   }
 
   config.configVersion = CURRENT_VIEW_CONFIG_VERSION;

@@ -1,7 +1,7 @@
 
 
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useErpSync } from '@/lib/useErpSync';
 import { motion } from 'framer-motion';
@@ -10,8 +10,6 @@ import { ViewRendererHost } from '@/components/views/ViewRendererHost';
 import { getViewRegistration } from '@/lib/views';
 import ShinyButton from '@/components/ui/ShinyButton';
 import LoginPage from '@/components/pages/LoginPage';
-import AutomationsPage from '@/components/pages/AutomationsPage';
-import AccessManager from '@/components/admin/AccessManager';
 import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/menus/Sidebar';
 import CommandMenu from '@/components/menus/CommandMenu';
@@ -52,6 +50,9 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@/components/ui/context-menu';
+
+const AutomationsPage = lazy(() => import('@/components/pages/AutomationsPage'));
+const AccessManager = lazy(() => import('@/components/admin/AccessManager'));
 
 const App = () => {
   // Connexion socket.io (même logique que AppHeader)
@@ -702,7 +703,9 @@ const App = () => {
             setTheme={setTheme}
           />
           {showAutomations ? (
-            <AutomationsPage collections={collections} />
+            <Suspense fallback={<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Chargement…</div>}>
+              <AutomationsPage collections={collections} />
+            </Suspense>
           ) : activeDashboard ? (
             <dashboardRegistration.Renderer
               dashboard={activeDashboardConfig}
@@ -1331,12 +1334,13 @@ const App = () => {
       {showAccessManager && canManagePermissions && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background dark:bg-neutral-900 bg-opacity-60">
           <div className="bg-background dark:bg-neutral-900 rounded-lg shadow-lg p-6 min-w-[400px] max-w-[90vw] max-h-[90vh] overflow-auto relative">
-            <AccessManager
-              collections={collections}
-              dashboards={dashboards}
-              onClose={() => setShowAccessManager(false)}
-              onUpdateDashboards={(nextDashboards) => setDashboards(nextDashboards)}
-              onImportCollections={(importedData) => {
+            <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Chargement…</div>}>
+              <AccessManager
+                collections={collections}
+                dashboards={dashboards}
+                onClose={() => setShowAccessManager(false)}
+                onUpdateDashboards={(nextDashboards) => setDashboards(nextDashboards)}
+                onImportCollections={(importedData) => {
                 // Supporte l'ancien format (array) ou le nouveau (objet)
                 let collectionsToImport = importedData;
                 let favoritesToImport = undefined;
@@ -1400,7 +1404,8 @@ const App = () => {
                 setRelationFilter({ collectionId: null, ids: [] });
                 alert('Données importées !');
               }}
-            />
+              />
+            </Suspense>
           </div>
         </div>
       )}

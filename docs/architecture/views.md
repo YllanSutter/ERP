@@ -59,6 +59,11 @@ onglets et sélecteurs via `ViewGrouping`; seul le contenu des groupes est injec
 `renderItems`.
 Calendrier et Layout ne déclarent actuellement pas la capacité `supportsGrouping` et
 n'appellent pas ce composant tant qu'ils ne proposent pas cette fonctionnalité.
+Les capacités du registry décrivent uniquement le comportement actuellement disponible :
+Tableau est le seul renderer natif à déclarer la sélection ; Cartes ne la déclare pas tant que
+la sélection multiple et les actions groupées de TASK 3.6 ne sont pas livrées. Kanban et
+Calendrier déclarent le glisser-déposer ; Layout ne déclare pas de vues imbriquées tant que son
+éditeur de panneaux ne les prend pas en charge.
 La pagination partagée du tableau est isolée dans `src/lib/hooks/useViewPagination.ts`.
 Elle conserve le calcul des pages, la remise à zéro lors d'un changement de tri/groupe et
 la limitation de la page courante lorsque le nombre d'éléments diminue.

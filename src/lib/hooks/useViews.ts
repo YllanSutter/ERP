@@ -30,8 +30,12 @@ export const useViews = (
     }
     if (config?.dateProperty) newView.dateProperty = config.dateProperty;
     if (config?.cardStyleFieldId) newView.cardStyleFieldId = config.cardStyleFieldId;
+    if (config?.cardIconFieldId) newView.cardIconFieldId = config.cardIconFieldId;
     if (config?.cardColorFieldId) newView.cardColorFieldId = config.cardColorFieldId;
     if (config?.cardStyle) newView.cardStyle = config.cardStyle;
+    if (config?.cardDensity) newView.cardDensity = config.cardDensity;
+    if (config?.cardColumns) newView.cardColumns = config.cardColumns;
+    if (config?.cardGroupPlacements) newView.cardGroupPlacements = config.cardGroupPlacements;
     if (config?.groupDisplayMode) newView.groupDisplayMode = config.groupDisplayMode;
     if (config?.groupDisplayColumnCount) newView.groupDisplayColumnCount = config.groupDisplayColumnCount;
 
