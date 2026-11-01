@@ -9,13 +9,12 @@ import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
 import TotalsBar from '@/components/TableView/TotalsBar';
 import TotalsWidget, { type TotalsWidgetPreferences } from '@/components/TableView/TotalsWidget';
-import EditableProperty from '@/components/fields/EditableProperty';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { BulkSelectionToolbar } from '@/components/views/BulkSelectionToolbar';
 import { countItemsInGroup, getGroupLabel, resolveGroupVisualStyle } from '@/lib/groupingUtils';
 import { isCalculatedNumberProperty } from '@/lib/calculatedFields';
 import { API_URL } from '@/lib/constants';
@@ -28,16 +27,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@/components/ui/context-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 
 const ROW_SELECTION_FIELD_ID = '__rowSelection';
 
@@ -1131,7 +1120,7 @@ const TableView: React.FC<TableViewProps> = ({
         );
       })()}
 
-      <div className=" border border-black/10 dark:border-white/5 rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-black/10 dark:border-white/5">
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20 sticky top-0 z-20">
           <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
             <span>{items.length} ligne{items.length > 1 ? 's' : ''}</span>
@@ -1183,86 +1172,7 @@ const TableView: React.FC<TableViewProps> = ({
           </div>
         </div>
 
-        {showSelectionColumn && (
-          <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20">
-            <span className="text-xs text-neutral-600 dark:text-neutral-300">
-              {selectedCount} sélectionné{selectedCount > 1 ? 's' : ''}
-            </span>
-            <Select
-              value={bulkFieldId}
-              onValueChange={handleBulkFieldChange}
-              disabled={!bulkEditableProperties.length}
-            >
-              <SelectTrigger className="h-8 min-w-40 text-xs"><SelectValue placeholder="Champ à modifier" /></SelectTrigger>
-              <SelectContent>{bulkEditableProperties.map((prop) => <SelectItem key={prop.id} value={prop.id}>{prop.name}</SelectItem>)}</SelectContent>
-            </Select>
-            <div className="min-w-[220px]">
-              {selectedBulkProperty ? (
-                <EditableProperty
-                  key={`bulk-${selectedBulkProperty.id}-${selectedBulkProperty.type}`}
-                  property={selectedBulkProperty}
-                  value={bulkValue}
-                  onChange={setBulkValue}
-                  size="sm"
-                  readOnly={!bulkFieldId}
-                  collections={collections}
-                  collection={collection}
-                  currentItem={{ id: 'bulk-editor', [selectedBulkProperty.id]: bulkValue }}
-                  onRelationChange={(prop, _item, val) => {
-                    if (prop.id === selectedBulkProperty.id) setBulkValue(val);
-                  }}
-                />
-              ) : (
-                <Input
-                  type="text"
-                  value={String(bulkValue ?? '')}
-                  onChange={(e) => setBulkValue(e.target.value)}
-                  placeholder="Valeur à appliquer"
-                  className="h-8 text-xs"
-                  disabled
-                />
-              )}
-            </div>
-            <Button
-              type="button"
-              onClick={handleBulkApply}
-              disabled={!bulkFieldId || selectedCount === 0}
-              variant="secondary"
-              size="sm"
-            >
-              Appliquer
-            </Button>
-            {onBulkImportItad && (
-              <Button
-                type="button"
-                onClick={() => onBulkImportItad(Array.from(selectedItemIds))}
-                disabled={selectedCount === 0}
-                variant="secondary"
-                size="sm"
-              >
-                ⬇️ Importer ITAD ({selectedCount})
-              </Button>
-            )}
-            <Button
-              type="button"
-              onClick={() => setSelectedItemIds(new Set())}
-              disabled={selectedCount === 0}
-              variant="outline"
-              size="sm"
-            >
-              Désélectionner
-            </Button>
-            <Button
-              type="button"
-              onClick={handleBulkDelete}
-              disabled={selectedCount === 0}
-              variant="destructive"
-              size="sm"
-            >
-              Supprimer la sélection
-            </Button>
-          </div>
-        )}
+        {showSelectionColumn && <BulkSelectionToolbar count={selectedCount} properties={bulkEditableProperties} fieldId={bulkFieldId} value={bulkValue} collection={collection} collections={collections} onFieldChange={handleBulkFieldChange} onValueChange={setBulkValue} onApply={handleBulkApply} onClear={() => setSelectedItemIds(new Set())} onDelete={handleBulkDelete} onConfirmDelete={confirmBulkDelete} deleteDialogOpen={bulkDeleteDialogOpen} onDeleteDialogOpenChange={setBulkDeleteDialogOpen} onBulkImportItad={onBulkImportItad ? () => onBulkImportItad(Array.from(selectedItemIds)) : undefined} />}
         {(() => {
           const renderRootGroupRows = (
             rootGroup: string,
@@ -1530,25 +1440,6 @@ const TableView: React.FC<TableViewProps> = ({
         })()}
       </div>
 
-      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer la sélection ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action supprimera définitivement {selectedCount} élément{selectedCount > 1 ? 's' : ''}.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={confirmBulkDelete}
-            >
-              Supprimer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 

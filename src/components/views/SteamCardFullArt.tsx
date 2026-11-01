@@ -4,6 +4,7 @@ import * as Icons from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { OptionTags } from '@/components/inputs/OptionTags';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface SteamCardFullArtProps {
   item: any;
@@ -22,6 +23,13 @@ interface SteamCardFullArtProps {
   collection: any;
   onRelationChange: (property: any, item: any, value: any) => void;
   onNavigateToCollection: (collectionId: string, linkedIds?: string[]) => void;
+  selected: boolean;
+  onSelectionChange: (itemId: string, checked: boolean) => void;
+  draggable: boolean;
+  isDragging: boolean;
+  onDragStart: (itemId: string) => void;
+  onDragEnd: () => void;
+  onDropOnItem: (itemId: string) => void;
 }
 
 // Everything is drawn in a 500x700 box: the card's aspect is fixed to 5/7, so circles stay round.
@@ -79,6 +87,13 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
   collection,
   onRelationChange,
   onNavigateToCollection,
+  selected,
+  onSelectionChange,
+  draggable,
+  isDragging,
+  onDragStart,
+  onDragEnd,
+  onDropOnItem,
 }) => {
   const [editing, setEditing] = useState(false);
   const uid = useId().replace(/:/g, '');
@@ -127,10 +142,24 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
 
   return (
     <article
-      className="group relative aspect-[5/7] cursor-pointer overflow-hidden rounded-[16px] bg-[var(--cb)] shadow-[0_8px_22px_rgba(60,35,10,0.25)] transition-transform [container-type:inline-size] [--band:#fbf7f0] [--cb:#f3ece0] [--hex:rgba(90,55,20,0.13)] [--ink:#2b1d11] [--muted:#7c705f] [--or:#d16d14] hover:-translate-y-1 dark:shadow-[0_10px_28px_rgba(0,0,0,0.55)] dark:[--band:#0a0908] dark:[--cb:#0d0c0b] dark:[--hex:rgba(255,255,255,0.06)] dark:[--ink:#f4ece0] dark:[--muted:#9a948c] dark:[--or:#e8862a]"
+      className={`group relative aspect-[5/7] cursor-pointer overflow-hidden rounded-[16px] bg-[var(--cb)] shadow-[0_8px_22px_rgba(60,35,10,0.25)] transition-all [container-type:inline-size] [--band:#fbf7f0] [--cb:#f3ece0] [--hex:rgba(90,55,20,0.13)] [--ink:#2b1d11] [--muted:#7c705f] [--or:#d16d14] hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(60,35,10,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--or)] ${selected ? 'ring-2 ring-[var(--or)] ring-offset-2 ring-offset-background' : ''} ${isDragging ? 'scale-[0.98] opacity-60' : ''} dark:shadow-[0_10px_28px_rgba(0,0,0,0.55)] dark:hover:shadow-[0_18px_38px_rgba(0,0,0,0.7)] dark:[--band:#0a0908] dark:[--cb:#0d0c0b] dark:[--hex:rgba(255,255,255,0.06)] dark:[--ink:#f4ece0] dark:[--muted:#9a948c] dark:[--or:#e8862a]`}
       style={{ fontFamily: SERIF, ...(styleOption?.color ? { '--or': styleOption.color } : {}) } as React.CSSProperties}
       onClick={() => onViewDetail(item)}
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        onViewDetail(item);
+      }}
+      draggable={draggable}
+      onDragStart={(event) => { if (!draggable) return; event.dataTransfer.effectAllowed = 'move'; onDragStart(item.id); }}
+      onDragOver={(event) => { if (draggable) event.preventDefault(); }}
+      onDrop={(event) => { if (!draggable) return; event.preventDefault(); onDropOnItem(item.id); }}
+      onDragEnd={onDragEnd}
     >
+      <label className="absolute left-3 top-3 z-30 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-black/55 shadow ring-1 ring-white/50" onClick={(event) => event.stopPropagation()} onDragStart={(event) => event.preventDefault()}>
+        <Checkbox aria-label={`Sélectionner ${title}`} checked={selected} onChange={(event) => onSelectionChange(item.id, event.target.checked)} className="h-3.5 w-3.5 accent-[var(--or)]" />
+      </label>
       {/* Art, laid under the frame; the SVG masks its corners and lower part */}
       <div className="absolute left-[2.4%] top-[1.7%] h-[96.6%] w-[95.2%] overflow-hidden">
         {imageUrl ? (

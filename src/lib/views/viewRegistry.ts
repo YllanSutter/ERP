@@ -37,7 +37,7 @@ const registrations: Record<NativeViewType, ViewRegistration> = {
     label: 'Cartes',
     Settings: CardsViewSettings,
     Renderer: CardsRenderer,
-    capabilities: { ...defaultCapabilities, supportsGrouping: true, supportsSorting: true },
+    capabilities: { ...defaultCapabilities, supportsGrouping: true, supportsSorting: true, supportsDragAndDrop: true, supportsSelection: true },
     createDefaultConfig: (id, collectionId) => ({ id, name: 'Cartes', type: 'cards', collectionId, cardStyle: 'default' }),
   },
   steamcards: {
@@ -45,7 +45,7 @@ const registrations: Record<NativeViewType, ViewRegistration> = {
     label: 'Cartes Steam',
     Settings: CardsViewSettings,
     Renderer: CardsRenderer,
-    capabilities: { ...defaultCapabilities, supportsGrouping: true, supportsSorting: true },
+    capabilities: { ...defaultCapabilities, supportsGrouping: true, supportsSorting: true, supportsDragAndDrop: true, supportsSelection: true },
     createDefaultConfig: (id, collectionId) => ({ id, name: 'Cartes', type: 'steamcards', collectionId, cardStyle: 'steamFullArt' }),
   },
   kanban: {

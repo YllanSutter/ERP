@@ -30,6 +30,10 @@ fait évoluer simultanément les primitives de toolbar, de groupage et de param�
 
 ## Règles
 
+Le parent commun du renderer actif porte l'unique surface de lecture : blanc à 50 % en thème
+clair et noir à 50 % en thème sombre. Les groupes, tableaux, colonnes, panneaux internes et
+shells de vues restent transparents afin de ne pas empiler les voiles au-dessus du fond animé.
+
 - privilégier les tokens CSS de `src/index.css` ;
 - réutiliser les primitives de `src/components/ui/` ;
 - utiliser `Select`, `Tabs`, `Button`, `Input`, `Switch` et les primitives Radix/shadcn

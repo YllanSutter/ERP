@@ -21,6 +21,7 @@ interface ViewGroupingProps {
   paginateItems?: (items: Item[]) => Item[];
   renderItems: (items: Item[]) => React.ReactNode;
   className?: string;
+  onActiveGroupPathChange?: (path: string | undefined) => void;
 }
 
 export function useViewGrouping(
@@ -71,6 +72,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
   paginateItems,
   renderItems,
   className,
+  onActiveGroupPathChange,
 }) => {
   const [activeTabs, setActiveTabs] = useState<Record<string, string>>({});
   const [activeSelects, setActiveSelects] = useState<Record<number, string>>({});
@@ -84,6 +86,24 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
   );
 
   const rootMode = groupDisplayModes[groups[0]] || groupDisplayMode;
+  const activeGroupPath = useMemo(() => {
+    if (!groupedStructure || groups.length === 0) return undefined;
+    const roots = groupedStructure.rootGroups;
+    if (rootMode === 'select') {
+      let path = activeSelects[0] && roots.includes(activeSelects[0]) ? activeSelects[0] : roots[0];
+      for (let depth = 1; depth < groups.length; depth += 1) {
+        const children = groupedStructure.structure[path]?.subGroups || [];
+        if (!children.length) break;
+        const mode = groupDisplayModes[groups[depth]] || 'accordion';
+        if (mode !== 'select') break;
+        path = activeSelects[depth] && children.includes(activeSelects[depth]) ? activeSelects[depth] : children[0];
+      }
+      return path;
+    }
+    const selectedPaths = Object.values(activeTabs).filter((path) => typeof path === 'string');
+    return selectedPaths.sort((left, right) => right.length - left.length)[0] || roots[0];
+  }, [activeSelects, activeTabs, groupedStructure, groups.length, rootMode]);
+  React.useEffect(() => { onActiveGroupPathChange?.(activeGroupPath); }, [activeGroupPath, onActiveGroupPathChange]);
   const getMode = useCallback((path: string) => {
     const depth = path.split('/').length - 1;
     return groupDisplayModes[groups[depth]] || (depth === 0 ? rootMode : 'accordion');

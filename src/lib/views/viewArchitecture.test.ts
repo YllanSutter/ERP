@@ -36,7 +36,8 @@ afterEach(() => {
 describe('view architecture contracts', () => {
   it('resolves native renderers and falls back to table for unknown types', () => {
     expect(getViewRegistration('cards').label).toBe('Cartes');
-    expect(getViewRegistration('cards').capabilities.supportsSelection).toBe(false);
+    expect(getViewRegistration('cards').capabilities.supportsSelection).toBe(true);
+    expect(getViewRegistration('cards').capabilities.supportsDragAndDrop).toBe(true);
     expect(getViewRegistration('unknown-view').type).toBe('table');
   });
 

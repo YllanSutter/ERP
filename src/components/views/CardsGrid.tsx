@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Collection, Item, Property } from '@/lib/types';
 import SteamCardFullArt from '@/components/views/SteamCardFullArt';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface CardsGridProps {
   items: Item[];
@@ -20,6 +21,14 @@ interface CardsGridProps {
   onEdit: (item: Item) => void;
   onRelationChange: (property: Property, item: Item, value: unknown) => void;
   onNavigateToCollection: (collectionId: string, linkedIds?: string[]) => void;
+  selectedItemIds: Set<string>;
+  onSelectionChange: (itemId: string, checked: boolean) => void;
+  onSelectAll: (checked: boolean) => void;
+  canReorder: boolean;
+  dragItemId: string | null;
+  onDragStart: (itemId: string) => void;
+  onDragEnd: () => void;
+  onDropOnItem: (itemId: string) => void;
 }
 
 const CardsGrid: React.FC<CardsGridProps> = ({
@@ -40,6 +49,14 @@ const CardsGrid: React.FC<CardsGridProps> = ({
   onEdit,
   onRelationChange,
   onNavigateToCollection,
+  selectedItemIds,
+  onSelectionChange,
+  onSelectAll,
+  canReorder,
+  dragItemId,
+  onDragStart,
+  onDragEnd,
+  onDropOnItem,
 }) => {
   const columnCount = Math.max(1, Math.min(6, Number(cardColumns) || 1));
   const columnClassName = {
@@ -53,9 +70,12 @@ const CardsGrid: React.FC<CardsGridProps> = ({
   const densityGap = cardDensity === 'compact' ? 'gap-2 p-2' : cardDensity === 'spacious' ? 'gap-6 p-6' : 'gap-4 p-4';
 
   return (
-    <div
-      className={`grid ${densityGap} ${cardColumns === 'auto' ? 'grid-cols-[repeat(auto-fill,minmax(250px,1fr))]' : columnClassName}`}
-    >
+    <div>
+      <label className="mb-1 flex w-fit cursor-pointer items-center gap-2 px-2 text-xs text-muted-foreground">
+        <Checkbox aria-label="Sélectionner toutes les cartes affichées" checked={items.length > 0 && items.every((item) => selectedItemIds.has(item.id))} indeterminate={items.some((item) => selectedItemIds.has(item.id)) && !items.every((item) => selectedItemIds.has(item.id))} onChange={(event) => onSelectAll(event.target.checked)} />
+        Tout sélectionner
+      </label>
+      <div className={`grid ${densityGap} ${cardColumns === 'auto' ? 'grid-cols-[repeat(auto-fill,minmax(250px,1fr))]' : columnClassName}`}>
       {items.map((item) => (
         <SteamCardFullArt
           key={item.id}
@@ -75,8 +95,16 @@ const CardsGrid: React.FC<CardsGridProps> = ({
           collection={collection}
           onRelationChange={onRelationChange}
           onNavigateToCollection={onNavigateToCollection}
+          selected={selectedItemIds.has(item.id)}
+          onSelectionChange={onSelectionChange}
+          draggable={canReorder}
+          isDragging={dragItemId === item.id}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onDropOnItem={onDropOnItem}
         />
       ))}
+      </div>
     </div>
   );
 };

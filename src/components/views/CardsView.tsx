@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Zap } from 'lucide-react';
 import {
   ContextMenu,
@@ -14,6 +14,8 @@ import type { TableViewProps } from '@/lib/types';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useViewPagination } from '@/lib/hooks/useViewPagination';
 import type { FieldGroup } from '@/lib/types';
+import { BulkSelectionToolbar } from './BulkSelectionToolbar';
+import { ViewTotals } from './ViewTotals';
 
 type CardsViewProps = Omit<TableViewProps, 'displayAsCards'> & {
   cardStyle?: 'default' | 'steamFullArt';
@@ -31,6 +33,11 @@ const CardsView: React.FC<CardsViewProps> = ({
   hiddenFields,
   collections,
   onEdit,
+  onDelete,
+  onBulkDelete,
+  onBulkUpdate,
+  onBulkImportItad,
+  onReorderItems,
   onViewDetail,
   onRelationChange,
   onNavigateToCollection,
@@ -50,8 +57,15 @@ const CardsView: React.FC<CardsViewProps> = ({
   fieldGroups = [],
   cardGroupPlacements = {},
   cardColumns = 'auto',
+  totalFields = {},
 }) => {
   const canEdit = useCanEdit(collection.id);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [bulkFieldId, setBulkFieldId] = useState('');
+  const [bulkValue, setBulkValue] = useState<any>('');
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [dragItemId, setDragItemId] = useState<string | null>(null);
+  const [activeGroupPath, setActiveGroupPath] = useState<string | undefined>();
   const steamProperty = useMemo(
     () => orderedProperties.find((property) => property.type === 'steam'),
     [orderedProperties],
@@ -82,6 +96,60 @@ const CardsView: React.FC<CardsViewProps> = ({
     ]) as Record<string, string>;
   }, [cardGroupPlacements, fieldGroups, visibleProperties]);
   const canEditField = useCallback(() => canEdit, [canEdit]);
+  const bulkEditableProperties = useMemo(() => visibleProperties.filter((property: any) => !property.showContextMenu && !property.isCalculated), [visibleProperties]);
+  const selectedBulkProperty = useMemo(() => bulkEditableProperties.find((property) => property.id === bulkFieldId), [bulkEditableProperties, bulkFieldId]);
+  const getDefaultBulkValue = useCallback((property?: any) => {
+    if (!property) return '';
+    if (property.type === 'checkbox') return false;
+    if (property.type === 'multiselect' || property.type === 'multi_select') return [];
+    if (property.type === 'relation') return property.relation?.type === 'one_to_one' ? null : [];
+    return '';
+  }, []);
+  useEffect(() => {
+    const currentIds = new Set(items.map((item) => item.id));
+    setSelectedItemIds((previous) => new Set([...previous].filter((id) => currentIds.has(id))));
+  }, [items]);
+  useEffect(() => {
+    if (!bulkEditableProperties.length) return setBulkFieldId('');
+    if (!bulkEditableProperties.some((property) => property.id === bulkFieldId)) {
+      setBulkFieldId(bulkEditableProperties[0].id);
+      setBulkValue(getDefaultBulkValue(bulkEditableProperties[0]));
+    }
+  }, [bulkEditableProperties, bulkFieldId, getDefaultBulkValue]);
+  const handleSelectionChange = useCallback((itemId: string, checked: boolean) => {
+    setSelectedItemIds((previous) => {
+      const next = new Set(previous);
+      if (checked) next.add(itemId); else next.delete(itemId);
+      return next;
+    });
+  }, []);
+  const handleBulkApply = useCallback(() => {
+    if (!canEdit || !selectedBulkProperty || selectedItemIds.size === 0) return;
+    const nextItems = items.filter((item) => selectedItemIds.has(item.id)).map((item) => ({ ...item, [selectedBulkProperty.id]: bulkValue }));
+    if (onBulkUpdate) onBulkUpdate(nextItems, collection.id); else nextItems.forEach(onEdit);
+  }, [bulkValue, canEdit, collection.id, items, onBulkUpdate, onEdit, selectedBulkProperty, selectedItemIds]);
+  const handleBulkDelete = useCallback(() => {
+    const ids = Array.from(selectedItemIds);
+    if (!canEdit || !ids.length) return;
+    setBulkDeleteDialogOpen(true);
+  }, [canEdit, selectedItemIds]);
+  const confirmBulkDelete = useCallback(() => {
+    const ids = Array.from(selectedItemIds);
+    if (!ids.length) return;
+    if (onBulkDelete) onBulkDelete(ids, collection.id); else ids.forEach(onDelete);
+    setSelectedItemIds(new Set());
+    setBulkDeleteDialogOpen(false);
+  }, [collection.id, onBulkDelete, onDelete, selectedItemIds]);
+  const reorderItemsById = useCallback((sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const nextItems = [...items];
+    const sourceIndex = nextItems.findIndex((item) => item.id === sourceId);
+    const targetIndex = nextItems.findIndex((item) => item.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [moved] = nextItems.splice(sourceIndex, 1);
+    nextItems.splice(targetIndex, 0, moved);
+    onReorderItems(nextItems);
+  }, [items, onReorderItems]);
   const { rowsPerPage, page } = useViewPagination({
     items,
     groupedItemCount: items.length,
@@ -111,6 +179,14 @@ const CardsView: React.FC<CardsViewProps> = ({
       onEdit={onEdit}
       onRelationChange={onRelationChange}
       onNavigateToCollection={onNavigateToCollection}
+      selectedItemIds={selectedItemIds}
+      onSelectionChange={handleSelectionChange}
+      onSelectAll={(checked) => groupItems.forEach((item) => handleSelectionChange(item.id, checked))}
+      canReorder={canEdit}
+      dragItemId={dragItemId}
+      onDragStart={setDragItemId}
+      onDragEnd={() => setDragItemId(null)}
+      onDropOnItem={(targetId) => { if (dragItemId) reorderItemsById(dragItemId, targetId); setDragItemId(null); }}
     />
   ), [
     canEdit,
@@ -129,6 +205,10 @@ const CardsView: React.FC<CardsViewProps> = ({
     iconProperty,
     fieldPlacements,
     visibleProperties,
+    selectedItemIds,
+    handleSelectionChange,
+    dragItemId,
+    reorderItemsById,
   ]);
 
   const content = (
@@ -146,9 +226,14 @@ const CardsView: React.FC<CardsViewProps> = ({
       paginateItems={paginateItems}
       renderItems={renderCards}
       className="min-h-0 flex-1 overflow-auto"
+      onActiveGroupPathChange={setActiveGroupPath}
     />
   );
-  const wrappedContent = <ViewShell>{content}</ViewShell>;
+  const wrappedContent = <ViewShell>
+    <ViewTotals collection={collection} collections={collections} properties={orderedProperties} items={items} totalFields={totalFields} groups={groups} contextPath={activeGroupPath} className="px-3 pt-3" />
+    {canEdit && <BulkSelectionToolbar count={selectedItemIds.size} properties={bulkEditableProperties} fieldId={bulkFieldId} value={bulkValue} collection={collection} collections={collections} onFieldChange={(value) => { setBulkFieldId(value); setBulkValue(getDefaultBulkValue(bulkEditableProperties.find((property) => property.id === value))); }} onValueChange={setBulkValue} onApply={handleBulkApply} onClear={() => setSelectedItemIds(new Set())} onDelete={handleBulkDelete} onConfirmDelete={confirmBulkDelete} deleteDialogOpen={bulkDeleteDialogOpen} onDeleteDialogOpenChange={setBulkDeleteDialogOpen} onBulkImportItad={onBulkImportItad ? () => onBulkImportItad(Array.from(selectedItemIds)) : undefined} />}
+    {content}
+  </ViewShell>;
 
   if (!onShowNewItemModal && !onQuickCreateItem) return wrappedContent;
 

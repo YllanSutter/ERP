@@ -904,7 +904,7 @@ const App = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.2 }}
-                    className="min-w-0 flex-1 overflow-auto p-2 sm:p-4 lg:p-6 z-[1]"
+                    className="z-[1] m-2 flex-1 overflow-auto rounded-[var(--view-control-radius)] border border-black/10 bg-white/50 p-2 shadow-sm dark:border-white/10 dark:bg-black/50 sm:m-4 sm:p-4 lg:m-6 lg:p-6"
                   >
                 {activeViewRegistration.Renderer && activeViewConfig && currentCollection && (
                   <ViewRendererHost

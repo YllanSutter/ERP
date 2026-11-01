@@ -59,14 +59,29 @@ onglets et sélecteurs via `ViewGrouping`; seul le contenu des groupes est injec
 `renderItems`.
 Calendrier et Layout ne déclarent actuellement pas la capacité `supportsGrouping` et
 n'appellent pas ce composant tant qu'ils ne proposent pas cette fonctionnalité.
-Les capacités du registry décrivent uniquement le comportement actuellement disponible :
-Tableau est le seul renderer natif à déclarer la sélection ; Cartes ne la déclare pas tant que
-la sélection multiple et les actions groupées de TASK 3.6 ne sont pas livrées. Kanban et
-Calendrier déclarent le glisser-déposer ; Layout ne déclare pas de vues imbriquées tant que son
-éditeur de panneaux ne les prend pas en charge.
+Les capacités du registry décrivent uniquement le comportement actuellement disponible.
+Tableau et Cartes déclarent la sélection ; Cartes utilise les mêmes actions groupées de mise à
+jour et suppression, dans le périmètre affiché. Kanban et Calendrier déclarent le
+glisser-déposer ; Layout ne déclare pas de vues imbriquées tant que son éditeur de panneaux ne
+les prend pas en charge.
 La pagination partagée du tableau est isolée dans `src/lib/hooks/useViewPagination.ts`.
 Elle conserve le calcul des pages, la remise à zéro lors d'un changement de tri/groupe et
 la limitation de la page courante lorsque le nombre d'éléments diminue.
+
+Les actions groupées de sélection (choix du champ, éditeur de valeur, application, import,
+annulation et confirmation de suppression) sont centralisées dans
+`src/components/views/BulkSelectionToolbar.tsx`. Chaque renderer garde seulement son état de
+sélection et son périmètre affiché, ce qui permet à une nouvelle vue de reprendre l'interface
+sans dépendre de Tableau ou Cartes.
+
+Les totaux compacts destinés aux renderers non tabulaires passent par
+`ViewTotals` et `useViewTotals`. Cartes réutilise donc les mêmes règles de calcul de base
+sans importer de logique depuis Tableau. Les totaux avancés de Tableau (contexte des groupes,
+filtres numériques et widget analytique) restent temporairement dans son renderer, le temps
+de couvrir ces cas par des tests de parité avant leur extraction.
+
+`TotalsWidget` porte lui-même sa surface translucide et son flou d'arrière-plan : cette
+lisibilité est donc uniforme pour toutes les vues qui l'utilisent, quel que soit leur fond.
 
 Kanban est enregistré comme renderer natif via `KanbanRenderer.tsx`. L'adaptateur reçoit le
 contexte commun et les actions injectées par l'application ; `App.tsx` ne doit plus
@@ -101,12 +116,9 @@ anciennes configurations Cartes.
 
 ## Procédure pour ajouter une vue
 
-1. Ajouter le type et ses capacités dans `viewTypes.ts`.
-2. Ajouter son enregistrement et ses valeurs par défaut dans `viewRegistry.ts`.
-3. Créer le renderer spécialisé.
-4. Créer son panneau de paramètres.
-5. Brancher le renderer au host commun, sans modifier les renderers existants.
-6. Documenter les options et les limites de la vue.
+Le guide pas à pas et sa checklist se trouvent dans
+[`adding-a-view.md`](./adding-a-view.md). Il inclut une proposition de vue Galerie qui permet
+de valider le contrat sans modifier les autres renderers.
 
 Les plugins utilisent `registerViewExtension` depuis leur contexte. L'extension est
 enregistrée à l'activation du plugin et retirée lorsqu'il n'est plus actif dans aucune
