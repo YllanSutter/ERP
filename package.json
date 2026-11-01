@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "api": "node server/index.js",
     "dev:all": "concurrently \"npm run api\" \"npm run dev\"",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "steam:list": "node --env-file-if-exists=.env scripts/update-steam-list.js"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.17",

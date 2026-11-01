@@ -275,7 +275,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <SidebarRoot
       collapsible="icon"
-      className="dark:bg-neutral-950/50 backdrop-blur"
+      className="[&>[data-sidebar=sidebar]]:bg-transparent"
     >
       <SidebarHeader className={cn('mb-3 gap-2', collapsed ? 'px-1 items-center' : 'px-2')}>
         {organizations && organizations.length > 0 && onSwitchOrganization && onCreateOrganization && (

@@ -44,6 +44,7 @@ import { isEmptyValue } from '@/lib/utils/valueUtils';
 import { getRoundedNow } from '@/lib/utils/dateUtils';
 import { pluginManager } from '@/lib/plugins/PluginManager';
 import { initializePluginRegistry } from '@/lib/plugins';
+import { InteractiveBackdrop } from '@/components/ui/InteractiveBackdrop';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -579,7 +580,8 @@ const App = () => {
   }
 
   return (
-    <div className={`h-screen flex flex-col ${theme === 'dark' ? 'bg-neutral-950 text-black dark:text-white' : 'bg-white text-neutral-900'}`}> 
+    <div className={`relative isolate h-screen flex flex-col ${theme === 'dark' ? 'bg-neutral-950 text-black dark:text-white' : 'bg-white text-neutral-900'}`}> 
+      <InteractiveBackdrop className="-z-10" />
 
       
 
@@ -662,7 +664,7 @@ const App = () => {
           showAutomations={showAutomations}
         />
 
-        <SidebarInset className="flex-1 flex flex-col overflow-hidden">
+        <SidebarInset className="flex-1 flex flex-col overflow-hidden bg-transparent">
            <AppHeader
             impersonatedRoleId={impersonatedRoleId}
             availableRoles={availableRoles}

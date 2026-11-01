@@ -460,7 +460,7 @@ const WeekView: React.FC<WeekViewProps> = ({
               key={idx}
               className={cn(
                 'text-center py-2 border px-2 mx-auto w-full max-w-[600px]',
-                isToday ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-black/10 dark:border-white/10 bg-background dark:bg-neutral-800/30'
+                isToday ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-black/10 dark:border-white/10 bg-white/40 dark:bg-neutral-800/30'
               )}
             >
               <div className="text-[10px] font-semibold text-neutral-500">{dayNamesShort[dayOfWeek]}</div>

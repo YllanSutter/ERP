@@ -302,7 +302,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       initial={{ y: -10, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.15 }}
-      className="relative border-b border-black/5 dark:border-white/5bg-neutral-900/30 backdrop-blur lg:px-6 px-2 py-4 z-10"
+      className="relative border-b border-black/5 dark:border-white/5 lg:px-6 px-2 py-4 z-10"
     >
 
       <div className="flex items-center gap-2 flex-wrap">

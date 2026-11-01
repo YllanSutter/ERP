@@ -84,6 +84,15 @@
   - **Action** : Identifier un premier module (ex: `UserPreferences`) et le migrer vers TanStack Query (côté client pour les données serveur) et Zustand (état local). Centraliser `localStorage` dans `src/lib/storage.ts`.
   - **Vérif** : `npx tsc --noEmit`
 
+- [ ] **TASK 3.5 : Refonte complète de l'architecture des vues et de leurs paramètres**
+  - **Cible** : `src/components/views/`, `src/components/`, `src/lib/`, `src/features/` et la documentation d'architecture.
+  - **Action** : Refaire toutes les vues (Tableau, Cartes, Kanban, Calendrier, Layout et Dashboard) autour d'un socle partagé (`ViewShell`, onglets de collection, actions, filtres, tri, groupes, permissions, sélection, états et navigation), tout en conservant les spécificités propres à chaque renderer. Remplacer les branchements conditionnels et variantes dupliquées par un registry de renderers et un `ViewRenderContext` typé. Séparer chaque vue en composants spécialisés et supprimer progressivement les responsabilités des composants géants et les `any` des contrats de vue.
+  - **Action complémentaire** : Ajouter un onglet commun **Paramètres de la vue**, avec une section générique et une section spécifique fournie par chaque type de vue. Introduire des configurations de vue typées, versionnées et migrables ; pour la vue Cartes, permettre notamment de choisir le champ multiselect utilisé pour les icônes, le champ utilisé pour les couleurs, le style de carte, les champs affichés, l'image, la densité et la grille. Les styles spécialisés, dont `SteamCardFullArt`, doivent être enregistrés comme variantes indépendantes du tableau.
+  - **Design system** : Unifier au maximum le style de l'application avec des tokens et primitives partagés pour les couleurs, espacements, typographies, rayons, ombres, densités, états et responsive. Centraliser les variantes de composants (notamment les boutons, boutons d'action, boutons d'onglet, champs, badges et menus) afin qu'une modification de style puisse être faite à un seul endroit et se propage de manière contrôlée à toutes les vues. Interdire les styles locaux divergents sauf exception documentée.
+  - **Documentation** : Documenter le cycle de vie des vues, le contexte partagé, les capacités, le registry, les paramètres configurables, la procédure d'ajout d'une vue ou d'un style de carte et l'emplacement de chaque responsabilité afin qu'une IA puisse retrouver et étendre le système sans parcourir les composants géants.
+  - **Documentation design system** : Répertorier les tokens, primitives, variantes autorisées et points d'extension dans une documentation dédiée, avec des exemples indiquant où modifier le style global d'un bouton ou d'un contrôle sans rechercher toutes ses occurrences.
+  - **Vérif** : `npx tsc --noEmit`, `npm run lint`, tests ciblés des renderers et des migrations de configuration, puis vérifier qu'une nouvelle vue peut être ajoutée sans modifier les renderers existants et que les configurations de vues existantes restent lisibles.
+
 ---
 
 ## 🟢 PHASE 4 : Performance & UX Polish

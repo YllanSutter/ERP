@@ -506,7 +506,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
             <tr>
               <td colSpan={displayColumnCount + (draggableRows ? 1 : 0) + (enableSelection ? 1 : 0)} className="px-2 py-2">
                 <div
-                  className="rounded-xl border border-black/10 dark:border-white/10 bg-white/40 dark:bg-neutral-950 p-2"
+                  className="rounded-xl border border-black/10 dark:border-white/10 p-2"
                   style={{ marginLeft: `${nestedContainerOffset}px` }}
                 >
                 {nextLevelMode === 'tabs' ? (
@@ -571,7 +571,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
                     {subGroupCards.map((group) => (
                       <div
                         key={group.id}
-                        className="min-w-0 rounded-xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-neutral-950 p-3 shadow-sm"
+                        className="min-w-0 rounded-xl border border-black/10 dark:border-white/10 p-3 shadow-sm"
                       >
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <div className="min-w-0">

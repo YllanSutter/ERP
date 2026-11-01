@@ -82,7 +82,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     <motion.div
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className="border-b border-black/10 dark:border-white/5 backdrop-blur lg:px-4 px-2 py-2 flex items-center justify-between bg-white dark:bg-neutral-900/50"
+      className="border-b border-black/10 dark:border-white/5 backdrop-blur lg:px-4 px-2 py-2 flex items-center justify-between"
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex items-center gap-2">

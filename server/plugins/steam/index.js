@@ -33,6 +33,7 @@ export const steamServerPlugin = {
         }
 
         // Fallback: fetch from Steam and cache locally
+        // shortcut: ISteamApps/GetAppList/v2 is deprecated by Valve (use IStoreService/GetAppList, key required), replace when this fallback is needed again
         const steamRes = await fetch('https://api.steampowered.com/ISteamApps/GetAppList/v2/');
         if (!steamRes.ok) {
           return res.status(502).json({ error: 'Steam API unavailable' });

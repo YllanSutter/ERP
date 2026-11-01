@@ -1015,7 +1015,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className={cn('rounded-xl overflow-hidden mb-3 border border-slate-200 bg-white shadow-sm dark:border-white/[0.07] dark:bg-[#0d0d10] dark:shadow-2xl', className)}>
+    <div className={cn('rounded-xl overflow-hidden mb-3 border border-slate-200 shadow-sm dark:border-white/[0.07] dark:shadow-2xl', className)}>
 
       {/* ── En-tête ligne 1 : titre + toggles modules + collapse ──────── */}
       <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-200 dark:border-white/[0.04]">

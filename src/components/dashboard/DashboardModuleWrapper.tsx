@@ -75,11 +75,11 @@ const DashboardModuleWrapper: React.FC<Props> = ({
 
   return (
     <div
-      className={`${gridColSpan} flex flex-col rounded-xl border border-border bg-card shadow-sm overflow-hidden transition-shadow ${isEditMode ? '' : ''}`}
+      className={`${gridColSpan} flex flex-col rounded-xl border border-border shadow-sm overflow-hidden transition-shadow ${isEditMode ? '' : ''}`}
       style={{ height: module.layout.h }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card/80 flex-shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0">
         {/* Icône type */}
         <span className="text-muted-foreground flex-shrink-0">
           {MODULE_ICONS[module.type]}
