@@ -12,6 +12,7 @@ import {
 import { useAuth } from '@/auth/AuthProvider';
 import { useCanManagePermissions } from '@/lib/hooks/useCanEdit';
 import { io } from 'socket.io-client';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface AppHeaderProps {
   impersonatedRoleId: string | null;
@@ -85,6 +86,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       className="border-b border-black/10 dark:border-white/5 backdrop-blur lg:px-4 px-2 py-2 flex items-center justify-between"
     >
       <div className="flex items-center gap-3 min-w-0">
+        <SidebarTrigger
+          className="md:hidden shrink-0 rounded-full border border-black/10 dark:border-white/10"
+          title="Ouvrir la navigation"
+          aria-label="Ouvrir la navigation"
+        />
         <div className="flex items-center gap-2">
           <h1 className="text-sm md:text-base font-semibold truncate max-w-[240px]">
             {activeCollectionName || 'Collections'}

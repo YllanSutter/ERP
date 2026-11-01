@@ -57,6 +57,22 @@ interface SidebarProps {
   showAutomations?: boolean;
 }
 
+const SectionHeader: React.FC<{
+  label: string;
+  action?: React.ReactNode;
+  collapsed: boolean;
+}> = ({ label, action, collapsed }) => (
+  <div
+    className={cn(
+      'flex items-center justify-between border-b border-black/5 dark:border-white/5',
+      collapsed ? 'px-1 pb-2' : 'pr-1 pb-2'
+    )}
+  >
+    {!collapsed && <SidebarGroupLabel className="pl-2">{label}</SidebarGroupLabel>}
+    {action}
+  </div>
+);
+
 const Sidebar: React.FC<SidebarProps> = ({
   collections,
   views,
@@ -82,7 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   showAutomations,
 }) => {
   const [expandedFavorites, setExpandedFavorites] = useState(true);
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === 'collapsed';
   const { isAdmin, isEditor, permissions } = useAuth();
 
@@ -195,18 +211,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   // console.log('Favorite views list:', favoriteViewsList);
   // console.log('Favorite items list:', favoriteItemsList);
 
-  const SectionHeader = ({ label, action }: { label: string; action?: React.ReactNode }) => (
-    <div
-      className={cn(
-        'flex items-center justify-between border-b border-black/5 dark:border-white/5',
-        collapsed ? 'px-1 pb-2' : 'pr-1 pb-2'
-      )}
-    >
-      {!collapsed && <SidebarGroupLabel className="pl-2">{label}</SidebarGroupLabel>}
-      {action}
-    </div>
-  );
-
   const sharedButtonClass = cn(collapsed ? 'justify-center' : '');
   const sharedHeaderActionClass =
     'p-1 rounded hover:bg-white/10 text-neutral-400 hover:text-black dark:hover:text-white';
@@ -257,7 +261,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   }) => (
     <SidebarMenuItem key={itemKey} className={itemClassName}>
       <SidebarMenuButton
-        onClick={onClick}
+        onClick={() => {
+          onClick();
+          if (isMobile) setOpenMobile(false);
+        }}
         title={title || label}
         isActive={!!active}
         size="default"
@@ -303,6 +310,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <SidebarGroup className="mb-6">
             <SectionHeader
               label="Favoris"
+              collapsed={collapsed}
               action={
                 <button
                   onClick={() => setExpandedFavorites(!expandedFavorites)}
@@ -433,7 +441,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           },
         ].map((section) => (
           <SidebarGroup key={section.key} className={section.className}>
-            <SectionHeader label={section.label} action={section.headerAction || undefined} />
+            <SectionHeader
+              label={section.label}
+              action={section.headerAction || undefined}
+              collapsed={collapsed}
+            />
             {section.rows.length === 0 ? (
               section.empty
             ) : (

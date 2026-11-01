@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 
 const fieldClassName =
   'h-8 min-w-0 rounded-md border border-black/10 bg-white/70 px-2.5 text-xs text-neutral-800 outline-none transition-colors hover:border-violet-400/60 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200';
@@ -38,7 +39,7 @@ const SettingsToggle: React.FC<{
 }> = ({ label, checked, onChange }) => (
   <label className="flex min-h-8 cursor-pointer items-center justify-between gap-3 rounded-md border border-black/10 bg-white/40 px-2.5 text-xs dark:border-white/10 dark:bg-white/[0.03]">
     <span className="text-neutral-700 dark:text-neutral-300">{label}</span>
-    <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="accent-violet-500" />
+    <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
   </label>
 );
 

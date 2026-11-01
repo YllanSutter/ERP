@@ -2,6 +2,8 @@
  * Types et interfaces pour le système de plugins
  */
 
+import type { ViewRegistration } from '@/lib/views';
+
 export interface PluginManifest {
   id: string;
   name: string;
@@ -18,6 +20,7 @@ export interface Plugin {
   destroy?: () => void | Promise<void>;
   hooks?: PluginHooks;
   actions?: PluginActions;
+  viewExtensions?: ViewRegistration[];
 }
 
 export interface PluginContext {
@@ -32,6 +35,7 @@ export interface PluginAPI {
   registerHook: (hookName: string, callback: Function) => void;
   unregisterHook: (hookName: string, callback: Function) => void;
   emit: (eventName: string, data: any) => void;
+  registerViewExtension?: (registration: ViewRegistration) => void;
 }
 
 export interface PluginHooks {

@@ -17,7 +17,12 @@ Les contrats sont définis dans `src/lib/views/viewTypes.ts` :
 - `ViewDefinition` : configuration persistée ;
 - `ViewCapabilities` : fonctionnalités supportées ;
 - `ViewRenderContext` : données nécessaires au renderer ;
-- `ViewRegistration` : point d'extension d'un type de vue.
+- `ViewRegistration` : point d'extension d'un type de vue, avec `Renderer` optionnel pour
+  les extensions plugin.
+
+`ViewRendererHost` résout le renderer via le registry. Une vue plugin ne doit donc pas
+ajouter de condition dans `App` ou `LayoutView` : elle fournit son `Renderer` et reçoit le
+même `ViewRendererProps` que les autres extensions.
 
 ## Paramètres
 
@@ -45,3 +50,7 @@ renderer de cartes interprète ces valeurs ; le tableau ne doit pas en dépendre
 4. Créer son panneau de paramètres.
 5. Brancher le renderer au host commun, sans modifier les renderers existants.
 6. Documenter les options et les limites de la vue.
+
+Les plugins utilisent `registerViewExtension` depuis leur contexte. L'extension est
+enregistrée à l'activation du plugin et retirée lorsqu'il n'est plus actif dans aucune
+organisation ; les composants et paramètres restent dans le périmètre du plugin.

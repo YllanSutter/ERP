@@ -10,6 +10,8 @@ import KanbanView from '@/components/views/KanbanView';
 import CalendarView from '@/components/views/CalendarView';
 import TableView from '@/components/views/TableView';
 import CardsView from '@/components/views/CardsView';
+import { ViewRendererHost } from '@/components/views/ViewRendererHost';
+import { getViewRegistration } from '@/lib/views';
 import ShinyButton from '@/components/ui/ShinyButton';
 import LoginPage from '@/components/pages/LoginPage';
 import AutomationsPage from '@/components/pages/AutomationsPage';
@@ -368,6 +370,30 @@ const App = () => {
   const activeViewConfig =
     visibleViews.find((v: any) => v.id === activeView) || visibleViews[0] || null;
   useEffect(() => {
+    if (collectionsWithCalculatedFields.length === 0) return;
+
+    const selectedCollection = collectionsWithCalculatedFields.find((collection) => collection.id === activeCollection);
+    if (!selectedCollection) {
+      const firstCollection = collectionsWithCalculatedFields[0];
+      const firstView = (views[firstCollection.id] || []).find(canSeeView);
+      setActiveCollection(firstCollection.id);
+      if (firstView) setActiveView(firstView.id);
+      return;
+    }
+
+    if (!activeViewConfig && visibleViews[0]) {
+      setActiveView(visibleViews[0].id);
+    }
+  }, [
+    activeCollection,
+    activeViewConfig,
+    collectionsWithCalculatedFields,
+    setActiveCollection,
+    setActiveView,
+    views,
+    visibleViews,
+  ]);
+  useEffect(() => {
     // Utilise la même origine que la page (cookies/session OK)
     const s = io({ transports: ['polling'] });
     setSocket(s);
@@ -568,6 +594,7 @@ const App = () => {
     [currentCollection, activeViewConfig, relationFilter, activeCollection, collectionsWithCalculatedFields]
   );
   const ActiveViewRenderer = activeViewConfig?.type === 'steamcards' ? CardsView : TableView;
+  const activeViewRegistration = getViewRegistration(activeViewConfig?.type);
 
   if (authLoading) {
     return (
@@ -666,7 +693,7 @@ const App = () => {
           showAutomations={showAutomations}
         />
 
-        <SidebarInset className="flex-1 flex flex-col overflow-hidden bg-transparent">
+        <SidebarInset className="min-w-0 flex-1 flex flex-col overflow-hidden bg-transparent">
            <AppHeader
             impersonatedRoleId={impersonatedRoleId}
             availableRoles={availableRoles}
@@ -877,7 +904,7 @@ const App = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.2 }}
-                    className="flex-1 overflow-auto lg:p-6 p-2 z-[1]"
+                    className="min-w-0 flex-1 overflow-auto p-2 sm:p-4 lg:p-6 z-[1]"
                   >
                 {activeViewConfig?.type === 'kanban' && (
                   <KanbanView
@@ -1009,6 +1036,16 @@ const App = () => {
                       setShowNewItemModal(true);
                     }}
                     onBulkImportItad={isSteamPluginActive ? handleBulkImportItad : undefined}
+                  />
+                )}
+                {activeViewRegistration.Renderer && activeViewConfig && currentCollection && (
+                  <ViewRendererHost
+                    view={activeViewConfig}
+                    collection={currentCollection}
+                    collections={collectionsWithCalculatedFields}
+                    items={filteredItems}
+                    properties={orderedProperties}
+                    onUpdateView={(updates) => viewHooks.updateView(activeViewConfig.id, updates)}
                   />
                 )}
                 {(activeViewConfig?.type === 'table' || activeViewConfig?.type === 'steamcards') && (

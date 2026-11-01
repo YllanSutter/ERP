@@ -3,6 +3,8 @@
  */
 
 import { Plugin, PluginManifest, PluginContext, OrganizationPlugins } from './types';
+import { registerPluginView, unregisterPluginViews } from '@/lib/views';
+import type { ViewRegistration } from '@/lib/views';
 
 export class PluginManager {
   private plugins: Map<string, Plugin> = new Map();
@@ -15,6 +17,16 @@ export class PluginManager {
    */
   registerPlugin(plugin: Plugin) {
     this.plugins.set(plugin.manifest.id, plugin);
+  }
+
+  registerViewExtension(pluginId: string, registration: ViewRegistration) {
+    if (!this.plugins.has(pluginId)) {
+      throw new Error(`Plugin "${pluginId}" must be registered before adding a view extension`);
+    }
+    registerPluginView(pluginId, {
+      ...registration,
+      pluginId,
+    });
   }
 
   /**
@@ -31,11 +43,13 @@ export class PluginManager {
       this.updateOrganizationConfig(organizationId, pluginId, true);
       return;
     }
-    
+
+    const alreadyActive = Array.from(this.activePlugins).some((activeKey) => activeKey.endsWith(`:${pluginId}`));
     if (plugin.initialize) {
-      await plugin.initialize(context);
+      await plugin.initialize(this.createPluginContext(pluginId, context));
     }
 
+    if (!alreadyActive) this.registerManifestViewExtensions(pluginId, plugin);
     this.activePlugins.add(key);
     this.updateOrganizationConfig(organizationId, pluginId, true);
   }
@@ -60,6 +74,8 @@ export class PluginManager {
     }
 
     this.activePlugins.delete(key);
+    const stillActive = Array.from(this.activePlugins).some((activeKey) => activeKey.endsWith(`:${pluginId}`));
+    if (!stillActive) unregisterPluginViews(pluginId);
     this.updateOrganizationConfig(organizationId, pluginId, false);
   }
 
@@ -239,14 +255,35 @@ export class PluginManager {
 
       if (plugin.initialize) {
         try {
-          await plugin.initialize(context);
+          await plugin.initialize(this.createPluginContext(pluginId, context));
+          this.registerManifestViewExtensions(pluginId, plugin);
           this.activePlugins.add(`${organizationId}:${pluginId}`);
         } catch (error) {
           console.error(`Failed to initialize plugin "${pluginId}":`, error);
         }
       } else {
+        this.registerManifestViewExtensions(pluginId, plugin);
         this.activePlugins.add(`${organizationId}:${pluginId}`);
       }
+    }
+  }
+
+  private createPluginContext(pluginId: string, context: PluginContext): PluginContext {
+    return {
+      ...context,
+      api: {
+        ...context.api,
+        registerViewExtension: (registration) => this.registerViewExtension(pluginId, registration),
+      },
+    };
+  }
+
+  private registerManifestViewExtensions(pluginId: string, plugin: Plugin): void {
+    for (const registration of plugin.viewExtensions || []) {
+      registerPluginView(pluginId, {
+        ...registration,
+        pluginId,
+      });
     }
   }
 }

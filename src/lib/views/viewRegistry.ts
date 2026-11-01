@@ -6,6 +6,7 @@ import {
   LayoutViewSettings,
   TableViewSettings,
 } from '@/components/views/ViewTypeSettings';
+import { getPluginViewRegistrations } from './pluginViewRegistry';
 
 const defaultCapabilities = {
   supportsGrouping: false,
@@ -63,11 +64,12 @@ const registrations: Record<ViewType, ViewRegistration> = {
 };
 
 export function getViewRegistration(type: string | null | undefined): ViewRegistration {
-  return registrations[(type as ViewType) || 'table'] || registrations.table;
+  const nativeRegistration = registrations[(type as ViewType) || 'table'];
+  return nativeRegistration || getPluginViewRegistrations().find((registration) => registration.type === type) || registrations.table;
 }
 
 export function getViewRegistrations(): ViewRegistration[] {
-  return Object.values(registrations);
+  return [...Object.values(registrations), ...getPluginViewRegistrations()];
 }
 
 export function createDefaultViewConfig(type: ViewType, id: string, collectionId: string): ViewDefinition {

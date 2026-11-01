@@ -31,6 +31,11 @@ export interface ViewRenderContext {
   properties: Property[];
 }
 
+export interface ViewRendererProps extends ViewRenderContext {
+  onUpdateView: (updates: Record<string, unknown>) => void;
+  [key: string]: unknown;
+}
+
 export interface ViewSettingsProps {
   view: ViewDefinition;
   collection: Collection;
@@ -39,9 +44,11 @@ export interface ViewSettingsProps {
 }
 
 export interface ViewRegistration {
-  type: ViewType;
+  type: string;
   label: string;
+  pluginId?: string;
   capabilities: ViewCapabilities;
+  Renderer?: ComponentType<ViewRendererProps>;
   Settings?: ComponentType<ViewSettingsProps>;
   createDefaultConfig: (id: string, collectionId: string) => ViewDefinition;
 }

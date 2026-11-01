@@ -283,7 +283,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
     return { collection: selectedCollection, items: filtered };
   }, [activeCollections, activeSearchCollectionId, searchQuery]);
 
-  const viewIcons = {
+  const viewIcons: Record<string, typeof Table> = {
     table: Table,
     cards: LayoutGrid,
     steamcards: LayoutGrid,
@@ -293,7 +293,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   } as const;
   const viewTypeMeta = getViewRegistrations().map((registration) => ({
     ...registration,
-    icon: viewIcons[registration.type],
+    icon: viewIcons[registration.type] || LayoutGrid,
   }));
 
   const viewsByType = useMemo(() => {
@@ -311,10 +311,10 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       initial={{ y: -10, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.15 }}
-      className="relative border-b border-black/5 dark:border-white/5 lg:px-6 px-2 py-4 z-10"
+      className="relative min-w-0 border-b border-black/5 dark:border-white/5 px-2 py-3 sm:px-4 sm:py-4 lg:px-6 z-10"
     >
 
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex min-w-0 items-center gap-2 flex-wrap">
         <button
           type="button"
           onClick={() => setShowToolbarTools((prev) => !prev)}
@@ -329,7 +329,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         >
           <Settings size={14} />
         </button>
-        <div className="inline-flex rounded-full bg-white/5 p-1 border border-black/10  dark:border-white/10  max-w-[calc(100%-100px)]">
+        <div className="inline-flex min-w-0 max-w-full shrink overflow-x-auto rounded-full bg-white/5 p-1 border border-black/10 dark:border-white/10">
           {viewTypeMeta
             .filter((meta) => (viewsByType.get(meta.type) || []).length > 0)
             .map((meta) => {
@@ -442,8 +442,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             </TooltipProvider>
         </div>
       
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex min-w-0 items-center gap-2 flex-wrap">
+          <div className="flex min-w-0 items-center gap-2 flex-wrap">
               <div className="relative">
             <input
               value={searchQuery}
@@ -454,7 +454,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
               onFocus={() => setIsSearchOpen(true)}
               onBlur={() => setTimeout(() => setIsSearchOpen(false), 150)}
               placeholder="Rechercher un projet…"
-              className="bg-background border-b border-black/15 dark:border-white/15 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200 placeholder:text-neutral-500 focus:outline-none"
+              className="w-[min(16rem,calc(100vw-7rem))] max-w-full bg-background border-b border-black/15 dark:border-white/15 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200 placeholder:text-neutral-500 focus:outline-none"
             />
             {isSearchOpen && activeCollections.length > 0 && (
               <div className="absolute left-0 mt-2 w-[28rem] max-w-[80vw] rounded-lg border border-black/10 dark:border-white/10 bg-background dark:bg-neutral-900 shadow-xl backdrop-blur z-30 p-3">

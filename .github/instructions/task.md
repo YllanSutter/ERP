@@ -97,6 +97,14 @@
   - **Vérification plugins** : Tester qu'un plugin peut ajouter et retirer une vue sans modifier le code des renderers natifs, qu'une vue plugin reçoit le même contexte et les mêmes permissions qu'une vue native, et qu'aucun import ou branchement plugin ne fuit dans le cœur hors du registry/contrat d'extension.
   - **Vérif** : `npx tsc --noEmit`, `npm run lint`, tests ciblés des renderers et des migrations de configuration, puis vérifier qu'une nouvelle vue peut être ajoutée sans modifier les renderers existants et que les configurations de vues existantes restent lisibles.
 
+- [ ] **TASK 3.6 : Interactions avancées des cartes full-art**
+  - **Cible** : `src/components/views/SteamCardFullArt.tsx`, `src/components/views/TableView.tsx` et les primitives UI partagées nécessaires.
+  - **Action** : Ajouter un effet de survol cohérent avec le style full-art (élévation, accentuation de la bordure et mise en évidence de l'image) sans gêner l'ouverture du détail.
+  - **Action complémentaire** : Permettre de déplacer les cartes par glisser-déposer afin de réorganiser les éléments, en réutilisant le mécanisme de réordonnancement existant et en conservant le tri, le groupage et la pagination.
+  - **Action complémentaire** : Ajouter la sélection individuelle et la sélection multiple des cartes, avec état visuel clair, sélection globale par périmètre affiché et compatibilité avec les actions groupées existantes (mise à jour et suppression).
+  - **Contraintes** : Ne pas lancer l'application ; ne pas modifier le comportement des vues Tableau, Kanban, Calendrier ou Layout ; utiliser les primitives UI existantes pour les contrôles ; préserver l'accessibilité clavier et les zones cliquables.
+  - **Vérif** : `npm run typecheck`, `npm run build`, puis validation visuelle de la vue Cartes avec survol, déplacement, sélection simple, sélection multiple et action groupée.
+
 ---
 
 ## 🟢 PHASE 4 : Performance & UX Polish
