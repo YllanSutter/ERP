@@ -387,9 +387,22 @@ const TableView: React.FC<TableViewProps> = ({
     () => `table-view:${collection?.id || 'unknown'}`,
     [collection?.id]
   );
+  const totalsStorageKey = useMemo(
+    () => `erp:table-totals:${collection?.id || 'unknown'}`,
+    [collection?.id]
+  );
   const incomingTotalsPreferences = useMemo(
-    () => normalizeTotalsWidgetPreferences((user?.user_preferences as any)?.erpTotals?.[totalsPersistKey], groups.length > 0),
-    [user?.user_preferences, totalsPersistKey, groups.length]
+    () => {
+      let localPreferences: unknown;
+      if (typeof window !== 'undefined') {
+        try { localPreferences = JSON.parse(window.localStorage.getItem(totalsStorageKey) || 'null'); } catch { localPreferences = null; }
+      }
+      return normalizeTotalsWidgetPreferences(
+        localPreferences || (user?.user_preferences as any)?.erpTotals?.[totalsPersistKey],
+        groups.length > 0,
+      );
+    },
+    [user?.user_preferences, totalsPersistKey, totalsStorageKey, groups.length]
   );
   const [totalsWidgetPreferences, setTotalsWidgetPreferences] = useState<TotalsWidgetPreferences>(() => incomingTotalsPreferences);
   const handleTotalsPreferencesChange = useCallback((next: TotalsWidgetPreferences) => {
@@ -453,6 +466,15 @@ const TableView: React.FC<TableViewProps> = ({
     lastSavedTotalsPreferencesRef.current = JSON.stringify(incomingTotalsPreferences);
     lastHydratedTotalsContextRef.current = hydrateContextKey;
   }, [incomingTotalsPreferences, totalsPersistKey, user?.id]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(totalsStorageKey, JSON.stringify(totalsWidgetPreferences));
+    } catch {
+      // Keep total controls usable if local persistence is unavailable.
+    }
+  }, [totalsStorageKey, totalsWidgetPreferences]);
 
   useEffect(() => {
     if (!user?.id || !activeOrganizationId) return;
@@ -1149,7 +1171,7 @@ const TableView: React.FC<TableViewProps> = ({
             formatTotal={formatTotal}
             resolveValue={resolveProjectedValue}
             groupedSections={groupedSections}
-            persistKey={totalsPersistKey}
+            persistKey={totalsStorageKey}
             contextPath={contextPath}
             preferences={totalsWidgetPreferences}
             onPreferencesChange={handleTotalsPreferencesChange}

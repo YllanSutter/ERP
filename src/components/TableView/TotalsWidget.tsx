@@ -495,7 +495,9 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   }, [groupedSections]);
 
   // ── État ─────────────────────────────────────────────────────────────────
-  const [expanded, setExpanded] = React.useState(true);
+  // Initialise depuis la préférence pour ne pas réécrire « ouvert » avant que
+  // l'effet de synchronisation ne restaure un panneau précédemment fermé.
+  const [expanded, setExpanded] = React.useState(() => Boolean(normalizedPreferences.widgetExpanded ?? true));
   const [modules, setModules] = React.useState<Record<ModuleKey, boolean>>(
     normalizedPreferences.widgetModules || createDefaultTotalsWidgetPreferences(hasGroups).widgetModules!
   );
@@ -688,6 +690,13 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     const serialized = JSON.stringify(snapshot);
     if (serialized === lastEmittedPreferencesSignatureRef.current) return;
     lastEmittedPreferencesSignatureRef.current = serialized;
+    if (persistKey && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(persistKey, serialized);
+      } catch {
+        // The parent still receives the preference update for the current session.
+      }
+    }
     onPreferencesChange?.(snapshot);
   }, [
     onPreferencesChange,
@@ -696,6 +705,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     modules,
     hiddenTotalFieldIds,
     totalFieldOrderIds,
+    persistKey,
   ]);
 
   // ── Garde ─────────────────────────────────────────────────────────────────
