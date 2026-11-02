@@ -20,6 +20,7 @@ import { isCalculatedNumberProperty } from '@/lib/calculatedFields';
 import { API_URL } from '@/lib/constants';
 import { compareValues } from '@/lib/utils/sortUtils';
 import { buildGroupPrefill } from '@/lib/utils/groupPrefillUtils';
+import { getGroupSelectionStorageKey, GROUPING_SELECTION_CHANGE_EVENT, readGroupFieldSelections, saveGroupFieldSelection, saveGroupingSelection } from '@/lib/groupingSelectionStorage';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -413,6 +414,7 @@ const TableView: React.FC<TableViewProps> = ({
     () => `erp:table:root-select:${collection?.id || 'unknown'}:${groups.join('|')}`,
     [collection?.id, groups]
   );
+  const groupFieldSelectionStorageKey = useMemo(() => getGroupSelectionStorageKey(collection?.id || 'unknown'), [collection?.id]);
 
   useEffect(() => {
     if (groupDisplayMode !== 'tabs' || rootGroups.length === 0) {
@@ -437,7 +439,7 @@ const TableView: React.FC<TableViewProps> = ({
     if (groupDisplayMode !== 'tabs' || !activeGroupTab) return;
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem(rootTabsStorageKey, activeGroupTab);
+      saveGroupingSelection(rootTabsStorageKey, activeGroupTab);
     } catch {
       // ignore storage errors
     }
@@ -496,17 +498,20 @@ const TableView: React.FC<TableViewProps> = ({
     }
     if (typeof window === 'undefined') return;
     try {
+      const sharedSelections = readGroupFieldSelections(collection?.id || 'unknown');
       const raw = localStorage.getItem(rootSelectStorageKey);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') return;
       const next: Record<number, string> = {};
-      Object.entries(parsed).forEach(([k, v]) => {
-        const depth = Number(k);
-        if (Number.isInteger(depth) && typeof v === 'string' && v) {
-          next[depth] = v;
-        }
+      groups.forEach((fieldId, depth) => {
+        const value = sharedSelections[fieldId];
+        if (typeof value === 'string' && value) next[depth] = value;
       });
+      if (Object.keys(next).length === 0 && raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') Object.entries(parsed).forEach(([k, v]) => {
+          const depth = Number(k);
+          if (Number.isInteger(depth) && typeof v === 'string' && v) next[depth] = v;
+        });
+      }
       setActiveGroupSelectByDepth((prev) => (areStringMapsEqual(prev, next) ? prev : next));
     } catch {
       // ignore storage errors
@@ -519,11 +524,43 @@ const TableView: React.FC<TableViewProps> = ({
     if (rootGroupMode !== 'select') return;
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem(rootSelectStorageKey, JSON.stringify(activeGroupSelectByDepth || {}));
+      saveGroupingSelection(rootSelectStorageKey, JSON.stringify(activeGroupSelectByDepth || {}));
+      Object.entries(activeGroupSelectByDepth).forEach(([depth, path]) => {
+        const fieldId = groups[Number(depth)];
+        if (fieldId && typeof path === 'string') saveGroupFieldSelection(collection?.id || 'unknown', fieldId, path);
+      });
     } catch {
       // ignore storage errors
     }
   }, [groupDisplayMode, groupDisplayModes, groups, activeGroupSelectByDepth, rootSelectStorageKey]);
+
+  useEffect(() => {
+    const syncGroupingSelection = (event: Event) => {
+      const { key, value } = (event as CustomEvent<{ key?: string; value?: string }>).detail || {};
+      if (key === rootTabsStorageKey && typeof value === 'string') {
+        setActiveGroupTab((previous) => previous === value ? previous : value);
+      }
+      if (key === rootSelectStorageKey && typeof value === 'string') {
+        try {
+          const next = JSON.parse(value);
+          if (next && typeof next === 'object') setActiveGroupSelectByDepth(next);
+        } catch {
+          // Ignore invalid external state.
+        }
+      }
+      if (key === groupFieldSelectionStorageKey && typeof value === 'string') {
+        try {
+          const shared = JSON.parse(value);
+          const next = Object.fromEntries(groups.flatMap((fieldId, depth) => typeof shared?.[fieldId] === 'string' ? [[depth, shared[fieldId]]] : []));
+          setActiveGroupSelectByDepth(next);
+        } catch {
+          // Ignore invalid external state.
+        }
+      }
+    };
+    window.addEventListener(GROUPING_SELECTION_CHANGE_EVENT, syncGroupingSelection);
+    return () => window.removeEventListener(GROUPING_SELECTION_CHANGE_EVENT, syncGroupingSelection);
+  }, [groupFieldSelectionStorageKey, groups, rootSelectStorageKey, rootTabsStorageKey]);
 
   // Mise à jour du groupContext selon le mode d'affichage actif (racine tabs/select uniquement)
   // Utilise la ref pour éviter d'inclure onGroupContextChange dans les deps (boucle infinie)
@@ -1428,6 +1465,7 @@ const TableView: React.FC<TableViewProps> = ({
               groupDisplayModes={groupDisplayModes}
               groupDisplayColumnCount={normalizeGroupColumnCount(groupDisplayColumnCount)}
               groupDisplayColumnCounts={groupDisplayColumnCounts}
+              collectionId={collection.id}
               renderItems={(groupItems) => renderTableShell(
                 renderFlatRows(groupItems),
                 groupItems,

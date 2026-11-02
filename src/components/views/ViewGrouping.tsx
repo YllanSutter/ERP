@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GroupHeader } from '@/components/ui/group-header';
@@ -6,10 +6,21 @@ import ViewGroupTabs from './ViewGroupTabs';
 import { useGrouping } from '@/lib/hooks/useGrouping';
 import type { Collection, Item, Property, TableGroupDisplayMode } from '@/lib/types';
 import { countItemsInGroup, getGroupLabel } from '@/lib/groupingUtils';
+import { getGroupSelectionStorageKey, GROUPING_SELECTION_CHANGE_EVENT, readGroupFieldSelections, saveGroupFieldSelection, saveGroupingSelection } from '@/lib/groupingSelectionStorage';
 
 // TabsContent is a general-purpose panel with a border and generous padding.
 // In a view grouping, the renderer already owns its surface (table, cards, etc.).
 const groupedTabsContentClass = 'mt-2 rounded-none border-0 p-0';
+
+const getStoredGroupChoice = (key: string, choices: string[]) => {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const stored = window.localStorage.getItem(key);
+    return stored && choices.includes(stored) ? stored : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 interface ViewGroupingProps {
   items: Item[];
@@ -26,6 +37,8 @@ interface ViewGroupingProps {
   renderItems: (items: Item[]) => React.ReactNode;
   className?: string;
   onActiveGroupPathChange?: (path: string | undefined) => void;
+  /** Reuse the table's grouping selection so renderers stay interchangeable. */
+  collectionId?: string;
 }
 
 export function useViewGrouping(
@@ -77,9 +90,11 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
   renderItems,
   className,
   onActiveGroupPathChange,
+  collectionId,
 }) => {
   const [activeTabs, setActiveTabs] = useState<Record<string, string>>({});
   const [activeSelects, setActiveSelects] = useState<Record<number, string>>({});
+  const [hasHydratedSelections, setHasHydratedSelections] = useState(false);
   const { groupedStructure, itemsMap, expandedGroups, toggleGroup, getItemsForGroup } = useViewGrouping(
     items,
     groups,
@@ -90,6 +105,69 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
   );
 
   const rootMode = groupDisplayModes[groups[0]] || groupDisplayMode;
+  const rootTabsStorageKey = useMemo(
+    () => `erp:table:root-tabs:${collectionId || 'unknown'}:${groups.join('|')}`,
+    [collectionId, groups],
+  );
+  const rootSelectStorageKey = useMemo(
+    () => `erp:table:root-select:${collectionId || 'unknown'}:${groups.join('|')}`,
+    [collectionId, groups],
+  );
+  const groupFieldSelectionStorageKey = useMemo(() => getGroupSelectionStorageKey(collectionId || 'unknown'), [collectionId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const sharedSelections = readGroupFieldSelections(collectionId || 'unknown');
+      const sharedSelects = Object.fromEntries(groups.flatMap((fieldId, depth) => typeof sharedSelections[fieldId] === 'string' ? [[depth, sharedSelections[fieldId]]] : []));
+      const rawSelects = window.localStorage.getItem(rootSelectStorageKey);
+      if (Object.keys(sharedSelects).length > 0) setActiveSelects(sharedSelects);
+      else if (rawSelects) {
+        const storedSelects = JSON.parse(rawSelects);
+        if (storedSelects && typeof storedSelects === 'object') setActiveSelects(storedSelects);
+      }
+      const storedTab = window.localStorage.getItem(rootTabsStorageKey);
+      if (storedTab) setActiveTabs((previous) => ({ ...previous, root: storedTab }));
+    } catch {
+      // Fall back to the first available group.
+    } finally {
+      setHasHydratedSelections(true);
+    }
+  }, [rootSelectStorageKey, rootTabsStorageKey]);
+
+  useEffect(() => {
+    if (!hasHydratedSelections || typeof window === 'undefined') return;
+    const syncGroupingSelection = (event: Event) => {
+      const { key, value } = (event as CustomEvent<{ key?: string; value?: string }>).detail || {};
+      if (key === rootSelectStorageKey && typeof value === 'string') {
+        try {
+          const next = JSON.parse(value);
+          if (next && typeof next === 'object') setActiveSelects(next);
+        } catch {
+          // Ignore invalid external state.
+        }
+      } else if (key === rootTabsStorageKey && typeof value === 'string') {
+        setActiveTabs((previous) => ({ ...previous, root: value }));
+      } else if (key === groupFieldSelectionStorageKey && typeof value === 'string') {
+        try {
+          const shared = JSON.parse(value);
+          const next = Object.fromEntries(groups.flatMap((fieldId, depth) => typeof shared?.[fieldId] === 'string' ? [[depth, shared[fieldId]]] : []));
+          setActiveSelects(next);
+        } catch {
+          // Ignore invalid external state.
+        }
+      } else if (typeof key === 'string' && typeof value === 'string') {
+        const prefix = `erp:table:sub-tabs:${collectionId || 'unknown'}:`;
+        if (key.startsWith(prefix)) {
+          const suffix = key.slice(prefix.length);
+          const separator = suffix.lastIndexOf(':');
+          if (separator > 0) setActiveTabs((previous) => ({ ...previous, [suffix.slice(0, separator)]: value }));
+        }
+      }
+    };
+    window.addEventListener(GROUPING_SELECTION_CHANGE_EVENT, syncGroupingSelection);
+    return () => window.removeEventListener(GROUPING_SELECTION_CHANGE_EVENT, syncGroupingSelection);
+  }, [collectionId, groupFieldSelectionStorageKey, groups, hasHydratedSelections, rootSelectStorageKey, rootTabsStorageKey]);
   const activeGroupPath = useMemo(() => {
     if (!groupedStructure || groups.length === 0) return undefined;
     const roots = groupedStructure.rootGroups;
@@ -134,7 +212,9 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
       const collapsible = mode === 'accordion';
       const groupItems = getItemsForGroup(path);
       const childProperty = properties.find((candidate) => candidate.id === groups[depth + 1]);
-      const activeTab = activeTabs[path] && children.includes(activeTabs[path]) ? activeTabs[path] : children[0];
+      const activeTab = activeTabs[path] && children.includes(activeTabs[path])
+        ? activeTabs[path]
+        : getStoredGroupChoice(`erp:table:sub-tabs:${collectionId || 'unknown'}:${path}:${groups[depth + 1] || 'none'}`, children) || children[0];
       const activeSelect = activeSelects[depth + 1] && children.includes(activeSelects[depth + 1])
         ? activeSelects[depth + 1]
         : children[0];
@@ -144,7 +224,11 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
       const renderChildren = children.length === 0 ? renderItems(paginateItems ? paginateItems(groupItems) : groupItems) : childMode === 'tabs' ? (
         <Tabs
           value={activeTab}
-          onValueChange={(next) => setActiveTabs((previous) => ({ ...previous, [path]: next }))}
+          onValueChange={(next) => {
+            setActiveTabs((previous) => ({ ...previous, [path]: next }));
+            saveGroupingSelection(`erp:table:sub-tabs:${collectionId || 'unknown'}:${path}:${groups[depth + 1] || 'none'}`, next);
+            saveGroupFieldSelection(collectionId || 'unknown', groups[depth + 1] || '', next);
+          }}
         >
           <ViewGroupTabs
             items={children.map((child) => ({
@@ -169,6 +253,8 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
               Object.keys(nextState).forEach((key) => {
                 if (Number(key) > depth + 1) delete nextState[Number(key)];
               });
+              saveGroupingSelection(`erp:table:sub-select:${collectionId || 'unknown'}:${path}:${groups[depth + 1] || 'none'}`, next);
+              saveGroupFieldSelection(collectionId || 'unknown', groups[depth + 1] || '', next);
               return nextState;
             })}
           >
@@ -245,7 +331,11 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
   if (rootMode === 'tabs') {
     return (
       <div className={className || ''}>
-        <Tabs value={activeRoot} onValueChange={(next) => setActiveTabs((previous) => ({ ...previous, root: next }))}>
+        <Tabs value={activeRoot} onValueChange={(next) => {
+          setActiveTabs((previous) => ({ ...previous, root: next }));
+          saveGroupingSelection(rootTabsStorageKey, next);
+          saveGroupFieldSelection(collectionId || 'unknown', groups[0] || '', next);
+        }}>
           <ViewGroupTabs items={rootTabs} activeId={activeRoot} />
           {roots.map((root) => <TabsContent key={root} value={root} className={groupedTabsContentClass}>{renderGroup(root)}</TabsContent>)}
         </Tabs>
@@ -298,7 +388,9 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
     };
     const tabbedChildren = children.length > 0 && nextMode === 'tabs';
     const activeTab = tabbedChildren
-      ? (activeTabs[selectedPath] && children.includes(activeTabs[selectedPath]) ? activeTabs[selectedPath] : children[0])
+      ? (activeTabs[selectedPath] && children.includes(activeTabs[selectedPath])
+        ? activeTabs[selectedPath]
+        : getStoredGroupChoice(`erp:table:sub-tabs:${collectionId || 'unknown'}:${selectedPath}:${nextGroupId || 'none'}`, children) || children[0])
       : undefined;
     const childProperty = properties.find((property) => property.id === nextGroupId);
     const groupSelectors = (
@@ -312,6 +404,8 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
                 Object.keys(nextState).forEach((key) => {
                   if (Number(key) > level.depth) delete nextState[Number(key)];
                 });
+                saveGroupingSelection(rootSelectStorageKey, JSON.stringify(nextState));
+                saveGroupFieldSelection(collectionId || 'unknown', groups[level.depth] || '', next);
                 return nextState;
               })}
             >
@@ -333,7 +427,11 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
       return (
         <Tabs
           value={activeTab}
-          onValueChange={(next) => setActiveTabs((previous) => ({ ...previous, [selectedPath]: next }))}
+          onValueChange={(next) => {
+            setActiveTabs((previous) => ({ ...previous, [selectedPath]: next }));
+            saveGroupingSelection(`erp:table:sub-tabs:${collectionId || 'unknown'}:${selectedPath}:${nextGroupId || 'none'}`, next);
+            saveGroupFieldSelection(collectionId || 'unknown', nextGroupId || '', next);
+          }}
           className={className || ''}
         >
           <div className="flex min-w-0 items-end justify-between gap-3 overflow-x-auto px-3 py-2">

@@ -8,6 +8,7 @@ import TableHeader from './TableHeader';
 import TotalsBar from './TotalsBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { saveGroupFieldSelection, saveGroupingSelection } from '@/lib/groupingSelectionStorage';
 
 interface GroupRendererProps {
   groupPath: string;
@@ -258,7 +259,8 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
     if (!activeSubGroupTab) return;
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem(subTabsStorageKey, activeSubGroupTab);
+      saveGroupingSelection(subTabsStorageKey, activeSubGroupTab);
+      saveGroupFieldSelection(collection.id, nextGroupId || '', activeSubGroupTab);
     } catch {
       // ignore storage errors
     }
@@ -290,7 +292,8 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
     if (!activeSubGroupSelect) return;
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem(subSelectStorageKey, activeSubGroupSelect);
+      saveGroupingSelection(subSelectStorageKey, activeSubGroupSelect);
+      saveGroupFieldSelection(collection.id, nextGroupId || '', activeSubGroupSelect);
     } catch {
       // ignore storage errors
     }

@@ -226,6 +226,7 @@ const CardsView: React.FC<CardsViewProps> = ({
       renderItems={renderCards}
       className="min-h-0 mt-4 flex-1 overflow-auto"
       onActiveGroupPathChange={setActiveGroupPath}
+      collectionId={collection.id}
     />
   );
   const wrappedContent = <ViewShell>
