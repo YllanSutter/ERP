@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { buildGroupPrefill } from '@/lib/utils/groupPrefillUtils';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Zap } from 'lucide-react';
 import {
   ContextMenu,
@@ -37,6 +38,7 @@ const CardsView: React.FC<CardsViewProps> = ({
   onBulkDelete,
   onBulkUpdate,
   onBulkImportItad,
+  onGroupContextChange,
   onReorderItems,
   onViewDetail,
   onRelationChange,
@@ -59,6 +61,9 @@ const CardsView: React.FC<CardsViewProps> = ({
   cardColumns = 'auto',
   totalFields = {},
 }) => {
+  const lastGroupContext = useRef('');
+  const groupCallbackRef = useRef(onGroupContextChange);
+  useEffect(() => { groupCallbackRef.current = onGroupContextChange; }, [onGroupContextChange]);
   const canEdit = useCanEdit(collection.id);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [bulkFieldId, setBulkFieldId] = useState('');
@@ -66,6 +71,13 @@ const CardsView: React.FC<CardsViewProps> = ({
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [dragItemId, setDragItemId] = useState<string | null>(null);
   const [activeGroupPath, setActiveGroupPath] = useState<string | undefined>();
+  useEffect(() => {
+    const prefill = activeGroupPath ? buildGroupPrefill(activeGroupPath, groups, orderedProperties) : null;
+    const serialized = JSON.stringify([prefill, activeGroupPath]);
+    if (lastGroupContext.current === serialized) return;
+    lastGroupContext.current = serialized;
+    groupCallbackRef.current?.(prefill, activeGroupPath || undefined);
+  }, [activeGroupPath, groups, orderedProperties]);
   const steamProperty = useMemo(
     () => orderedProperties.find((property) => property.type === 'steam'),
     [orderedProperties],

@@ -179,12 +179,12 @@ const TableView: React.FC<TableViewProps> = ({
   useEffect(() => { onGroupContextChangeRef.current = onGroupContextChange; });
   const lastEmittedGroupContextRef = useRef<string | null>(null);
 
-  const emitGroupContext = useCallback((ctx: Record<string, any> | null) => {
+  const emitGroupContext = useCallback((ctx: Record<string, any> | null, groupPath?: string) => {
     if (!onGroupContextChangeRef.current) return;
-    const serialized = JSON.stringify(ctx || null);
+    const serialized = JSON.stringify([ctx || null, groupPath]);
     if (serialized === lastEmittedGroupContextRef.current) return;
     lastEmittedGroupContextRef.current = serialized;
-    onGroupContextChangeRef.current(ctx);
+    onGroupContextChangeRef.current(ctx, groupPath);
   }, []);
 
   const areStringMapsEqual = useCallback((left: Record<string | number, any> = {}, right: Record<string | number, any> = {}) => {
@@ -204,7 +204,9 @@ const TableView: React.FC<TableViewProps> = ({
     if (!wasExpanded) {
       const prefill = buildGroupPrefill(groupPath, groups, collection.properties || []);
       const ctx = Object.keys(prefill).length > 0 ? prefill : null;
-        emitGroupContext(ctx);
+        emitGroupContext(ctx, groupPath);
+    } else {
+      emitGroupContext(null, '');
     }
     }, [expandedGroups, toggleGroup, groups, collection.properties, emitGroupContext]);
 
@@ -565,7 +567,7 @@ const TableView: React.FC<TableViewProps> = ({
       if (key === rootSelectStorageKey && typeof value === 'string') {
         try {
           const next = JSON.parse(value);
-          if (next && typeof next === 'object') setActiveGroupSelectByDepth(next);
+          if (next && typeof next === 'object') setActiveGroupSelectByDepth(prev => areStringMapsEqual(prev, next) ? prev : next);
         } catch {
           // Ignore invalid external state.
         }
@@ -574,7 +576,7 @@ const TableView: React.FC<TableViewProps> = ({
         try {
           const shared = JSON.parse(value);
           const next = Object.fromEntries(groups.flatMap((fieldId, depth) => typeof shared?.[fieldId] === 'string' ? [[depth, shared[fieldId]]] : []));
-          setActiveGroupSelectByDepth(next);
+          setActiveGroupSelectByDepth(prev => areStringMapsEqual(prev, next) ? prev : next);
         } catch {
           // Ignore invalid external state.
         }
@@ -582,7 +584,7 @@ const TableView: React.FC<TableViewProps> = ({
     };
     window.addEventListener(GROUPING_SELECTION_CHANGE_EVENT, syncGroupingSelection);
     return () => window.removeEventListener(GROUPING_SELECTION_CHANGE_EVENT, syncGroupingSelection);
-  }, [groupFieldSelectionStorageKey, groups, rootSelectStorageKey, rootTabsStorageKey]);
+  }, [groupFieldSelectionStorageKey, groups, rootSelectStorageKey, rootTabsStorageKey, areStringMapsEqual]);
 
   // Mise à jour du groupContext selon le mode d'affichage actif (racine tabs/select uniquement)
   // Utilise la ref pour éviter d'inclure onGroupContextChange dans les deps (boucle infinie)
@@ -592,7 +594,7 @@ const TableView: React.FC<TableViewProps> = ({
     if (rootGroupMode === 'tabs' && activeGroupTab) {
       const prefill = buildGroupPrefill(activeGroupTab, groups, collection.properties || []);
       const ctx = Object.keys(prefill).length > 0 ? prefill : null;
-      onGroupContextChangeRef.current(ctx);
+      onGroupContextChangeRef.current(ctx, activeGroupTab);
     } else if (rootGroupMode === 'select') {
       // Chaque valeur de activeGroupSelectByDepth est déjà un chemin COMPLET
       // (ex: depth 0 = "2026", depth 1 = "2026/Mars"). On prend le niveau le
@@ -605,7 +607,7 @@ const TableView: React.FC<TableViewProps> = ({
       if (deepestPath) {
         const prefill = buildGroupPrefill(deepestPath, groups, collection.properties || []);
         const ctx = Object.keys(prefill).length > 0 ? prefill : null;
-        emitGroupContext(ctx);
+        emitGroupContext(ctx, deepestPath);
       }
     }
   }, [activeGroupTab, activeGroupSelectByDepth, groups, groupDisplayMode, groupDisplayModes, collection.properties, emitGroupContext]);
@@ -1153,15 +1155,6 @@ const TableView: React.FC<TableViewProps> = ({
           contextPath = rootGroups[0] || undefined;
         }
 
-        console.log('[TableView Totals] contextPath computed', {
-          rootGroupMode,
-          contextPath,
-          activeGroupTab,
-          activeSubGroupPathByRoot,
-          activeGroupSelectByDepth,
-          rootGroups,
-        });
-
         return (
           <TotalsWidget
             displayProperties={orderedProperties}
@@ -1307,7 +1300,7 @@ const TableView: React.FC<TableViewProps> = ({
                 if (path) {
                   const prefill = buildGroupPrefill(path, groups, collection.properties || []);
                   const ctx = Object.keys(prefill).length > 0 ? prefill : null;
-                  emitGroupContext(ctx);
+                  emitGroupContext(ctx, path);
                 }
               }}
             />

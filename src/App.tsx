@@ -1,3 +1,6 @@
+import { SteamBundlePublishButton } from '@/lib/plugins/steam/BundlePublishingDialog';
+import { SteamCollectionSettings } from '@/lib/plugins/steam/SteamCollectionSettings';
+import { SteamBundles } from '@/lib/plugins/steam/SteamBundles';
 
 
 
@@ -143,6 +146,7 @@ const App = () => {
             },
           }
         );
+        window.dispatchEvent(new Event('steam-config-changed'));
       } catch (error) {
         console.error('[Plugin Bootstrap] Error:', error);
       }
@@ -172,9 +176,10 @@ const App = () => {
   const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
   const [showPropertyModal, setShowPropertyModal] = useState(false);
   const [showNewItemModal, setShowNewItemModal] = useState(false);
+  const [steamGroupPath, setSteamGroupPath] = useState('');
   const [groupContext, setGroupContext] = useState<Record<string, any> | null>(null);
   // Vider le contexte de groupe si la collection ou la vue change
-  useEffect(() => { setGroupContext(null); }, [activeCollection, activeView]);
+  useEffect(() => { setGroupContext(null); setSteamGroupPath(''); }, [activeCollection, activeView]);
   const [modalCollection, setModalCollection] = useState<any>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [editingFilterIndex, setEditingFilterIndex] = useState<number | null>(null);
@@ -771,6 +776,7 @@ const App = () => {
             </motion.div>
           ) : (
             <ViewShell>
+              <SteamBundles key={`${activeOrganizationId}:${currentCollection.id}`} organizationId={activeOrganizationId} collection={currentCollection} collections={collections} setCollections={setCollections} groupPath={steamGroupPath} view={activeViewConfig} groups={activeViewConfig?.groups || []} properties={orderedProperties} />
               <ViewToolbar
                 currentCollection={currentCollection}
                 currentViews={visibleViews}
@@ -984,7 +990,7 @@ const App = () => {
                       setShowNewItemModal(true);
                     }}
                     onShowNewItemModal={(prefill?: Record<string, any>) => { if (prefill && Object.keys(prefill).length > 0) { setEditingItem(prefill); setGroupContext(prefill); } setShowNewItemModal(true); }}
-                    onGroupContextChange={(prefill: Record<string, any> | null) => { console.log('[GroupContext] set from TableView:', prefill); setGroupContext(prefill); }}
+                    onGroupContextChange={(prefill: Record<string, any> | null, groupPath?: string) => { setSteamGroupPath(groupPath || ''); console.log('[GroupContext] set from TableView:', prefill); setGroupContext(prefill); }}
                     onQuickCreateItem={handleQuickCreateItem}
                     initialSortState={activeViewConfig?.tableSortState || { column: null, direction: 'asc' }}
                     onSortStateChange={(state: { column: string | null; direction: 'asc' | 'desc' }) => {
@@ -1115,6 +1121,7 @@ const App = () => {
             collectionHooks.deleteCollection(collectionId);
             setShowEditCollectionModal(false);
           }}
+          renderPluginSettings={(collection, onChange) => <SteamCollectionSettings collection={collection} collections={collections} onChange={onChange} />}
           collection={editingCollection}
         />
       )}
@@ -1158,6 +1165,7 @@ const App = () => {
       )}
       {showNewItemModal && (
         <NewItemModal
+          renderPluginActions={(collection, item) => <SteamBundlePublishButton collection={collection} item={item} collections={collections} />}
           collection={modalCollection || currentCollection!}
           collections={collections}
           favorites={favorites}

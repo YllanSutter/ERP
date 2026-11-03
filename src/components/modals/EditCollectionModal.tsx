@@ -6,9 +6,11 @@ interface EditCollectionModalProps {
   onSave: (collection: any) => void;
   onDelete: (collectionId: string) => void;
   collection: any;
+  renderPluginSettings?: (collection: any, onChange: (changes: any) => void) => React.ReactNode;
 }
 
-const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSave, onDelete, collection }) => {
+const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSave, onDelete, collection, renderPluginSettings }) => {
+  const [pluginChanges, setPluginChanges] = useState<Record<string, any>>({});
   const [name, setName] = useState(collection.name);
   const [icon, setIcon] = useState(collection.icon || 'Database');
   const [color, setColor] = useState(collection.color || '#8b5cf6');
@@ -26,7 +28,7 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
     const normalizedDefaultVisible = defaultVisibleFieldIds.length
       ? defaultVisibleFieldIds
       : (props[0] ? [props[0].id] : []);
-    onSave({ ...collection, name, icon, color, isPrimary, defaultVisibleFieldIds: normalizedDefaultVisible });
+    onSave({ ...collection, ...pluginChanges, name, icon, color, isPrimary, defaultVisibleFieldIds: normalizedDefaultVisible });
   };
 
   return (
@@ -37,6 +39,7 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
       extraActions={<DeleteConfirmButton onDelete={() => onDelete(collection.id)} title="Supprimer la collection" />}
     >
       <div className="space-y-6">
+        {renderPluginSettings?.({ ...collection, ...pluginChanges }, changes => setPluginChanges(prev => ({ ...prev, ...changes })))}
         <FormNameInput
           label="Nom"
           value={name}

@@ -1,3 +1,4 @@
+import { registerBundleRoutes } from './bundles.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,6 +12,7 @@ const STEAM_LIST_PATH = path.join(PROJECT_ROOT, 'public/steamList.json');
 export const steamServerPlugin = {
   id: 'steam',
   register: ({ app, appContext }) => {
+    registerBundleRoutes({ app, appContext });
     const { logger, requireAuth, hasPermission, pool, syncAppStateIdSequence } = appContext;
 
     app.get('/api/plugins/steam/games', requireAuth, async (_req, res) => {

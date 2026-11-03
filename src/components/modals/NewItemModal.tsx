@@ -41,6 +41,7 @@ import {
 
 interface NewItemModalProps {
   collection: any;
+  renderPluginActions?: (collection: any, item: any) => React.ReactNode;
   onClose: () => void;
   onSave: (item: any) => void;
   onSaveAndStay?: (item: any) => void;
@@ -86,6 +87,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   groupContext,
   fieldGroups = [],
   fieldGroupsLayout = 'stacked',
+  renderPluginActions,
 }) => {
   const { user, isAdmin, isEditor, permissions, activeOrganizationId } = useAuth();
 
@@ -1383,6 +1385,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           </div>
           {/* Actions droite */}
           <div className="flex items-center gap-2 pt-1 shrink-0">
+            {renderPluginActions?.(selectedCollection, formData)}
             {hasLocalDraft && (
               <div className="px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wide bg-amber-500/10 text-amber-400 border border-amber-500/20">
                 Brouillon

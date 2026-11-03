@@ -8,6 +8,7 @@ export const GROUPING_SELECTION_CHANGE_EVENT = 'erp:grouping-selection-change';
 export function saveGroupingSelection(key: string, value: string) {
   if (typeof window === 'undefined') return;
   try {
+    if (window.localStorage.getItem(key) === value) return;
     window.localStorage.setItem(key, value);
     window.dispatchEvent(new CustomEvent(GROUPING_SELECTION_CHANGE_EVENT, {
       detail: { key, value },

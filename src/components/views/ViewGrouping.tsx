@@ -39,6 +39,8 @@ interface ViewGroupingProps {
   onActiveGroupPathChange?: (path: string | undefined) => void;
   /** Reuse the table's grouping selection so renderers stay interchangeable. */
   collectionId?: string;
+  /** Opening selection supplied by a containing dialog; overrides its older stored choices. */
+  initialGroupPath?: string;
 }
 
 export function useViewGrouping(
@@ -91,10 +93,16 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
   className,
   onActiveGroupPathChange,
   collectionId,
+  initialGroupPath,
 }) => {
-  const [activeTabs, setActiveTabs] = useState<Record<string, string>>({});
-  const [activeSelects, setActiveSelects] = useState<Record<number, string>>({});
-  const [hasHydratedSelections, setHasHydratedSelections] = useState(false);
+  const [activeSelects, setActiveSelects] = useState<Record<number, string>>(() => Object.fromEntries(
+    (initialGroupPath ? initialGroupPath.split('/') : []).map((_, depth, parts) => [depth, parts.slice(0, depth + 1).join('/')])
+  ));
+  const [activeTabs, setActiveTabs] = useState<Record<string, string>>(() => {
+    const paths = initialGroupPath ? initialGroupPath.split('/').map((_, depth, parts) => parts.slice(0, depth + 1).join('/')) : [];
+    return Object.fromEntries(paths.map((path, depth) => [depth ? paths[depth - 1] : 'root', path]));
+  });
+  const [hasHydratedSelections, setHasHydratedSelections] = useState(initialGroupPath !== undefined);
   const { groupedStructure, itemsMap, expandedGroups, toggleGroup, getItemsForGroup } = useViewGrouping(
     items,
     groups,
@@ -116,7 +124,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
   const groupFieldSelectionStorageKey = useMemo(() => getGroupSelectionStorageKey(collectionId || 'unknown'), [collectionId]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (initialGroupPath !== undefined || typeof window === 'undefined') return;
     try {
       const sharedSelections = readGroupFieldSelections(collectionId || 'unknown');
       const sharedSelects = Object.fromEntries(groups.flatMap((fieldId, depth) => typeof sharedSelections[fieldId] === 'string' ? [[depth, sharedSelections[fieldId]]] : []));
@@ -133,7 +141,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
     } finally {
       setHasHydratedSelections(true);
     }
-  }, [rootSelectStorageKey, rootTabsStorageKey]);
+  }, [rootSelectStorageKey, rootTabsStorageKey, initialGroupPath]);
 
   useEffect(() => {
     if (!hasHydratedSelections || typeof window === 'undefined') return;
@@ -350,7 +358,10 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
       options: Array<{ id: string; label: string; itemCount: number }>;
       selectedId: string;
     }> = [];
-    let currentOptions = roots;
+    let currentOptions = [...roots];
+    if (initialGroupPath !== undefined && activeSelects[0] && !currentOptions.includes(activeSelects[0])) {
+      currentOptions.push(activeSelects[0]);
+    }
     let selectedPath = roots[0];
 
     for (let depth = 0; depth < groups.length && currentOptions.length > 0; depth += 1) {
@@ -374,7 +385,11 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
         : options[0].id;
       selectLevels.push({ depth, property, options, selectedId });
       selectedPath = selectedId;
-      currentOptions = groupedStructure.structure[selectedId]?.subGroups || [];
+      currentOptions = [...(groupedStructure.structure[selectedId]?.subGroups || [])];
+      const requestedChild = activeSelects[depth + 1];
+      if (initialGroupPath !== undefined && requestedChild?.startsWith(`${selectedId}/`) && !currentOptions.includes(requestedChild)) {
+        currentOptions.push(requestedChild);
+      }
     }
 
     const children = groupedStructure.structure[selectedPath]?.subGroups || [];

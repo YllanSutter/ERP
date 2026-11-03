@@ -246,3 +246,46 @@ Fonctionnalités possibles :
 - [ ] Historique des prix
 - [ ] Graphiques de prix
 - [ ] Comparaison multi-boutiques
+
+## Collections de jeux et de bundles
+
+Dans **Modifier la collection → Steam**, attribuer le rôle **Jeux** à la collection
+existante de jeux et **Bundles** à celle des bundles. Chaque rôle est unique dans
+l’organisation. Ces réglages sont enregistrés avec la collection, dans
+`plugins.steam`. Aucune nouvelle collection n’est créée.
+
+La collection Jeux doit avoir un champ Steam et une relation vers Bundles. Dans
+ses paramètres, sélectionner cette relation ; elle est détectée automatiquement
+si elle est unique. Une relation `many_to_many` permet de réutiliser le même jeu
+dans plusieurs bundles. La collection Bundles doit avoir un champ texte pour le nom.
+
+Dans Jeux, **Créer un bundle** ouvre un formulaire. Les groupes portant sur des
+colonnes liées à des propriétés de Bundles (par exemple le mois) préremplissent
+le formulaire à partir du groupe actif, dans les vues Tableau et Cartes. Seule
+la relation parent est à configurer : ses champs liés sont déduits automatiquement,
+y compris si les colonnes sont masquées. Les libellés de dates (année, mois…)
+sont convertis en dates valides pour le formulaire.
+
+**Importer un bundle** ouvre le catalogue public avec le même groupage que la
+vue courante, transposé aux propriétés des bundles (année, mois…). À chaque
+ouverture, l’année et le mois actifs de la vue sont présélectionnés. Seuls les
+sélecteurs de valeurs sont affichés : la structure du groupage reste celle de
+la vue. **Publier un bundle** reprend la même sélection et ouvre
+séparément la liste groupée des bundles à publier. La fiche d’un bundle existant
+contient aussi le bouton **Publication du bundle**. Les anciens catalogues sans
+métadonnées de groupage sont complétés depuis leurs instantanés publics ; le
+rapprochement utilise les identifiants stables avant les noms des champs. Il est possible de publier un
+instantané du dernier état sauvegardé, de l’actualiser et de le rendre privé. Le lien public fonctionne sans connexion et
+propose un fichier JSON réimportable. Les champs secrets et les autres relations
+ne sont jamais publiés. Les jeux doivent avoir un identifiant Steam valide.
+
+L’import utilise les propriétés de même nom et de même type dans les collections
+de destination, réutilise les jeux ayant le même Steam App ID, conserve leurs
+valeurs et relations existantes, puis ajoute la relation au nouveau bundle et sa
+relation inverse si elle existe. Une relation simple incompatible provoque un
+refus complet de l’import. Un import crée un nouveau bundle ; il ne remplace pas
+un bundle déjà importé.
+
+Les routes et le stockage public sont propres au plugin
+(`server/plugins/steam/bundles.js`). La table `steam_public_bundles` est créée au
+premier accès. La publication contrôle les permissions de l’organisation active.

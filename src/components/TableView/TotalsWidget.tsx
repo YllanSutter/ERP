@@ -512,9 +512,6 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   const [settingsPanelOpen, setSettingsPanelOpen] = React.useState(false);
   const lastSyncedContextPathRef = React.useRef<string | null>(null);
   const hasSyncedContextRef = React.useRef(false);
-  const debugLog = React.useCallback((event: string, payload?: any) => {
-    console.log('[TotalsWidget]', event, payload ?? '');
-  }, []);
   const preferencesSignature = React.useMemo(() => JSON.stringify(normalizedPreferences), [normalizedPreferences]);
   const lastAppliedPreferencesSignatureRef = React.useRef<string>('');
   const lastEmittedPreferencesSignatureRef = React.useRef<string>('');
@@ -589,27 +586,14 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
 
     const normalizedContextPath = contextPath || '';
     if (hasSyncedContextRef.current && lastSyncedContextPathRef.current === normalizedContextPath) {
-      debugLog('sync:skip-same-context', {
-        contextPath: normalizedContextPath,
-        activeLevelDepth,
-        selectedByDepth,
-      });
       return;
     }
-
-    debugLog('sync:start', {
-      contextPath: normalizedContextPath,
-      flatRows: flatRows.length,
-      previousContextPath: lastSyncedContextPathRef.current,
-      alreadySynced: hasSyncedContextRef.current,
-    });
 
     if (!contextPath) {
       setSelectedByDepth({});
       setActiveLevelDepth('overview');
       lastSyncedContextPathRef.current = normalizedContextPath;
       hasSyncedContextRef.current = true;
-      debugLog('sync:reset-overview-no-context', { contextPath: normalizedContextPath });
       return;
     }
 
@@ -640,7 +624,6 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
       setActiveLevelDepth('overview');
       lastSyncedContextPathRef.current = normalizedContextPath;
       hasSyncedContextRef.current = true;
-      debugLog('sync:target-not-found-reset-overview', { contextPath: normalizedContextPath });
       return;
     }
 
@@ -657,27 +640,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     setActiveLevelDepth(targetRow.depth);
     lastSyncedContextPathRef.current = normalizedContextPath;
     hasSyncedContextRef.current = true;
-    debugLog('sync:applied-target', {
-      contextPath: normalizedContextPath,
-      targetRowId: targetRow.id,
-      targetDepth: targetRow.depth,
-      selectedByDepth: newSelected,
-    });
-  }, [contextPath, flatRows, parentMap, activeLevelDepth, selectedByDepth, debugLog]);
-
-  React.useEffect(() => {
-    debugLog('state:active-level-changed', {
-      activeLevelDepth,
-      contextPath: contextPath || '',
-    });
-  }, [activeLevelDepth, contextPath, debugLog]);
-
-  React.useEffect(() => {
-    debugLog('state:selected-by-depth-changed', {
-      selectedByDepth,
-      contextPath: contextPath || '',
-    });
-  }, [selectedByDepth, contextPath, debugLog]);
+  }, [contextPath, flatRows, parentMap]);
 
   React.useEffect(() => {
     const snapshot = {
@@ -1174,7 +1137,6 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                   key={String(id)}
                   type="button"
                   onClick={() => {
-                    debugLog('ui:level-tab-click', { id, label });
                     setActiveLevelDepth(id);
                   }}
                   className={cn(
@@ -1198,7 +1160,6 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  debugLog('ui:level-group-click-all', { levelDepthNum });
                   setSelectedByDepth((p) => ({ ...p, [levelDepthNum]: null }));
                 }}
                 className={cn(
@@ -1219,12 +1180,6 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                     type="button"
                     onClick={() => {
                       const nextValue = isActive ? null : row.id;
-                      debugLog('ui:level-group-click', {
-                        levelDepthNum,
-                        rowId: row.id,
-                        isActive,
-                        nextValue,
-                      });
                       setSelectedByDepth((p) => ({ ...p, [levelDepthNum]: nextValue }));
                     }}
                     className={cn(

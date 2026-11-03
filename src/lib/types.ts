@@ -36,7 +36,9 @@ export type PropertyType =
 
 export interface RelationConfig {
   targetCollectionId: string;
-  type?: 'one-to-one' | 'one-to-many' | 'many-to-many';
+  type?: 'one-to-one' | 'one-to-many' | 'many-to-one' | 'many-to-many'
+    | 'one_to_one' | 'one_to_many' | 'many_to_one' | 'many_to_many';
+  targetFieldId?: string;
   maxVisible?: number;
   displayFieldIds?: string[];
   tabStyleFieldId?: string;
@@ -117,7 +119,7 @@ export interface TableViewProps {
   totalFields?: Record<string, string>; // fieldId -> totalType (sum, count, unique, avg, min, max)
   onSetTotalField?: (fieldId: string, totalType: string | null) => void;
   onBulkImportItad?: (itemIds: string[]) => Promise<void>;
-  onGroupContextChange?: (prefill: Record<string, any> | null) => void;
+  onGroupContextChange?: (prefill: Record<string, any> | null, groupPath?: string) => void;
   onReorderField?: (newOrder: string[]) => void;
   displayAsCards?: boolean;
   cardStyleFieldId?: string;
