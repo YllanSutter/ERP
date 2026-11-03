@@ -3,7 +3,7 @@ import { bundleRequest } from './bundleApi';
 const REVISION_KEY = 'erp:steam-images-revision';
 export const STEAM_IMAGES_CHANGED = 'steam-images-changed';
 let fallbackRevision = '0';
-const headers = new Map<string, Promise<string | null>>();
+const headers = new Map<string, Promise<{ portrait: string | null; header: string | null }>>();
 export function steamImagesRevision() {
   try {
     return typeof window === 'undefined'
@@ -34,16 +34,23 @@ export function imageUrlRevision(url: string) {
   parsed.searchParams.set('erp_refresh', revision);
   return parsed.href;
 }
-export function resolveSteamHeader(appid: number | string) {
+export function resolveSteamImages(appid: number | string) {
   const key = `${appid}:${steamImagesRevision()}`;
-  if (!headers.has(key))
+  if (!headers.has(key)) {
     headers.set(
       key,
       bundleRequest(`images/${Number(appid)}`)
-        .then((data) => (typeof data.header === 'string' ? imageUrlRevision(data.header) : null))
-        .catch(() => null),
+        .then((data) => ({
+          portrait: typeof data.portrait === 'string' ? imageUrlRevision(data.portrait) : null,
+          header: typeof data.header === 'string' ? imageUrlRevision(data.header) : null,
+        }))
+        .catch(() => ({ portrait: null, header: null })),
     );
+  }
   return headers.get(key)!;
+}
+export async function resolveSteamHeader(appid: number | string) {
+  return (await resolveSteamImages(appid)).header;
 }
 export async function refreshSteamImages() {
   const result = await bundleRequest('images/refresh', { method: 'POST' });

@@ -1,5 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { getSteamAppId, invalidateSteamGamesList, loadSteamGamesList } from './steamUtils';
+import {
+  getSteamAppId,
+  steamImageCandidates,
+  invalidateSteamGamesList,
+  loadSteamGamesList,
+} from './steamUtils';
 import { refreshSteamImages, resolveSteamHeader, steamImagesRevision } from './steamImages';
 
 afterEach(() => {
@@ -59,4 +64,19 @@ it('recognizes Steam IDs stored as objects, appId aliases, numbers and serialize
   ])
     expect(getSteamAppId(raw)).toBe(1374490);
   expect(getSteamAppId('RuneScape')).toBeNull();
+});
+
+it('prefers vertical assets for every card and marks landscape fallbacks so they are contained', () => {
+  for (const id of [1374490, 10]) {
+    const portrait = `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${id}/portrait-hash/library_capsule.jpg`;
+    const header = `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${id}/header-hash/header.jpg`;
+    const candidates = steamImageCandidates(id, 'portrait', { portrait, header });
+    expect(candidates[1]).toEqual({ url: portrait, format: 'portrait' });
+    expect(candidates[2]).toEqual({ url: header, format: 'header' });
+    expect(
+      steamImageCandidates(id, 'header', { portrait, header }).some(
+        (candidate) => candidate.format === 'portrait',
+      ),
+    ).toBe(false);
+  }
 });

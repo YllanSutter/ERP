@@ -316,7 +316,10 @@ par défaut ; un chemin de sortie peut être passé explicitement.
 Les images anciennes restent utilisées lorsqu’elles fonctionnent. Si elles échouent,
 le plugin demande l’URL actuelle fournie par les métadonnées Steam (puis la page
 publique du magasin en secours). Cela prend en charge les URL modernes contenant
-un identifiant de fichier, comme celle de RuneScape: Dragonwilds. Si aucun portrait
-n’est accessible, l’image du magasin sert de remplacement. **Actualiser les images**
+un identifiant de fichier, comme celle de RuneScape: Dragonwilds. Pour chaque App ID, les cartes utilisent la jaquette verticale `library_capsule`
+(ou sa version haute résolution), obtenue via les métadonnées `IStoreBrowseService`.
+Si aucun portrait n’est accessible, l’image horizontale du magasin est affichée
+entière, sans agrandissement pour remplir la hauteur de la carte. Les titres Full Art
+restent blancs avec un contour sombre dans les deux thèmes. **Actualiser les images**
 vide le cache des métadonnées et relance les images affichées. Changer le Steam ID
 réinitialise également les tentatives d’affichage.

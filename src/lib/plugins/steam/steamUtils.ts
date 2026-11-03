@@ -58,6 +58,34 @@ export function getSteamImageUrl(
   }
 }
 
+/** Keep the image format alongside its URL so portrait cards cannot enlarge a banner. */
+export function steamImageCandidates(
+  appid: number | string | null | undefined,
+  variant: 'portrait' | 'header',
+  resolved: { portrait: string | null; header: string | null },
+) {
+  const candidates =
+    variant === 'portrait'
+      ? [
+          { url: getSteamImageUrl(appid, 'portrait'), format: 'portrait' as const },
+          { url: resolved.portrait, format: 'portrait' as const },
+          { url: resolved.header, format: 'header' as const },
+          { url: getSteamImageUrl(appid, 'header'), format: 'header' as const },
+        ]
+      : [
+          { url: getSteamImageUrl(appid, 'header'), format: 'header' as const },
+          { url: resolved.header, format: 'header' as const },
+        ];
+  const seen = new Set<string>();
+  return candidates.filter(
+    (candidate): candidate is { url: string; format: 'portrait' | 'header' } => {
+      if (!candidate.url || seen.has(candidate.url)) return false;
+      seen.add(candidate.url);
+      return true;
+    },
+  );
+}
+
 let cachedSteamGames: SteamGame[] | null = null;
 
 function normalizeSteamGames(raw: any): SteamGame[] {

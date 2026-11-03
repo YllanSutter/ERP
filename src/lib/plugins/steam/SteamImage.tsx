@@ -6,8 +6,8 @@ import {
   type ImgHTMLAttributes,
   type ReactNode,
 } from 'react';
-import { getSteamImageUrl } from './steamUtils';
-import { resolveSteamHeader, steamImagesRevision, subscribeSteamImages } from './steamImages';
+import { steamImageCandidates } from './steamUtils';
+import { resolveSteamImages, steamImagesRevision, subscribeSteamImages } from './steamImages';
 
 type Props = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'onError'> & {
   appid?: number | string | null;
@@ -16,7 +16,10 @@ type Props = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'onError'> & {
 };
 function SteamImageAttempt({ appid, variant = 'header', fallback = null, ...props }: Props) {
   const [stage, setStage] = useState(0);
-  const [header, setHeader] = useState<string | null>(null);
+  const [resolved, setResolved] = useState<{ portrait: string | null; header: string | null }>({
+    portrait: null,
+    header: null,
+  });
   const [resolving, setResolving] = useState(false);
   const active = useRef(true);
   useEffect(() => {
@@ -25,25 +28,30 @@ function SteamImageAttempt({ appid, variant = 'header', fallback = null, ...prop
       active.current = false;
     };
   }, []);
-  const candidates = [
-    ...new Set(
-      [getSteamImageUrl(appid, variant), header, getSteamImageUrl(appid, 'header')].filter(
-        (url): url is string => !!url,
-      ),
-    ),
-  ];
-  const src = candidates[stage];
+  const candidate = steamImageCandidates(appid, variant, resolved)[stage];
+  const src = candidate?.url;
+  const landscapeFallback = variant === 'portrait' && candidate?.format === 'header';
   if (!src || resolving) return <>{fallback}</>;
   return (
     <img
       {...props}
       src={src}
+      style={
+        landscapeFallback
+          ? {
+              ...props.style,
+              objectFit: 'contain',
+              objectPosition: 'center',
+              backgroundColor: '#171110',
+            }
+          : props.style
+      }
       onError={() => {
         if (stage === 0 && appid) {
           setResolving(true);
-          void resolveSteamHeader(appid).then((url) => {
+          void resolveSteamImages(appid).then((images) => {
             if (!active.current) return;
-            setHeader(url);
+            setResolved(images);
             setStage(1);
             setResolving(false);
           });

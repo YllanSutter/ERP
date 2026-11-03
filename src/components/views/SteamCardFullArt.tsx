@@ -205,7 +205,7 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
 
         {/* Title, following the banner's curve */}
         <path id={`title-${uid}`} d={`M20 ${T + 30}Q250 ${T - 12} 480 ${T + 30}`} fill="none" />
-        <text fontSize={titleSize} fontWeight="700" letterSpacing={titleSize * 0.12} className="fill-[var(--ink)]" style={{ fontFamily: SERIF }}>
+        <text fontSize={titleSize} fontWeight="700" letterSpacing={titleSize * 0.12} className={fullArt ? 'fill-white' : 'fill-[var(--ink)]'} style={{ fontFamily: SERIF, ...(fullArt ? { paintOrder: 'stroke', stroke: 'rgba(0,0,0,0.8)', strokeWidth: 3, strokeLinejoin: 'round' } : {}) }}>
           <textPath href={`#title-${uid}`} startOffset="50%" textAnchor="middle">{title.toUpperCase()}</textPath>
         </text>
 
