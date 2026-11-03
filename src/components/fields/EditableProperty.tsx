@@ -899,43 +899,33 @@ const RelationEditor = ({
                       <div className="flex items-center justify-between pb-2 border-b border-black/10 dark:border-white/10">
                         <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Créer depuis un template</span>
                       </div>
-                      <div className="space-y-1">
+                      <select
+                        aria-label="Créer depuis un template"
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value === '') return;
+                          const tpl = availableTemplates[Number(e.target.value)];
+                          if (!tpl) return;
+                          const templateData: any = initializeWithTemplates();
+                          const targetProp = targetCollection?.properties?.find((p: any) => p.id === tpl.targetFieldId);
+                          if (targetProp) {
+                            templateData[tpl.targetFieldId] = evaluateTemplateValue(tpl.value, targetProp.type);
+                          }
+                          templateData[tpl.when.fieldId] = tpl.when.value;
+                          setNewItemData(templateData);
+                          setIsCreating(true);
+                        }}
+                        className="w-full px-3 py-2 bg-gray-100 dark:bg-neutral-800 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+                      >
+                        <option value="" disabled>Choisir un template…</option>
                         {availableTemplates.map((tpl: any, index: number) => {
-                          // Trouver la propriété source dans la collection actuelle pour afficher la condition
-                          const whenProp = currentItem?.__collectionId ? 
-                            collections?.find((c: any) => c.id === currentItem.__collectionId)?.properties?.find((p: any) => p.id === tpl.when.fieldId) : 
-                            null;
+                          const whenProp = currentItem?.__collectionId
+                            ? collections?.find((c: any) => c.id === currentItem.__collectionId)?.properties?.find((p: any) => p.id === tpl.when.fieldId)
+                            : null;
                           const conditionText = whenProp ? `${whenProp.name} = ${tpl.when.value}` : tpl.when.value;
-                          
-                          return (
-                            <button
-                              key={index}
-                              onClick={() => {
-                                // Commencer avec toutes les valeurs des templates
-                                const templateData: any = initializeWithTemplates();
-                                // Évaluer et ajouter les valeurs spécifiques de ce template
-                                const targetProp = targetCollection?.properties?.find((p: any) => p.id === tpl.targetFieldId);
-                                if (targetProp) {
-                                  templateData[tpl.targetFieldId] = evaluateTemplateValue(tpl.value, targetProp.type);
-                                }
-                                // Ajouter la condition when
-                                templateData[tpl.when.fieldId] = tpl.when.value;
-                                
-                                // Mettre à jour les deux états synchroniquement
-                                setNewItemData(templateData);
-                                setIsCreating(true);
-                              }}
-                              className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 rounded text-sm text-neutral-700 dark:text-white"
-                            >
-                              <div className="flex items-center gap-2">
-                                <Icons.Sparkles size={14} />
-                                <span className="text-xs">{conditionText}</span>
-                              </div>
-                              <Icons.Plus size={12} />
-                            </button>
-                          );
+                          return <option key={index} value={index}>{conditionText}</option>;
                         })}
-                      </div>
+                      </select>
                       <div className="pt-2 border-t border-black/10 dark:border-white/10">
                         <button
                           onClick={() => {

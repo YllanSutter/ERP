@@ -530,15 +530,7 @@ const WeekView: React.FC<WeekViewProps> = ({
               const dropY = e.clientY - rect.top;
               const dragStartOffsetY = data.__dragStartOffsetY || 0;
               const adjustedDropY = Math.max(0, dropY - dragStartOffsetY);
-              const dropped = calculateDropTime({ dropY: adjustedDropY, containerHeight: rect.height, startHour, endHour });
-              const workStartMinutes = Math.round(workStartHour * 60);
-              const workEndMinutes = Math.round(workEndHour * 60);
-              const minAllowed = workStartMinutes;
-              const maxAllowed = Math.max(minAllowed, workEndMinutes - 15);
-              const droppedMinutes = dropped.hour * 60 + dropped.minutes;
-              const clamped = Math.max(minAllowed, Math.min(maxAllowed, droppedMinutes));
-              const hour = Math.floor(clamped / 60);
-              const minutes = clamped % 60;
+              const { hour, minutes } = calculateDropTime({ dropY: adjustedDropY, containerHeight: rect.height, startHour, endHour });
               if (onEventDrop) {
                 console.log('[DND] handleDayDrop: onEventDrop est défini, appel avec', { item, date, hour, minutes, multiDayIndex });
                 onEventDrop(

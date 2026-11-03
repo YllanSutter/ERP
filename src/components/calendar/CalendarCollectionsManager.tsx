@@ -92,6 +92,14 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
       ? (options.moveAllSegments ? 'all' : 'segment')
       : moveMode;
     const resolvedMoveMode = options?.moveMode || fallbackMode;
+    // Seul le déplacement individuel peut dépasser les horaires de travail.
+    if (resolvedMoveMode !== 'segment' || typeof options?.segmentIndex !== 'number' || !Array.isArray(item._eventSegments)) {
+      const minAllowed = Math.round(workStartHour * 60);
+      const maxAllowed = Math.max(minAllowed, Math.round(workEndHour * 60) - 15);
+      const clamped = Math.max(minAllowed, Math.min(maxAllowed, newHours * 60 + newMinutes));
+      newHours = Math.floor(clamped / 60);
+      newMinutes = clamped % 60;
+    }
     console.log('[onEventDrop] Appel avec options:', options, 'moveMode:', resolvedMoveMode);
     const col = collections.find((c) => c.id === item.__collectionId);
     if (!col) {

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Star, Trash2, Clock, Edit2, History, ChevronLeft, FileText, ChevronDown } from 'lucide-react';
+import { Star, Trash2, Clock, Edit2, History, ChevronLeft, FileText, ChevronDown, Sparkles } from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { Button } from '@/components/ui/button';
 import {
@@ -226,6 +226,72 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
 
 
+
+  const [manualTemplateField, setManualTemplateField] = useState<string | null>(null);
+
+  const renderTemplatePicker = (prop: any) => {
+    const templates = Array.isArray(prop?.defaultTemplates) ? prop.defaultTemplates : [];
+    if (!templates.length || !canWriteField(selectedCollection?.id, prop.id)) return null;
+    const pickerKey = `${selectedCollectionId}:${prop.id}`;
+    return (
+      <Popover open={manualTemplateField === pickerKey} onOpenChange={(open) => setManualTemplateField(open ? pickerKey : null)}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Appliquer un template à ${prop.name}`}
+            title={`Appliquer un template à ${prop.name}`}
+            className="shrink-0 inline-flex items-center gap-1 rounded-md p-1.5 text-violet-400 hover:bg-violet-500/10 hover:text-violet-300"
+          >
+            <Sparkles size={14} />
+            {templates.length > 1 && <span className="text-[10px]">{templates.length}</span>}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-80 max-w-[90vw] bg-popover text-popover-foreground border-border">
+          <div className="text-sm font-medium mb-1">Templates · {prop.name}</div>
+          <p className="text-xs text-muted-foreground mb-3">Appliquer au champ sans vérifier les conditions.</p>
+          <div className="max-h-64 overflow-y-auto space-y-1">
+            {templates.map((template: any, index: number) => {
+              const sourceProp = selectedCollection.properties?.find((p: any) => p.id === template.when?.fieldId);
+              const isGroup = template.isCurrentGroupTemplate;
+              const value = isGroup ? groupContextRef.current?.[prop.id] : template.value;
+              const label = template.name || (isGroup ? 'Groupage actuel' : template.when?.fieldId
+                ? `${sourceProp?.name || 'Condition'} = ${formatValueForDisplay(template.when.value)}`
+                : `Template ${index + 1}`);
+              const isDate = prop.type === 'date' || prop.type === 'date_range';
+              const isCurrentDate = isDate && value === 'current_date';
+              return (
+                <button
+                  key={template.id || index}
+                  type="button"
+                  disabled={isGroup && isEmptyValue(value)}
+                  onClick={() => {
+                    if (!canWriteField(selectedCollection?.id, prop.id)) return;
+                    const targetKey = isDate && !isCurrentDate ? `${prop.id}_duration` : prop.id;
+                    const appliedValue = isCurrentDate ? new Date().toISOString() : value;
+                    let nextData = { ...formData, [targetKey]: appliedValue };
+                    if (isDate) {
+                      nextData = { ...nextData, _preserveEventSegments: false };
+                      nextData._eventSegments = calculateSegmentsClient(nextData, selectedCollection);
+                    }
+                    setTemplateAutoFilled((prev) => ({ ...prev, [targetKey]: false }));
+                    setFormData(nextData);
+                    setManualTemplateField(null);
+                  }}
+                  className="w-full text-left rounded-md px-3 py-2 hover:bg-violet-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <div className="text-xs font-medium break-words">{label}</div>
+                  <div className="text-xs text-muted-foreground line-clamp-2 break-words">
+                    {isCurrentDate ? 'Date actuelle' : formatValueForDisplay(value)}
+                    {isDate && !isCurrentDate && ' h'}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  };
 
   const getMatchingTemplate = (prop: any, data: any, sourceFieldId?: string) => {
     const templates = Array.isArray(prop.defaultTemplates) ? prop.defaultTemplates : [];
@@ -1290,6 +1356,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 </span>
               )}
             </div>
+            {titleProperty && <div className="flex justify-end">{renderTemplatePicker(titleProperty)}</div>}
             {classicPropsSansRichText.length > 0 && (
               <div className="[&_input]:text-[22px] [&_input]:font-semibold [&_input]:tracking-tight [&_input]:text-foreground [&_input]:placeholder:text-muted-foreground [&_input]:bg-transparent [&_input]:border-0 [&_input]:outline-none [&_input]:w-full [&_input]:p-0 [&_textarea]:text-[22px] [&_textarea]:font-semibold [&_textarea]:text-foreground">
                 <EditableProperty
@@ -1449,6 +1516,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     <label className="text-[10px] font-mono tracking-widest uppercase text-neutral-500 whitespace-nowrap">
                       {prop.name}{prop.required && <span className="text-red-400 ml-0.5">*</span>}
                     </label>
+                    {renderTemplatePicker(prop)}
                     <EditableProperty
                       property={prop}
                       value={formData[prop.id]}
@@ -1500,6 +1568,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     >
                       {prop.name}
                     </label>
+                    {renderTemplatePicker(prop)}
                   </div>
                   <div className="flex-1 min-w-0 border-l border-white/[0.06] group-focus-within/row:border-violet-500/50 transition-colors duration-150 pl-3 pr-1 flex items-center">
                     <EditableProperty
@@ -1617,7 +1686,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 return (
                   <div key={`_eventSegments_${dateProp.id}`} className="rounded-xl border border-border bg-card/70 p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-semibold text-neutral-300">{dateProp.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-neutral-300">{dateProp.name}</span>
+                        {renderTemplatePicker(dateProp)}
+                      </div>
                       <button
                         onClick={() => {
                           if (!canWriteDateProp) return;
@@ -1720,6 +1792,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     .filter((prop: any) => !activeRichTextTab || prop.id === activeRichTextTab)
                     .map((prop: any) => (
                       <div key={prop.id} className="pb-6 last:pb-0">
+                        <div className="flex justify-end">{renderTemplatePicker(prop)}</div>
                         <EditableProperty
                           property={prop}
                           value={formData[prop.id]}
