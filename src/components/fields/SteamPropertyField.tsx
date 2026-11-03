@@ -1,6 +1,7 @@
+import { SteamImage } from '@/lib/plugins/steam/SteamImage';
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Loader } from 'lucide-react';
-import { searchSteamGames, loadSteamGamesList, SteamGame, getSteamImageUrl } from '@/lib/plugins/steam/steamUtils';
+import { searchSteamGames, loadSteamGamesList, SteamGame, STEAM_CATALOGUE_CHANGED, getSteamAppId } from '@/lib/plugins/steam/steamUtils';
 
 interface SteamPropertyFieldProps {
   value?: any;
@@ -36,14 +37,18 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
 
   // Charger la liste Steam au montage
   useEffect(() => {
+    let active = true;
+    let request = 0;
     const loadGames = async () => {
+      const version = ++request;
       setIsLoading(true);
       const loadedGames = await loadSteamGamesList();
-      setGames(loadedGames);
-      setGamesLoaded(true);
-      setIsLoading(false);
+      if (!active || version !== request) return;
+      setGames(loadedGames); setGamesLoaded(true); setIsLoading(false);
     };
-    loadGames();
+    void loadGames();
+    window.addEventListener(STEAM_CATALOGUE_CHANGED, loadGames);
+    return () => { active = false; window.removeEventListener(STEAM_CATALOGUE_CHANGED, loadGames); };
   }, []);
 
   useEffect(() => {
@@ -96,16 +101,14 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
     <div ref={containerRef} className="relative inline-block max-w-full">
       <div className="relative flex items-center gap-1.5">
         {(() => {
-          const appid = typeof value === 'object' && value?.appid ? value.appid : undefined;
-          const imgUrl = getSteamImageUrl(appid, 'header');
-          if (imgUrl && !isOpen) {
+          const appid = getSteamAppId(value);
+          if (appid && !isOpen) {
             return (
-              <img
-                src={imgUrl}
+              <SteamImage
+                appid={appid}
                 alt=""
                 loading="lazy"
                 className="w-14 h-6 object-cover rounded flex-shrink-0 bg-neutral-200 dark:bg-neutral-800"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             );
           }
@@ -148,13 +151,12 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
                   onClick={() => handleSelectGame(game)}
                   className="w-full text-left px-2 py-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition text-sm flex items-center gap-2"
                 >
-                  <img
-                    src={getSteamImageUrl(game.appid, 'header') || ''}
+                  <SteamImage
+                    appid={game.appid}
                     alt=""
                     loading="lazy"
                     className="w-16 h-7 object-cover rounded flex-shrink-0 bg-neutral-200 dark:bg-neutral-800"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
+                      />
                   <div className="min-w-0 flex-1">
                     <div className="font-medium whitespace-normal break-words line-clamp-1">{game.name}</div>
                     <div className="text-xs text-gray-500">App ID: {game.appid}</div>

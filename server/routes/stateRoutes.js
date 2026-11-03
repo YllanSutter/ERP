@@ -1,3 +1,4 @@
+import { notifyServerPluginsStateSaved } from '../plugins/registry.js';
 import { buildItemChanges, applyItemChanges } from '../../shared/itemChanges.js';
 import { ZodError } from 'zod';
 import { statePayloadSchema, itemChangesPayloadSchema } from '../../shared/validation.js';
@@ -154,6 +155,8 @@ export const registerStateRoutes = ({ app, appContext }) => {
         );
       }
 
+      await notifyServerPluginsStateSaved({ appContext, auth: req.auth, previousState: state, state: newState });
+
       if (global.io) {
         global.io.emit('itemUpdated', {
           userId,
@@ -234,6 +237,8 @@ export const registerStateRoutes = ({ app, appContext }) => {
           [organizationId, stateStr]
         );
       }
+
+      await notifyServerPluginsStateSaved({ appContext, auth: req.auth, previousState: existingState, state: newState });
 
       if (global.io) {
         global.io.emit('structureUpdated', { userId, organizationId, type });
@@ -548,6 +553,8 @@ export const registerStateRoutes = ({ app, appContext }) => {
           [organizationId, stateStr, nextVersion]
         );
       }
+
+      await notifyServerPluginsStateSaved({ appContext, auth: req.auth, previousState: prevState, state: stateDataWithSegments });
 
       await logAudit(userId, 'state.save', 'organization', organizationId, { collections: processedCollections.length });
 

@@ -1,5 +1,6 @@
+import { getSteamAppId } from '@/lib/plugins/steam/steamUtils';
 import React, { useId, useMemo, useState } from 'react';
-import { getSteamImageUrl } from '@/lib/plugins/steam/steamUtils';
+import { SteamImage } from '@/lib/plugins/steam/SteamImage';
 import * as Icons from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { OptionTags } from '@/components/inputs/OptionTags';
@@ -47,12 +48,6 @@ const getDisplayValue = (value: any): string => {
   return String(value).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 };
 
-const getAppId = (value: any): string | number | null => {
-  if (typeof value === 'object' && value) return value.appid ?? value.id ?? null;
-  if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) return value;
-  return null;
-};
-
 const starPath = (cx: number, cy: number, r: number) =>
   Array.from({ length: 10 }, (_, i) => {
     const radius = i % 2 ? r * 0.45 : r;
@@ -97,11 +92,8 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
 }) => {
   const [editing, setEditing] = useState(false);
   const uid = useId().replace(/:/g, '');
-  // 0 = portrait 600x900, 1 = header fallback, 2 = no image
-  const [imageStep, setImageStep] = useState(0);
   const steamValue = steamProperty ? item?.[steamProperty.id] : null;
-  const appid = getAppId(steamValue);
-  const imageUrl = imageStep < 2 ? getSteamImageUrl(appid, imageStep === 0 ? 'portrait' : 'header') : null;
+  const appid = getSteamAppId(steamValue);
   const title = getDisplayValue(steamValue) || getDisplayValue(item?.name) || getDisplayValue(item?.title) || 'Sans titre';
 
   const { header, description, footer, tags } = useMemo(() => {
@@ -174,17 +166,14 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
       </label>
       {/* Art, laid under the frame; the SVG masks its corners and lower part */}
       <div className="absolute left-[2.4%] top-[1.7%] h-[96.6%] w-[95.2%] overflow-hidden">
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt=""
-            loading="lazy"
-            className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
-            onError={() => setImageStep((step) => step + 1)}
-          />
-        ) : (
-          <div className="h-full w-full bg-[radial-gradient(circle_at_50%_25%,#6b2fa0,#2a1240_55%,#0c0b0a)]" />
-        )}
+        <SteamImage
+          appid={appid}
+          variant="portrait"
+          alt=""
+          loading="lazy"
+          className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+          fallback={<div className="h-full w-full bg-[radial-gradient(circle_at_50%_25%,#6b2fa0,#2a1240_55%,#0c0b0a)]" />}
+        />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
       </div>
 

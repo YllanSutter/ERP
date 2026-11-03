@@ -277,7 +277,8 @@ métadonnées de groupage sont complétés depuis leurs instantanés publics ; l
 rapprochement utilise les identifiants stables avant les noms des champs. Il est possible de publier un
 instantané du dernier état sauvegardé, de l’actualiser et de le rendre privé. Le lien public fonctionne sans connexion et
 propose un fichier JSON réimportable. Les champs secrets et les autres relations
-ne sont jamais publiés. Les jeux doivent avoir un identifiant Steam valide.
+ne sont jamais publiés. Les jeux sans Steam App ID valide restent dans la collection
+mais sont exclus de la publication ; ils ne bloquent pas les autres jeux.
 
 L’import utilise les propriétés de même nom et de même type dans les collections
 de destination, réutilise les jeux ayant le même Steam App ID, conserve leurs
@@ -289,3 +290,33 @@ un bundle déjà importé.
 Les routes et le stockage public sont propres au plugin
 (`server/plugins/steam/bundles.js`). La table `steam_public_bundles` est créée au
 premier accès. La publication contrôle les permissions de l’organisation active.
+
+
+### Visibilité par défaut et mise à jour des publications
+
+Dans la configuration du plugin, **Bundles publics par défaut** est désactivé
+initialement. Une fois activé, les nouveaux bundles créés ou importés sont publiés
+après leur sauvegarde. Cela ne change pas la visibilité des bundles existants.
+Un bundle public peut être vide à sa création : ses jeux Steam valides sont ajoutés
+à la publication lors des sauvegardes suivantes. Les publications déjà publiques
+sont actualisées lorsque le bundle ou sa collection de jeux change, même si le
+réglage par défaut est ensuite désactivé. Un bundle rendu privé ne sera pas republié
+automatiquement. Le bouton **Actualiser la publication** reste disponible.
+
+### Catalogue et images Steam
+
+Les paramètres proposent **Mettre à jour la liste Steam** et **Actualiser les images**
+(réservés aux administrateurs). La mise à jour du catalogue utilise `STEAM_API_KEY`
+côté serveur et l’API paginée `IStoreService/GetAppList/v1`. Elle remplace atomiquement
+`public/steamList.json` ; la liste précédente est conservée en cas d’échec. L’autocomplete
+utilise cette liste à l’exécution, sans nécessiter de reconstruction de l’application.
+La commande `npm run steam:list` réutilise le même moteur et écrit le même fichier
+par défaut ; un chemin de sortie peut être passé explicitement.
+
+Les images anciennes restent utilisées lorsqu’elles fonctionnent. Si elles échouent,
+le plugin demande l’URL actuelle fournie par les métadonnées Steam (puis la page
+publique du magasin en secours). Cela prend en charge les URL modernes contenant
+un identifiant de fichier, comme celle de RuneScape: Dragonwilds. Si aucun portrait
+n’est accessible, l’image du magasin sert de remplacement. **Actualiser les images**
+vide le cache des métadonnées et relance les images affichées. Changer le Steam ID
+réinitialise également les tentatives d’affichage.

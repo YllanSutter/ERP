@@ -186,6 +186,12 @@ export function SteamBundles({
             )}
             {mode === 'create' ? (
               <>
+                <p className="text-xs text-neutral-500">
+                  {pluginManager.getPluginConfig(organizationId, 'steam').bundlesPublicByDefault ===
+                  true
+                    ? 'Ce bundle sera public après sa sauvegarde, puis actualisé automatiquement lorsque ses jeux seront ajoutés.'
+                    : 'Ce bundle sera privé. Vous pourrez le publier depuis sa fiche.'}
+                </p>
                 {bundles.properties
                   .filter(
                     (p: any) =>

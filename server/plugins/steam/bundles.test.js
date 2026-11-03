@@ -40,13 +40,16 @@ test('public snapshot includes only bundle games and safe accessible fields', ()
   assert.equal(JSON.stringify(snapshot).includes('private'), false);
   assert.equal(snapshot.games[0].rel, undefined);
 });
-test('publication rejects inaccessible games and invalid Steam IDs', () => {
+test('publication rejects inaccessible games and excludes invalid Steam IDs', () => {
   assert.throws(() => buildPublicBundle(state, config, 'pack', (_c, id) => id !== 'game'), {
     status: 403,
   });
   const invalid = structuredClone(state);
   invalid.collections[0].items[0].app.appid = 0;
-  assert.throws(() => buildPublicBundle(invalid, config, 'pack', () => true), { status: 400 });
+  const snapshot = buildPublicBundle(invalid, config, 'pack', () => true);
+  assert.equal(snapshot.games.length, 0);
+  assert.equal(snapshot.excludedGameCount, 1);
+  assert.equal(invalid.collections[0].items.length, 2);
 });
 test('authenticated publication cannot write without permission', async () => {
   const routes = new Map();
@@ -93,4 +96,16 @@ test('authenticated publication cannot write without permission', async () => {
   assert.equal(status, 403);
   assert.equal(queriedSnapshot, true);
   assert.ok(body.error);
+});
+
+test('publication shares valid games while keeping games without Steam IDs in the source', () => {
+  const mixed = structuredClone(state);
+  mixed.collections[0].items.push({ id: 'no-id', rel: ['pack'], app: 'Sans identifiant' });
+  const snapshot = buildPublicBundle(mixed, config, 'pack', () => true);
+  assert.deepEqual(
+    snapshot.games.map((g) => g.app.appid),
+    [10],
+  );
+  assert.equal(snapshot.excludedGameCount, 1);
+  assert.equal(mixed.collections[0].items.length, 3);
 });

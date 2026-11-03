@@ -29,3 +29,15 @@ export const mountServerPlugins = ({ app, appContext }) => {
     }
   }
 };
+
+/** Notify extensions only after a successful state write; extension failures cannot undo that save. */
+export const notifyServerPluginsStateSaved = async (context) => {
+  for (const plugin of serverPlugins) {
+    if (typeof plugin.onStateSaved !== 'function') continue;
+    try {
+      await plugin.onStateSaved(context);
+    } catch (error) {
+      context.appContext.logger.error(`[Server Plugins] State saved hook failed: ${plugin.id}`, error);
+    }
+  }
+};

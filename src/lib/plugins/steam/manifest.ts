@@ -15,6 +15,7 @@ export const steamPluginManifest: PluginManifest = {
   icon: '🎮',
   enabled: false,
   config: {
+    bundlesPublicByDefault: false,
     // Configuration pour les colonnes de prix
     priceSaleColumn: undefined, // ID de la colonne pour les prix soldés
     priceRegularColumn: undefined, // ID de la colonne pour les prix réguliers

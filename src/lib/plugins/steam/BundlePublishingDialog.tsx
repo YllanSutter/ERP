@@ -49,7 +49,12 @@ export function BundlePublishingDialog({ bundles, collections, scheme, bundleId,
         return (
           <div key={b.id} className="flex flex-wrap items-center gap-2 border-b py-3">
             <span className="flex-1 font-medium">{bundleTitle(bundles, b)}</span>
-            <span className="text-xs text-neutral-500">{published ? 'Public' : 'Privé'}</span>
+            <span className="text-xs text-neutral-500">
+              {published ? `Public · ${published.gameCount ?? 0} jeux partagés` : 'Privé'}
+              {published?.excludedGameCount > 0
+                ? ` · ${published.excludedGameCount} jeux sans identifiant exclus`
+                : ''}
+            </span>
             <button
               className={button}
               disabled={busy}
@@ -108,8 +113,10 @@ export function BundlePublishingDialog({ bundles, collections, scheme, bundleId,
           </button>
         </div>
         <p className="text-xs text-neutral-500">
-          La publication utilise le dernier état sauvegardé du bundle et de ses jeux Steam. Les
-          champs secrets et les autres relations sont exclus.
+          La publication est actualisée automatiquement après les sauvegardes du bundle ou de ses
+          jeux. Vous pouvez aussi la mettre à jour ici. Seuls les jeux ayant un Steam App ID valide
+          sont partagés ; les autres restent dans votre collection. Les champs secrets et les autres
+          relations sont exclus.
         </p>
         {error && (
           <p role="alert" className="text-red-500">

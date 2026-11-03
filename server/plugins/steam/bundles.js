@@ -1,5 +1,41 @@
 import { randomUUID } from 'node:crypto';
 
+const storageReady = new WeakMap();
+export function ensureBundleStorage(pool) {
+  if (!storageReady.has(pool)) {
+    storageReady.set(
+      pool,
+      pool
+        .query(
+          `CREATE TABLE IF NOT EXISTS steam_public_bundles (
+    id UUID PRIMARY KEY, organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, bundle_id TEXT NOT NULL,
+    snapshot JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (organization_id, bundle_id)
+  )`,
+        )
+        .catch((error) => {
+          storageReady.delete(pool);
+          throw error;
+        }),
+    );
+  }
+  return storageReady.get(pool);
+}
+
+export function publicSteamGame(raw) {
+  let value = raw;
+  if (typeof value === 'string' && value.trim().startsWith('{')) {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  const appid = Number(value && typeof value === 'object' ? (value.appid ?? value.appId) : value);
+  if (!Number.isSafeInteger(appid) || appid <= 0) return null;
+  return { appid, name: typeof value?.name === 'string' ? value.name : '' };
+}
+
 const safeTypes = new Set([
   'text',
   'number',
@@ -59,9 +95,12 @@ export function buildPublicBundle(state, config, bundleId, canRead) {
       )
       .map((p) => ({ id: p.id, name: p.name, type: p.type }));
   const bundleProperties = fields(bundles, [bundle]);
-  const gameProperties = fields(games, linked);
-  const steam = gameProperties.find((p) => p.type === 'steam');
+  const readableGameProperties = fields(games, linked);
+  const steam = readableGameProperties.find((p) => p.type === 'steam');
   if (!steam) throw httpError(400, 'Un champ Steam accessible est requis.');
+  const gameProperties = readableGameProperties.filter(
+    (p) => p.type !== 'steam' || p.id === steam.id,
+  );
   const pick = (item, props) =>
     Object.fromEntries(
       props
@@ -69,19 +108,7 @@ export function buildPublicBundle(state, config, bundleId, canRead) {
         .map((p) => {
           let value = item[p.id];
           if (p.type === 'steam') {
-            if (typeof value === 'string' && value.startsWith('{')) {
-              try {
-                value = JSON.parse(value);
-              } catch {
-                /* validated below */
-              }
-            }
-            const appid = Number(
-              typeof value === 'object' && value ? (value.appid ?? value.appId) : value,
-            );
-            if (!Number.isSafeInteger(appid) || appid <= 0)
-              throw httpError(400, 'Chaque jeu doit avoir un Steam App ID valide.');
-            value = { appid, name: typeof value?.name === 'string' ? value.name : '' };
+            value = publicSteamGame(value);
           } else if (!(
             value === null ||
             ['string', 'number', 'boolean'].includes(typeof value) ||
@@ -107,7 +134,8 @@ export function buildPublicBundle(state, config, bundleId, canRead) {
     bundleProperties,
     gameProperties,
     bundle: publicBundle,
-    games: linked.map((i) => pick(i, gameProperties)),
+    games: linked.filter((i) => publicSteamGame(i[steam.id])).map((i) => pick(i, gameProperties)),
+    excludedGameCount: linked.filter((i) => !publicSteamGame(i[steam.id])).length,
   };
 }
 
@@ -115,24 +143,9 @@ export function registerBundleRoutes({
   app,
   appContext: { pool, requireAuth, hasPermission, logger },
 }) {
-  // Plugin-owned storage, initialized on first use (no changes to application state).
-  let schema;
-  const ready = () =>
-    (schema ||= pool
-      .query(
-        `CREATE TABLE IF NOT EXISTS steam_public_bundles (
-    id UUID PRIMARY KEY, organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE, bundle_id TEXT NOT NULL,
-    snapshot JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (organization_id, bundle_id)
-  )`,
-      )
-      .catch((error) => {
-        schema = undefined;
-        throw error;
-      }));
   const route = (fn) => async (req, res) => {
     try {
-      await ready();
+      await ensureBundleStorage(pool);
       await fn(req, res);
     } catch (e) {
       logger.error('[Steam bundles]', e);
@@ -188,7 +201,7 @@ export function registerBundleRoutes({
       res
         .type('html')
         .send(
-          `<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escape(snapshot.title)}</title><body style="font-family:system-ui;max-width:800px;margin:40px auto;padding:24px"><h1>${escape(snapshot.title)}</h1><p>${snapshot.games.length} jeux</p><a href="?format=json" download="bundle.json">Télécharger le bundle pour l’importer</a><ul>${snapshot.games.map((g) => `<li><a href="https://store.steampowered.com/app/${Number(g[steam.id].appid)}/">${escape(g[steam.id].name || g[steam.id].appid)}</a></li>`).join('')}</ul></body></html>`,
+          `<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escape(snapshot.title)}</title><body style="font-family:system-ui;max-width:800px;margin:40px auto;padding:24px"><h1>${escape(snapshot.title)}</h1><p>${snapshot.games.length} jeux Steam partagés</p>${snapshot.games.length ? '' : '<p>Aucun jeu Steam partageable pour le moment.</p>'}<a href="?format=json" download="bundle.json">Télécharger le bundle pour l’importer</a><ul>${snapshot.games.map((g) => `<li><a href="https://store.steampowered.com/app/${Number(g[steam.id].appid)}/">${escape(g[steam.id].name || g[steam.id].appid)}</a></li>`).join('')}</ul></body></html>`,
         );
     }),
   );
@@ -200,7 +213,7 @@ export function registerBundleRoutes({
       if (!hasPermission(req.auth, { collection_id: config.bundlesCollectionId }, 'can_write'))
         throw httpError(403, 'Accès refusé.');
       const result = await pool.query(
-        'SELECT id, bundle_id FROM steam_public_bundles WHERE organization_id = $1',
+        `SELECT id, bundle_id, jsonb_array_length(snapshot->'games') AS "gameCount", COALESCE((snapshot->>'excludedGameCount')::integer, 0) AS "excludedGameCount" FROM steam_public_bundles WHERE organization_id = $1`,
         [org],
       );
       res.json(result.rows);

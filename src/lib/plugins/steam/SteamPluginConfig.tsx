@@ -1,3 +1,6 @@
+import { invalidateSteamGamesList } from './steamUtils';
+import { refreshSteamImages } from './steamImages';
+import { bundleRequest } from './bundleApi';
 import React, { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
 import { pluginManager } from '@/lib/plugins';
@@ -20,6 +23,7 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
   onSave,
 }) => {
   const [config, setConfig] = useState({
+    bundlesPublicByDefault: false,
     priceSaleColumn: '',
     priceRegularColumn: '',
     priceBlackMarketColumn: '',
@@ -29,6 +33,28 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
   });
 
   const [saving, setSaving] = useState(false);
+  const [maintenance, setMaintenance] = useState<'catalogue' | 'images' | null>(null);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('');
+  const [maintenanceError, setMaintenanceError] = useState('');
+  const runMaintenance = async (operation: 'catalogue' | 'images') => {
+    setMaintenance(operation);
+    setMaintenanceMessage('');
+    setMaintenanceError('');
+    try {
+      if (operation === 'catalogue') {
+        const result = await bundleRequest('games/refresh', { method: 'POST' });
+        invalidateSteamGamesList();
+        setMaintenanceMessage(`${result.count} jeux Steam mis à jour.`);
+      } else {
+        await refreshSteamImages();
+        setMaintenanceMessage('Cache des images actualisé. Les images affichées sont rechargées.');
+      }
+    } catch (error) {
+      setMaintenanceError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setMaintenance(null);
+    }
+  };
 
   useEffect(() => {
     const loadConfig = async () => {
@@ -59,8 +85,6 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
   const handleSave = async () => {
     setSaving(true);
     try {
-      pluginManager.updatePluginConfig(organizationId, 'steam', config);
-
       const response = await fetch(`${API_URL}/plugins/config/${organizationId}/steam`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,6 +99,7 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
         throw new Error(await response.text());
       }
 
+      pluginManager.updatePluginConfig(organizationId, 'steam', config);
       window.dispatchEvent(new Event('steam-config-changed'));
       onSave?.(config);
       onClose();
@@ -100,6 +125,63 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
           <p className="text-sm text-neutral-500">
             Définissez les rôles Jeux et Bundles dans les paramètres de chaque collection existante.
           </p>
+          <fieldset className="space-y-2 border-b border-black/10 dark:border-white/10 pb-4">
+            <legend className="text-sm font-semibold">Catalogue et images Steam</legend>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={!!maintenance}
+                className="rounded border px-3 py-2 text-sm disabled:opacity-50"
+                onClick={() => void runMaintenance('catalogue')}
+              >
+                {maintenance === 'catalogue'
+                  ? 'Mise à jour en cours…'
+                  : 'Mettre à jour la liste Steam'}
+              </button>
+              <button
+                type="button"
+                disabled={!!maintenance}
+                className="rounded border px-3 py-2 text-sm disabled:opacity-50"
+                onClick={() => void runMaintenance('images')}
+              >
+                {maintenance === 'images' ? 'Actualisation…' : 'Actualiser les images'}
+              </button>
+            </div>
+            <p className="text-xs text-neutral-500">
+              La liste est mise à jour depuis Steam (clé serveur STEAM_API_KEY requise). Les images
+              manquantes utilisent l’URL actuelle fournie par Steam ; actualiser vide leur cache et
+              relance leur chargement.
+            </p>
+            {maintenanceMessage && (
+              <p role="status" className="text-sm text-green-600">
+                {maintenanceMessage}
+              </p>
+            )}
+            {maintenanceError && (
+              <p role="alert" className="text-sm text-red-500">
+                {maintenanceError}
+              </p>
+            )}
+          </fieldset>
+          <fieldset className="space-y-2 border-b border-black/10 dark:border-white/10 pb-4">
+            <legend className="text-sm font-semibold">Visibilité des bundles</legend>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={config.bundlesPublicByDefault === true}
+                onChange={(e) =>
+                  setConfig((prev) => ({ ...prev, bundlesPublicByDefault: e.target.checked }))
+                }
+              />
+              Bundles publics par défaut
+            </label>
+            <p className="text-xs text-neutral-500">
+              Les nouveaux bundles créés ou importés seront publiés après leur sauvegarde. Les
+              bundles existants gardent leur visibilité. Les publications sont actualisées
+              automatiquement quand le bundle ou ses jeux changent ; seuls les jeux ayant un Steam
+              App ID valide sont partagés.
+            </p>
+          </fieldset>
           <div>
             <label className="text-sm font-medium mb-2 block">Colonne Prix Soldé</label>
             <select

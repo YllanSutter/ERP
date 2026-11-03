@@ -1,3 +1,6 @@
+import { registerCatalogueRoutes } from './catalogue.js';
+import { registerSteamImageRoutes } from './images.js';
+import { syncPublicBundlesAfterSave } from './bundleVisibility.js';
 import { registerBundleRoutes } from './bundles.js';
 import fs from 'fs';
 import path from 'path';
@@ -11,54 +14,13 @@ const STEAM_LIST_PATH = path.join(PROJECT_ROOT, 'public/steamList.json');
 
 export const steamServerPlugin = {
   id: 'steam',
+  onStateSaved: syncPublicBundlesAfterSave,
   register: ({ app, appContext }) => {
     registerBundleRoutes({ app, appContext });
     const { logger, requireAuth, hasPermission, pool, syncAppStateIdSequence } = appContext;
 
-    app.get('/api/plugins/steam/games', requireAuth, async (_req, res) => {
-      try {
-        const readLocalList = () => {
-          try {
-            if (!fs.existsSync(STEAM_LIST_PATH)) return [];
-            const raw = fs.readFileSync(STEAM_LIST_PATH, 'utf8');
-            const parsed = JSON.parse(raw);
-            if (!Array.isArray(parsed)) return [];
-            return parsed.filter((g) => g && typeof g.appid === 'number' && typeof g.name === 'string' && g.name.trim());
-          } catch {
-            return [];
-          }
-        };
-
-        const localList = readLocalList();
-        if (localList.length > 0) {
-          return res.json(localList);
-        }
-
-        // Fallback: fetch from Steam and cache locally
-        // shortcut: ISteamApps/GetAppList/v2 is deprecated by Valve (use IStoreService/GetAppList, key required), replace when this fallback is needed again
-        const steamRes = await fetch('https://api.steampowered.com/ISteamApps/GetAppList/v2/');
-        if (!steamRes.ok) {
-          return res.status(502).json({ error: 'Steam API unavailable' });
-        }
-
-        const steamData = await steamRes.json();
-        const apps = Array.isArray(steamData?.applist?.apps) ? steamData.applist.apps : [];
-        const normalized = apps
-          .filter((g) => g && typeof g.appid === 'number' && typeof g.name === 'string' && g.name.trim())
-          .map((g) => ({ appid: g.appid, name: g.name.trim() }));
-
-        try {
-          fs.writeFileSync(STEAM_LIST_PATH, JSON.stringify(normalized));
-        } catch (writeErr) {
-          logger.warn('[Steam] Failed to cache steamList.json:', writeErr);
-        }
-
-        return res.json(normalized);
-      } catch (error) {
-        logger.error('[Steam] Games endpoint error:', error);
-        return res.status(500).json({ error: 'Failed to load Steam games list' });
-      }
-    });
+    registerCatalogueRoutes({ app, appContext });
+    registerSteamImageRoutes({ app, appContext });
 
     app.post('/api/plugins/steam/import-prices', requireAuth, async (req, res) => {
       try {
