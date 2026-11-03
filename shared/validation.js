@@ -18,3 +18,17 @@ export const statePayloadSchema = z.object({
     items: z.array(z.string()).optional(),
   }).optional(),
 }).passthrough();
+
+const identifier = z.string().min(1).max(200);
+const safeKey = z.string().refine((key) => !['__proto__', 'prototype', 'constructor'].includes(key));
+export const itemChangesPayloadSchema = z.object({
+  stateVersion: z.number().int().positive(),
+  mutationId: z.string().uuid(),
+  itemChanges: z.array(z.object({
+    collectionId: identifier,
+    added: z.array(z.record(safeKey, z.unknown()).and(z.object({ id: identifier }))),
+    updated: z.array(z.object({ itemId: identifier, fields: z.record(safeKey, z.unknown()), unset: z.array(safeKey) }).strict()),
+    deleted: z.array(identifier),
+    order: z.array(identifier).optional(),
+  }).strict()).min(1),
+}).strict();

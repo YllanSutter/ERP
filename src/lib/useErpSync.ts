@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid';
+import { buildItemChanges, applyItemChanges } from '../../shared/itemChanges.js';
 import { useEffect, useRef, useState } from 'react';
 import { SaveQueue, SaveConflictError, SaveTooLargeError, type SaveStatus } from './saveQueue';
 import { mergeSavedCollections } from './mergeSavedCollections';
@@ -173,6 +175,12 @@ export function useErpSync({
   const lastSavedStructureRef = useRef<string | null>(null);
   const stateVersionRef = useRef<number | null>(null);
   const loadedOrganizationRef = useRef<string | null>(null);
+  const supportsItemChangesRef = useRef(false);
+  const pendingItemsRef = useRef<{
+    payload: { stateVersion: number | null; mutationId: string; itemChanges: ReturnType<typeof buildItemChanges> };
+    previous: Collection[];
+    submitted: Collection[];
+  } | null>(null);
 
   useEffect(() => {
     setIsLoaded(false);
@@ -181,6 +189,8 @@ export function useErpSync({
     lastSavedStructureRef.current = null;
     stateVersionRef.current = null;
     loadedOrganizationRef.current = null;
+    supportsItemChangesRef.current = false;
+    pendingItemsRef.current = null;
   }, [organizationId]);
 
   // --- Chargement initial -----------------------------------------------
@@ -204,6 +214,7 @@ export function useErpSync({
             setFavorites(data.favorites || { views: [], items: [] });
             stateVersionRef.current = Number(data.stateVersion) || 1;
             loadedOrganizationRef.current = organizationId;
+            supportsItemChangesRef.current = data.supportsItemChanges === true;
             lastSavedCollectionsRef.current = data.collections || [];
             lastSavedStructureRef.current = buildStructureSnapshot(
               data.views || {},
@@ -295,14 +306,15 @@ export function useErpSync({
             stateVersionRef.current = Number(data.stateVersion) || stateVersionRef.current;
             // Pour les collections : mettre a jour seulement la meta (proprietes, etc.)
             // en preservant les items locaux pour ne pas ecraser une saisie en cours
+            const previousCollections = lastSavedCollectionsRef.current;
+            const serverCollections = data.collections || [];
             setCollections((prev: Collection[]) => {
-              const prevMap = new Map(prev.map((c) => [c.id, c]));
-              return (data.collections || []).map((serverCol: Collection) => {
-                const localCol = prevMap.get(serverCol.id);
-                if (!localCol) return serverCol;
-                return { ...serverCol, items: localCol.items };
-              });
+              const merged = mergeSavedCollections(previousCollections, serverCollections, prev);
+              return serverCollections.map((col: Collection) => ({
+                ...col, items: merged.find((entry) => entry.id === col.id)?.items || col.items,
+              }));
             });
+            lastSavedCollectionsRef.current = serverCollections;
             setViews(data.views || {});
             setDashboards(data.dashboards || []);
             setDashboardSort(data.dashboardSort || 'created');
@@ -332,6 +344,30 @@ export function useErpSync({
     };
   }, [socket, organizationId, user, API_URL]);
 
+  const savePendingItems = async (isActive: () => boolean) => {
+    const pending = pendingItemsRef.current;
+    if (!pending || !isActive()) return;
+    const res = await fetch(`${API_URL}/state/items`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-Organization-Id': organizationId! },
+      credentials: 'include',
+      body: JSON.stringify(pending.payload),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (res.status === 413) throw new SaveTooLargeError('Les données dépassent la limite du serveur.');
+    if (res.status === 409) throw new SaveConflictError('Une autre session a modifié les données.');
+    if (!res.ok) throw new Error(`Échec de sauvegarde ciblée (${res.status})`);
+    const result = await res.json();
+    if (!isActive()) return;
+    if (!Array.isArray(result.itemChanges) || !Number.isInteger(result.stateVersion)) throw new Error('Réponse de sauvegarde invalide');
+    const saved = applyItemChanges(pending.previous, result.itemChanges);
+    latestCollectionsRef.current = mergeSavedCollections(pending.submitted, saved, latestCollectionsRef.current);
+    setCollections((local) => mergeSavedCollections(pending.submitted, saved, local));
+    lastSavedCollectionsRef.current = saved;
+    stateVersionRef.current = result.stateVersion;
+    pendingItemsRef.current = null;
+  };
+
   // --- Sauvegarde avec debounce et diff intelligent ---------------------
   useEffect(() => {
     if (!isLoaded || !user || !organizationId || !canEdit || loadedOrganizationRef.current !== organizationId) return;
@@ -343,6 +379,9 @@ export function useErpSync({
     const saveDelay = totalItems >= 1000 ? 1200 : totalItems >= 300 ? 700 : 400;
 
     queue.enqueue(async ({ isActive }) => {
+      // Acquitter d'abord une écriture dont la réponse a pu être perdue.
+      await savePendingItems(isActive);
+      if (!isActive()) return;
       const cleanedCollections = cleanForSave(latestCollectionsRef.current);
       const cleanedViews = cleanForSave(views);
       const cleanedDashboards = cleanForSave(dashboards);
@@ -361,6 +400,18 @@ export function useErpSync({
         cleanedCollections
       );
       const structureChanged = currentStructureStr !== lastSavedStructureRef.current;
+
+      if (!structureChanged && supportsItemChangesRef.current) {
+        const itemChanges = buildItemChanges(prevCollections, cleanedCollections);
+        if (!itemChanges.length) return;
+        pendingItemsRef.current = {
+          payload: { stateVersion: stateVersionRef.current, mutationId: uuidv4(), itemChanges },
+          previous: prevCollections,
+          submitted: cleanedCollections,
+        };
+        await savePendingItems(isActive);
+        return;
+      }
 
       let needsFullPost = structureChanged || countChanged || orderChanged;
 

@@ -1,5 +1,6 @@
+import { buildItemChanges, applyItemChanges } from '../../shared/itemChanges.js';
 import { ZodError } from 'zod';
-import { statePayloadSchema } from '../../shared/validation.js';
+import { statePayloadSchema, itemChangesPayloadSchema } from '../../shared/validation.js';
 import { loadAutomations, triggerAutomations } from '../services/automationService.js';
 import {
   decryptStateSecrets,
@@ -315,42 +316,61 @@ export const registerStateRoutes = ({ app, appContext }) => {
         favorites: rawState?.favorites || { views: [], items: [] },
       };
       const filtered = filterStateForUser(state, req.auth, hasPermission);
-      return res.json({ ...maskStateSecrets(filtered), stateVersion });
+      const { _lastItemMutation, ...publicState } = maskStateSecrets(filtered);
+      return res.json({ ...publicState, stateVersion, supportsItemChanges: true });
     } catch (err) {
       logger.error('Failed to load state', err);
       return res.status(500).json({ error: 'Failed to load state' });
     }
   });
 
-  app.post('/api/state', requireAuth, async (req, res) => {
+  const saveState = async (req, res) => {
     try {
-      const payload = statePayloadSchema.parse(req.body ?? {});
+      const isItemDelta = req.method === 'PATCH';
+      const payload = (isItemDelta ? itemChangesPayloadSchema : statePayloadSchema).parse(req.body ?? {});
       const expectedVersion = payload.stateVersion;
       const userId = req.auth.user.id;
       const organizationId = req.auth.activeOrganization?.id;
       const calendarConfig = getCalendarConfigForUser(req.auth.user);
       if (!organizationId) return res.status(400).json({ error: 'No active organization' });
-      const { stateVersion: _stateVersion, ...stateData } = payload;
-      const collections = stateData.collections || [];
+      const { stateVersion: _stateVersion, ...submittedState } = payload;
+      let stateData = submittedState;
 
       const prevStateResult = await pool.query('SELECT data, version FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
       const currentVersion = prevStateResult.rows.length > 0
         ? Number(prevStateResult.rows[0].version) || 1
         : 1;
-      if (currentVersion !== expectedVersion) {
-        return res.status(409).json({
-          error: 'State changed since it was loaded',
-          stateVersion: currentVersion,
-        });
-      }
       const prevState = prevStateResult.rows.length > 0
         ? decryptStateSecrets(JSON.parse(prevStateResult.rows[0].data))
         : {};
+      const touchedIds = new Set(isItemDelta ? payload.itemChanges.map((change) => change.collectionId) : []);
+      if (isItemDelta) {
+        for (const collectionId of touchedIds) {
+          if (!hasPermission(req.auth, { collection_id: collectionId }, 'can_write')) {
+            return res.status(403).json({ error: 'Forbidden' });
+          }
+        }
+      }
+      // Une réponse perdue peut être redemandée sans rejouer les automations.
+      if (isItemDelta && prevState._lastItemMutation?.id === payload.mutationId && prevState._lastItemMutation.userId === userId) {
+        return res.json({ ok: true, itemChanges: prevState._lastItemMutation.itemChanges, stateVersion: currentVersion });
+      }
+      if (currentVersion !== expectedVersion) {
+        return res.status(409).json({ error: 'State changed since it was loaded', stateVersion: currentVersion });
+      }
+      if (isItemDelta) {
+        try {
+          stateData = { ...prevState, collections: applyItemChanges(prevState.collections || [], payload.itemChanges) };
+        } catch (error) {
+          return res.status(400).json({ error: error.message });
+        }
+      }
+      const collections = stateData.collections || [];
       const prevCollections = Array.isArray(prevState.collections) ? prevState.collections : [];
       const prevCollectionsById = new Map(prevCollections.map((col) => [col.id, col]));
 
       const processedCollections = collections.map((col) => {
-        if (!col.items) return col;
+        if (!col.items || (isItemDelta && !touchedIds.has(col.id))) return col;
 
         const prevCol = prevCollectionsById.get(col.id);
         const prevItems = Array.isArray(prevCol?.items) ? prevCol.items : [];
@@ -375,6 +395,7 @@ export const registerStateRoutes = ({ app, appContext }) => {
       });
 
       for (const col of processedCollections) {
+        if (isItemDelta && !touchedIds.has(col.id)) continue;
         if (!hasPermission(req.auth, { collection_id: col.id }, 'can_write')) {
           return res.status(403).json({ error: `Forbidden to write collection ${col.id}` });
         }
@@ -436,6 +457,22 @@ export const registerStateRoutes = ({ app, appContext }) => {
             }
           }
 
+          if (isItemDelta) {
+            for (const change of payload.itemChanges) {
+              const col = processedCollections.find((entry) => entry.id === change.collectionId);
+              const prevCol = prevCollectionsById.get(change.collectionId);
+              for (const update of change.updated) {
+                const item = col.items.find((entry) => entry.id === update.itemId);
+                stateDataWithSegments = await triggerAutomations({
+                  eventType: 'item_updated', collectionId: change.collectionId, triggerItem: item,
+                  prevItem: prevCol.items.find((entry) => entry.id === update.itemId),
+                  state: stateDataWithSegments, automations, pool, organizationId,
+                  calculateEventSegments, getDefaultCalendarConfig: () => calendarConfig,
+                });
+              }
+            }
+          }
+
           for (const { collectionId: cId, item } of createdEvents) {
             stateDataWithSegments = await triggerAutomations({
               eventType: 'item_created',
@@ -476,16 +513,30 @@ export const registerStateRoutes = ({ app, appContext }) => {
         (acc, c) => acc + (c.items?.length || 0), 0
       );
 
+      let responseChanges;
+      if (isItemDelta) {
+        const before = maskStateSecrets(filterStateForUser(prevState, req.auth, hasPermission));
+        const after = maskStateSecrets(filterStateForUser(stateDataWithSegments, req.auth, hasPermission));
+        responseChanges = buildItemChanges(before.collections || [], after.collections || []);
+        // Ne stocker que des valeurs déjà masquées dans le reçu de la dernière écriture.
+        stateDataWithSegments._lastItemMutation = { id: payload.mutationId, userId, itemChanges: responseChanges };
+      } else {
+        delete stateDataWithSegments._lastItemMutation;
+      }
       const stateStr = JSON.stringify(prepareStateForStorage(stateDataWithSegments, prevState));
 
       const updateRes = await pool.query(
-        'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3',
-        [stateStr, organizationId, expectedVersion]
+        'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3 AND data = $4',
+        [stateStr, organizationId, expectedVersion, prevStateResult.rows[0]?.data]
       );
       const nextVersion = expectedVersion + 1;
       if (updateRes.rowCount === 0) {
-        const latestState = await pool.query('SELECT version FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
+        const latestState = await pool.query('SELECT data, version FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
         if (latestState.rowCount > 0) {
+          const receipt = JSON.parse(latestState.rows[0].data)._lastItemMutation;
+          if (isItemDelta && receipt?.id === payload.mutationId && receipt.userId === userId) {
+            return res.json({ ok: true, itemChanges: receipt.itemChanges, stateVersion: Number(latestState.rows[0].version) });
+          }
           return res.status(409).json({
             error: 'State changed since it was loaded',
             stateVersion: Number(latestState.rows[0].version) || expectedVersion,
@@ -508,6 +559,7 @@ export const registerStateRoutes = ({ app, appContext }) => {
       // modifiées au client pour qu'il puisse les appliquer immédiatement —
       // le client ignore son propre event socket (userId filter), donc sans ça
       // il ne verrait jamais les items créés côté serveur.
+      if (isItemDelta) return res.json({ ok: true, itemChanges: responseChanges, stateVersion: nextVersion });
       const hasAutomationChanges = postAutoItemCount > preAutoItemCount;
       const responsePayload = {
         ok: true,
@@ -527,7 +579,9 @@ export const registerStateRoutes = ({ app, appContext }) => {
       logger.error('Failed to save state', err);
       return res.status(500).json({ error: 'Failed to save state' });
     }
-  });
+  };
+  app.post('/api/state', requireAuth, saveState);
+  app.patch('/api/state/items', requireAuth, saveState);
 
   app.get('/api/audit', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
     const logs = await pool.query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 200');

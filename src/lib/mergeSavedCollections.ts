@@ -14,17 +14,18 @@ export function mergeSavedCollections(submitted: Collection[], saved: Collection
     return {
       ...remote, ...col,
       items: [
-        ...(col.items || []).map((item) => {
+        ...(col.items || []).flatMap((item) => {
           const previous = baseItems.get(item.id);
           const stored = remoteItems.get(item.id);
-          if (!previous || !stored) return item;
+          if (!previous) return [item];
+          if (!stored) return JSON.stringify(item) === JSON.stringify(previous) ? [] : [item];
           const result = { ...stored };
           for (const key of new Set([...Object.keys(previous), ...Object.keys(item)])) {
             if (JSON.stringify(previous[key]) === JSON.stringify(item[key])) continue;
             if (Object.hasOwn(item, key)) result[key] = item[key];
             else delete result[key];
           }
-          return result;
+          return [result];
         }),
         ...(remote.items || []).filter((item) => !baseItems.has(item.id) && !localIds.has(item.id)),
       ],
