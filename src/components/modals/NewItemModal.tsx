@@ -193,9 +193,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   React.useEffect(() => {
     if (!collection?.id) return;
-    if (selectedCollectionId === collection.id) return;
     setSelectedCollectionId(collection.id);
-  }, [collection?.id, selectedCollectionId]);
+  }, [collection?.id]);
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyData, setHistoryData] = useState<{ base: any; versions: any[] } | null>(null);

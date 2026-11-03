@@ -976,6 +976,11 @@ const App = () => {
                     groupDisplayColumnCounts={activeViewConfig?.groupDisplayColumnCounts || {}}
                     groupTabStyleFieldIds={activeViewConfig?.groupTabStyleFieldIds || {}}
                     groupTotalsByGroupId={activeViewConfig?.groupTotalsByGroupId || {}}
+                    onShowNewItemModalForCollection={(collection, item) => {
+                      setModalCollection(collection);
+                      setEditingItem(item || null);
+                      setShowNewItemModal(true);
+                    }}
                     onShowNewItemModal={(prefill?: Record<string, any>) => { if (prefill && Object.keys(prefill).length > 0) { setEditingItem(prefill); setGroupContext(prefill); } setShowNewItemModal(true); }}
                     onGroupContextChange={(prefill: Record<string, any> | null) => { console.log('[GroupContext] set from TableView:', prefill); setGroupContext(prefill); }}
                     onQuickCreateItem={handleQuickCreateItem}
