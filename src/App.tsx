@@ -402,7 +402,7 @@ const App = () => {
   }, []);
 
   // Synchronisation ERP (sauvegarde, socket, hot reload)
-  useErpSync({
+  const { saveStatus } = useErpSync({
     collections,
     views,
     dashboards,
@@ -696,6 +696,7 @@ const App = () => {
             impersonatedRoleId={impersonatedRoleId}
             availableRoles={availableRoles}
             activeCollectionName={currentCollection?.name || null}
+            saveStatus={canEdit ? saveStatus : undefined}
             onImpersonate={impersonate}
             onShowAccessManager={() => setShowAccessManager(true)}
             onOpenCommandMenu={() => setCommandMenuOpen(true)}

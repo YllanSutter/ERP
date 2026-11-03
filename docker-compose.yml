@@ -28,6 +28,8 @@ services:
     image: node:20-alpine
     container_name: erp_app
     restart: "no"
+    init: true
+    stop_grace_period: 2m
     working_dir: /app
     environment:
       NODE_ENV: development
@@ -59,8 +61,7 @@ services:
         npm install --include=dev &&
         npm run build && \
         echo '⏳ Attente du serveur...' && \
-        npm start & \
-        wait
+        exec node server/index.js
       "
 
 volumes:

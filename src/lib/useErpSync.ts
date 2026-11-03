@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { SaveQueue, SaveConflictError, type SaveStatus } from './saveQueue';
+import { mergeSavedCollections } from './mergeSavedCollections';
 import { cleanForSave } from '@/lib/utils/cleanUtils';
 
 // Types minimalistes pour éviter les erreurs TS
@@ -143,24 +145,48 @@ export function useErpSync({
   API_URL,
   socket,
 }: UseErpSyncParams) {
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('loading');
+  const latestCollectionsRef = useRef(collections);
+  latestCollectionsRef.current = collections;
+  const saveQueueRef = useRef<SaveQueue | null>(null);
+  useEffect(() => {
+    const queue = new SaveQueue(setSaveStatus);
+    saveQueueRef.current = queue;
+    setSaveStatus('loading');
+    const retry = () => queue.retryNow();
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!queue.hasPending) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('online', retry);
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => {
+      queue.dispose();
+      window.removeEventListener('online', retry);
+      window.removeEventListener('beforeunload', beforeUnload);
+    };
+  }, [organizationId, user?.id, canEdit]);
+
   const lastReloadRef = useRef(0);
-  const lastSavedPayloadRef = useRef<string | null>(null);
   const lastSavedCollectionsRef = useRef<Collection[]>([]);
   const lastSavedStructureRef = useRef<string | null>(null);
   const stateVersionRef = useRef<number | null>(null);
+  const loadedOrganizationRef = useRef<string | null>(null);
 
   useEffect(() => {
     setIsLoaded(false);
-    lastSavedPayloadRef.current = null;
     lastReloadRef.current = 0;
     lastSavedCollectionsRef.current = [];
     lastSavedStructureRef.current = null;
     stateVersionRef.current = null;
+    loadedOrganizationRef.current = null;
   }, [organizationId]);
 
   // --- Chargement initial -----------------------------------------------
   useEffect(() => {
     if (!user || !organizationId) return;
+    let cancelled = false;
     const fetchInitialState = async () => {
       try {
         const res = await fetch(`${API_URL}/state`, {
@@ -169,7 +195,7 @@ export function useErpSync({
         });
         if (res.ok) {
           const data = await res.json();
-          if (data) {
+          if (data && !cancelled) {
             setCollections(data.collections || []);
             setViews(data.views || {});
             setDashboards(data.dashboards || []);
@@ -177,6 +203,7 @@ export function useErpSync({
             setDashboardFilters(data.dashboardFilters || {});
             setFavorites(data.favorites || { views: [], items: [] });
             stateVersionRef.current = Number(data.stateVersion) || 1;
+            loadedOrganizationRef.current = organizationId;
             lastSavedCollectionsRef.current = data.collections || [];
             lastSavedStructureRef.current = buildStructureSnapshot(
               data.views || {},
@@ -194,6 +221,7 @@ export function useErpSync({
       }
     };
     fetchInitialState();
+    return () => { cancelled = true; };
   }, [user, organizationId, API_URL]);
 
   // --- Reception temps reel : item modifie (patch chirurgical) ----------
@@ -250,6 +278,8 @@ export function useErpSync({
       if (payload?.organizationId && payload.organizationId !== organizationId) return;
       if (payload?.userId && user && payload.userId === user.id) return;
 
+      // Une notification distante ne doit pas remplacer une sauvegarde locale en attente.
+      if (saveQueueRef.current?.hasPending) return;
       const now = Date.now();
       if (now - lastReloadRef.current < 2000) return;
       lastReloadRef.current = now;
@@ -261,7 +291,8 @@ export function useErpSync({
         });
         if (res.ok) {
           const data = await res.json();
-          if (data) {
+          if (data && !saveQueueRef.current?.hasPending) {
+            stateVersionRef.current = Number(data.stateVersion) || stateVersionRef.current;
             // Pour les collections : mettre a jour seulement la meta (proprietes, etc.)
             // en preservant les items locaux pour ne pas ecraser une saisie en cours
             setCollections((prev: Collection[]) => {
@@ -302,136 +333,129 @@ export function useErpSync({
   }, [socket, organizationId, user, API_URL]);
 
   // --- Sauvegarde avec debounce et diff intelligent ---------------------
-  const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
-    if (!isLoaded || !user || !organizationId || !canEdit) return;
+    if (!isLoaded || !user || !organizationId || !canEdit || loadedOrganizationRef.current !== organizationId) return;
 
-    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+    const queue = saveQueueRef.current;
+    if (!queue) return;
 
     const totalItems = countItems(collections);
     const saveDelay = totalItems >= 1000 ? 1200 : totalItems >= 300 ? 700 : 400;
 
-    debounceTimeout.current = setTimeout(async () => {
-      try {
-        const cleanedCollections = cleanForSave(collections);
-        const cleanedViews = cleanForSave(views);
-        const cleanedDashboards = cleanForSave(dashboards);
-        const cleanedFilters = cleanForSave(dashboardFilters);
-        const cleanedFavorites = cleanForSave(favorites);
+    queue.enqueue(async ({ isActive }) => {
+      const cleanedCollections = cleanForSave(latestCollectionsRef.current);
+      const cleanedViews = cleanForSave(views);
+      const cleanedDashboards = cleanForSave(dashboards);
+      const cleanedFilters = cleanForSave(dashboardFilters);
+      const cleanedFavorites = cleanForSave(favorites);
 
-        const prevCollections = lastSavedCollectionsRef.current;
-        const countChanged = hasItemCountChanged(prevCollections, cleanedCollections);
-        const orderChanged = hasItemOrderChanged(prevCollections, cleanedCollections);
-        const currentStructureStr = buildStructureSnapshot(
-          cleanedViews,
-          cleanedDashboards,
-          dashboardSort,
-          cleanedFilters,
-          cleanedFavorites,
-          cleanedCollections
-        );
-        const structureChanged = currentStructureStr !== lastSavedStructureRef.current;
+      const prevCollections = lastSavedCollectionsRef.current;
+      const countChanged = hasItemCountChanged(prevCollections, cleanedCollections);
+      const orderChanged = hasItemOrderChanged(prevCollections, cleanedCollections);
+      const currentStructureStr = buildStructureSnapshot(
+        cleanedViews,
+        cleanedDashboards,
+        dashboardSort,
+        cleanedFilters,
+        cleanedFavorites,
+        cleanedCollections
+      );
+      const structureChanged = currentStructureStr !== lastSavedStructureRef.current;
 
-        let needsFullPost = structureChanged || countChanged || orderChanged;
+      let needsFullPost = structureChanged || countChanged || orderChanged;
 
-        // Patches d'items (PATCH /api/state/item) - evite de tout recharger chez les autres
-        if (!countChanged && !needsFullPost) {
-          const patches = diffCollectionsItems(prevCollections, cleanedCollections);
-          
-          if (patches.length > 0) {
-            console.log(`[useErpSync] Sending ${patches.length} item patches...`);
-            
-            // Envoyer les patches séquentiellement (pas en parallèle) pour éviter les race conditions
-            // où plusieurs patches liraient la même version de l'état et s'écraseraient l'un l'autre
-            let allOk = true;
-            for (const patch of patches) {
-              try {
-                const r = await fetch(`${API_URL}/state/item`, {
-                  method: 'PATCH',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'X-Organization-Id': organizationId,
-                  },
-                  credentials: 'include',
-                  body: JSON.stringify(patch),
-                });
-                if (!r.ok) {
-                  console.warn(`[useErpSync] Patch failed for item ${patch.itemId}:`, r.status);
-                  allOk = false;
-                }
-              } catch (err) {
-                console.error(`[useErpSync] Patch error for item ${patch.itemId}:`, err);
+      // Patches d'items (PATCH /api/state/item) - evite de tout recharger chez les autres
+      if (!countChanged && !needsFullPost) {
+        const patches = diffCollectionsItems(prevCollections, cleanedCollections);
+
+        if (patches.length > 0) {
+          console.log(`[useErpSync] Sending ${patches.length} item patches...`);
+
+          // Envoyer les patches séquentiellement (pas en parallèle) pour éviter les race conditions
+          // où plusieurs patches liraient la même version de l'état et s'écraseraient l'un l'autre
+          let allOk = true;
+          for (const patch of patches) {
+            if (!isActive()) return;
+            try {
+              const r = await fetch(`${API_URL}/state/item`, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Organization-Id': organizationId,
+                },
+                credentials: 'include',
+                body: JSON.stringify(patch),
+                signal: AbortSignal.timeout(15000),
+              });
+              if (!r.ok) {
+                console.warn(`[useErpSync] Patch failed for item ${patch.itemId}:`, r.status);
                 allOk = false;
               }
-            }
-            
-            if (allOk) {
-              console.log(`[useErpSync] All ${patches.length} patches succeeded, snapshot updated`);
-              lastSavedCollectionsRef.current = cleanedCollections;
-              if (!needsFullPost) return; // tout est sauve via les patches
-            } else {
-              console.warn(`[useErpSync] Some patches failed, falling back to full POST`);
-              needsFullPost = true; // fallback POST complet si des patches ont echoue
+            } catch (err) {
+              console.error(`[useErpSync] Patch error for item ${patch.itemId}:`, err);
+              allOk = false;
             }
           }
-        }
 
-        // POST complet (structure ou ajout/suppression d'items)
-        if (needsFullPost) {
-          const fullPayload = {
-            collections: cleanedCollections,
-            views: cleanedViews,
-            dashboards: cleanedDashboards,
-            dashboardSort,
-            dashboardFilters: cleanedFilters,
-            favorites: cleanedFavorites,
-            stateVersion: stateVersionRef.current,
-          };
-          const fullPayloadStr = JSON.stringify(fullPayload);
-          if (fullPayloadStr !== lastSavedPayloadRef.current) {
-            console.log(`[useErpSync] Sending full POST with ${cleanedCollections.reduce((acc: number, c: any) => acc + (c.items?.length ?? 0), 0)} items`);
-            const res = await fetch(`${API_URL}/state`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Organization-Id': organizationId,
-              },
-              credentials: 'include',
-              body: fullPayloadStr,
-            });
-            if (res.ok) {
-              console.log(`[useErpSync] Full POST succeeded`);
-              const result = await res.json().catch(() => ({}));
-              stateVersionRef.current = Number(result?.stateVersion) || stateVersionRef.current;
-
-              const serverCollections = result?.collections || result?.automationCollections || null;
-              if (serverCollections) {
-                console.log(`[useErpSync] Applying server-returned collections after save`);
-                setCollections(serverCollections);
-                lastSavedCollectionsRef.current = serverCollections;
-                lastSavedPayloadRef.current = JSON.stringify({
-                  ...fullPayload,
-                  collections: serverCollections,
-                });
-              } else {
-                lastSavedPayloadRef.current = fullPayloadStr;
-                lastSavedCollectionsRef.current = cleanedCollections;
-              }
-              lastSavedStructureRef.current = currentStructureStr;
-            } else {
-              console.error(`[useErpSync] Full POST failed with status ${res.status}`);
-            }
+          if (allOk) {
+            console.log(`[useErpSync] All ${patches.length} patches succeeded, snapshot updated`);
+            if (!isActive()) return;
+            lastSavedCollectionsRef.current = cleanedCollections;
+            if (!needsFullPost) return; // tout est sauve via les patches
+          } else {
+            console.warn(`[useErpSync] Some patches failed, falling back to full POST`);
+            needsFullPost = true; // fallback POST complet si des patches ont echoue
           }
         }
-      } catch (err) {
-        console.error('Impossible de sauvegarder les donnees', err);
+      }
+
+      // POST complet (structure ou ajout/suppression d'items)
+      if (!isActive()) return;
+      if (needsFullPost) {
+        const fullPayload = {
+          collections: cleanedCollections,
+          views: cleanedViews,
+          dashboards: cleanedDashboards,
+          dashboardSort,
+          dashboardFilters: cleanedFilters,
+          favorites: cleanedFavorites,
+          stateVersion: stateVersionRef.current,
+        };
+        const fullPayloadStr = JSON.stringify(fullPayload);
+        console.log(`[useErpSync] Sending full POST with ${cleanedCollections.reduce((acc: number, c: any) => acc + (c.items?.length ?? 0), 0)} items`);
+        const res = await fetch(`${API_URL}/state`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Organization-Id': organizationId,
+          },
+          credentials: 'include',
+          body: fullPayloadStr,
+          signal: AbortSignal.timeout(15000),
+        });
+        if (res.ok) {
+          console.log(`[useErpSync] Full POST succeeded`);
+          const result = await res.json();
+          if (!isActive()) return;
+          stateVersionRef.current = Number(result?.stateVersion) || stateVersionRef.current;
+
+          const serverCollections = result?.collections || result?.automationCollections || null;
+          if (serverCollections) {
+            console.log(`[useErpSync] Applying server-returned collections after save`);
+            // Conserver aussi les saisies récentes et les nouveaux objets des automations.
+            latestCollectionsRef.current = mergeSavedCollections(cleanedCollections, serverCollections, latestCollectionsRef.current);
+            setCollections((local) => mergeSavedCollections(cleanedCollections, serverCollections, local));
+            lastSavedCollectionsRef.current = serverCollections;
+          } else {
+            lastSavedCollectionsRef.current = cleanedCollections;
+          }
+          lastSavedStructureRef.current = currentStructureStr;
+        } else {
+          if (res.status === 409) throw new SaveConflictError('Une autre session a modifié les données.');
+          throw new Error(`Échec de sauvegarde (${res.status})`);
+        }
       }
     }, saveDelay);
-
-    return () => {
-      if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
-    };
   }, [
     collections,
     views,
@@ -443,5 +467,8 @@ export function useErpSync({
     user,
     organizationId,
     canEdit,
+    API_URL,
   ]);
+
+  return { saveStatus: !isLoaded ? 'loading' as const : saveStatus };
 }

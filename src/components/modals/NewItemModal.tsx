@@ -240,7 +240,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             type="button"
             aria-label={`Appliquer un template à ${prop.name}`}
             title={`Appliquer un template à ${prop.name}`}
-            className="shrink-0 inline-flex items-center gap-1 rounded-md p-1.5 text-violet-400 hover:bg-violet-500/10 hover:text-violet-300"
+            className="shrink-0 inline-flex items-center gap-1 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground opacity-0 pointer-events-none transition-opacity group-hover/template:opacity-100 group-hover/template:pointer-events-auto group-focus-within/template:opacity-100 group-focus-within/template:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto data-[state=open]:opacity-100 data-[state=open]:pointer-events-auto"
           >
             <Sparkles size={14} />
             {templates.length > 1 && <span className="text-[10px]">{templates.length}</span>}
@@ -1333,7 +1333,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         className="bg-background text-foreground border border-border rounded-2xl w-screen h-screen max-w-[1600px] max-h-[93vh] overflow-hidden flex flex-col shadow-[0_32px_80px_-8px_rgba(0,0,0,0.22)] dark:shadow-[0_32px_80px_-8px_rgba(0,0,0,0.8)]"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-start gap-4 px-8 py-5 border-b border-border bg-card/70 shrink-0">
+        <div className="group/template flex items-start gap-4 px-8 py-5 border-b border-border bg-card/70 shrink-0">
           {/* Titre + badge collection */}
           <div className="flex-1 min-w-0 flex flex-col gap-1.5">
             <div className="flex items-center gap-3">
@@ -1512,7 +1512,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               </div>
               <div className="flex gap-x-8 gap-y-3 items-center flex-wrap pl-2">
                 {relationPropsForDisplay.map((prop: any) => (
-                  <div className="flex items-center gap-3" key={prop.id}>
+                  <div className="group/template flex items-center gap-3" key={prop.id}>
                     <label className="text-[10px] font-mono tracking-widest uppercase text-neutral-500 whitespace-nowrap">
                       {prop.name}{prop.required && <span className="text-red-400 ml-0.5">*</span>}
                     </label>
@@ -1558,7 +1558,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               const renderFieldRow = (prop: any) => (
                 <div
                   key={prop.id}
-                  className="group/row flex items-stretch rounded-lg hover:bg-white/[0.025] focus-within:bg-white/[0.03] transition-colors duration-100"
+                  className="group/template group/row flex items-stretch rounded-lg hover:bg-white/[0.025] focus-within:bg-white/[0.03] transition-colors duration-100"
                 >
                   <div className="flex items-center w-[150px] shrink-0 overflow-hidden">
                     <label
@@ -1684,7 +1684,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 const totalDuration = segments.reduce((acc: number, seg: any) => acc + getSegmentHours(seg), 0);
 
                 return (
-                  <div key={`_eventSegments_${dateProp.id}`} className="rounded-xl border border-border bg-card/70 p-4">
+                  <div key={`_eventSegments_${dateProp.id}`} className="group/template rounded-xl border border-border bg-card/70 p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold text-neutral-300">{dateProp.name}</span>
@@ -1791,7 +1791,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   {richTextPropsForDisplay
                     .filter((prop: any) => !activeRichTextTab || prop.id === activeRichTextTab)
                     .map((prop: any) => (
-                      <div key={prop.id} className="pb-6 last:pb-0">
+                      <div key={prop.id} className="group/template pb-6 last:pb-0">
                         <div className="flex justify-end">{renderTemplatePicker(prop)}</div>
                         <EditableProperty
                           property={prop}

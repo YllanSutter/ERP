@@ -1,3 +1,4 @@
+import { createShutdownHandler } from './services/shutdownService.js';
 import { logger } from './services/logger.js';
 import 'dotenv/config';
 import express from 'express';
@@ -400,7 +401,6 @@ app.get('*', (req, res) => {
 let serverInstance;
 let socketInstance;
 let backupInterval;
-let isShuttingDown = false;
 (async () => {
   try {
     await bootstrap();
@@ -447,22 +447,18 @@ let isShuttingDown = false;
   }
 })();
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  if (isShuttingDown) return;
-  isShuttingDown = true;
-  logger.info('SIGTERM signal received: closing server');
-
-  if (backupInterval) clearInterval(backupInterval);
-  if (socketInstance) await socketInstance.close();
-  if (serverInstance) {
-    await new Promise((resolve, reject) => {
-      serverInstance.close((error) => (error ? reject(error) : resolve()));
-    });
-  }
-  await pool.end();
-  process.exit(0);
+// Arrêt normal : terminer les requêtes avant de sauvegarder PostgreSQL.
+const shutdown = createShutdownHandler({
+  getServer: () => serverInstance,
+  getSockets: () => socketInstance,
+  stopBackups: () => { if (backupInterval) clearInterval(backupInterval); },
+  createBackup: createDbBackup,
+  closeDatabase: () => pool.end(),
+  logger,
+  exit: (code) => process.exit(code),
 });
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 
 // Better error logging
 process.on('uncaughtException', (err) => {

@@ -12,12 +12,14 @@ import {
 import { useAuth } from '@/auth/AuthProvider';
 import { useCanManagePermissions } from '@/lib/hooks/useCanEdit';
 import { io } from 'socket.io-client';
+import type { SaveStatus } from '@/lib/saveQueue';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 
 interface AppHeaderProps {
   impersonatedRoleId: string | null;
   availableRoles: any[];
   activeCollectionName?: string | null;
+  saveStatus?: SaveStatus;
   theme: 'light' | 'dark';
   setTheme: React.Dispatch<React.SetStateAction<'light' | 'dark'>>;
   onImpersonate: (roleId: string | null) => void;
@@ -29,6 +31,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   impersonatedRoleId,
   availableRoles,
   activeCollectionName,
+  saveStatus,
   onImpersonate,
   theme,
   setTheme,
@@ -98,6 +101,18 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
       </div>
       <div className="flex items-center gap-2">
+        {saveStatus && (
+          <span
+            role="status"
+            aria-live="polite"
+            className={`text-[11px] ${saveStatus === 'conflict' || saveStatus === 'retrying' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}
+            title={saveStatus === 'conflict'
+              ? 'Une autre session a modifié les données. Vos modifications locales ne sont pas enregistrées. Gardez cette page ouverte pour les récupérer.'
+              : saveStatus === 'retrying' ? 'Serveur indisponible ou enregistrement échoué. Nouvelle tentative automatique ; gardez cette page ouverte.' : undefined}
+          >
+            {{ loading: 'Chargement…', pending: 'En attente', saving: 'Enregistrement…', saved: 'Enregistré', retrying: 'En attente · nouvel essai', conflict: 'Conflit · non enregistré' }[saveStatus]}
+          </span>
+        )}
         {onOpenCommandMenu && (() => {
           const isMac = typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(window.navigator.platform);
           return (
