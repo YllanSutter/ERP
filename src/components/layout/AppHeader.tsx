@@ -20,6 +20,7 @@ interface AppHeaderProps {
   availableRoles: any[];
   activeCollectionName?: string | null;
   saveStatus?: SaveStatus;
+  onRetrySave?: () => void;
   theme: 'light' | 'dark';
   setTheme: React.Dispatch<React.SetStateAction<'light' | 'dark'>>;
   onImpersonate: (roleId: string | null) => void;
@@ -32,6 +33,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   availableRoles,
   activeCollectionName,
   saveStatus,
+  onRetrySave,
   onImpersonate,
   theme,
   setTheme,
@@ -105,13 +107,20 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <span
             role="status"
             aria-live="polite"
-            className={`text-[11px] ${saveStatus === 'conflict' || saveStatus === 'retrying' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}
-            title={saveStatus === 'conflict'
+            className={`text-[11px] ${saveStatus === 'conflict' || saveStatus === 'retrying' || saveStatus === 'too-large' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}
+            title={saveStatus === 'too-large'
+              ? 'Les données dépassent la limite du serveur. Augmentez JSON_BODY_LIMIT puis redémarrez le serveur. Gardez cette page ouverte pour conserver les modifications en attente.'
+              : saveStatus === 'conflict'
               ? 'Une autre session a modifié les données. Vos modifications locales ne sont pas enregistrées. Gardez cette page ouverte pour les récupérer.'
               : saveStatus === 'retrying' ? 'Serveur indisponible ou enregistrement échoué. Nouvelle tentative automatique ; gardez cette page ouverte.' : undefined}
           >
-            {{ loading: 'Chargement…', pending: 'En attente', saving: 'Enregistrement…', saved: 'Enregistré', retrying: 'En attente · nouvel essai', conflict: 'Conflit · non enregistré' }[saveStatus]}
+            {{ loading: 'Chargement…', pending: 'En attente', saving: 'Enregistrement…', saved: 'Enregistré', retrying: 'En attente · nouvel essai', conflict: 'Conflit · non enregistré', 'too-large': 'Taille dépassée · non enregistré' }[saveStatus]}
           </span>
+        )}
+        {saveStatus === 'too-large' && onRetrySave && (
+          <button type="button" onClick={onRetrySave} className="text-xs text-foreground underline underline-offset-2">
+            Réessayer
+          </button>
         )}
         {onOpenCommandMenu && (() => {
           const isMac = typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(window.navigator.platform);

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SaveQueue, SaveConflictError } from './saveQueue';
+import { SaveQueue, SaveConflictError, SaveTooLargeError } from './saveQueue';
 
 afterEach(() => vi.useRealTimers());
 
@@ -56,6 +56,24 @@ describe('save queue', () => {
     expect(task).toHaveBeenCalledOnce();
     expect(queue.hasPending).toBe(true);
     expect(status).toHaveBeenLastCalledWith('conflict');
+    queue.dispose();
+  });
+
+  it('pauses oversized saves and allows retry after the server limit is increased', async () => {
+    vi.useFakeTimers();
+    const status = vi.fn();
+    const task = vi.fn().mockRejectedValueOnce(new SaveTooLargeError()).mockResolvedValue(undefined);
+    const queue = new SaveQueue(status);
+    queue.enqueue(task, 0);
+    await vi.runAllTimersAsync();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(task).toHaveBeenCalledOnce();
+    expect(status).toHaveBeenLastCalledWith('too-large');
+    expect(queue.hasPending).toBe(true);
+    queue.retryNow();
+    await vi.runAllTimersAsync();
+    expect(task).toHaveBeenCalledTimes(2);
+    expect(status).toHaveBeenLastCalledWith('saved');
     queue.dispose();
   });
 

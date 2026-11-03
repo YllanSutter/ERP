@@ -40,6 +40,7 @@ services:
       DATABASE_PUBLIC_URL: postgresql://postgres:4GSUWF4XQB699@postgres:5432/erp_db
       BACKUP_DIR: /app/backups
       BACKUP_RETENTION_DAYS: 7
+      JSON_BODY_LIMIT: ${JSON_BODY_LIMIT:-50mb}
     volumes:
       - app_backups:/app/backups
       - pdf_plugin_data:/app/data/pdf-plugin

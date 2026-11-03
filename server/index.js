@@ -1,4 +1,5 @@
 import { createShutdownHandler } from './services/shutdownService.js';
+import { createJsonBodyParser } from './services/jsonBodyParser.js';
 import { logger } from './services/logger.js';
 import 'dotenv/config';
 import express from 'express';
@@ -102,7 +103,7 @@ app.use(cors({
 }));
 app.use(cookieParser());
 app.use(compression());
-app.use(express.json({ limit: '1mb' }));
+app.use(createJsonBodyParser());
 
 // --- DB bootstrap -------------------------------------------------------
 const bootstrap = async () => {

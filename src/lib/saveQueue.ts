@@ -1,6 +1,7 @@
-export type SaveStatus = 'loading' | 'pending' | 'saving' | 'saved' | 'retrying' | 'conflict';
+export type SaveStatus = 'loading' | 'pending' | 'saving' | 'saved' | 'retrying' | 'conflict' | 'too-large';
 
 export class SaveConflictError extends Error {}
+export class SaveTooLargeError extends Error {}
 
 type SaveTask = (context: { isLatest: () => boolean; isActive: () => boolean }) => Promise<void>;
 
@@ -10,6 +11,7 @@ export class SaveQueue {
   private running = false;
   private disposed = false;
   private blocked = false;
+  private tooLarge = false;
   private attempts = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -26,6 +28,10 @@ export class SaveQueue {
   }
 
   retryNow() {
+    if (this.tooLarge) {
+      this.blocked = false;
+      this.tooLarge = false;
+    }
     if (!this.disposed && !this.blocked && this.pending) this.schedule(0);
   }
 
@@ -57,7 +63,11 @@ export class SaveQueue {
     } catch (error) {
       if (this.disposed) return;
       this.pending ??= task;
-      if (error instanceof SaveConflictError) {
+      if (error instanceof SaveTooLargeError) {
+        this.blocked = true;
+        this.tooLarge = true;
+        this.onStatus('too-large');
+      } else if (error instanceof SaveConflictError) {
         this.blocked = true;
         this.onStatus('conflict');
       } else {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { SaveQueue, SaveConflictError, type SaveStatus } from './saveQueue';
+import { SaveQueue, SaveConflictError, SaveTooLargeError, type SaveStatus } from './saveQueue';
 import { mergeSavedCollections } from './mergeSavedCollections';
 import { cleanForSave } from '@/lib/utils/cleanUtils';
 
@@ -451,6 +451,7 @@ export function useErpSync({
           }
           lastSavedStructureRef.current = currentStructureStr;
         } else {
+          if (res.status === 413) throw new SaveTooLargeError('Les données dépassent la limite du serveur.');
           if (res.status === 409) throw new SaveConflictError('Une autre session a modifié les données.');
           throw new Error(`Échec de sauvegarde (${res.status})`);
         }
@@ -470,5 +471,8 @@ export function useErpSync({
     API_URL,
   ]);
 
-  return { saveStatus: !isLoaded ? 'loading' as const : saveStatus };
+  return {
+    saveStatus: !isLoaded ? 'loading' as const : saveStatus,
+    retrySave: () => saveQueueRef.current?.retryNow(),
+  };
 }
