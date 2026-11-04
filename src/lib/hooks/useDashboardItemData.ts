@@ -5,9 +5,10 @@
 
 import { useMemo } from 'react';
 import { parseISO, isWithinInterval } from 'date-fns';
-import { DashboardModuleConfig, GlobalDatePreset } from '@/lib/dashboardTypes';
+import { DashboardModuleConfig, GlobalDatePreset, RecapAssignments } from '@/lib/dashboardTypes';
 import { Property, Item, Collection } from '@/lib/types';
 import { applyModuleFilters, computeDateRange, getDateValue } from '@/lib/utils/dashboardUtils';
+import { getAssignedDate, getAssignmentKey } from '@/lib/utils/recapAssignments';
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 
 export interface GlobalDateFilter {
@@ -27,6 +28,7 @@ export interface DashboardItemData {
   /** Champs de type date/date_range de la collection */
   dateFields: Property[];
   hasDateField: boolean;
+  periodDateField?: Property;
   /** Champs numériques */
   numericFields: Property[];
   /** Champs select / multiselect */
@@ -128,7 +130,8 @@ function projectLinkedValuesOnItems(
 export function useDashboardItemData(
   module: DashboardModuleConfig,
   collections: Collection[],
-  globalFilter?: GlobalDateFilter
+  globalFilter?: GlobalDateFilter,
+  recapAssignments?: RecapAssignments
 ): DashboardItemData {
   const collection = useMemo(
     () => collections.find((c) => c.id === module.collectionId) ?? null,
@@ -172,6 +175,9 @@ export function useDashboardItemData(
     [collection, collections, relationLinkedProperties]
   );
 
+  const periodDateField = dateFields.find((field) => field.id === (globalFilter?.field ?? module.dateField ?? dateFields[0]?.id));
+  const usesAssignments = module.type === 'list' || module.type === 'metric';
+
   const filteredItems: Item[] = useMemo(() => {
     let items = [...allItems];
 
@@ -186,6 +192,11 @@ export function useDashboardItemData(
           globalFilter?.end
         );
         items = items.filter((item) => {
+          if (usesAssignments && collection && recapAssignments) {
+            const key = getAssignmentKey(collection.id, item.id, dateFieldId);
+            const assigned = getAssignedDate(item, periodDateField, recapAssignments[key]);
+            if (assigned !== undefined) return isWithinInterval(assigned, range);
+          }
           const dateStr = getDateValue(item, dateFieldId);
           if (!dateStr) return false;
           try {
@@ -204,7 +215,7 @@ export function useDashboardItemData(
     }
 
     return items;
-  }, [allItems, module.filters, module.dateField, globalFilter, properties, dateFields]);
+  }, [allItems, module.filters, module.dateField, globalFilter, properties, dateFields, usesAssignments, collection, periodDateField, recapAssignments]);
 
   return {
     collection,
@@ -212,6 +223,7 @@ export function useDashboardItemData(
     filteredItems,
     properties,
     dateFields,
+    periodDateField,
     hasDateField: dateFields.length > 0,
     numericFields,
     selectFields,

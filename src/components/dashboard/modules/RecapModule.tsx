@@ -9,8 +9,6 @@ import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import {
   eachWeekOfInterval,
   eachDayOfInterval,
-  eachMonthOfInterval,
-  parseISO,
   endOfWeek,
   startOfYear,
   startOfWeek,
@@ -32,6 +30,7 @@ import { DashboardModuleConfig, RecapAssignments } from '@/lib/dashboardTypes';
 import { DashboardItemData, GlobalDateFilter } from '@/lib/hooks/useDashboardItemData';
 import { Collection, Item, Property } from '@/lib/types';
 import { applyModuleFilters, computeDateRange } from '@/lib/utils/dashboardUtils';
+import { formatAssignmentPeriod, getAssignmentOptions, getAssignmentKey, getAssignedDate } from '@/lib/utils/recapAssignments';
 import {
   PeriodRow,
   LeafColumn,
@@ -162,33 +161,6 @@ function formatWeekRange(start: Date, end: Date): string {
 }
 
 const WEEK_OPTIONS = { weekStartsOn: 1 as const };
-
-function getAssignmentOptions(item: Item, dateField?: Property, hiddenDays: number[] = []) {
-  const options = new Map<string, { date: string; label: string }>();
-  for (const interval of getItemIntervalsForDateField(item, dateField)) {
-    const start = new Date(interval.start);
-    const end = new Date(interval.end);
-    for (const month of eachMonthOfInterval({ start, end })) {
-      const from = new Date(Math.max(interval.start, month.getTime()));
-      const to = new Date(Math.min(interval.end, endOfMonth(month).getTime()));
-      for (const week of eachWeekOfInterval({ start: from, end: to }, WEEK_OPTIONS)) {
-        const weekEnd = endOfWeek(week, WEEK_OPTIONS);
-        const first = new Date(Math.max(from.getTime(), week.getTime()));
-        const last = new Date(Math.min(to.getTime(), weekEnd.getTime()));
-        const days = eachDayOfInterval({ start: first, end: last });
-        const day = days.find((value) => !hiddenDays.includes(value.getDay())) ?? first;
-        const key = `${format(month, 'yyyy-MM')}/${format(week, 'yyyy-MM-dd')}`;
-        const option = {
-          date: format(day, 'yyyy-MM-dd'),
-          label: `${format(month, 'MMMM yyyy', { locale: fr })} · S${getISOWeek(week)} · ${formatWeekRange(week, weekEnd)}`,
-        };
-        const existing = options.get(key);
-        if (!existing || option.date < existing.date) options.set(key, option);
-      }
-    }
-  }
-  return [...options].sort(([a], [b]) => a.localeCompare(b)).map(([, option]) => option);
-}
 
 function getWeekGroups(
   year: number,
@@ -565,20 +537,16 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
     };
   }, [sourceContexts, module.collectionId, collection, properties, dateField, itemNameField, filteredItems]);
 
-  const getAssignmentKey = useCallback((leaf: LeafColumn, item: Item) => {
+  const getLeafAssignmentKey = useCallback((leaf: LeafColumn, item: Item) => {
     const source = getLeafSource(leaf);
-    return JSON.stringify([source.collection?.id, item.id, source.dateField?.id]);
+    return getAssignmentKey(source.collection?.id, item.id, source.dateField?.id);
   }, [getLeafSource]);
 
   const getAssignment = useCallback((leaf: LeafColumn) => (item: Item) => {
-    const raw = assignments?.[getAssignmentKey(leaf, item)];
-    if (!raw) return undefined;
-    const date = parseISO(raw);
-    const start = startOfDay(date).getTime();
-    const end = endOfDay(date).getTime();
-    const interval = getItemIntervalsForDateField(item, getLeafSource(leaf).dateField)
-      .find((range) => range.end >= start && range.start <= end);
-    if (!interval) return undefined;
+    const raw = assignments?.[getLeafAssignmentKey(leaf, item)];
+    const assigned = getAssignedDate(item, getLeafSource(leaf).dateField, raw);
+    if (assigned === undefined) return undefined;
+    const date = new Date(assigned);
 
     if (mode === 'month' && (hiddenWeekDays.includes(date.getDay()) || (!includeWeekends && isWeekend(date)))) {
       const first = new Date(Math.max(startOfMonth(date).getTime(), startOfWeek(date, WEEK_OPTIONS).getTime()));
@@ -588,8 +556,8 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
       if (visibleDay) return visibleDay.getTime();
     }
 
-    return Math.max(start, interval.start);
-  }, [assignments, getAssignmentKey, getLeafSource, mode, hiddenWeekDays, includeWeekends]);
+    return assigned;
+  }, [assignments, getLeafAssignmentKey, getLeafSource, mode, hiddenWeekDays, includeWeekends]);
 
   const getItemLabel = useCallback((item: Item, leaf?: LeafColumn) => {
     const source = leaf ? getLeafSource(leaf) : null;
@@ -1540,20 +1508,19 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
           <DialogHeader>
             <DialogTitle>Période de rattachement</DialogTitle>
             <DialogDescription>
-              Choisis la semaine et le mois qui recevront la contribution de l’objet dans ce dashboard.
+              Choisis la semaine et le mois où l’objet sera compté. Ses dates restent inchangées.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[55vh] space-y-3 overflow-auto">
             {assignmentCell?.items.map((item) => {
               const { leaf } = assignmentCell;
-              const key = getAssignmentKey(leaf, item);
+              const key = getLeafAssignmentKey(leaf, item);
               const source = getLeafSource(leaf);
               const label = getItemLabel(item, leaf);
               const options = getAssignmentOptions(item, source.dateField, includeWeekends ? hiddenWeekDays : [...hiddenWeekDays, 0, 6]);
-              const selected = getAssignment(leaf)(item) === undefined ? undefined : assignments?.[key];
-              if (selected && !options.some((option) => option.date === selected)) {
-                options.push({ date: selected, label: format(parseISO(selected), 'd MMMM yyyy', { locale: fr }) });
-              }
+              const assigned = getAssignedDate(item, source.dateField, assignments?.[key]);
+              const assignedLabel = assigned === undefined ? undefined : formatAssignmentPeriod(new Date(assigned));
+              const selected = options.find((option) => option.label === assignedLabel)?.date;
               return (
                 <div key={key} className="space-y-1.5 border-b border-border pb-3 last:border-b-0">
                   <div className="text-sm font-medium">{label}</div>

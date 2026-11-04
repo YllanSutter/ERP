@@ -147,7 +147,13 @@ const DashboardModuleWrapper: React.FC<Props> = ({
           <MetricModule module={module} data={data} />
         )}
         {module.type === 'list' && (
-          <ListModule module={module} data={data} onViewDetail={onViewDetail} />
+          <ListModule
+            module={module}
+            data={data}
+            assignments={recapAssignments}
+            onAssignmentChange={onRecapAssignmentChange}
+            onViewDetail={onViewDetail}
+          />
         )}
         {module.type === 'table' && (
           <TableModule

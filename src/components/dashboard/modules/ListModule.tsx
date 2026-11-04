@@ -4,19 +4,23 @@
 
 import React, { useMemo } from 'react';
 import { Copy, ExternalLink, Link2 } from 'lucide-react';
-import { DashboardModuleConfig } from '@/lib/dashboardTypes';
+import { DashboardModuleConfig, RecapAssignments } from '@/lib/dashboardTypes';
 import { DashboardItemData } from '@/lib/hooks/useDashboardItemData';
 import { getNameValue } from '@/lib/calendarUtils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { formatAssignmentPeriod, getAssignedDate, getAssignmentKey, getAssignmentOptions } from '@/lib/utils/recapAssignments';
 import { compareValues } from '@/lib/utils/sortUtils';
 
 interface Props {
   module: DashboardModuleConfig;
   data: DashboardItemData;
+  assignments?: RecapAssignments;
+  onAssignmentChange?: (key: string, date?: string) => void;
   onViewDetail?: (item: any) => void;
 }
 
-const ListModule: React.FC<Props> = ({ module, data, onViewDetail }) => {
-  const { filteredItems, properties, collection } = data;
+const ListModule: React.FC<Props> = ({ module, data, assignments, onAssignmentChange, onViewDetail }) => {
+  const { filteredItems, properties, collection, periodDateField } = data;
 
   const visibleProps = useMemo(() => {
     const hidden = new Set(module.hiddenFields ?? []);
@@ -132,6 +136,11 @@ const ListModule: React.FC<Props> = ({ module, data, onViewDetail }) => {
 
       {sortedItems.map((item) => {
         const name = getNameValue(item, collection);
+        const key = getAssignmentKey(collection.id, item.id, periodDateField?.id);
+        const assigned = getAssignedDate(item, periodDateField, assignments?.[key]);
+        const assignedLabel = assigned === undefined ? undefined : formatAssignmentPeriod(new Date(assigned));
+        const options = periodDateField && onAssignmentChange ? getAssignmentOptions(item, periodDateField) : [];
+        const selected = options.find((option) => option.label === assignedLabel)?.date ?? 'automatic';
         return (
           <div
             key={item.id}
@@ -143,6 +152,20 @@ const ListModule: React.FC<Props> = ({ module, data, onViewDetail }) => {
               <div className="text-sm font-medium truncate text-foreground">
                 {name || <span className="text-muted-foreground italic">Sans nom</span>}
               </div>
+              {options.length > 1 && (
+                <div className="mt-1 flex flex-wrap items-center gap-2" onClick={(event) => event.stopPropagation()}>
+                  <span className="text-xs text-muted-foreground">Compté dans</span>
+                  <Select value={selected} onValueChange={(value) => onAssignmentChange?.(key, value === 'automatic' ? undefined : value)}>
+                    <SelectTrigger className="h-7 w-auto max-w-full text-xs" aria-label={`Période de rattachement de ${name || 'cet objet'}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="automatic">Automatique</SelectItem>
+                      {options.map((option) => <SelectItem key={option.date} value={option.date}>{option.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {/* Champs secondaires */}
               {visibleProps.length > 0 && (
                 <div className="flex gap-2 mt-0.5 flex-wrap">

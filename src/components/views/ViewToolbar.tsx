@@ -333,7 +333,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         >
           <Settings size={14} />
         </ToolbarButton>
-        <div className="inline-flex min-w-0 max-w-full shrink overflow-x-auto rounded-full bg-white/5 p-1 border border-black/10 dark:border-white/10">
+        <div className="inline-flex min-w-0 max-w-full shrink flex-wrap rounded-full bg-white/5 p-1 border border-black/10 dark:border-white/10">
           {viewTypeMeta
             .filter((meta) => (viewsByType.get(meta.type) || []).length > 0)
             .map((meta) => {

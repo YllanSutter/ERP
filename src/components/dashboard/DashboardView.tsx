@@ -54,7 +54,7 @@ const ModuleWithData: React.FC<{
   onRecapAssignmentChange?: (key: string, date?: string) => void;
   onUpdateModule?: (patch: Partial<DashboardModuleConfig>) => void;
 }> = (props) => {
-  const data = useDashboardItemData(props.module, props.collections, props.globalFilter);
+  const data = useDashboardItemData(props.module, props.collections, props.globalFilter, props.recapAssignments);
 
   return (
     <DashboardModuleWrapper

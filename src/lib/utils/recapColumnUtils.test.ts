@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildRecapHeaderRows, computeLeafCell, getLeafCellItems, type LeafColumn, type PeriodRow } from './recapColumnUtils';
+import { getAssignedDate, getAssignmentKey, getAssignmentOptions } from './recapAssignments';
 import type { Item, Property } from '@/lib/types';
 
 const dateField = { id: 'dates', name: 'Dates', type: 'date_range' } as unknown as Property;
@@ -27,6 +28,20 @@ describe('récap du dashboard', () => {
     expect(computeLeafCell([item], leaf, june, dateField, [])).toBe(0);
     expect(computeLeafCell([item], duration, sunday, dateField, [])).toBeCloseTo(120);
     expect(computeLeafCell([item], duration, monday, dateField, [])).toBeCloseTo(120);
+  });
+
+  it('partage les périodes de rattachement avec la liste sans modifier les dates source', () => {
+    const originalDates = { ...item.dates };
+    const options = getAssignmentOptions(item, dateField);
+    expect(options.map(({ date }) => date)).toEqual(['2026-05-31', '2026-06-01']);
+
+    const key = getAssignmentKey('sites', item.id, dateField.id);
+    const assignments = { [key]: options[1].date };
+    const assigned = getAssignedDate(item, dateField, assignments[key]);
+    expect(assigned).toBe(monday.start.getTime());
+    expect(computeLeafCell([item], leaf, june, dateField, [], () => assigned)).toBe(1);
+    expect(getAssignedDate(item, dateField, '2026-06-02')).toBeUndefined();
+    expect(item.dates).toEqual(originalDates);
   });
 
   it('déplace le compte, la somme et la durée vers la même période', () => {
