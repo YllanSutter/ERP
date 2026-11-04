@@ -1,15 +1,15 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/auth/AuthProvider';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
-import { MONTH_NAMES } from '@/lib/calendarUtils';
+import { getCalendarEventColors, MONTH_NAMES } from '@/lib/calendarUtils';
 
 interface MonthViewProps {
   currentDate: Date;
   items: any[];
   dateField: any;
   collection: any;
+  collections?: Array<{ id: string; color?: string }>;
   onDateSelect: (date: Date) => void;
   getNameValue: (item: any) => string;
   getItemsForDate: (date: Date) => any[];
@@ -22,6 +22,7 @@ const MonthView: React.FC<MonthViewProps> = ({
   items,
   dateField,
   collection,
+  collections = [],
   onDateSelect,
   getNameValue,
   getItemsForDate,
@@ -95,37 +96,33 @@ const MonthView: React.FC<MonthViewProps> = ({
             });
           }
           const groupedSegments = daySegments.reduce((acc, entry) => {
-            const key = entry.item.id || entry.item.__id || entry.item.name || JSON.stringify(entry.item);
+            const key = `${entry.item.__collectionId || ''}:${entry.item.id || entry.item.__id || entry.item.name || JSON.stringify(entry.item)}`;
             if (!acc[key]) acc[key] = { item: entry.item, segments: [] as any[] };
             acc[key].segments.push(entry.segment);
             return acc;
           }, {} as Record<string, { item: any; segments: any[] }>);
           const groupedList = Object.values(groupedSegments);
           return (
-            <motion.button
+            <div
               key={idx}
-              onClick={() => date && onDateSelect(date)}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              whileHover={{ scale: day ? 1.05 : 1 }}
               className={cn(
-                "aspect-square rounded-lg border transition-all p-2 text-xs overflow-y-auto",
+                "min-h-24 min-w-0 rounded-lg border p-1.5 text-xs sm:min-h-28",
                 !day && 'bg-transparent border-transparent',
                 day && 'bg-gray-200 dark:bg-neutral-800/30 border-black/5 dark:border-white/5 hover:border-black/20 dark:hover:border-white/20',
                 isToday && 'border-cyan-400 dark:border-cyan-500/50 bg-cyan-100 dark:bg-cyan-500/10'
               )}
             >
               {day && (
-                <div className="grid h-full items-center content-center relative">
-                  <span className={cn(
-                    'font-semibold absolute top-2 left-1/2',
+                <div className="flex min-w-0 flex-col gap-1">
+                  <button type="button" onClick={() => date && onDateSelect(date)} className={cn(
+                    'self-start rounded px-1 font-semibold',
                     isToday && 'text-cyan-500',
                     !isToday && 'text-neutral-700 dark:text-neutral-300'
                   )}>
                     {day}
-                  </span>
+                  </button>
                   {groupedList.length > 0 && (
-                    <div className="flex flex-col gap-1 mt-1 ">
+                    <div className="flex max-h-32 min-w-0 flex-col gap-1 overflow-y-auto">
                       {groupedList.map(({ item, segments }, i) => (
                         <div key={item.id + '-' + i} className="relative group">
                           <ItemContextMenu
@@ -135,42 +132,32 @@ const MonthView: React.FC<MonthViewProps> = ({
                             canEdit={canEditCollection(item.__collectionId)}
                           >
                             <button
-                              className="text-[10px] text-brand-600 dark:text-brand-300 font-medium text-left truncate hover:underline lg:opacity-100 hover:opacity-100 opacity-0"
-                              title={getNameValue(item)}
+                              className="block w-full truncate rounded border-l-2 px-1 text-left text-[10px] font-medium text-foreground hover:underline [--calendar-event-surface:white] dark:[--calendar-event-surface:#171717]"
+                              style={(() => {
+                                const source = collections.find((entry) => entry.id === item.__collectionId);
+                                const colors = getCalendarEventColors(item.id, item.__collectionId || '', source?.color);
+                                return { backgroundColor: colors.bg, borderLeftColor: colors.border };
+                              })()}
+                              title={[getNameValue(item), ...segments.map((segment) =>
+                                [segment.start || segment.__eventStart, segment.end || segment.__eventEnd]
+                                  .map((value) => new Date(value).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }))
+                                  .join(' – ')
+                              )].join('\n')}
                               onClick={e => {
                                 e.stopPropagation();
-                                if (item.onViewDetail) item.onViewDetail(item);
-                                else if (typeof window !== 'undefined') {
-                                  // Fallback: custom event for parent
-                                  const event = new CustomEvent('calendar-item-detail', { detail: item });
-                                  window.dispatchEvent(event);
-                                }
+                                (item.onViewDetail || onViewDetail)(item);
                               }}
                             >
                               {getNameValue(item)}
                             </button>
                           </ItemContextMenu>
-                          {segments.length > 0 && (
-                            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 w-44 rounded-md border border-neutral-200 dark:border-neutral-700 bg-gray-100 dark:bg-neutral-900 p-2 text-[10px] text-neutral-700 dark:text-white opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none group-hover:pointer-events-auto">
-                              <div className="space-y-1">
-                                {segments.map((segment: any, segIdx: number) => (
-                                  <div key={segIdx} className="flex items-center gap-1">
-                                    <span className="text-brand-300">▸</span>
-                                    {new Date(segment.start || segment.__eventStart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                                    {' → '}
-                                    {new Date(segment.end || segment.__eventEnd).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
               )}
-            </motion.button>
+            </div>
           );
         })}
       </div>

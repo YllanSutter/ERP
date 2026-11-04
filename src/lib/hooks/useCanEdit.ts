@@ -114,47 +114,51 @@ export const useCanEditField = (fieldId: string, collectionId?: string | null) =
 /**
  * Hook simplifié pour vérifier si l'utilisateur peut voir un champ spécifique
  */
-export const useCanViewField = (fieldId: string, collectionId?: string | null) => {
+export const useCanViewFields = (collectionId?: string | null) => {
   const { isAdmin, isEditor, permissions } = useAuth();
-  
-  // Si admin ou editor, on peut toujours voir
-  if (isAdmin || isEditor) return true;
+  return (fieldId: string) => {
+    // Si admin ou editor, on peut toujours voir
+    if (isAdmin || isEditor) return true;
 
-  const perms = permissions || [];
-  
-  // Vérifier les permissions pour le champ spécifique
-  if (fieldId) {
-    const fieldPerm = perms.find(
-      (p: any) =>
-        (p.field_id || null) === fieldId &&
-        (p.collection_id || null) === collectionId &&
-        (p.item_id || null) === null
-    );
-    if (fieldPerm) return Boolean(fieldPerm.can_read);
-  }
+    const perms = permissions || [];
 
-  // Fallback sur les permissions de collection
-  if (collectionId) {
-    const collectionPerm = perms.find(
+    // Vérifier les permissions pour le champ spécifique
+    if (fieldId) {
+      const fieldPerm = perms.find(
+        (p: any) =>
+          (p.field_id || null) === fieldId &&
+          (p.collection_id || null) === collectionId &&
+          (p.item_id || null) === null
+      );
+      if (fieldPerm) return Boolean(fieldPerm.can_read);
+    }
+
+    // Fallback sur les permissions de collection
+    if (collectionId) {
+      const collectionPerm = perms.find(
+        (p: any) =>
+          (p.collection_id || null) === collectionId &&
+          (p.item_id || null) === null &&
+          (p.field_id || null) === null
+      );
+      if (collectionPerm) return Boolean(collectionPerm.can_read);
+    }
+
+    // Fallback sur les permissions globales
+    const globalPerm = perms.find(
       (p: any) =>
-        (p.collection_id || null) === collectionId &&
+        (p.collection_id || null) === null &&
         (p.item_id || null) === null &&
         (p.field_id || null) === null
     );
-    if (collectionPerm) return Boolean(collectionPerm.can_read);
-  }
+    if (globalPerm) return Boolean(globalPerm.can_read);
 
-  // Fallback sur les permissions globales
-  const globalPerm = perms.find(
-    (p: any) =>
-      (p.collection_id || null) === null &&
-      (p.item_id || null) === null &&
-      (p.field_id || null) === null
-  );
-  if (globalPerm) return Boolean(globalPerm.can_read);
-
-  return false;
+    return false;
+  };
 };
+
+export const useCanViewField = (fieldId: string, collectionId?: string | null) =>
+  useCanViewFields(collectionId)(fieldId);
 
 /**
  * Hook pour vérifier si l'utilisateur peut gérer les permissions

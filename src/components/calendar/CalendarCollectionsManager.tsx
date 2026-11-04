@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
 import MonthView from '../CalendarView/MonthView';
 import WeekView from '../CalendarView/WeekView';
-import { MONTH_NAMES, getMonday, getPreviousPeriod, getNextPeriod } from '@/lib/calendarUtils';
+import { MONTH_NAMES, getCalendarEventColors, getMonday, getPreviousPeriod, getNextPeriod } from '@/lib/calendarUtils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
   moveAllSegmentsOfItem, 
@@ -288,14 +288,27 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
     <div>
       <div className="z-10 mb-6">
         <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between md:flex-wrap lg:pl-[50px]">
-          <h2 className="text-2xl font-bold text-neutral-700 dark:text-white">
-          {viewMode === 'month'
-            ? `${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getFullYear()}`
-            : viewMode === 'week'
-            ? `Semaine du ${getMonday(currentDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
-            : currentDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-          }
-          </h2>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 className="text-2xl font-bold text-neutral-700 dark:text-white">
+              {viewMode === 'month'
+                ? `${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getFullYear()}`
+                : viewMode === 'week'
+                ? `Semaine du ${getMonday(currentDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
+                : currentDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+              }
+            </h2>
+            {activeCollections.length > 1 && (
+              <ul aria-label="Couleurs des collections" className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                {activeCollections.map((collection) => (
+                  <li key={collection.id} className="flex items-center gap-1.5 whitespace-nowrap">
+                    <span aria-hidden="true" className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: getCalendarEventColors('', collection.id, collection.color).border }} />
+                    {collection.name}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:items-center md:flex-wrap">
             {showCollectionsSelector && (
               <details className="relative w-full sm:w-auto">
@@ -412,6 +425,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
           items={activeCollections.flatMap(getFilteredItems)}
           dateField={undefined}
           collection={undefined}
+          collections={activeCollections}
           onDateSelect={() => {}}
           onViewDetail={onViewDetail}
           onDelete={onDelete}

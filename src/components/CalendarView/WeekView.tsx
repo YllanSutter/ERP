@@ -4,8 +4,7 @@ import WeekEventCard from '@/components/CalendarView/WeekEventCard';
 import {
   getWeekDays,
   toDateKey,
-  getItemColor,
-  getEventStyle,
+  getCalendarEventColors,
   getEventLayout,
   calculateDropTime,
   workDayStart,
@@ -327,7 +326,6 @@ const WeekView: React.FC<WeekViewProps> = ({
     // console.log('[WeekView] eventsByDay:', events);
     return events;
   }, [items, weekDays]);
-  const getEventLayoutLocal = (dayEvents: any[], multiDayIndex: number) => getEventLayout(dayEvents, multiDayIndex, startHour, endHour);
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
   const pickerCollection = secondaryPicker
     ? collectionsPool.find((c: any) => c.id === secondaryPicker.collectionId)
@@ -478,20 +476,16 @@ const WeekView: React.FC<WeekViewProps> = ({
         {weekDays.map((date, dayIndex) => {
           const dateStr = toDateKey(date);
           const dayEvents = eventsByDay[dateStr] || [];
-          // Ajoute la propriété style à chaque event pour getEventLayout, ignore si pas de dateField
-          const dayEventsWithStyle = dayEvents
-            .map(ev => {
-              const dateField = getDateFieldForItem
-                ? getDateFieldForItem(ev.item)
-                : (collections.find(c => c.id === ev.item.__collectionId)?.properties.find((p: any) => p.type === 'date'));
-              if (!dateField) return null;
-              return {
-                ...ev,
-                style: getEventStyle(ev.item, dateField, defaultDuration, endHour)
-              };
-            })
-            .filter(Boolean);
-          const layoutEvents = getEventLayoutLocal(dayEventsWithStyle, 0);
+          const layoutEvents = getEventLayout(dayEvents.flatMap((event) => {
+            const field = getDateFieldForItem?.(event.item);
+            if (!field || event.segment.label !== field.name) return [];
+            const start = new Date(event.segment.start || event.segment.__eventStart);
+            const end = new Date(event.segment.end || event.segment.__eventEnd);
+            const startTime = start.getHours() + start.getMinutes() / 60;
+            const endTime = toDateKey(end) === dateStr ? end.getHours() + end.getMinutes() / 60 : 24;
+            if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) return [];
+            return [{ ...event, startTime, endTime }];
+          }));
           const handleDayDragOver = (e: React.DragEvent) => {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
@@ -693,48 +687,9 @@ const WeekView: React.FC<WeekViewProps> = ({
                   />
                 );
               })}
-              {dayEvents
-                  // Filtre les segments pour n'afficher que ceux dont le label correspond au champ de date sélectionné
-                  .filter(({ item, segment }) => {
-                    const dateField = getDateFieldForItem ? getDateFieldForItem(item) : null;
-                    if (!dateField) return false;
-                    const labelToMatch = dateField.name;
-
-                    // console.log(dateField.id);
-                    return segment.label === labelToMatch;
-                    
-                  })
-                  .map(({ item, segment, dayIndex, multiDayIndex }, idx, arr) => {
-
-                    if (idx === 0) {
-                      const affiches = arr.filter(({ item, segment }) => {
-                        const dateField = getDateFieldForItem ? getDateFieldForItem(item) : null;
-                        // console.log(dateField.id);
-                        if (!dateField) return false;
-                        const labelToMatch = dateField.id;
-
-                        return segment.label === labelToMatch;
-                      }).map(({ item, segment }) => {
-                        const dateField = getDateFieldForItem ? getDateFieldForItem(item) : undefined;
-                        const dateFieldId = dateField?.id;
-                        return {
-                          id: item.id,
-                          name: item.name,
-                          date: dateFieldId,
-                          value: dateFieldId ? item[dateFieldId] : undefined,
-                          segmentLabel: segment.label
-                        };
-                      });
-                      // console.log('[WeekView] éléments affichés pour ce jour:', affiches);
-                    }
-                    // Prépare le segment pour WeekEventCard
-                    const segStart = new Date(segment.start || segment.__eventStart);
-                    const segEnd = new Date(segment.end || segment.__eventEnd);
-                    const startTime = segStart.getHours() + segStart.getMinutes() / 60;
-                    const endTime = segEnd.getHours() + segEnd.getMinutes() / 60;
-                    const colors = getItemColor(item.id);
-                    // console.log(collections);
+              {layoutEvents.map(({ item, segment, multiDayIndex, startTime, endTime, column, totalColumns }) => {
                     const itemCollection = collectionsForProps.find(c => c.id === item.__collectionId);
+                    const colors = getCalendarEventColors(item.id, item.__collectionId || '', itemCollection?.color);
                     const dateField = getDateFieldForItem ? getDateFieldForItem(item) : undefined;
                     const visibleIds = Array.isArray(itemCollection?.defaultVisibleFieldIds)
                       ? itemCollection.defaultVisibleFieldIds
@@ -752,12 +707,12 @@ const WeekView: React.FC<WeekViewProps> = ({
 
                     return (
                       <WeekEventCard
-                        key={`${item.id}-seg-${multiDayIndex}`}
+                        key={`${item.__collectionId}:${item.id}-seg-${multiDayIndex}`}
                         item={item}
                         eventSegments={eventSegments}
                         multiDayIndex={multiDayIndex}
-                        column={0}
-                        totalColumns={1}
+                        column={column}
+                        totalColumns={totalColumns}
                         colors={colors}
                         startHour={startHour}
                         endHour={endHour}

@@ -376,6 +376,21 @@ export function getItemColor(itemId: string): ColorSet {
   };
 }
 
+export function getCalendarEventColors(itemId: string, collectionId: string, collectionColor?: string): ColorSet {
+  const palette = ['#2563eb', '#0f766e', '#a855f7', '#c2410c', '#be185d', '#4d7c0f'];
+  const hash = (value: string) => [...value].reduce((sum, char) => (Math.imul(sum, 31) + char.charCodeAt(0)) >>> 0, 0);
+  const color = collectionColor && /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(collectionColor)
+    ? collectionColor
+    : palette[hash(collectionId) % palette.length];
+  const intensity = 10 + (hash(itemId) % 6) * 4;
+  return {
+    border: color,
+    bg: `color-mix(in srgb, ${color} ${intensity}%, var(--calendar-event-surface))`,
+    hover: `color-mix(in srgb, ${color} ${intensity + 8}%, var(--calendar-event-surface))`,
+    text: 'inherit',
+  };
+}
+
 export function getEventStyle(item: any, dateField: any, defaultDuration: number, endHour: number): EventStyle | null {
   const itemValue = item[dateField.id];
   if (!itemValue) return null;
@@ -429,16 +444,32 @@ export function getEventStyle(item: any, dateField: any, defaultDuration: number
   };
 }
 
-export function getEventLayout(dayEvents: any[], multiDayIndex: number, startHour: number, endHour: number) {
-  return dayEvents.map(({ item, style, dayIndex, multiDayIndex }) => ({
-    item,
-    style,
-    multiDayIndex,
-    startTime: style.startTimeInHours,
-    endTime: style.endTimeInHours,
-    column: 0,
-    totalColumns: 1,
-  }));
+export function getEventLayout<T extends { startTime: number; endTime: number }>(events: T[]) {
+  const sorted = [...events].sort((a, b) => a.startTime - b.startTime || b.endTime - a.endTime);
+  const layout: Array<T & { column: number; totalColumns: number }> = [];
+  let columns: number[] = [];
+  let clusterStart = 0;
+  let clusterEnd = -Infinity;
+
+  for (const event of sorted) {
+    if (event.startTime >= clusterEnd) {
+      for (let index = clusterStart; index < layout.length; index++) {
+        layout[index].totalColumns = columns.length;
+      }
+      columns = [];
+      clusterStart = layout.length;
+      clusterEnd = -Infinity;
+    }
+    const freeColumn = columns.findIndex((end) => end <= event.startTime);
+    const column = freeColumn === -1 ? columns.length : freeColumn;
+    columns[column] = event.endTime;
+    clusterEnd = Math.max(clusterEnd, event.endTime);
+    layout.push({ ...event, column, totalColumns: 1 });
+  }
+  for (let index = clusterStart; index < layout.length; index++) {
+    layout[index].totalColumns = columns.length;
+  }
+  return layout;
 }
 
 export function calculateDropTime({ dropY, containerHeight, startHour, endHour }: { dropY: number; containerHeight: number; startHour: number; endHour: number; }) {

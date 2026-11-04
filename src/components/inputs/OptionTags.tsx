@@ -15,14 +15,15 @@ interface OptionTagsProps {
   className?: string;
   prominent?: boolean;
   borderless?: boolean;
+  compact?: boolean;
 }
 
-export const OptionTags: React.FC<OptionTagsProps> = ({ options, value, className, prominent = false, borderless = false }) => {
+export const OptionTags: React.FC<OptionTagsProps> = ({ options, value, className, prominent = false, borderless = false, compact = false }) => {
   const values = normalizeRelationIds(value);
   if (!values.length) return null;
 
   return (
-    <div className={cn('flex flex-wrap gap-1.5', className)}>
+    <div className={cn('flex', compact ? 'min-w-0 gap-0.5' : 'flex-wrap gap-1.5', className)}>
       {values.map((valueId) => {
         const option = options.find((candidate) => optionValue(candidate) === valueId);
         const label = option ? optionLabel(option) : valueId;
@@ -32,11 +33,11 @@ export const OptionTags: React.FC<OptionTagsProps> = ({ options, value, classNam
         return (
           <span
             key={valueId}
-            className={`inline-flex items-center gap-1 rounded-full ${borderless ? '' : 'border'} px-2 py-0.5 text-xs font-semibold ${prominent ? `shadow-lg ${borderless ? '' : 'ring-1 ring-black/30'} text-white` : ''}`}
+            className={`inline-flex items-center rounded-full ${borderless ? '' : 'border'} ${compact ? 'min-w-0 gap-0.5 px-1 text-[9px] leading-4' : 'gap-1 px-2 py-0.5 text-xs'} font-semibold ${prominent ? `shadow-lg ${borderless ? '' : 'ring-1 ring-black/30'} text-white` : ''}`}
             style={{ backgroundColor: `${color}${prominent ? 'e6' : '22'}`, borderColor: borderless ? 'transparent' : `${color}${prominent ? 'ff' : '55'}`, color: prominent ? '#fff' : color }}
           >
-            {Icon && <Icon size={12} aria-hidden="true" />}
-            {label}
+            {Icon && <Icon size={compact ? 9 : 12} className="shrink-0" aria-hidden="true" />}
+            {compact ? <span className="truncate">{label}</span> : label}
           </span>
         );
       })}

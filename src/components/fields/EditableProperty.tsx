@@ -34,6 +34,8 @@ interface EditablePropertyProps {
   onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
   onNavigateToRelatedItem?: (item: any, targetCollection: any, propName: string) => void;
   forceRichEditor?: boolean;
+  richTextPreviewLimit?: number;
+  compactDate?: boolean;
   maxVisible?: number; // Ajouté pour LightMultiSelect
 }
 
@@ -1015,6 +1017,8 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   onNavigateToCollection,
   onNavigateToRelatedItem,
   forceRichEditor = false,
+  richTextPreviewLimit,
+  compactDate = false,
   maxVisible
 }) => {
   const sizeClasses = {
@@ -1128,7 +1132,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     // Fonction pour formater la date selon la granularité (importée depuis groupingUtils)
     const formatDateForDisplay = (date: Date) => {
       if (!date || isNaN(date.getTime())) return '';
-      return formatDateByGranularity(date.toISOString(), dateGranularity);
+      return compactDate && dateGranularity === 'full'
+        ? format(date, 'd/M/yyyy')
+        : formatDateByGranularity(date.toISOString(), dateGranularity);
     };
 
     const getTimeOptions = () => {
@@ -1464,9 +1470,14 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   // Rich text
   if (property.type === 'rich_text') {
     if (!forceRichEditor) {
+      const preview = getRichTextPreview(value);
+      const characters = richTextPreviewLimit === undefined ? undefined : Array.from(preview);
+      const text = characters && richTextPreviewLimit !== undefined && characters.length > richTextPreviewLimit
+        ? `${characters.slice(0, Math.max(0, richTextPreviewLimit - 1)).join('').trimEnd()}…`
+        : preview;
       return (
         <div className={cn('truncate text-sm text-neutral-700 dark:text-white', className)}>
-          {getRichTextPreview(value) || '—'}
+          {text || '—'}
         </div>
       );
     }

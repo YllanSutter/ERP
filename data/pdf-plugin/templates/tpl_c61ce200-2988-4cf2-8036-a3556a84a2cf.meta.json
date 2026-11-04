@@ -1,0 +1,44 @@
+{
+  "id": "tpl_c61ce200-2988-4cf2-8036-a3556a84a2cf",
+  "organizationId": "e025a870-3b3b-4cec-809c-130c08aacc0f",
+  "name": "PV livraison 2026.pdf",
+  "size": 65101,
+  "uploadedAt": "2026-11-04T14:27:02.373Z",
+  "fields": [
+    {
+      "name": "text_30a8i",
+      "type": "text",
+      "pages": []
+    },
+    {
+      "name": "text_41k1s",
+      "type": "text",
+      "pages": []
+    },
+    {
+      "name": "text_58c7j",
+      "type": "text",
+      "pages": []
+    },
+    {
+      "name": "text_64f0z",
+      "type": "text",
+      "pages": []
+    },
+    {
+      "name": "text_73g3u",
+      "type": "text",
+      "pages": []
+    },
+    {
+      "name": "text_83y2c",
+      "type": "text",
+      "pages": []
+    },
+    {
+      "name": "text_98o5p",
+      "type": "text",
+      "pages": []
+    }
+  ]
+}
