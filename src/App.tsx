@@ -800,6 +800,61 @@ const App = () => {
                 collections={collections}
                 allViews={views}
                 showViewSettings={showViewSettings}
+                viewSettingsSection={showFilterModal ? 'filters' : showGroupModal ? 'groups' : undefined}
+                filterEditor={showFilterModal && (
+                  <FilterModal
+                    key={editingFilterIndex ?? 'new'}
+                    embedded
+                    properties={currentCollection?.properties || []}
+                    collections={collections}
+                    initialFilter={
+                      editingFilterIndex !== null
+                        ? activeViewConfig?.filters?.[editingFilterIndex] || null
+                        : null
+                    }
+                    onClose={() => {
+                      setShowFilterModal(false);
+                      setEditingFilterIndex(null);
+                    }}
+                    onAdd={(property, operator, value, sourceCollectionId, filterMeta) => {
+                      if (editingFilterIndex !== null) {
+                        viewHooks.updateFilter(editingFilterIndex, property, operator, value, sourceCollectionId, filterMeta);
+                      } else {
+                        viewHooks.addFilter(property, operator, value, sourceCollectionId, filterMeta);
+                      }
+                      setShowFilterModal(false);
+                      setEditingFilterIndex(null);
+                    }}
+                  />
+                )}
+                groupEditor={showGroupModal && (
+                  <GroupModal
+                    embedded
+                    properties={orderedProperties || []}
+                    collections={collectionsWithCalculatedFields || []}
+                    currentGroups={activeViewConfig?.groups || []}
+                    initialGroupTotalsByGroupId={activeViewConfig?.groupTotalsByGroupId || {}}
+                    initialGroupDisplayModes={activeViewConfig?.groupDisplayModes || {}}
+                    initialGroupDisplayColumnCounts={activeViewConfig?.groupDisplayColumnCounts || {}}
+                    initialGroupTabStyleFieldIds={activeViewConfig?.groupTabStyleFieldIds || {}}
+                    initialDefaultGroupDisplayMode={activeViewConfig?.groupDisplayMode || 'accordion'}
+                    initialDefaultGroupDisplayColumnCount={activeViewConfig?.groupDisplayColumnCount || 3}
+                    onClose={() => setShowGroupModal(false)}
+                    onSave={(groups, groupTotalsByGroupId, groupDisplayModes, groupDisplayColumnCounts, groupTabStyleFieldIds) => {
+                      if (!activeView) return;
+                      viewHooks.updateView(activeView, {
+                        groups,
+                        groupTotalsByGroupId,
+                        groupDisplayModes,
+                        groupDisplayColumnCounts,
+                        groupTabStyleFieldIds,
+                        groupDisplayMode: groups[0] ? (groupDisplayModes[groups[0]] || 'accordion') : 'accordion',
+                        groupDisplayColumnCount: groups[0] ? (groupDisplayColumnCounts[groups[0]] || 3) : 3,
+                      });
+                      setShowGroupModal(false);
+                    }}
+                  />
+                )}
                 relationFilter={relationFilter}
                 activeCollection={activeCollection}
                 favorites={favorites}
@@ -808,16 +863,28 @@ const App = () => {
                 onShowNewViewModal={() => setShowNewViewModal(true)}
                 onShowFilterModal={() => {
                   setEditingFilterIndex(null);
+                  setShowGroupModal(false);
+                  setShowViewSettings(false);
                   setShowFilterModal(true);
                 }}
-                onShowGroupModal={() => setShowGroupModal(true)}
+                onShowGroupModal={() => {
+                  setShowFilterModal(false);
+                  setEditingFilterIndex(null);
+                  setShowViewSettings(false);
+                  setShowGroupModal(true);
+                }}
                 onShowNewPropertyModal={() => {
                   setEditingProperty(null);
                   setShowPropertyModal(true);
                 }}
                 onShowNewItemModal={(prefill) => { console.log('[GroupContext] + clicked, groupContext:', groupContext, 'prefill:', prefill); if (prefill && Object.keys(prefill).length > 0) { setEditingItem(prefill); setGroupContext(prefill); } setShowNewItemModal(true); }}
                 onQuickCreateItem={handleQuickCreateItem}
-                onSetShowViewSettings={setShowViewSettings}
+                onSetShowViewSettings={(show) => {
+                  setShowFilterModal(false);
+                  setEditingFilterIndex(null);
+                  setShowGroupModal(false);
+                  setShowViewSettings(show);
+                }}
                 onToggleFieldVisibility={viewHooks.toggleFieldVisibility}
                 onUpdateViewFieldOrder={viewHooks.updateViewFieldOrder}
                 onSetTotalField={(fieldId: string, totalType: string | null) => {
@@ -836,6 +903,8 @@ const App = () => {
                   setShowPropertyModal(true);
                 }}
                 onEditFilter={(index) => {
+                  setShowGroupModal(false);
+                  setShowViewSettings(false);
                   setEditingFilterIndex(index);
                   setShowFilterModal(true);
                 }}
@@ -849,19 +918,6 @@ const App = () => {
                   }
                 }}
                 onClearRelationFilter={clearRelationFilter}
-                onRemoveGroup={viewHooks.removeGroup}
-                onSetGroupDisplayMode={(groupId, mode) => {
-                  if (!activeView) return;
-                  const currentModes = activeViewConfig?.groupDisplayModes || {};
-                  const isRootGroup = (activeViewConfig?.groups || [])[0] === groupId;
-                  viewHooks.updateView(activeView, {
-                    groupDisplayModes: {
-                      ...currentModes,
-                      [groupId]: mode,
-                    },
-                    ...(isRootGroup ? { groupDisplayMode: mode } : {}),
-                  });
-                }}
                 onToggleFavoriteView={(viewId: string) => {
                   setFavorites((prev) => ({
                     ...prev,
@@ -1261,57 +1317,6 @@ const App = () => {
             setModalCollection(targetCollection || null);
             setEditingItem(targetItem || null);
             setShowNewItemModal(true);
-          }}
-        />
-      )}
-      {showFilterModal && (
-        <FilterModal
-          properties={currentCollection?.properties || []}
-          collections={collections}
-          initialFilter={
-            editingFilterIndex !== null
-              ? activeViewConfig?.filters?.[editingFilterIndex] || null
-              : null
-          }
-          onClose={() => {
-            setShowFilterModal(false);
-            setEditingFilterIndex(null);
-          }}
-          onAdd={(property, operator, value, sourceCollectionId, filterMeta) => {
-            if (editingFilterIndex !== null) {
-              viewHooks.updateFilter(editingFilterIndex, property, operator, value, sourceCollectionId, filterMeta);
-            } else {
-              viewHooks.addFilter(property, operator, value, sourceCollectionId, filterMeta);
-            }
-            setShowFilterModal(false);
-            setEditingFilterIndex(null);
-          }}
-        />
-      )}
-      {showGroupModal && (
-        <GroupModal
-          properties={orderedProperties || []}
-          collections={collectionsWithCalculatedFields || []}
-          currentGroups={activeViewConfig?.groups || []}
-          initialGroupTotalsByGroupId={activeViewConfig?.groupTotalsByGroupId || {}}
-          initialGroupDisplayModes={activeViewConfig?.groupDisplayModes || {}}
-          initialGroupDisplayColumnCounts={activeViewConfig?.groupDisplayColumnCounts || {}}
-          initialGroupTabStyleFieldIds={activeViewConfig?.groupTabStyleFieldIds || {}}
-          initialDefaultGroupDisplayMode={activeViewConfig?.groupDisplayMode || 'accordion'}
-          initialDefaultGroupDisplayColumnCount={activeViewConfig?.groupDisplayColumnCount || 3}
-          onClose={() => setShowGroupModal(false)}
-          onSave={(groups, groupTotalsByGroupId, groupDisplayModes, groupDisplayColumnCounts, groupTabStyleFieldIds) => {
-            if (!activeView) return;
-            viewHooks.updateView(activeView, {
-              groups,
-              groupTotalsByGroupId,
-              groupDisplayModes,
-              groupDisplayColumnCounts,
-              groupTabStyleFieldIds,
-              groupDisplayMode: groups[0] ? (groupDisplayModes[groups[0]] || 'accordion') : 'accordion',
-              groupDisplayColumnCount: groups[0] ? (groupDisplayColumnCounts[groups[0]] || 3) : 3,
-            });
-            setShowGroupModal(false);
           }}
         />
       )}

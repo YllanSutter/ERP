@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import type { FieldGroup, FieldGroupsLayout } from '@/lib/types';
 import {
   Plus,
@@ -17,6 +17,8 @@ import {
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getViewRegistrations } from '@/lib/views';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ViewSettingsPanel from '@/components/views/ViewSettingsPanel';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import ShinyButton from '@/components/ui/ShinyButton';
@@ -33,10 +35,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import {
   ContextMenu,
   ContextMenuContent,
-  ContextMenuLabel,
   ContextMenuItem,
-  ContextMenuRadioGroup,
-  ContextMenuRadioItem,
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@/components/ui/context-menu';
@@ -52,6 +51,9 @@ interface ViewToolbarProps {
   collections: any[];
   allViews?: Record<string, any[]>;
   showViewSettings: boolean;
+  viewSettingsSection?: 'filters' | 'groups';
+  filterEditor?: React.ReactNode;
+  groupEditor?: React.ReactNode;
   relationFilter: { collectionId: string | null; ids: string[] };
   activeCollection: string | null;
   favorites: { views: string[]; items: string[] };
@@ -72,8 +74,6 @@ interface ViewToolbarProps {
   onUpdateFilterValue: (index: number, value: any) => void;
   onRemoveFilter: (index: number) => void;
   onClearRelationFilter: () => void;
-  onRemoveGroup: (property: string) => void;
-  onSetGroupDisplayMode: (groupId: string, mode: 'accordion' | 'columns' | 'tabs') => void;
   onToggleFavoriteView: (viewId: string) => void;
   onManageViewVisibility: (viewId: string) => void;
   onEditView: (viewId: string) => void;
@@ -95,6 +95,9 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   collections,
   allViews,
   showViewSettings,
+  viewSettingsSection,
+  filterEditor,
+  groupEditor,
   relationFilter,
   activeCollection,
   favorites,
@@ -115,8 +118,6 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onUpdateFilterValue,
   onRemoveFilter,
   onClearRelationFilter,
-  onRemoveGroup,
-  onSetGroupDisplayMode,
   onToggleFavoriteView,
   onManageViewVisibility,
   onEditView,
@@ -127,7 +128,16 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onUpdateFieldGroupsLayout,
   onUpdateViewConfig,
 }) => {
-  const settingsRef = useRef<HTMLDivElement>(null);
+  const [settingsTab, setSettingsTab] = useState('settings');
+  const activeSettingsTab = viewSettingsSection ?? settingsTab;
+  const openSettingsTab = (tab: string) => {
+    if (tab === 'filters') onShowFilterModal();
+    else if (tab === 'groups') onShowGroupModal();
+    else {
+      setSettingsTab(tab);
+      onSetShowViewSettings(true);
+    }
+  };
   
   // Hook de permission
   const canEdit = useCanEdit(activeCollection);
@@ -223,7 +233,6 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchCollectionId, setSearchCollectionId] = useState<string | null>(null);
-  const [showToolbarTools, setShowToolbarTools] = useState(false);
   // État pour la gestion des groupes de champs dans le panneau Paramètres
   const [newGroupLabel, setNewGroupLabel] = useState('');
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
@@ -260,15 +269,6 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
 
   const activeSearchCollectionId =
     searchCollectionId || (activeCollections.length > 1 ? 'all' : activeCollections[0]?.id || null);
-  const getGroupDisplayMode = (groupId: string, groupIndex: number): 'accordion' | 'columns' | 'tabs' => {
-    const specific = currentViewConfig?.groupDisplayModes?.[groupId];
-    if (specific === 'columns' || specific === 'tabs' || specific === 'accordion') return specific;
-    if (groupIndex > 0) return 'accordion';
-    const legacy = currentViewConfig?.groupDisplayMode;
-    if (legacy === 'columns' || legacy === 'tabs' || legacy === 'accordion') return legacy;
-    return 'accordion';
-  };
-
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (activeSearchCollectionId === 'all') {
@@ -325,14 +325,28 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       <div className="flex min-w-0 items-center gap-2 flex-wrap">
         <ToolbarButton
           type="button"
-          onClick={() => setShowToolbarTools((prev) => !prev)}
-          active={showToolbarTools}
+          onClick={() => openSettingsTab('settings')}
+          active={showViewSettings || Boolean(viewSettingsSection)}
           size="icon"
-          title="Outils de vue"
-          aria-label="Outils de vue"
+          title="Paramètres de la vue"
+          aria-label="Paramètres de la vue"
+          disabled={!currentViewConfig}
         >
           <Settings size={14} />
         </ToolbarButton>
+          {relationFilter.collectionId === activeCollection && relationFilter.ids.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/20 text-neutral-700 dark:text-white rounded-lg text-sm border border-brand-500/30"
+            >
+              <span>Filtre relation : {relationFilter.ids.length} élément(s)</span>
+              <IconButton onClick={onClearRelationFilter} label="Retirer le filtre relation" className="h-6 w-6 rounded p-0.5 hover:bg-brand-500/30">
+                <X size={14} />
+              </IconButton>
+            </motion.div>
+          )}
+
         <div className="inline-flex min-w-0 max-w-full shrink flex-wrap rounded-full bg-white/5 p-1 border border-black/10 dark:border-white/10">
           {viewTypeMeta
             .filter((meta) => (viewsByType.get(meta.type) || []).length > 0)
@@ -587,39 +601,122 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         </div>
       </div>
 
-      {showToolbarTools && (
-        <div className="flex items-center gap-2 flex-wrap mt-4">
-          {currentViewConfig?.type !== 'layout' && (
-            <>
-              <ToolbarButton
-                onClick={onShowFilterModal}
-              >
-                <Filter size={14} />
-                Filtrer
-              </ToolbarButton>
-              <ToolbarButton
-                onClick={onShowGroupModal}
-              >
-                <Layers size={14} />
-                Grouper
-              </ToolbarButton>
-              <div className="relative" ref={settingsRef}>
-                <ToolbarButton
-                  onClick={() => onSetShowViewSettings(!showViewSettings)}
-                  active={showViewSettings}
-                >
-                  <Settings size={14} />
-                  Paramètres
-                </ToolbarButton>
+      {currentViewConfig && currentViewConfig.type !== 'layout' && (
+                <Sheet open={showViewSettings || Boolean(viewSettingsSection)} onOpenChange={(open) => { if (!open) onSetShowViewSettings(false); }}>
+                  <SheetContent side="right" overlayClassName="z-[299] bg-transparent" className="z-[300] flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+                    <div className="border-b px-4 py-3 pr-10">
+                      <SheetTitle className="text-sm">Réglages de la vue</SheetTitle>
+                      <SheetDescription className="mt-1 truncate text-xs">{currentViewConfig?.name}</SheetDescription>
+                    </div>
+                    <Tabs value={activeSettingsTab} onValueChange={openSettingsTab} className="flex min-h-0 flex-1 flex-col px-3 pt-2">
+                      <TabsList aria-label="Réglages de la vue" className="flex h-auto shrink-0 flex-wrap rounded-lg border border-border bg-muted/50 p-0.5">
+                        {[
+                          { id: 'filters', label: 'Filtres', Icon: Filter },
+                          { id: 'groups', label: 'Groupage', Icon: Layers },
+                          { id: 'settings', label: 'Paramètres', Icon: Settings },
+                          { id: 'columns', label: 'Colonnes', Icon: Icons.Columns3 },
+                        ].map(({ id, label, Icon }) => (
+                          <TabsTrigger key={id} value={id} className="flex-1 gap-1.5 px-2 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                            <Icon size={13} aria-hidden="true" />
+                            {label}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+                      <TabsContent value="filters" className="mt-1 min-h-0 overflow-y-auto rounded-none border-0 p-0">
+                        {((currentViewConfig.filters?.length ?? 0) > 0 ||
+                          (relationFilter.collectionId === activeCollection && relationFilter.ids.length > 0)) && (
+                          <section className="my-2 rounded-lg border border-border bg-muted/25" aria-label="Filtres actifs">
+                            <h3 className="border-b border-border px-2.5 py-2 text-xs font-semibold">Filtres actifs</h3>
+                            <div className="divide-y divide-border">
+                              {currentViewConfig?.filters?.map((filter: any, idx: number) => {
+                                const { sourceCollection, sourceProp } = getFilterSource(filter);
+                                const hasValue = !['is_empty', 'is_not_empty'].includes(filter.operator);
+                                const accentColor = sourceCollection?.color || '#8b5cf6';
 
-            <AnimatePresence>
-              {showViewSettings && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  className="view-settings-panel absolute top-full -mt-2 left-0 w-[420px] max-w-[calc(100vw-1rem)] rounded-[var(--view-control-radius)] bg-gray-200 p-4 backdrop-blur dark:bg-neutral-900 border border-black/10 dark:border-white/10 z-[140]"
-                >
+                                return (
+                                  <motion.div
+                                    key={idx}
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="flex min-w-0 flex-wrap items-center gap-1.5 px-2.5 py-2 text-xs text-neutral-700 dark:text-neutral-200"
+                                  >
+                                    <span className="flex min-w-0 items-center gap-1.5">
+                                      {sourceCollection?.name && (
+                                        <span className="max-w-[120px] truncate text-[11px] font-medium" style={{ color: accentColor }} title={sourceCollection.name}>{sourceCollection.name}</span>
+                                      )}
+                                      <span className="max-w-[130px] truncate font-medium" title={sourceProp?.name || 'Champ'}>{sourceProp?.name || 'Champ'}</span>
+                                      <span className="rounded-full bg-black/5 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600 dark:bg-white/10 dark:text-neutral-300">
+                                        {getCompactOperatorLabel(filter.operator)}
+                                      </span>
+                                    </span>
+                                    {hasValue && (
+                                      <div className="min-w-0 flex-1 overflow-hidden">
+                                        <FilterValueDisplay
+                                          filter={filter}
+                                          property={sourceProp}
+                                          collections={collections}
+                                          currentCollection={currentCollection}
+                                          canEdit={canEdit}
+                                          compact
+                                          onUpdateValue={(newValue) => onUpdateFilterValue(idx, newValue)}
+                                        />
+                                      </div>
+                                    )}
+                                    <div className="ml-auto flex shrink-0 items-center gap-1">
+                                      <IconButton
+                                        onClick={() => {
+                                          if (!canEdit) return;
+                                          onEditFilter(idx);
+                                        }}
+                                        label="Modifier la règle"
+                                        className={cn('ml-0.5 h-6 w-6 rounded-full p-1', !canEdit && 'pointer-events-none opacity-60')}
+                                        style={{ backgroundColor: 'transparent' }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${accentColor}33`; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                      >
+                                        <Icons.SlidersHorizontal size={13} />
+                                      </IconButton>
+                                      <IconButton
+                                        onClick={() => onRemoveFilter(idx)}
+                                        label="Retirer le filtre"
+                                        className="h-6 w-6 rounded-full p-1"
+                                        style={{ backgroundColor: 'transparent' }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${accentColor}33`; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                      >
+                                        <X size={13} />
+                                      </IconButton>
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+
+                              {relationFilter.collectionId === activeCollection && relationFilter.ids.length > 0 && (
+                                <motion.div
+                                  initial={{ opacity: 0, scale: 0.9 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  className="flex items-center justify-between gap-2 px-2.5 py-2 text-xs text-foreground"
+                                >
+                                  <span>Filtre relation : {relationFilter.ids.length} élément(s)</span>
+                                  <IconButton onClick={onClearRelationFilter} label="Retirer le filtre relation" className="h-6 w-6 rounded p-0.5 hover:bg-brand-500/30">
+                                    <X size={14} />
+                                  </IconButton>
+                                </motion.div>
+                              )}
+                            </div>
+                          </section>
+                        )}
+                        {(currentViewConfig?.filters || []).length > 0 && (
+                          <button type="button" onClick={onShowFilterModal} className="mt-2 flex items-center gap-1 rounded px-1 py-1 text-xs font-medium text-primary hover:underline">
+                            <Plus size={12} aria-hidden="true" /> Nouveau filtre
+                          </button>
+                        )}
+                        {filterEditor}
+                      </TabsContent>
+                      <TabsContent value="groups" className="mt-1 min-h-0 overflow-y-auto rounded-none border-0 p-0">
+                        {groupEditor}
+                      </TabsContent>
+                      <TabsContent value="settings" className="mt-1 min-h-0 overflow-y-auto rounded-none border-0 p-1 pt-2">
                   <ViewSettingsPanel
                     view={currentViewConfig}
                     collection={currentCollection}
@@ -628,6 +725,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     views={allViews}
                     onUpdate={onUpdateViewConfig}
                   />
+                      </TabsContent>
+                      <TabsContent value="columns" className="mt-1 min-h-0 overflow-y-auto rounded-none border-0 p-1 pt-2">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold text-black dark:text-white">Colonnes visibles</h4>
                     <div className="flex items-center gap-2">
@@ -641,16 +740,9 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                           Propriété
                         </ToolbarButton>
                       )}
-                      <IconButton
-                        onClick={() => onSetShowViewSettings(false)}
-                        label="Fermer les paramètres"
-                        className="h-7 w-7 text-neutral-700 dark:text-neutral-500 hover:text-black dark:hover:text-white"
-                      >
-                        <X size={14} />
-                      </IconButton>
                     </div>
                   </div>
-                  <div className="max-h-80 overflow-y-auto">
+                  <div>
                     {currentViewConfig?.type === 'calendar' && calendarCollections.length > 0 ? (
                       <div className="space-y-4">
                         {calendarCollections.map((col) => {
@@ -679,7 +771,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                       </div>
                                       <div className="flex items-center gap-1 shrink-0">
                                         <IconButton
-                                          onClick={(e) => { e.preventDefault(); if (!canEdit) return; onEditProperty(prop); }}
+                                          onClick={(e) => { e.preventDefault(); if (!canEdit) return; onSetShowViewSettings(false); onEditProperty(prop); }}
                                           label="Modifier la propriété"
                                           className="h-5 w-5 opacity-0 text-neutral-500 transition-opacity hover:text-brand-400 group-hover:opacity-100"
                                         >
@@ -752,7 +844,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                               <span className="flex-1 truncate">{prop.name}</span>
                               {!isSystemOption && (
                                 <IconButton
-                                  onClick={(e) => { e.stopPropagation(); if (!canEdit) return; onEditProperty(prop); }}
+                                  onClick={(e) => { e.stopPropagation(); if (!canEdit) return; onSetShowViewSettings(false); onEditProperty(prop); }}
                                   label="Modifier la propriété"
                                   className="h-5 w-5 shrink-0 opacity-0 text-neutral-500 transition-opacity hover:text-brand-400 group-hover:opacity-100"
                                 >
@@ -1009,155 +1101,23 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                       </div>
                     </div>
                   )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-              </div>
-            </>
-          )}
-
-          {currentViewConfig?.type === 'layout' && (
-            <div className="relative" ref={settingsRef}>
-              <ToolbarButton onClick={() => onSetShowViewSettings(!showViewSettings)} active={showViewSettings}>
-                <Settings size={14} />
-                Paramètres
-              </ToolbarButton>
-              <AnimatePresence>
-                {showViewSettings && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="view-settings-panel absolute left-0 top-full z-[140] -mt-2 w-[520px] max-w-[calc(100vw-1rem)] rounded-[var(--view-control-radius)] border border-black/10 bg-gray-200 p-4 backdrop-blur dark:border-white/10 dark:bg-neutral-900">
-                    <ViewSettingsPanel view={currentViewConfig} collection={currentCollection} properties={orderedProperties} collections={collections} views={allViews} onUpdate={onUpdateViewConfig} />
-                    <div className="flex justify-end"><IconButton onClick={() => onSetShowViewSettings(false)} label="Fermer les paramètres" className="h-7 w-7 text-neutral-700 dark:text-neutral-500 hover:text-black dark:hover:text-white"><X size={14} /></IconButton></div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-
-          {currentViewConfig?.filters.map((filter: any, idx: number) => {
-            const { sourceCollection, sourceProp } = getFilterSource(filter);
-            const previousFilter = idx > 0 ? currentViewConfig?.filters?.[idx - 1] : null;
-            const previousSource = previousFilter ? getFilterSource(previousFilter) : null;
-            const showCollectionName =
-              !previousSource?.sourceCollection?.id ||
-              previousSource.sourceCollection.id !== sourceCollection?.id;
-            const hasValue = !['is_empty', 'is_not_empty'].includes(filter.operator);
-            const accentColor = sourceCollection?.color || '#8b5cf6';
-
-            return (
-            <React.Fragment key={idx}>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs text-neutral-700 dark:text-neutral-200"
-                style={{
-                  backgroundColor: `${accentColor}22`,
-                  borderColor: `${accentColor}55`
-                }}
-              >
-                <span className="flex min-w-0 items-center gap-1.5">
-                  {showCollectionName && sourceCollection?.name && (
-                    <span className="max-w-[120px] truncate text-[11px] font-medium" style={{ color: accentColor }} title={sourceCollection.name}>{sourceCollection.name}</span>
-                  )}
-                  <span className="max-w-[130px] truncate font-medium" title={sourceProp?.name || 'Champ'}>{sourceProp?.name || 'Champ'}</span>
-                  <span className="rounded-full bg-black/5 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600 dark:bg-white/10 dark:text-neutral-300">
-                    {getCompactOperatorLabel(filter.operator)}
-                  </span>
-                </span>
-                {hasValue && (
-                  <div className="min-w-0 flex-shrink overflow-hidden">
-                    <FilterValueDisplay
-                      filter={filter}
-                      property={sourceProp}
-                      collections={collections}
-                      currentCollection={currentCollection}
-                      canEdit={canEdit}
-                      compact
-                      onUpdateValue={(newValue) => onUpdateFilterValue(idx, newValue)}
-                    />
+                      </TabsContent>
+                    </Tabs>
+                  </SheetContent>
+                </Sheet>
+      )}
+      {currentViewConfig?.type === 'layout' && (
+              <Sheet open={showViewSettings} onOpenChange={onSetShowViewSettings}>
+                <SheetContent side="right" overlayClassName="z-[299] bg-transparent" className="z-[300] flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+                  <div className="border-b px-4 py-3 pr-10">
+                    <SheetTitle className="text-sm">Réglages de la vue</SheetTitle>
+                    <SheetDescription className="mt-1 truncate text-xs">{currentViewConfig?.name}</SheetDescription>
                   </div>
-                )}
-                <IconButton
-                  onClick={() => {
-                    if (!canEdit) return;
-                    onEditFilter(idx);
-                  }}
-                  label="Modifier la règle"
-                  className={cn('ml-0.5 h-6 w-6 rounded-full p-1', !canEdit && 'pointer-events-none opacity-60')}
-                  style={{ backgroundColor: 'transparent' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${accentColor}33`; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                >
-                  <Icons.SlidersHorizontal size={13} />
-                </IconButton>
-                <IconButton
-                  onClick={() => onRemoveFilter(idx)}
-                  label="Retirer le filtre"
-                  className="h-6 w-6 rounded-full p-1"
-                  style={{ backgroundColor: 'transparent' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${accentColor}33`; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                >
-                  <X size={13} />
-                </IconButton>
-              </motion.div>
-            </React.Fragment>
-            );
-          })}
-
-          {relationFilter.collectionId === activeCollection && relationFilter.ids.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/20 text-neutral-700 dark:text-whiterounded-lg text-sm border border-brand-500/30"
-            >
-              <span>Filtre relation : {relationFilter.ids.length} élément(s)</span>
-              <IconButton onClick={onClearRelationFilter} label="Retirer le filtre relation" className="h-6 w-6 rounded p-0.5 hover:bg-brand-500/30">
-                <X size={14} />
-              </IconButton>
-            </motion.div>
-          )}
-
-          {currentViewConfig?.groups.map((group: string, idx: number) => (
-            <ContextMenu key={idx}>
-              <ContextMenuTrigger asChild>
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/20 text-neutral-700 dark:text-white rounded-lg text-xs border border-brand-500/30"
-                >
-                  <span>
-                    Groupé par: {orderedProperties.find((p: any) => p.id === group)?.name || currentCollection?.properties.find((p: any) => p.id === group)?.name || group}
-                  </span>
-                  <IconButton
-                    onClick={() => onRemoveGroup(group)}
-                    label="Retirer ce groupage"
-                    className="h-6 w-6 rounded p-0.5 hover:bg-brand-500/30"
-                  >
-                    <X size={14} />
-                  </IconButton>
-                </motion.div>
-              </ContextMenuTrigger>
-              <ContextMenuContent className="min-w-[220px]">
-                <ContextMenuLabel>Affichage des groupes</ContextMenuLabel>
-                <ContextMenuRadioGroup
-                  value={getGroupDisplayMode(group, idx)}
-                  onValueChange={(value) => {
-                    const nextMode = value === 'columns' || value === 'tabs' ? value : 'accordion';
-                    onSetGroupDisplayMode(group, nextMode);
-                  }}
-                >
-                  <ContextMenuRadioItem value="accordion">Chevron (accordéon)</ContextMenuRadioItem>
-                  <ContextMenuRadioItem value="columns">Colonnes</ContextMenuRadioItem>
-                  <ContextMenuRadioItem value="tabs">Onglets</ContextMenuRadioItem>
-                </ContextMenuRadioGroup>
-                <ContextMenuSeparator />
-                <ContextMenuItem onSelect={() => onRemoveGroup(group)} className="text-red-600 dark:text-red-400">
-                  Retirer ce groupage
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          ))}
-        </div>
+                  <div className="min-h-0 overflow-y-auto p-3">
+                    <ViewSettingsPanel view={currentViewConfig} collection={currentCollection} properties={orderedProperties} collections={collections} views={allViews} onUpdate={onUpdateViewConfig} />
+                  </div>
+                </SheetContent>
+              </Sheet>
       )}
 
     </motion.div>

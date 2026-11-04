@@ -19,6 +19,7 @@ interface GroupRow {
 }
 
 interface GroupModalProps {
+  embedded?: boolean;
   properties: any[];
   collections: any[];
   currentGroups?: string[];
@@ -41,6 +42,7 @@ interface GroupModalProps {
 const makeUid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const GroupModal: React.FC<GroupModalProps> = ({
+  embedded,
   properties,
   collections,
   currentGroups = [],
@@ -167,6 +169,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
 
   return (
     <ModalWrapper
+      embedded={embedded}
       title={
         <>
           <h3 className="text-xl font-bold mb-2">Groupage</h3>

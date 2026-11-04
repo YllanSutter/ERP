@@ -9,6 +9,7 @@ import {
 } from '@/components/modals/modalLib';
 
 interface FilterModalProps {
+  embedded?: boolean;
   properties: any[];
   collections: any[];
   onClose: () => void;
@@ -16,7 +17,7 @@ interface FilterModalProps {
   initialFilter?: { property: string; operator: string; value: any; sourceCollectionId?: string } | null;
 }
 
-const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onClose, onAdd, initialFilter }) => {
+const FilterModal: React.FC<FilterModalProps> = ({ embedded, properties, collections, onClose, onAdd, initialFilter }) => {
   const defaultTabCandidate = collections.findIndex(c => c.properties === properties);
   const defaultTab = defaultTabCandidate >= 0 ? defaultTabCandidate : 0;
   const [selectedTab, setSelectedTab] = useState(defaultTab);
@@ -248,6 +249,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
 
   return (
     <ModalWrapper
+      embedded={embedded}
       title={isEditing ? 'Modifier un filtre' : 'Ajouter un filtre'}
       onClose={onClose}
       onSave={handleSave}
@@ -269,12 +271,10 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
         ))}
       </div>
 
-      {/* Aperçu */}
       <div
         className="mb-5 rounded-2xl border p-4"
         style={{ backgroundColor: `${accentColor}14`, borderColor: `${accentColor}40` }}
       >
-        <div className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2">Aperçu</div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="rounded-full px-3 py-1 font-medium text-white" style={{ backgroundColor: accentColor }}>
             {selectedCollection?.name || 'Collection'}
@@ -291,7 +291,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-5 items-stretch">
+      <div className="grid grid-cols-1 gap-3">
         <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/40 dark:bg-white/5 p-4 space-y-3">
           <div>
             <div className="text-sm font-semibold">Champ</div>
@@ -317,7 +317,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
           </div>
         </div>
 
-        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/40 dark:bg-white/5 p-4 space-y-3 col-span-2">
+        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/40 dark:bg-white/5 p-4 space-y-3">
           {renderValueEditor()}
         </div>
       </div>

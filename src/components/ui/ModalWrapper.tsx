@@ -30,6 +30,7 @@ interface ModalWrapperProps {
   className?: string;
   /** z-index du backdrop (défaut 200, utiliser 300+ pour un overlay sur une autre modale) */
   zIndex?: number;
+  embedded?: boolean;
 }
 
 const ModalWrapper: React.FC<ModalWrapperProps> = ({
@@ -43,10 +44,33 @@ const ModalWrapper: React.FC<ModalWrapperProps> = ({
   size = 'md',
   className,
   zIndex = 200,
+  embedded = false,
 }) => {
   const titleEl = typeof title === 'string'
     ? <h3 className="text-lg font-semibold">{title}</h3>
     : title;
+
+  if (embedded) {
+    return (
+      <>
+        <div className="px-1 py-2">
+          {titleEl}
+          {children}
+        </div>
+        {onSave && (
+          <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-border bg-background py-2">
+            <button type="button" onClick={onClose} className="rounded px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent">
+              Annuler
+            </button>
+            {extraActions}
+            <button type="button" onClick={onSave} disabled={!canSave} className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50">
+              {saveLabel}
+            </button>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <div
