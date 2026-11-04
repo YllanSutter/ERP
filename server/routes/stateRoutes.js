@@ -4,6 +4,7 @@ import { ZodError } from 'zod';
 import { statePayloadSchema, itemChangesPayloadSchema } from '../../shared/validation.js';
 import { loadAutomations, triggerAutomations } from '../services/automationService.js';
 import {
+  decryptSecret,
   decryptStateSecrets,
   maskStateSecrets,
   encryptStateSecrets,
@@ -94,7 +95,7 @@ export const registerStateRoutes = ({ app, appContext }) => {
         return res.status(404).json({ error: 'State not found' });
       }
 
-      const state = decryptStateSecrets(JSON.parse(stateResult.rows[0].data));
+      const state = decryptStateSecrets(JSON.parse(stateResult.rows[0].data), { preserveUnreadable: true });
       const collections = Array.isArray(state.collections) ? state.collections : [];
 
       const colIdx = collections.findIndex((c) => c.id === collectionId);
@@ -193,7 +194,7 @@ export const registerStateRoutes = ({ app, appContext }) => {
         [organizationId]
       );
       const existingState = stateResult.rows.length > 0
-        ? decryptStateSecrets(JSON.parse(stateResult.rows[0].data))
+        ? decryptStateSecrets(JSON.parse(stateResult.rows[0].data), { preserveUnreadable: true })
         : { ...INITIAL_APP_STATE };
 
       let newState = { ...existingState };
@@ -267,7 +268,7 @@ export const registerStateRoutes = ({ app, appContext }) => {
       );
       if (stateResult.rows.length === 0) return res.status(404).json({ error: 'State not found' });
 
-      const state = decryptStateSecrets(JSON.parse(stateResult.rows[0].data));
+      const state = JSON.parse(stateResult.rows[0].data);
       const collection = (state.collections || []).find((entry) => entry.id === collectionId);
       const item = collection?.items?.find((entry) => entry.id === itemId);
       if (!collection || !item) return res.status(404).json({ error: 'Collection or item not found' });
@@ -285,7 +286,11 @@ export const registerStateRoutes = ({ app, appContext }) => {
         }, 'can_read')) {
           return res.status(403).json({ error: 'Forbidden' });
         }
-        values[propertyId] = item[propertyId] ?? '';
+        try {
+          values[propertyId] = decryptSecret(item[propertyId]);
+        } catch {
+          return res.status(422).json({ error: 'Ce champ secret ne peut pas être déchiffré sur ce serveur.' });
+        }
       }
 
       return res.json({ values });
@@ -313,7 +318,7 @@ export const registerStateRoutes = ({ app, appContext }) => {
             [JSON.stringify(migratedState), organizationId]
           );
         }
-        rawState = decryptStateSecrets(migratedState);
+        rawState = migratedState;
       }
       const state = {
         ...INITIAL_APP_STATE,
@@ -346,7 +351,7 @@ export const registerStateRoutes = ({ app, appContext }) => {
         ? Number(prevStateResult.rows[0].version) || 1
         : 1;
       const prevState = prevStateResult.rows.length > 0
-        ? decryptStateSecrets(JSON.parse(prevStateResult.rows[0].data))
+        ? decryptStateSecrets(JSON.parse(prevStateResult.rows[0].data), { preserveUnreadable: true })
         : {};
       const touchedIds = new Set(isItemDelta ? payload.itemChanges.map((change) => change.collectionId) : []);
       if (isItemDelta) {
@@ -568,14 +573,15 @@ export const registerStateRoutes = ({ app, appContext }) => {
       // il ne verrait jamais les items créés côté serveur.
       if (isItemDelta) return res.json({ ok: true, itemChanges: responseChanges, stateVersion: nextVersion });
       const hasAutomationChanges = postAutoItemCount > preAutoItemCount;
+      const publicCollections = maskStateSecrets(stateDataWithSegments).collections;
       const responsePayload = {
         ok: true,
-        collections: stateDataWithSegments.collections,
+        collections: publicCollections,
         stateVersion: nextVersion,
       };
 
       if (hasAutomationChanges) {
-        return res.json({ ...responsePayload, automationCollections: stateDataWithSegments.collections });
+        return res.json({ ...responsePayload, automationCollections: publicCollections });
       }
 
       return res.json(responsePayload);

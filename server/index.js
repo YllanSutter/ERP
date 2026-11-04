@@ -110,11 +110,11 @@ const bootstrap = async () => {
   await bootstrapDatabase({ pool, ensureDefaultOrganization });
 };
 
-const getRoleByNameInOrganization = async (organizationId, roleName) => {
-  return pool.query('SELECT id FROM roles WHERE organization_id = $1 AND name = $2 LIMIT 1', [organizationId, roleName]);
+const getRoleByNameInOrganization = async (organizationId, roleName, db = pool) => {
+  return db.query('SELECT id FROM roles WHERE organization_id = $1 AND name = $2 LIMIT 1', [organizationId, roleName]);
 };
 
-const ensureSystemRolesForOrganization = async (organizationId) => {
+const ensureSystemRolesForOrganization = async (organizationId, db = pool) => {
   if (!organizationId) return;
   const systemRoles = [
     { name: 'admin', description: 'Full access', is_system: true },
@@ -123,9 +123,9 @@ const ensureSystemRolesForOrganization = async (organizationId) => {
   ];
 
   for (const role of systemRoles) {
-    const existing = await pool.query('SELECT id FROM roles WHERE organization_id = $1 AND name = $2', [organizationId, role.name]);
+    const existing = await db.query('SELECT id FROM roles WHERE organization_id = $1 AND name = $2', [organizationId, role.name]);
     if (existing.rowCount === 0) {
-      await pool.query(
+      await db.query(
         'INSERT INTO roles (id, organization_id, name, description, is_system) VALUES ($1, $2, $3, $4, $5)',
         [uuidv4(), organizationId, role.name, role.description, role.is_system]
       );
@@ -133,7 +133,7 @@ const ensureSystemRolesForOrganization = async (organizationId) => {
   }
 
   // Ensure default permissions for system roles
-  const admin = await getRoleByNameInOrganization(organizationId, 'admin');
+  const admin = await getRoleByNameInOrganization(organizationId, 'admin', db);
   if (admin.rowCount) {
     await upsertPermission({
       organization_id: organizationId,
@@ -147,10 +147,10 @@ const ensureSystemRolesForOrganization = async (organizationId) => {
       can_manage_fields: true,
       can_manage_views: true,
       can_manage_permissions: true,
-    });
+    }, db);
   }
 
-  const editor = await getRoleByNameInOrganization(organizationId, 'editor');
+  const editor = await getRoleByNameInOrganization(organizationId, 'editor', db);
   if (editor.rowCount) {
     await upsertPermission({
       organization_id: organizationId,
@@ -164,10 +164,10 @@ const ensureSystemRolesForOrganization = async (organizationId) => {
       can_manage_fields: true,
       can_manage_views: true,
       can_manage_permissions: false,
-    });
+    }, db);
   }
 
-  const viewer = await getRoleByNameInOrganization(organizationId, 'viewer');
+  const viewer = await getRoleByNameInOrganization(organizationId, 'viewer', db);
   if (viewer.rowCount) {
     await upsertPermission({
       organization_id: organizationId,
@@ -181,7 +181,7 @@ const ensureSystemRolesForOrganization = async (organizationId) => {
       can_manage_fields: false,
       can_manage_views: false,
       can_manage_permissions: false,
-    });
+    }, db);
   }
 };
 
@@ -250,8 +250,8 @@ const ensureDefaultOrganization = async (ownerUserId) => {
   return organizationId;
 };
 
-const upsertPermission = async (perm) => {
-  const result = await pool.query(
+const upsertPermission = async (perm, db = pool) => {
+  const result = await db.query(
     `INSERT INTO permissions (id, organization_id, role_id, collection_id, item_id, field_id, can_read, can_write, can_delete, can_manage_fields, can_manage_views, can_manage_permissions)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      ON CONFLICT (organization_id, role_id, COALESCE(collection_id, ''), COALESCE(item_id, ''), COALESCE(field_id, ''))

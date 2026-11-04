@@ -91,12 +91,13 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                                 : 0;
 
                               const inferredScope: 'global' | 'organization' =
-                                fullData?.scope === 'global' ||
-                                /global/i.test(file.name) ||
-                                organizationsInPayload > 1 ||
-                                organizationIdsFromState.size > 1
-                                  ? 'global'
-                                  : 'organization';
+                                fullData?.scope === 'organization' ? 'organization' :
+                                  fullData?.scope === 'global' ||
+                                  /global/i.test(file.name) ||
+                                  organizationsInPayload > 1 ||
+                                  organizationIdsFromState.size > 1
+                                    ? 'global'
+                                    : 'organization';
 
                               const res = await fetch(`${context.API_URL}/appstate?scope=${inferredScope}`, {
                                 method: 'POST',
@@ -116,7 +117,7 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                               } else {
                                 alert('✅ Import organisation réussi ! Seule l’organisation active a été remplacée.');
                               }
-                              context.loadAll();
+                              window.location.reload();
                             } catch (err) {
                               alert(`❌ Erreur lors de l'import : ${err instanceof Error ? err.message : String(err)}`);
                             }

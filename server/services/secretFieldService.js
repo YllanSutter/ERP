@@ -71,8 +71,15 @@ export function encryptStateSecrets(state) {
   return transformSecretFields(state, encryptSecret);
 }
 
-export function decryptStateSecrets(state) {
-  return transformSecretFields(state, decryptSecret);
+export function decryptStateSecrets(state, { preserveUnreadable = false } = {}) {
+  return transformSecretFields(state, (value) => {
+    try {
+      return decryptSecret(value);
+    } catch (error) {
+      if (!preserveUnreadable) throw error;
+      return value;
+    }
+  });
 }
 
 export function maskStateSecrets(state) {
@@ -83,7 +90,7 @@ export function maskStateSecrets(state) {
 }
 
 export function prepareStateForStorage(state, previousState = null) {
-  const previous = decryptStateSecrets(previousState);
+  const previous = previousState;
   const merged = transformSecretFields(state, (value) => {
     if (value === PASSWORD_MASK) return value;
     return value;
