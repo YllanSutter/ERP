@@ -740,12 +740,16 @@ const App = () => {
             activeCollectionName={currentCollection?.name || null}
             collectionFilters={currentCollection && !showAutomations && !activeDashboard && (
               <PinnedCollectionFilters
+                key={currentCollection.id}
                 collection={currentCollection}
                 collections={collectionsWithCalculatedFields}
                 canEdit={Boolean(canEdit && activeViewConfig)}
                 onUpdateValue={(index, value) => updatePinnedFilters((filters) =>
                   filters.map((filter, filterIndex) => filterIndex === index ? { ...filter, value } : filter)
                 )}
+                onSave={(index, filter) => updatePinnedFilters((filters) => index === null
+                  ? [...filters, filter]
+                  : filters.map((current, filterIndex) => filterIndex === index ? filter : current))}
                 onUnpin={unpinViewFilter}
               />
             )}
@@ -844,6 +848,7 @@ const App = () => {
                   <FilterModal
                     key={editingFilterIndex ?? 'new'}
                     embedded
+                    allowCollectionScope
                     properties={currentCollection?.properties || []}
                     collections={collections}
                     initialFilter={
@@ -856,8 +861,11 @@ const App = () => {
                       setEditingFilterIndex(null);
                       setShowViewSettings(true);
                     }}
-                    onAdd={(property, operator, value, sourceCollectionId, filterMeta) => {
-                      if (editingFilterIndex !== null) {
+                    onAdd={(property, operator, value, sourceCollectionId, filterMeta, collectionScope) => {
+                      if (collectionScope) {
+                        updatePinnedFilters((filters) => [...filters, { property, operator, value, sourceCollectionId, ...filterMeta }]);
+                        if (editingFilterIndex !== null) viewHooks.removeFilter(editingFilterIndex);
+                      } else if (editingFilterIndex !== null) {
                         viewHooks.updateFilter(editingFilterIndex, property, operator, value, sourceCollectionId, filterMeta);
                       } else {
                         viewHooks.addFilter(property, operator, value, sourceCollectionId, filterMeta);
@@ -1034,7 +1042,9 @@ const App = () => {
                     key={activeViewConfig.type === 'layout' ? activeViewConfig.id : undefined}
                     view={activeViewConfig}
                     canConfigureLayout={canEdit}
-                    views={views}
+                    views={activeViewConfig.type === 'layout'
+                      ? Object.fromEntries(Object.entries(views).map(([id, entries]) => [id, entries.filter(canSeeView)]))
+                      : views}
                     relationFilter={relationFilter}
                     activeCollectionId={activeCollection}
                     properties={orderedProperties}

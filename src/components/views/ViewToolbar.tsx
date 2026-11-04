@@ -650,10 +650,10 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                       {canEdit && (
                                         <IconButton
                                           onClick={() => onPinFilter(idx)}
-                                          label="Épingler à toutes les vues de la collection"
+                                          label="Rendre le filtre global à la collection"
                                           className="h-6 w-6 rounded-full p-1"
                                         >
-                                          <Icons.Pin size={13} />
+                                          <Icons.Globe size={13} />
                                         </IconButton>
                                       )}
                                       <IconButton

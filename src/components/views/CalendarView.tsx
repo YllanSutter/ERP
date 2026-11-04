@@ -214,10 +214,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         return { ...col, items };
       }
       const cfg = getViewConfigForCollection(col.id);
-      if (!cfg) return col;
+      const inheritedFilters = (collection?.pinnedFilters ?? []).filter((filter: any) =>
+        filter.sourceCollectionId === col.id && col.id !== collection?.id
+      );
+      if (!cfg && !col.pinnedFilters?.length && !inheritedFilters.length) return col;
       const rel = col.id === activeCollectionId ? relationFilter : { collectionId: null, ids: [] };
       const activeId = col.id === activeCollectionId ? activeCollectionId : null;
-      const nextItems = getFilteredItems(col, cfg, rel, activeId, collections);
+      const nextItems = getFilteredItems(col, {
+        ...cfg,
+        filters: [...(cfg?.filters ?? []), ...inheritedFilters],
+      }, rel, activeId, collections);
       return { ...col, items: nextItems };
     });
   }, [

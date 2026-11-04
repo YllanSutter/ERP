@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Globe } from 'lucide-react';
+import { IconButton } from '@/components/ui/icon-button';
 import ModalWrapper, { FormSelect, FormDateInput } from '@/components/ui/ModalWrapper';
 import { LightSelect } from '@/components/inputs/LightSelect';
 import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
@@ -10,20 +12,22 @@ import {
 
 interface FilterModalProps {
   embedded?: boolean;
+  allowCollectionScope?: boolean;
   properties: any[];
   collections: any[];
   onClose: () => void;
-  onAdd: (property: string, operator: string, value: any, sourceCollectionId?: string, filterMeta?: any) => void;
+  onAdd: (property: string, operator: string, value: any, sourceCollectionId?: string, filterMeta?: any, collectionScope?: boolean) => void;
   initialFilter?: { property: string; operator: string; value: any; sourceCollectionId?: string } | null;
 }
 
-const FilterModal: React.FC<FilterModalProps> = ({ embedded, properties, collections, onClose, onAdd, initialFilter }) => {
+const FilterModal: React.FC<FilterModalProps> = ({ embedded, properties, collections, onClose, onAdd, initialFilter, allowCollectionScope }) => {
   const defaultTabCandidate = collections.findIndex(c => c.properties === properties);
   const defaultTab = defaultTabCandidate >= 0 ? defaultTabCandidate : 0;
   const [selectedTab, setSelectedTab] = useState(defaultTab);
   const [property, setProperty] = useState('');
   const [operator, setOperator] = useState('equals');
   const [value, setValue] = useState<any>('');
+  const [collectionScope, setCollectionScope] = useState(false);
 
   const selectedCollection = collections[selectedTab] || null;
   const accentColor = selectedCollection?.color || '#8b5cf6';
@@ -91,7 +95,8 @@ const FilterModal: React.FC<FilterModalProps> = ({ embedded, properties, collect
             sourceDisplayFieldId: selectedProp.sourceDisplayFieldId,
             sourceTargetCollectionId: selectedProp.sourceTargetCollectionId,
           }
-        : undefined
+        : undefined,
+      collectionScope
     );
   };
 
@@ -257,6 +262,18 @@ const FilterModal: React.FC<FilterModalProps> = ({ embedded, properties, collect
       canSave={Boolean(property)}
       className="max-w-3xl"
     >
+      {allowCollectionScope && (
+        <div className="mb-2 flex justify-end">
+          <IconButton
+            label="Filtre global à la collection"
+            aria-pressed={collectionScope}
+            variant={collectionScope ? 'default' : 'outline'}
+            onClick={() => setCollectionScope((global) => !global)}
+          >
+            <Globe size={16} />
+          </IconButton>
+        </div>
+      )}
       {/* Onglets collections */}
       <div className="flex flex-wrap gap-2 mb-5">
         {collections.map((col, idx) => (

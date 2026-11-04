@@ -12,6 +12,9 @@ import {
 } from '@/lib/dashboardTypes';
 import { getDashboardModuleOptions } from './dashboardModuleTypes';
 
+import type { ViewDefinition } from '@/lib/views';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 const MODULE_TYPE_ICONS: Record<ModuleType, React.ReactNode> = {
   table:    <Table2 size={24} />,
   kanban:   <Columns size={24} />,
@@ -44,17 +47,35 @@ const MODULE_COLORS: Record<ModuleType, string> = {
 
 interface Props {
   excludeLayout?: boolean;
+  existingViews?: {
+    byCollection: Record<string, ViewDefinition[]>;
+    onAdd: (collectionId: string, viewId: string) => void;
+  };
   collections: any[];
   currentOrder: number;
   onAdd: (module: DashboardModuleConfig) => void;
   onClose: () => void;
 }
 
-const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd, onClose, excludeLayout }) => {
+const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd, onClose, excludeLayout, existingViews }) => {
   const [selectedType, setSelectedType] = useState<ModuleType | null>(null);
   const [selectedCollection, setSelectedCollection] = useState(collections[0]?.id ?? '');
 
+  const [mode, setMode] = useState<'module' | 'view'>('module');
+  const [selectedView, setSelectedView] = useState('');
+  const availableViews = (existingViews?.byCollection[selectedCollection] ?? []).filter(({ type }) => type !== 'layout');
+  const selectCollection = (id: string) => {
+    setSelectedCollection(id);
+    setSelectedView('');
+  };
+
   const handleAdd = () => {
+    if (mode === 'view') {
+      if (!existingViews || !availableViews.some(({ id }) => id === selectedView)) return;
+      existingViews.onAdd(selectedCollection, selectedView);
+      onClose();
+      return;
+    }
     if (!selectedType) return;
 
     const newModule: DashboardModuleConfig = {
@@ -112,46 +133,77 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
         </div>
 
         <div className="p-6 space-y-5">
-          {/* Choix du type */}
-          <div>
-            <div className="text-sm font-medium text-foreground mb-3">Type de module</div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {getDashboardModuleOptions().filter(([type]) => !excludeLayout || type !== 'layout').map(([type, label]) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedType(type)}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 text-left transition-all ${
-                    selectedType === type
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-border hover:bg-accent/50'
-                  }`}
-                >
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{ background: `${MODULE_COLORS[type] ?? '#64748b'}20`, color: MODULE_COLORS[type] ?? '#64748b' }}
-                  >
-                    {MODULE_TYPE_ICONS[type] ?? <LayoutGrid size={24} />}
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-foreground">{label}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5 leading-tight">
-                      {MODULE_TYPE_DESC[type] ?? 'Vue de collection'}
-                    </div>
-                  </div>
-                </button>
-              ))}
+          {existingViews && (
+            <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+              <button type="button" aria-pressed={mode === 'module'} onClick={() => setMode('module')}
+                className={`flex-1 rounded-md px-3 py-2 text-sm ${mode === 'module' ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground'}`}>
+                Nouveau module
+              </button>
+              <button type="button" aria-pressed={mode === 'view'} onClick={() => setMode('view')}
+                className={`flex-1 rounded-md px-3 py-2 text-sm ${mode === 'view' ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground'}`}>
+                Vues existantes
+              </button>
             </div>
-          </div>
+          )}
+          {mode === 'view' ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Select value={selectedCollection} onValueChange={selectCollection}>
+                <SelectTrigger aria-label="Collection source"><SelectValue placeholder="Collection source" /></SelectTrigger>
+                <SelectContent>
+                  {collections.map(({ id, name }) => <SelectItem key={id} value={id}>{name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={selectedView} onValueChange={setSelectedView} disabled={!availableViews.length}>
+                <SelectTrigger aria-label="Vue existante">
+                  <SelectValue placeholder={availableViews.length ? 'Choisir une vue' : 'Aucune vue disponible'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableViews.map(({ id, name }) => <SelectItem key={id} value={id}>{name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div>
+              <div className="text-sm font-medium text-foreground mb-3">Type de module</div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {getDashboardModuleOptions().filter(([type]) => !excludeLayout || type !== 'layout').map(([type, label]) => (
+                  <button
+                    key={type}
+                    onClick={() => setSelectedType(type)}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 text-left transition-all ${
+                      selectedType === type
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-border hover:bg-accent/50'
+                    }`}
+                  >
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center"
+                      style={{ background: `${MODULE_COLORS[type] ?? '#64748b'}20`, color: MODULE_COLORS[type] ?? '#64748b' }}
+                    >
+                      {MODULE_TYPE_ICONS[type] ?? <LayoutGrid size={24} />}
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-foreground">{label}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 leading-tight">
+                        {MODULE_TYPE_DESC[type] ?? 'Vue de collection'}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+          )}
 
           {/* Collection source */}
-          {selectedType && collections.length > 0 && (
+          {mode === 'module' && selectedType && collections.length > 0 && (
             <div>
               <div className="text-sm font-medium text-foreground mb-2">Collection source</div>
               <div className="grid grid-cols-2 gap-2">
                 {collections.map((col) => (
                   <button
                     key={col.id}
-                    onClick={() => setSelectedCollection(col.id)}
+                    onClick={() => selectCollection(col.id)}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-left text-sm transition-colors ${
                       selectedCollection === col.id
                         ? 'border-primary bg-primary/5 text-primary'
@@ -177,10 +229,10 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
             </button>
             <button
               onClick={handleAdd}
-              disabled={!selectedType}
+              disabled={mode === 'view' ? !selectedView : !selectedType}
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Ajouter le module
+              {mode === 'view' ? 'Ajouter la vue' : 'Ajouter le module'}
             </button>
           </div>
         </div>

@@ -1,5 +1,6 @@
 
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
+import type { Collection, CollectionFilter } from '@/lib/types';
 import { MONTH_NAMES } from '@/lib/utils/dateUtils';
 
 export const getFilteredItems = (
@@ -142,7 +143,18 @@ export const getFilteredItems = (
       .filter((v: any) => v !== undefined && v !== null && v !== '');
   };
   
-  const filters = [...(currentCollection.pinnedFilters ?? []), ...(currentViewConfig.filters ?? [])];
+  const calendarSources = currentViewConfig.type === 'calendar' && Array.isArray(currentViewConfig.calendarCollectionIds)
+    ? currentViewConfig.calendarCollectionIds
+    : [];
+  const pinnedFilters = (currentCollection.pinnedFilters ?? []).filter((filter: any) => {
+    const sourceId = filter.sourceCollectionId;
+    if (!sourceId || sourceId === currentCollection.id) return true;
+    return currentViewConfig.type !== 'layout' && !calendarSources.includes(sourceId);
+  });
+  const viewFilters = (currentViewConfig.filters ?? []).filter((filter: CollectionFilter) =>
+    currentViewConfig.type !== 'layout' || !filter.sourceCollectionId || filter.sourceCollectionId === currentCollection.id
+  );
+  const filters = [...pinnedFilters, ...viewFilters];
   filters.forEach((filter: any) => {
     filtered = filtered.filter((item) => {
       const sourceCollectionId = filter?.sourceCollectionId || currentCollection?.id;
@@ -280,3 +292,19 @@ export const getOrderedProperties = (
 
   return withLinkedColumns;
 };
+
+
+/** A layout can display several collections, each with its own pinned rules. */
+export function routeLayoutFilters(owner: Collection, collections: Collection[], layoutFilters: CollectionFilter[] = []): Collection[] {
+  const pinned = owner.pinnedFilters ?? [];
+  const filters = [...pinned, ...layoutFilters];
+  if (!filters.some(({ sourceCollectionId }) => sourceCollectionId && sourceCollectionId !== owner.id)) return collections;
+
+  return collections.map((target) => {
+    if (target.id === owner.id) {
+      return { ...target, pinnedFilters: pinned.filter(({ sourceCollectionId }) => !sourceCollectionId || sourceCollectionId === owner.id) };
+    }
+    const inherited = filters.filter(({ sourceCollectionId }) => sourceCollectionId === target.id);
+    return inherited.length ? { ...target, pinnedFilters: [...(target.pinnedFilters ?? []), ...inherited] } : target;
+  });
+}

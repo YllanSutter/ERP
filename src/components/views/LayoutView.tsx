@@ -7,8 +7,9 @@ import { getLayoutPanelHeight, type LayoutPanelConfig } from './LayoutPanelsEdit
 import { computeDateRange } from '@/lib/utils/dashboardUtils';
 import { getItemIntervalsForDateField } from '@/lib/utils/recapColumnUtils';
 import { CalendarDays, ChevronDown, ChevronUp, Columns3, LayoutGrid, Plus, Settings2, Table2 } from 'lucide-react';
-import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
+import { getFilteredItems, getOrderedProperties, routeLayoutFilters } from '@/lib/filterUtils';
 import { getViewRegistration } from '@/lib/views';
+import type { CollectionFilter } from '@/lib/types';
 import type { ViewRendererProps } from '@/lib/views';
 import { getLayoutEntries, moveLayoutEntry } from './layoutOrder';
 import type { DashboardModuleConfig, ModulePeriod, RecapAssignments } from '@/lib/dashboardTypes';
@@ -62,12 +63,15 @@ const LayoutView: React.FC<ViewRendererProps> = ({
     if (!updated) setPanelId(null);
   };
   const configuring = modules.find(({ id }) => id === configuringId);
+  const panelCollections = useMemo(() => routeLayoutFilters(
+    collection, collections, view.filters as CollectionFilter[] | undefined
+  ), [collection, collections, view.filters]);
   const moduleCollections = useMemo(() => [
     { ...collection, items },
-    ...collections.filter(({ id }) => id !== collection.id).map((target) => target.pinnedFilters?.length
+    ...panelCollections.filter(({ id }) => id !== collection.id).map((target) => target.pinnedFilters?.length
       ? { ...target, items: getFilteredItems(target, {}, noRelationFilter, null, collections) }
       : target),
-  ], [collection, collections, items]);
+  ], [collection, collections, items, panelCollections]);
 
   const saveModules = (next: DashboardModuleConfig[]) => {
     if (canConfigureLayout) onUpdateView({ layoutModules: next });
@@ -152,7 +156,7 @@ const LayoutView: React.FC<ViewRendererProps> = ({
           }
           if (!panel) return null;
           const collectionId = panel.collectionId || collection.id;
-          const target = collections.find(({ id }) => id === collectionId) ?? (collectionId === collection.id ? collection : undefined);
+          const target = panelCollections.find(({ id }) => id === collectionId) ?? (collectionId === collection.id ? collection : undefined);
           const sourceView = views[collectionId]?.find(({ id }) => id === panel.viewId);
           const panelView = sourceView && { ...sourceView, ...panel.viewSettings };
           const properties = getOrderedProperties(target, panelView, collections);
@@ -210,7 +214,7 @@ const LayoutView: React.FC<ViewRendererProps> = ({
                     view={panelView}
                     viewModeStorageKey={`layout:${collection.id}:${view.id}:${panel.id}:${panelView.id}`}
                     collection={target}
-                    collections={collections}
+                    collections={panelCollections}
                     items={panelItems}
                     properties={properties}
                     onUpdateView={() => {}}
@@ -251,6 +255,19 @@ const LayoutView: React.FC<ViewRendererProps> = ({
           excludeLayout
           collections={moduleCollections}
           currentOrder={modules.length}
+          existingViews={{
+            byCollection: views,
+            onAdd: (collectionId, viewId) => onUpdateView({
+              layoutPanels: [...panels, {
+                id: crypto.randomUUID(),
+                collectionId,
+                viewId,
+                colSpan: 6,
+                height: LAYOUT_HEIGHT_OPTIONS[1].value,
+              }],
+              layoutOrder: order,
+            }),
+          }}
           onAdd={(module) => {
             const height = LAYOUT_HEIGHT_OPTIONS[module.type === 'metric' ? 0 : module.type === 'recap' ? 2 : 1].value;
             saveModules([...modules, { ...module, layout: { ...module.layout, h: height } }]);

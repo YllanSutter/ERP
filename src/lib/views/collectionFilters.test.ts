@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getFilteredItems } from '@/lib/filterUtils';
+import type { Collection } from '@/lib/types';
+import { getFilteredItems, routeLayoutFilters } from '@/lib/filterUtils';
 
 const sites = {
   id: 'sites',
@@ -33,4 +34,40 @@ describe('collection view filters', () => {
     expect(getFilteredItems(tasks, {}, { collectionId: sites.id, ids: ['s1'] }, sites.id, [sites, tasks]))
       .toEqual(tasks.items);
   });
+});
+
+it('keeps a pinned Tâches rule out of the Sites events in a shared calendar', () => {
+  const ownerFilter = { sourceCollectionId: 'tasks', property: 'owner', operator: 'not_equals', value: ['yllan'] };
+  const tasks = {
+    id: 'tasks',
+    properties: [{ id: 'owner', type: 'select' }],
+    items: [{ id: 't1', owner: 'yllan' }, { id: 't2', owner: 'other' }],
+  };
+  const calendarSites = { ...sites, pinnedFilters: [...sites.pinnedFilters, ownerFilter] };
+  const collections = [calendarSites, tasks];
+  const view = { type: 'calendar', calendarCollectionIds: ['sites', 'tasks'] };
+
+  expect(getFilteredItems(calendarSites, view, noRelation, 'sites', collections).map(({ id }) => id))
+    .toEqual(['s1', 's2']);
+  expect(getFilteredItems(tasks, { filters: [ownerFilter] }, noRelation, 'sites', collections).map(({ id }) => id))
+    .toEqual(['t2']);
+});
+
+it.each(['pinned', 'layout'])('routes a %s rule to the agenda’s secondary collection', (scope) => {
+  const ownerFilter = { sourceCollectionId: 'tasks', property: 'owner', operator: 'not_equals', value: ['yllan'] };
+  const calendarSites = { ...sites, pinnedFilters: [...sites.pinnedFilters, ownerFilter] };
+  const tasks = {
+    id: 'tasks', name: 'Tâches',
+    properties: [{ id: 'owner', name: 'Employé', type: 'select' }],
+    items: [{ id: 't1', owner: 'yllan' }, { id: 't2', owner: 'other' }],
+  };
+  const owner = { ...(scope === 'pinned' ? calendarSites : sites), name: 'Sites' };
+  const layoutFilters = scope === 'layout' ? [ownerFilter] : [];
+  const collections = [owner, tasks] as Collection[];
+  const routed = routeLayoutFilters(collections[0], collections, layoutFilters);
+
+  expect(getFilteredItems(owner, { type: 'layout', filters: layoutFilters }, noRelation, 'sites', collections).map(({ id }) => id))
+    .toEqual(['s1', 's2']);
+  expect(getFilteredItems(routed[1], {}, noRelation, 'sites', routed).map(({ id }) => id))
+    .toEqual(['t2']);
 });
