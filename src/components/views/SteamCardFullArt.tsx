@@ -143,12 +143,35 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
         event.preventDefault();
         onViewDetail(item);
       }}
-      draggable={draggable}
-      onDragStart={(event) => { if (!draggable) return; event.dataTransfer.effectAllowed = 'move'; onDragStart(item.id); }}
-      onDragOver={(event) => { if (draggable) event.preventDefault(); }}
-      onDrop={(event) => { if (!draggable) return; event.preventDefault(); onDropOnItem(item.id); }}
-      onDragEnd={onDragEnd}
+      onDragOver={(event) => {
+        if (!draggable || !event.dataTransfer.types.includes('application/x-erp-card')) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+      }}
+      onDrop={(event) => {
+        if (!draggable || !event.dataTransfer.getData('application/x-erp-card')) return;
+        event.preventDefault();
+        onDropOnItem(item.id);
+      }}
     >
+      {draggable && (
+        <button
+          type="button"
+          draggable
+          aria-label={`Déplacer ${title}`}
+          title="Glisser pour réorganiser"
+          className="absolute right-[4%] top-[4%] z-30 flex h-7 w-7 cursor-grab items-center justify-center rounded-full border border-white/40 bg-black/65 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
+          onClick={(event) => event.stopPropagation()}
+          onDragStart={(event) => {
+            event.dataTransfer.setData('application/x-erp-card', item.id);
+            event.dataTransfer.effectAllowed = 'move';
+            onDragStart(item.id);
+          }}
+          onDragEnd={onDragEnd}
+        >
+          <Icons.GripVertical size={16} aria-hidden="true" />
+        </button>
+      )}
       <label
         className={`absolute left-[4%] top-[4%] z-30 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-white/40 bg-black/45 shadow-sm backdrop-blur-sm transition-[opacity,background-color,border-color] ${selected ? 'pointer-events-auto border-[var(--or)] bg-[var(--or)]/90 opacity-100' : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100'}`}
         onClick={(event) => event.stopPropagation()}

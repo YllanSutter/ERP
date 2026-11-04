@@ -14,6 +14,19 @@ export interface SteamGame {
 // Export vide - sera chargée dynamiquement à runtime
 export const steamGames: SteamGame[] = [];
 
+export function getSteamDisplayName(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'object') {
+    const { name, label, appid } = value as { name?: unknown; label?: unknown; appid?: unknown }
+    if (typeof name === 'string') return name;
+    if (typeof label === 'string') return label;
+    if (appid !== undefined && appid !== null) return String(appid);
+  }
+  return '';
+}
+
 export function getSteamAppId(raw: any): number | null {
   let value = raw;
   if (typeof value === 'string' && value.trim().startsWith('{')) {

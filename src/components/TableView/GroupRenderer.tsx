@@ -685,16 +685,8 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
               enableDragReorder={draggableRows}
               isDragging={dragItemId === item.id}
               isDragOver={dragOverItemId === item.id && dragItemId !== item.id}
-              onDragStart={(itemId, e) => {
-                e.dataTransfer!.effectAllowed = 'move';
-                onRowDragStart?.(itemId);
-              }}
+              onDragStart={onRowDragStart}
               onDragEnter={onRowDragEnter}
-              onDragOver={(e) => {
-                if (!draggableRows) return;
-                e.preventDefault();
-                e.dataTransfer!.dropEffect = 'move';
-              }}
               onDrop={onRowDrop}
               onDragEnd={onRowDragEnd}
             />

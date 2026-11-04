@@ -26,6 +26,7 @@ export interface TableHeaderProps {
   collectionId?: string;
   sortState?: { column: string | null; direction: 'asc' | 'desc' };
   onSort?: (columnId: string) => void;
+  onManualOrder?: () => void;
   enableSelection?: boolean;
   allSelected?: boolean;
   partiallySelected?: boolean;
@@ -48,6 +49,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   collectionId,
   sortState,
   onSort,
+  onManualOrder,
   enableSelection = false,
   allSelected = false,
   partiallySelected = false,
@@ -250,7 +252,20 @@ const TableHeader: React.FC<TableHeaderProps> = ({
     <thead className="bg-gray-100 dark:bg-black/30 border-b border-black/5 dark:border-white/5">
       <tr>
         {enableDragReorder && (
-          <th className="w-8 px-1 py-2 text-center border-b border-r border-[#ffffff10]"></th>
+          <th scope="col" className={`w-8 px-1 py-2 text-center border-b border-r border-[#ffffff10] ${onManualOrder && !sortState?.column ? 'shadow-[inset_0_-2px_0] shadow-violet-500/70' : ''}`}>
+            {onManualOrder && (
+              <button
+                type="button"
+                onClick={onManualOrder}
+                aria-label="Ordre manuel"
+                aria-pressed={!sortState?.column}
+                title="Ordre manuel"
+                className={`inline-flex rounded p-1 hover:bg-black/5 dark:hover:bg-white/10 ${sortState?.column ? 'text-neutral-500 dark:text-neutral-400' : 'text-violet-700 dark:text-violet-300'}`}
+              >
+                <Icons.ListOrdered size={14} aria-hidden="true" />
+              </button>
+            )}
+          </th>
         )}
         {enableSelection && (
           <th className="w-10 px-2 py-2 text-center border-b border-r border-[#ffffff10]">
@@ -275,15 +290,16 @@ const TableHeader: React.FC<TableHeaderProps> = ({
         )}
         {displayProperties.map((prop: any) => {
           const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
-          const isSorted = sortState?.column === prop.id;
+          const sortDirection = sortState && sortState.column === prop.id ? sortState.direction : undefined;
           return (
             <ContextMenu key={prop.id}>
               <ContextMenuTrigger asChild>
                 <th
                   draggable={!!onReorderField}
+                  aria-sort={sortDirection ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
                   className={
-                    "px-3 py-2 text-left text-[11px] font-medium text-neutral-600 dark:text-white uppercase tracking-wider border-b border-r border-[#ffffff10] cursor-pointer select-none transition hover:bg-violet-100/30 dark:hover:bg-violet-900/10" +
-                    (isSorted ? ' bg-violet-200/40 dark:bg-violet-900/30' : '') +
+                    "px-3 py-2 text-left text-[11px] font-medium text-neutral-600 dark:text-white uppercase tracking-wider border-b border-r border-[#ffffff10] cursor-pointer select-none transition-colors hover:bg-black/5 dark:hover:bg-white/5" +
+                    (sortDirection ? ' shadow-[inset_0_-2px_0] shadow-violet-500/70' : '') +
                     (overColId === prop.id && dragColId !== prop.id ? ' border-l-2 border-l-violet-500' : '')
                   }
                   onClick={() => onSort && onSort(prop.id)}
@@ -302,9 +318,9 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                   <div className="flex items-center gap-1.5 font-black leading-tight">
                     <PropIcon size={12} />
                     {prop.name}
-                    {isSorted && (
-                      <span className="ml-1">
-                        {sortState && sortState.direction === 'asc' ? <Icons.ChevronUp size={12} /> : <Icons.ChevronDown size={12} />}
+                    {sortDirection && (
+                      <span aria-hidden="true" className="inline-flex shrink-0 items-center justify-center rounded-md bg-violet-500/10 p-0.5 text-violet-700 dark:text-violet-300">
+                        {sortDirection === 'asc' ? <Icons.ArrowUp size={12} /> : <Icons.ArrowDown size={12} />}
                       </span>
                     )}
                   </div>

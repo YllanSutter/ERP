@@ -32,20 +32,13 @@ export interface TableItemRowProps {
   enableSelection?: boolean;
   isSelected?: boolean;
   onSelectionChange?: (itemId: string, checked: boolean) => void;
-  draggableRow?: boolean;
   isDragging?: boolean;
   isDragOver?: boolean;
   enableDragReorder?: boolean;
-  onDragStart?: (itemId: string, e: React.DragEvent<HTMLDivElement>) => void;
+  onDragStart?: (itemId: string) => void;
   onDragEnter?: (itemId: string) => void;
-  onDragOver?: (e: React.DragEvent<HTMLTableRowElement>) => void;
   onDrop?: (itemId: string, e: React.DragEvent<HTMLTableRowElement>) => void;
   onDragEnd?: () => void;
-  onRowDragStart?: React.DragEventHandler<HTMLTableRowElement>;
-  onRowDragEnter?: React.DragEventHandler<HTMLTableRowElement>;
-  onRowDragOver?: React.DragEventHandler<HTMLTableRowElement>;
-  onRowDrop?: React.DragEventHandler<HTMLTableRowElement>;
-  onRowDragEnd?: React.DragEventHandler<HTMLTableRowElement>;
 }
 
 const TableItemRow: React.FC<TableItemRowProps> = ({
@@ -67,20 +60,13 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
   enableSelection = false,
   isSelected = false,
   onSelectionChange,
-  draggableRow = false,
   isDragging = false,
   isDragOver = false,
   enableDragReorder = false,
   onDragStart,
   onDragEnter,
-  onDragOver,
   onDrop,
   onDragEnd,
-  onRowDragStart,
-  onRowDragEnter,
-  onRowDragOver,
-  onRowDrop,
-  onRowDragEnd,
 }) => {
   const RowComponent = animate ? motion.tr : 'tr';
   const motionProps = animate
@@ -90,39 +76,18 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
       }
     : {};
 
-  const handleRowDragStart = (e: React.DragEvent<HTMLTableRowElement>) => {
-    // Empêcher le drag si on vient d'un input ou élement éditable
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
-      e.preventDefault();
-      return;
-    }
-    onRowDragStart?.(e);
+  const handleDragHandleStart = (event: React.DragEvent<HTMLDivElement>) => {
+    event.dataTransfer.setData('application/x-erp-table-row', item.id);
+    event.dataTransfer.effectAllowed = 'move';
+    onDragStart?.(item.id);
   };
 
-  const rowDragProps = !animate
-    ? {
-        draggable: draggableRow,
-        onDragStart: handleRowDragStart,
-        onDragEnter: onRowDragEnter,
-        onDragOver: onRowDragOver,
-        onDrop: onRowDrop,
-        onDragEnd: onRowDragEnd,
-      }
-    : {};
-
-  const handleDragHandleStart = (e: React.DragEvent<HTMLDivElement>) => {
-    onDragStart?.(item.id, e);
+  const handleDragOver = (event: React.DragEvent<HTMLTableRowElement>) => {
+    if (!onDragStart || !event.dataTransfer.types.includes('application/x-erp-table-row')) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    onDragEnter?.(item.id);
   };
-
-  const rowDropProps = !animate
-    ? {
-        onDragEnter: () => onDragEnter?.(item.id),
-        onDragOver: onDragOver,
-        onDrop: (e: React.DragEvent<HTMLTableRowElement>) => onDrop?.(item.id, e),
-        onDragEnd: onDragEnd,
-      }
-    : {};
 
   const resolveDisplayValueForLinkedColumn = (prop: any) => {
     if (!prop?.isRelationLinkedColumn || !prop?.sourceRelationPropertyId || !prop?.sourceDisplayFieldId) {
@@ -171,16 +136,18 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
       <ContextMenuTrigger asChild>
         <RowComponent
           {...motionProps}
-          {...(rowDropProps as any)}
+          onDragOver={onDragStart ? handleDragOver : undefined}
+          onDrop={onDragStart ? (event) => onDrop?.(item.id, event) : undefined}
+          onDragEnd={onDragEnd}
           className={`hover:bg-white/5 transition-colors border-b border-black/5 dark:border-white/5 cursor-context-menu leading-tight ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'outline outline-1 outline-violet-500/60' : ''}`}
         >
           {enableDragReorder && (
             <td className="px-1 py-1 text-center align-middle w-8">
               <div
-                draggable
-                onDragStart={handleDragHandleStart}
-                className="inline-flex items-center justify-center cursor-grab active:cursor-grabbing hover:text-violet-400 transition-colors"
-                title="Glisser pour réorganiser"
+                draggable={Boolean(onDragStart)}
+                onDragStart={onDragStart ? handleDragHandleStart : undefined}
+                className={`inline-flex items-center justify-center ${onDragStart ? 'cursor-grab active:cursor-grabbing hover:text-violet-400 transition-colors' : 'cursor-not-allowed opacity-40'}`}
+                title={onDragStart ? 'Glisser pour réorganiser' : 'Sélectionner Ordre manuel dans l’en-tête pour déplacer les lignes'}
               >
                 <GripVertical size={14} />
               </div>

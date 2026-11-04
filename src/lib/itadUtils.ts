@@ -8,18 +8,23 @@ export async function importPricesFromItad(
   organizationId: string,
   itemIds: string[],
   config?: Record<string, any>
-): Promise<any> {
+): Promise<{
+  updated: number;
+  errors: number;
+  details: { updates: { itemId: string; prices: { sale: number; regular: number } }[] };
+}> {
   try {
     console.log('[ITAD] Importing prices for', itemIds.length, 'items');
 
     const response = await fetch(`${API_URL}/plugins/steam/import-prices`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Organization-Id': organizationId },
       credentials: 'include',
       body: JSON.stringify({
         itemIds,
         organizationId,
-        config: config || {}
+        config: config || {},
+        persist: false
       })
     });
 
@@ -43,7 +48,6 @@ export async function importPricesFromItad(
     const result = await response.json();
     console.log('[ITAD] Import completed:', result);
 
-    alert(`✅ Import ITAD réussi!\nMis à jour: ${result.updated}, Erreurs: ${result.errors}`);
     return result;
   } catch (error) {
     console.error('[ITAD] Import error:', error);

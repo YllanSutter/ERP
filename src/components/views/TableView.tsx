@@ -19,6 +19,7 @@ import { countItemsInGroup, getGroupLabel, resolveGroupVisualStyle } from '@/lib
 import { isCalculatedNumberProperty } from '@/lib/calculatedFields';
 import { API_URL } from '@/lib/constants';
 import { compareValues } from '@/lib/utils/sortUtils';
+import { getSteamDisplayName } from '@/lib/plugins/steam/steamUtils';
 import { buildGroupPrefill } from '@/lib/utils/groupPrefillUtils';
 import { getGroupSelectionStorageKey, GROUPING_SELECTION_CHANGE_EVENT, readGroupFieldSelections, saveGroupFieldSelection, saveGroupingSelection } from '@/lib/groupingSelectionStorage';
 import {
@@ -277,6 +278,9 @@ const TableView: React.FC<TableViewProps> = ({
     return [...arr].sort((a, b) => {
       const aVal = sortProp ? resolveProjectedValue(a, sortProp) : (a && col in a ? a[col] : undefined);
       const bVal = sortProp ? resolveProjectedValue(b, sortProp) : (b && col in b ? b[col] : undefined);
+      if (sortProp?.type === 'steam') {
+        return compareValues(getSteamDisplayName(aVal), getSteamDisplayName(bVal), sortState.direction);
+      }
       return compareValues(aVal, bVal, sortState.direction);
     });
   }, [sortState, orderedProperties, resolveProjectedValue]);
@@ -973,34 +977,31 @@ const TableView: React.FC<TableViewProps> = ({
     ].join('|'),
   });
 
-  const reorderItemsById = useCallback((sourceId: string, targetId: string) => {
-    if (sourceId === targetId) return;
-    const nextItems = [...items];
-    const from = nextItems.findIndex((it) => it.id === sourceId);
-    const to = nextItems.findIndex((it) => it.id === targetId);
-    if (from === -1 || to === -1 || from === to) return;
-    const [moved] = nextItems.splice(from, 1);
-    nextItems.splice(to, 0, moved);
-    onReorderItems(nextItems);
-  }, [items, onReorderItems]);
-
   const handleRowDragStart = useCallback((itemId: string) => {
-    if (!canReorderRows) return;
-    setDragItemId(itemId);
+    if (canReorderRows) setDragItemId(itemId);
   }, [canReorderRows]);
 
   const handleRowDragEnter = useCallback((itemId: string) => {
-    if (!canReorderRows || !dragItemId) return;
-    setDragOverItemId(itemId);
-  }, [canReorderRows, dragItemId]);
+    if (dragItemId) setDragOverItemId(itemId);
+  }, [dragItemId]);
 
-  const handleRowDrop = useCallback((targetItemId: string, e: React.DragEvent<HTMLTableRowElement>) => {
-    if (!canReorderRows || !dragItemId) return;
-    e.preventDefault();
-    reorderItemsById(dragItemId, targetItemId);
+  const handleRowDrop = useCallback((targetItemId: string, event: React.DragEvent<HTMLTableRowElement>) => {
+    const sourceId = event.dataTransfer.getData('application/x-erp-table-row');
+    if (!canReorderRows || !sourceId || sourceId !== dragItemId) return;
+    event.preventDefault();
     setDragItemId(null);
     setDragOverItemId(null);
-  }, [canReorderRows, dragItemId, reorderItemsById]);
+
+    if (sourceId === targetItemId) return;
+    const from = items.findIndex((item) => item.id === sourceId);
+    const to = items.findIndex((item) => item.id === targetItemId);
+    if (from < 0 || to < 0) return;
+
+    const nextItems = [...items];
+    const [moved] = nextItems.splice(from, 1);
+    nextItems.splice(to, 0, moved);
+    onReorderItems(nextItems);
+  }, [canReorderRows, dragItemId, items, onReorderItems]);
 
   const handleRowDragEnd = useCallback(() => {
     setDragItemId(null);
@@ -1270,10 +1271,10 @@ const TableView: React.FC<TableViewProps> = ({
               enableSelection={showSelectionColumn}
               selectedItemIds={selectedItemIds}
               onSelectionChange={handleSelectionChange}
-              draggableRows={canReorderRows}
+              draggableRows={canEdit}
               dragItemId={dragItemId}
               dragOverItemId={dragOverItemId}
-              onRowDragStart={handleRowDragStart}
+              onRowDragStart={canReorderRows ? handleRowDragStart : undefined}
               onRowDragEnter={handleRowDragEnter}
               onRowDrop={handleRowDrop}
               onRowDragEnd={handleRowDragEnd}
@@ -1323,16 +1324,15 @@ const TableView: React.FC<TableViewProps> = ({
               canEditField={canEditFieldFn}
               collection={collection}
               enableSelection={showSelectionColumn}
-              enableDragReorder={canReorderRows}
+              enableDragReorder={canEdit}
               isSelected={selectedItemIds.has(item.id)}
               onSelectionChange={handleSelectionChange}
-              draggableRow={canReorderRows}
               isDragging={dragItemId === item.id}
-              isDragOver={dragOverItemId === item.id}
-              onRowDragStart={() => handleRowDragStart(item.id)}
-              onRowDragEnter={() => handleRowDragEnter(item.id)}
-              onRowDrop={(event) => handleRowDrop(item.id, event)}
-              onRowDragEnd={handleRowDragEnd}
+              isDragOver={dragOverItemId === item.id && dragItemId !== item.id}
+              onDragStart={canReorderRows ? handleRowDragStart : undefined}
+              onDragEnter={handleRowDragEnter}
+              onDrop={handleRowDrop}
+              onDragEnd={handleRowDragEnd}
             />
           ));
 
@@ -1375,7 +1375,8 @@ const TableView: React.FC<TableViewProps> = ({
                   collectionId={collection?.id}
                   sortState={sortState}
                   onSort={handleSort}
-                  enableDragReorder={canReorderRows}
+                  onManualOrder={() => setSortState({ column: null, direction: 'asc' })}
+                  enableDragReorder={canEdit}
                   enableSelection={showSelectionColumn}
                   allSelected={scopedAllSelected}
                   partiallySelected={scopedPartiallySelected}
@@ -1388,7 +1389,7 @@ const TableView: React.FC<TableViewProps> = ({
                 {showBottomTotalsByDefault && Object.keys(totalFields).length > 0 && (footerItems || items).length > 0 && (
                   <tfoot>
                     <tr>
-                      {canReorderRows && <td className="px-1 py-2 w-8" />}
+                      {canEdit && <td className="px-1 py-2 w-8" />}
                       {showSelectionColumn && <td className="px-2 py-2 w-10" />}
                       {visibleTotalProperties.map((prop: any) => {
                         const totalType = totalFields[prop.id];
@@ -1482,7 +1483,7 @@ const TableView: React.FC<TableViewProps> = ({
               groupDisplayColumnCounts={groupDisplayColumnCounts}
               collectionId={collection.id}
               renderItems={(groupItems) => renderTableShell(
-                renderFlatRows(groupItems),
+                renderFlatRows(sortItems(groupItems)),
                 groupItems,
                 groupItems,
               )}

@@ -24,7 +24,7 @@ export const steamServerPlugin = {
 
     app.post('/api/plugins/steam/import-prices', requireAuth, async (req, res) => {
       try {
-        const { itemIds, organizationId, config = {} } = req.body;
+        const { itemIds, organizationId, config = {}, persist = true } = req.body;
         if (!itemIds || !Array.isArray(itemIds)) {
           return res.status(400).json({ error: 'itemIds must be an array' });
         }
@@ -350,24 +350,26 @@ export const steamServerPlugin = {
           }
         }
 
-        const stateStr = JSON.stringify(encryptStateSecrets(state));
-        const updateRes = await pool.query(
-          'UPDATE app_state SET data = $1 WHERE organization_id = $2',
-          [stateStr, activeOrganizationId]
-        );
-        if (updateRes.rowCount === 0) {
-          await syncAppStateIdSequence();
-          await pool.query(
-            'INSERT INTO app_state (organization_id, data) VALUES ($1, $2)',
-            [activeOrganizationId, stateStr]
+        if (persist !== false && updates.length > 0) {
+          const stateStr = JSON.stringify(encryptStateSecrets(state));
+          const updateRes = await pool.query(
+            'UPDATE app_state SET data = $1 WHERE organization_id = $2',
+            [stateStr, activeOrganizationId]
           );
-        }
+          if (updateRes.rowCount === 0) {
+            await syncAppStateIdSequence();
+            await pool.query(
+              'INSERT INTO app_state (organization_id, data) VALUES ($1, $2)',
+              [activeOrganizationId, stateStr]
+            );
+          }
 
-        if (global.io && updates.length > 0) {
-          global.io.emit('stateUpdated', {
-            userId: req.auth.user.id,
-            organizationId: activeOrganizationId,
-          });
+          if (global.io) {
+            global.io.emit('stateUpdated', {
+              userId: req.auth.user.id,
+              organizationId: activeOrganizationId,
+            });
+          }
         }
 
         res.json({

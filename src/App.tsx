@@ -4,7 +4,7 @@ import { SteamBundles } from '@/lib/plugins/steam/SteamBundles';
 
 
 
-import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useErpSync } from '@/lib/useErpSync';
 import { motion } from 'framer-motion';
@@ -38,7 +38,7 @@ import { useItems } from '@/lib/hooks/useItems';
 import { useViews } from '@/lib/hooks/useViews';
 import { getFilteredItems, getOrderedProperties } from '@/lib/filterUtils';
 import { DashboardConfig } from '@/lib/dashboardTypes';
-import { applyCalculatedFieldsToCollections, stripCalculatedNumberFieldsFromItem } from '@/lib/calculatedFields';
+import { applyCalculatedFieldsToCollections } from '@/lib/calculatedFields';
 import { applyUserCalendarPreferences } from '@/lib/calendarUtils';
 import { importPricesFromItad } from '@/lib/itadUtils';
 import { isEmptyValue } from '@/lib/utils/valueUtils';
@@ -227,30 +227,39 @@ const App = () => {
 
   const itemHooks = useItems(collections, setCollections, activeCollection);
 
-  // Handler for ITAD bulk import
+  const itadOrganizationRef = useRef(activeOrganizationId);
+  itadOrganizationRef.current = activeOrganizationId;
+
   const handleBulkImportItad = async (itemIds: string[]) => {
-    if (!activeOrganizationId || !activeCollection) {
-      console.error('Missing organization or collection');
-      return;
-    }
+    if (!activeOrganizationId || !activeCollection) return;
 
     try {
-      // Get Steam plugin config
       const config = pluginManager.getPluginConfig(activeOrganizationId, 'steam');
-      
-      // Call ITAD import utility
-      await importPricesFromItad(activeOrganizationId, itemIds, config);
-      
-      // Reload full state to reflect imported prices
-      const response = await fetch(`${API_URL}/state`, {
-        credentials: 'include',
-      });
-      if (response.ok) {
-        const freshState = await response.json();
-        if (Array.isArray(freshState?.collections)) {
-          setCollections(freshState.collections);
-        }
+      const result = await importPricesFromItad(activeOrganizationId, itemIds, config);
+      if (itadOrganizationRef.current !== activeOrganizationId) return;
+
+      const updates = new Map(result.details.updates.map(({ itemId, prices }) => [itemId, prices]));
+      const { priceSaleColumn, priceRegularColumn } = config || {};
+      if (updates.size && (priceSaleColumn || priceRegularColumn)) {
+        setCollections((current) => {
+          if (itadOrganizationRef.current !== activeOrganizationId) return current;
+          return current.map((collection) => collection.id === activeCollection
+            ? {
+              ...collection,
+              items: collection.items.map((item: { id: string }) => {
+                const prices = updates.get(item.id);
+                if (!prices) return item;
+                return {
+                  ...item,
+                  ...(priceSaleColumn ? { [priceSaleColumn]: prices.sale } : {}),
+                  ...(priceRegularColumn ? { [priceRegularColumn]: prices.regular } : {}),
+                };
+              }),
+            }
+            : collection);
+        });
       }
+      alert(`✅ Import ITAD terminé\nMis à jour : ${result.updated}, Erreurs : ${result.errors}`);
     } catch (error) {
       console.error('ITAD import error:', error);
     }
@@ -944,17 +953,17 @@ const App = () => {
                     hiddenFields={activeViewConfig?.hiddenFields || []}
                     orderedProperties={orderedProperties}
                     onReorderItems={(nextItems: any[]) => {
-                      const sourceCollection = collections.find((col) => col.id === activeCollection);
-                      const sanitizedItems = sourceCollection
-                        ? nextItems.map((item) => stripCalculatedNumberFieldsFromItem(item, sourceCollection))
-                        : nextItems;
-                      const updatedCollections = collections.map((col) => {
-                        if (col.id === activeCollection) {
-                          return { ...col, items: sanitizedItems };
-                        }
-                        return col;
-                      });
-                      setCollections(updatedCollections);
+                      setCollections((previous) => previous.map((col) => {
+                        if (col.id !== activeCollection) return col;
+                        const itemsById = new Map<string, any>(col.items.map((item: any) => [item.id, item]));
+                        const reordered = nextItems.map((item) => itemsById.get(item.id)).filter(Boolean);
+                        const reorderedIds = new Set(reordered.map((item) => item.id));
+                        let nextIndex = 0;
+                        return {
+                          ...col,
+                          items: col.items.map((item: any) => reorderedIds.has(item.id) ? reordered[nextIndex++] : item),
+                        };
+                      }));
                     }}
                     onToggleField={viewHooks.toggleFieldVisibility}
                     onDeleteProperty={collectionHooks.deleteProperty}

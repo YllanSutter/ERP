@@ -1,25 +1,13 @@
 import { SteamImage } from '@/lib/plugins/steam/SteamImage';
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Loader } from 'lucide-react';
-import { searchSteamGames, loadSteamGamesList, SteamGame, STEAM_CATALOGUE_CHANGED, getSteamAppId } from '@/lib/plugins/steam/steamUtils';
+import { searchSteamGames, loadSteamGamesList, SteamGame, STEAM_CATALOGUE_CHANGED, getSteamAppId, getSteamDisplayName } from '@/lib/plugins/steam/steamUtils';
 
 interface SteamPropertyFieldProps {
   value?: any;
   onChange?: (value: any) => void;
   disabled?: boolean;
 }
-
-const getSteamDisplayName = (value: any): string => {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number') return String(value);
-  if (typeof value === 'object') {
-    if (typeof value.name === 'string') return value.name;
-    if (typeof value.label === 'string') return value.label;
-    if (value.appid !== undefined && value.appid !== null) return String(value.appid);
-  }
-  return '';
-};
 
 export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
   value = '',
