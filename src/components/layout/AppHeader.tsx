@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Moon, Sun, LogOut, Shield, Search, Command } from 'lucide-react';
+import { Moon, Sun, LogOut, Shield, Search, Command, Pencil } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Select,
@@ -19,6 +19,7 @@ interface AppHeaderProps {
   impersonatedRoleId: string | null;
   availableRoles: any[];
   activeCollectionName?: string | null;
+  dashboardTitle?: { name: string; onRename: (name: string) => void };
   saveStatus?: SaveStatus;
   onRetrySave?: () => void;
   theme: 'light' | 'dark';
@@ -32,6 +33,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   impersonatedRoleId,
   availableRoles,
   activeCollectionName,
+  dashboardTitle,
   saveStatus,
   onRetrySave,
   onImpersonate,
@@ -96,11 +98,25 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           title="Ouvrir la navigation"
           aria-label="Ouvrir la navigation"
         />
-        <div className="flex items-center gap-2">
-          <h1 className="text-sm md:text-base font-semibold truncate max-w-[240px]">
+        {dashboardTitle ? (
+          <h1 className="min-w-0" aria-label={dashboardTitle.name}>
+            <label className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-md px-2 py-1 hover:bg-muted focus-within:bg-muted focus-within:ring-1 focus-within:ring-brand-500">
+              <input
+                type="text"
+                aria-label="Nom du dashboard"
+                size={Math.max(8, Math.min(30, dashboardTitle.name.length + 1))}
+                value={dashboardTitle.name}
+                onChange={(event) => dashboardTitle.onRename(event.target.value)}
+                className="min-w-0 bg-transparent text-sm font-semibold tracking-tight text-foreground outline-none md:text-base"
+              />
+              <Pencil aria-hidden="true" size={13} className="shrink-0 text-muted-foreground" />
+            </label>
+          </h1>
+        ) : (
+          <h1 className="max-w-[240px] truncate text-sm font-semibold md:text-base">
             {activeCollectionName || 'Collections'}
           </h1>
-        </div>
+        )}
       </div>
       <div className="flex items-center gap-2">
         {saveStatus && (

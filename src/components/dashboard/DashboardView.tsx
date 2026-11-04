@@ -9,7 +9,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Plus, CalendarRange, ChevronDown, X
+  Plus, CalendarRange, ChevronDown, ChevronLeft, ChevronRight, X
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { addMonths, endOfMonth, format, parseISO, startOfMonth } from 'date-fns';
@@ -206,118 +206,111 @@ const DashboardView: React.FC<Props> = ({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* ===== Barre d'outils ===== */}
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border flex-shrink-0">
-        {/* Titre */}
-        {isEditMode ? (
-          <input
-            type="text"
-            value={dashboard.name}
-            onChange={(e) => onUpdate({ name: e.target.value })}
-            className="text-base font-semibold bg-transparent border-b border-primary focus:outline-none text-foreground min-w-0 flex-shrink"
-          />
-        ) : (
-          <h1 className="text-base font-semibold text-foreground truncate">{dashboard.name}</h1>
-        )}
-
-        <div className="flex-1" />
-
-        {/* Filtre date global */}
-        <div className="relative">
-          <button
-            onClick={() => setShowDatePicker(!showDatePicker)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-colors ${
-              dashboard.globalDatePreset
-                ? 'border-primary/50 bg-primary/5 text-primary'
-                : 'border-border text-muted-foreground hover:bg-accent'
-            }`}
-          >
-            <CalendarRange size={14} />
-            {dashboard.globalDatePreset
-              ? GLOBAL_DATE_PRESET_LABELS[dashboard.globalDatePreset]
-              : 'Toutes les dates'}
-            <ChevronDown size={12} />
-          </button>
-
-          <AnimatePresence>
-            {showDatePicker && (
-              <motion.div
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-lg shadow-lg py-1 z-20 w-48"
+      <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-card px-4 py-2.5">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
+          <div className="flex min-w-0 items-center rounded-lg border border-border bg-background p-0.5 text-xs font-medium">
+            <div className="relative min-w-0">
+              <button
+                type="button"
+                aria-expanded={showDatePicker}
+                onClick={() => setShowDatePicker(!showDatePicker)}
+                className={`flex h-8 min-w-0 items-center gap-1.5 rounded-md px-2.5 hover:bg-accent ${showDatePicker ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}
               >
-                <button
-                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent text-muted-foreground"
-                  onClick={() => { onUpdate({ globalDatePreset: undefined }); setShowDatePicker(false); }}
-                >
-                  Toutes les dates
-                </button>
-                {PRESET_OPTIONS.filter(o => o.value !== 'custom').map((opt) => (
-                  <button
-                    key={opt.value}
-                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent ${
-                      dashboard.globalDatePreset === opt.value ? 'text-primary font-medium' : 'text-foreground'
-                    }`}
-                    onClick={() => { onUpdate({ globalDatePreset: opt.value }); setShowDatePicker(false); }}
+                <CalendarRange size={14} className="shrink-0" />
+                <span className="truncate">{dashboard.globalDatePreset
+                  ? GLOBAL_DATE_PRESET_LABELS[dashboard.globalDatePreset]
+                  : 'Toutes les dates'}</span>
+                <ChevronDown size={12} className="shrink-0" />
+              </button>
+
+              <AnimatePresence>
+                {showDatePicker && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    className="absolute left-0 top-full mt-2 bg-popover border border-border rounded-lg shadow-lg py-1 z-20 w-48"
                   >
-                    {opt.label}
-                  </button>
-                ))}
-                {/* Plage personnalisée */}
-                <div className="px-3 py-2 border-t border-border mt-1">
-                  <div className="text-xs text-muted-foreground mb-1">Personnalisé</div>
-                  <div className="flex gap-1">
-                    <input
-                      type="date"
-                      value={dashboard.globalDateStart ?? ''}
-                      onChange={(e) => onUpdate({ globalDatePreset: 'custom', globalDateStart: e.target.value })}
-                      className="flex-1 text-xs border border-border rounded px-1.5 py-1 bg-background"
-                    />
-                    <input
-                      type="date"
-                      value={dashboard.globalDateEnd ?? ''}
-                      onChange={(e) => onUpdate({ globalDatePreset: 'custom', globalDateEnd: e.target.value })}
-                      className="flex-1 text-xs border border-border rounded px-1.5 py-1 bg-background"
-                    />
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                    <button
+                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent text-muted-foreground"
+                      onClick={() => { onUpdate({ globalDatePreset: undefined }); setShowDatePicker(false); }}
+                    >
+                      Toutes les dates
+                    </button>
+                    {PRESET_OPTIONS.filter(o => o.value !== 'custom').map((opt) => (
+                      <button
+                        key={opt.value}
+                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent ${
+                          dashboard.globalDatePreset === opt.value ? 'text-primary font-medium' : 'text-foreground'
+                        }`}
+                        onClick={() => { onUpdate({ globalDatePreset: opt.value }); setShowDatePicker(false); }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                    {/* Plage personnalisée */}
+                    <div className="px-3 py-2 border-t border-border mt-1">
+                      <div className="text-xs text-muted-foreground mb-1">Personnalisé</div>
+                      <div className="grid gap-2">
+                        <label className="grid gap-1 text-xs text-muted-foreground">
+                          Début
+                          <input
+                            type="date"
+                            value={dashboard.globalDateStart ?? ''}
+                            onChange={(e) => onUpdate({ globalDatePreset: 'custom', globalDateStart: e.target.value })}
+                            className="box-border min-w-0 w-full rounded border border-border bg-background px-2 py-1 text-foreground"
+                          />
+                        </label>
+                        <label className="grid gap-1 text-xs text-muted-foreground">
+                          Fin
+                          <input
+                            type="date"
+                            value={dashboard.globalDateEnd ?? ''}
+                            onChange={(e) => onUpdate({ globalDatePreset: 'custom', globalDateEnd: e.target.value })}
+                            className="box-border min-w-0 w-full rounded border border-border bg-background px-2 py-1 text-foreground"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-border bg-background/50">
+            <div className="mx-0.5 h-5 w-px shrink-0 bg-border" aria-hidden="true" />
+            <button
+              onClick={() => updateGlobalMonth(-1)}
+              className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label="Mois précédent"
+              title="Mois précédent"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <button
+              onClick={() => onUpdate({ globalDatePreset: 'custom', globalDateStart: startOfMonth(currentGlobalMonth).toISOString(), globalDateEnd: endOfMonth(currentGlobalMonth).toISOString() })}
+              className="h-8 whitespace-nowrap rounded-md px-1.5 capitalize text-foreground hover:bg-accent"
+              title="Appliquer ce mois à tous les modules"
+            >
+              {globalMonthLabel}
+            </button>
+            <button
+              onClick={() => updateGlobalMonth(1)}
+              className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label="Mois suivant"
+              title="Mois suivant"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+
           <button
-            onClick={() => updateGlobalMonth(-1)}
-            className="px-2 py-1 rounded hover:bg-accent text-muted-foreground"
-            title="Mois précédent"
+            onClick={() => setShowAddModule(true)}
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-medium text-white hover:bg-brand-700"
           >
-            <ChevronDown size={12} className="rotate-90" />
-          </button>
-          <button
-            onClick={() => onUpdate({ globalDatePreset: 'custom', globalDateStart: startOfMonth(currentGlobalMonth).toISOString(), globalDateEnd: endOfMonth(currentGlobalMonth).toISOString() })}
-            className="text-xs font-medium text-foreground whitespace-nowrap px-2"
-            title="Appliquer ce mois à tous les modules"
-          >
-            {globalMonthLabel}
-          </button>
-          <button
-            onClick={() => updateGlobalMonth(1)}
-            className="px-2 py-1 rounded hover:bg-accent text-muted-foreground"
-            title="Mois suivant"
-          >
-            <ChevronDown size={12} className="-rotate-90" />
+            <Plus size={14} />
+            Module
           </button>
         </div>
-
-        {/* Ajouter module */}
-        <button
-          onClick={() => setShowAddModule(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
-        >
-          <Plus size={14} />
-          Module
-        </button>
       </div>
 
       {/* ===== Grille de modules ===== */}

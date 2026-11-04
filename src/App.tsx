@@ -710,6 +710,10 @@ const App = () => {
             impersonatedRoleId={impersonatedRoleId}
             availableRoles={availableRoles}
             activeCollectionName={currentCollection?.name || null}
+            dashboardTitle={!showAutomations && activeDashboardConfig ? {
+              name: activeDashboardConfig.name,
+              onRename: (name) => handleUpdateDashboard(activeDashboardConfig.id, { name }),
+            } : undefined}
             saveStatus={canEdit ? saveStatus : undefined}
             onRetrySave={retrySave}
             onImpersonate={impersonate}

@@ -122,6 +122,31 @@ function formatTotalDuration(minutes: number): string {
   return minutes > 0 ? formatRecapValue(minutes, 'duration', 'minutes') : '–';
 }
 
+const TOTAL_METRICS = [
+  { key: 'count', label: 'Nombre', format: formatTotalCount },
+  { key: 'durationMinutes', label: 'Durée', format: formatTotalDuration },
+] as const;
+
+function totalGroupClass(isGrandTotal: boolean) {
+  return isGrandTotal ? 'bg-brand-600/10 dark:bg-brand-400/15' : 'bg-muted/40';
+}
+
+function TotalCells({ totals, isGrandTotal = false }: { totals: TotalsByType; isGrandTotal?: boolean }) {
+  return TOTAL_METRICS.map(({ key, format }, index) => {
+    const value = format(totals[key]);
+    return (
+      <td
+        key={key}
+        className={`whitespace-nowrap border-b border-border/50 px-3 py-1.5 text-right text-xs tabular-nums
+          ${totalGroupClass(isGrandTotal)} ${index === 0 ? 'border-l border-l-border' : ''}
+          ${value === '–' ? 'text-muted-foreground' : isGrandTotal ? 'font-bold text-foreground' : 'font-medium text-foreground'}`}
+      >
+        {value}
+      </td>
+    );
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Noms courts des jours (getDay → 0=dim, 1=lun…)
 // ---------------------------------------------------------------------------
@@ -388,6 +413,7 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
   const [assignmentCell, setAssignmentCell] = useState<Pick<TooltipState, 'items' | 'leaf'> | null>(null);
   const [tooltip, setTooltip]       = useState<TooltipState | null>(null);
   const hideTimerRef                = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [selectedTotalKey, setSelectedTotalKey] = useState('grand-total');
   const [activeWeekKey, setActiveWeekKey] = useState<string | null>(MONTH_TOTAL_WEEK_KEY);
   
   // État pour le menu contextuel au clic droit
@@ -856,7 +882,12 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
     return Array.from(groups.values());
   }, [leaves, module.collectionId, collection?.id, allCollections]);
 
-  const splitTotalsByCollection = totalsByCollection.length > 1;
+  const selectedSubtotal = totalsByCollection.length > 1
+    ? totalsByCollection.find(({ key }) => `subtotal-${key}` === selectedTotalKey)
+    : undefined;
+  const totalLabel = selectedSubtotal?.label ?? 'Total général';
+  const isGrandTotal = !selectedSubtotal;
+  const totalIndices = selectedSubtotal?.indices ?? leaves.map((_, index) => index);
 
   const periodTitle =
     mode === 'year'
@@ -1048,6 +1079,10 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
   const displayedMonthLeafTotals = mode === 'year' || activeWeekKey === MONTH_TOTAL_WEEK_KEY ? leafTotals : activeWeekLeafTotals;
   const displayedTotalsByType = activeWeekKey === MONTH_TOTAL_WEEK_KEY ? grandTotalsByType : activeWeekTotalsByType;
 
+  const selectedPeriodTotals = selectedSubtotal
+    ? computeTotalsByIndices(displayedMonthLeafTotals, leaves, selectedSubtotal.indices)
+    : mode === 'month' ? displayedTotalsByType : grandTotalsByType;
+
   const computeMonthRowTotalsForIndices = useCallback((
     visibleIdx: number,
     sourceIdx: number,
@@ -1098,6 +1133,27 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
   const tooltipAssignableItems = getAssignableItems(tooltip);
   const contextAssignableItems = getAssignableItems(contextMenu);
 
+  const renderTotalSelect = (compact: boolean) => (
+    <Select value={selectedSubtotal ? selectedTotalKey : 'grand-total'} onValueChange={setSelectedTotalKey}>
+      <SelectTrigger
+        aria-label={compact ? 'Total à afficher dans le tableau' : 'Total à afficher'}
+        className={compact
+          ? 'mx-auto h-6 w-fit max-w-[12rem] gap-1 rounded border-transparent px-1.5 py-0 text-xs font-semibold shadow-none hover:bg-brand-600/10 dark:hover:bg-brand-400/15 [&_svg]:size-3'
+          : 'h-8 w-auto max-w-full gap-2 text-xs'}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="grand-total">Total général</SelectItem>
+        {totalsByCollection.map(({ key, label }) => (
+          <SelectItem key={key} value={`subtotal-${key}`}>{label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  const totalHeading = totalsByCollection.length > 1 ? renderTotalSelect(true) : totalLabel;
+
   // ── Rendu ─────────────────────────────────────────────────────────────
 
   return (
@@ -1142,9 +1198,10 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
 
         <div className="flex-1" />
 
+        {totalsByCollection.length > 1 && renderTotalSelect(false)}
         <span className="text-xs text-muted-foreground">
-          Total — Nb: <span className="font-semibold text-foreground">{formatTotalCount(mode === 'month' ? displayedTotalsByType.count : grandTotalsByType.count)}</span>
-          {' · '}Durée: <span className="font-semibold text-foreground">{formatTotalDuration(mode === 'month' ? displayedTotalsByType.durationMinutes : grandTotalsByType.durationMinutes)}</span>
+          Nombre total : <span className="font-semibold text-foreground">{formatTotalCount(selectedPeriodTotals.count)}</span>
+          {' · '}Durée totale : <span className="font-semibold text-foreground">{formatTotalDuration(selectedPeriodTotals.durationMinutes)}</span>
         </span>
       </div>
 
@@ -1236,123 +1293,30 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                   });
                 })()}
 
-                {/* Colonnes Total */}
-                {headerRows.length > 1 ? (
-                  <>
-                    {splitTotalsByCollection ? (
-                      <>
-                        {rowIdx === 0 && (
-                          <>
-                            {totalsByCollection.map((group) => (
-                              <th
-                                key={`tot-head-${group.key}`}
-                                colSpan={2}
-                                rowSpan={Math.max(1, headerRows.length - 1)}
-                                className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border bg-muted/20 min-w-[56px]"
-                              >
-                                {group.label}
-                              </th>
-                            ))}
-                            <th
-                              key="tot-head-global"
-                              colSpan={2}
-                              rowSpan={Math.max(1, headerRows.length - 1)}
-                              className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border bg-muted/20 min-w-[64px]"
-                            >
-                              Total général
-                            </th>
-                          </>
-                        )}
-                        {rowIdx === headerRows.length - 1 && (
-                          <>
-                            {totalsByCollection.map((group) => (
-                              <React.Fragment key={`tot-sub-${group.key}`}>
-                                <th className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border align-bottom bg-muted/20 min-w-[56px]">
-                                  Nb
-                                </th>
-                                <th className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border align-bottom bg-muted/20 min-w-[56px]">
-                                  Dur.
-                                </th>
-                              </React.Fragment>
-                            ))}
-                            <th className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border align-bottom bg-muted/20 min-w-[56px]">
-                              Nb
-                            </th>
-                            <th className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border align-bottom bg-muted/20 min-w-[56px]">
-                              Dur.
-                            </th>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {rowIdx === 0 && (
-                          <th
-                            colSpan={2}
-                            className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border bg-muted/20 min-w-[56px]"
-                          >
-                            Total
-                          </th>
-                        )}
-                        {rowIdx > 0 && rowIdx < headerRows.length - 1 && (
-                          <th
-                            colSpan={2}
-                            className="border-b border-l border-border bg-card"
-                            aria-hidden="true"
-                          />
-                        )}
-                        {rowIdx === headerRows.length - 1 && (
-                          <>
-                            <th className="text-center px-3 py-2 text-[11px] font-semibold text-muted-foreground border-b border-l border-border align-bottom">
-                              Nb
-                            </th>
-                            <th className="text-center px-3 py-2 text-[11px] font-semibold text-muted-foreground border-b border-l border-border align-bottom">
-                              Durée
-                            </th>
-                          </>
-                        )}
-                      </>
-                    )}
-                  </>
-                ) : (
-                  rowIdx === 0 && (
-                    splitTotalsByCollection ? (
-                      <>
-                        {totalsByCollection.map((group) => (
-                          <React.Fragment key={`tot-flat-${group.key}`}>
-                            <th className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border align-bottom bg-muted/20 min-w-[56px]">
-                              <div className="leading-tight">{group.label}</div>
-                              <div className="leading-tight">Nb</div>
-                            </th>
-                            <th className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border align-bottom bg-muted/20 min-w-[56px]">
-                              <div className="leading-tight">{group.label}</div>
-                              <div className="leading-tight">Dur.</div>
-                            </th>
-                          </React.Fragment>
-                        ))}
-                        <th className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border align-bottom bg-muted/20 min-w-[64px]">
-                          <div className="leading-tight">Total général</div>
-                          <div className="leading-tight">Nb</div>
-                        </th>
-                        <th className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border align-bottom bg-muted/20 min-w-[64px]">
-                          <div className="leading-tight">Total général</div>
-                          <div className="leading-tight">Dur.</div>
-                        </th>
-                      </>
-                    ) : (
-                      <>
-                        <th className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border align-bottom bg-muted/20 min-w-[56px]">
-                          <div className="leading-tight">Total</div>
-                          <div className="leading-tight">Nb</div>
-                        </th>
-                        <th className="text-center px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-l border-border align-bottom bg-muted/20 min-w-[56px]">
-                          <div className="leading-tight">Total</div>
-                          <div className="leading-tight">Dur.</div>
-                        </th>
-                      </>
-                    )
-                  )
+                {rowIdx === 0 && headerRows.length > 1 && (
+                  <th
+                    colSpan={TOTAL_METRICS.length}
+                    rowSpan={headerRows.length - 1}
+                    className={`border-b border-l border-border px-2 py-1 text-center align-middle text-xs font-semibold ${totalGroupClass(isGrandTotal)}`}
+                  >
+                    {totalHeading}
+                  </th>
                 )}
+                {rowIdx === headerRows.length - 1 && TOTAL_METRICS.map((metric, index) => (
+                  <th
+                    key={metric.key}
+                    scope="col"
+                    aria-label={`${totalLabel}, ${metric.label}`}
+                    className={`whitespace-nowrap border-b border-border px-3 py-1.5 text-right text-xs ${totalGroupClass(isGrandTotal)} ${index === 0 ? 'border-l' : ''}`}
+                  >
+                    {headerRows.length === 1 && (
+                      <div className="flex h-6 items-center justify-center font-semibold">
+                        {index === 0 && totalHeading}
+                      </div>
+                    )}
+                    <span className="font-medium text-muted-foreground">{metric.label}</span>
+                  </th>
+                ))}
               </tr>
             ))}
           </thead>
@@ -1492,72 +1456,10 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                     );
                   })}
 
-                  {splitTotalsByCollection ? (
-                    <>
-                      {totalsByCollection.map((group) => {
-                        const grouped = computeMonthRowTotalsForIndices(visibleIdx, sourceIdx, dayIdx, group.indices);
-                        return (
-                          <React.Fragment key={`day-total-${group.key}-${day.key}`}>
-                            <td className="text-center px-2 py-1 border-b border-border/50 tabular-nums bg-muted/10">
-                              <span className="text-xs font-semibold text-foreground">
-                                {formatTotalCount(grouped.count)}
-                              </span>
-                            </td>
-                            <td className="text-center px-2 py-1 border-b border-border/50 tabular-nums bg-muted/10">
-                              <span className="text-xs font-semibold text-foreground">
-                                {formatTotalDuration(grouped.durationMinutes)}
-                              </span>
-                            </td>
-                          </React.Fragment>
-                        );
-                      })}
-                      {(() => {
-                        const grouped = computeMonthRowTotalsForIndices(
-                          visibleIdx,
-                          sourceIdx,
-                          dayIdx,
-                          leaves.map((_, i) => i)
-                        );
-                        return (
-                          <>
-                            <td className="text-center px-2 py-1 border-b border-border/50 tabular-nums bg-muted/10">
-                              <span className="text-xs font-semibold text-foreground">
-                                {formatTotalCount(grouped.count)}
-                              </span>
-                            </td>
-                            <td className="text-center px-2 py-1 border-b border-border/50 tabular-nums bg-muted/10">
-                              <span className="text-xs font-semibold text-foreground">
-                                {formatTotalDuration(grouped.durationMinutes)}
-                              </span>
-                            </td>
-                          </>
-                        );
-                      })()}
-                    </>
-                  ) : (
-                    (() => {
-                      const grouped = computeMonthRowTotalsForIndices(
-                        visibleIdx,
-                        sourceIdx,
-                        dayIdx,
-                        leaves.map((_, i) => i)
-                      );
-                      return (
-                        <>
-                          <td className="text-center px-2 py-1 border-b border-border/50 tabular-nums bg-muted/10">
-                            <span className="text-xs font-semibold text-foreground">
-                              {formatTotalCount(grouped.count)}
-                            </span>
-                          </td>
-                          <td className="text-center px-2 py-1 border-b border-border/50 tabular-nums bg-muted/10">
-                            <span className="text-xs font-semibold text-foreground">
-                              {formatTotalDuration(grouped.durationMinutes)}
-                            </span>
-                          </td>
-                        </>
-                      );
-                    })()
-                  )}
+                  <TotalCells
+                    isGrandTotal={isGrandTotal}
+                    totals={computeMonthRowTotalsForIndices(visibleIdx, sourceIdx, dayIdx, totalIndices)}
+                  />
                 </tr>
               );
                 })}
@@ -1596,39 +1498,12 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                     </td>
                   );
                 })}
-                {splitTotalsByCollection ? (
-                  <>
-                    {totalsByCollection.map((group) => {
-                      const rowValues = yearCells[ri] ?? [];
-                      const grouped = computeTotalsByIndices(rowValues, leaves, group.indices);
-                      return (
-                        <React.Fragment key={`year-total-${group.key}-${period.key}`}>
-                          <td className="text-center px-3 py-2 border-b border-border/50 tabular-nums">
-                            <span className="text-xs font-semibold text-foreground">{formatTotalCount(grouped.count)}</span>
-                          </td>
-                          <td className="text-center px-3 py-2 border-b border-border/50 tabular-nums">
-                            <span className="text-xs font-semibold text-foreground">{formatTotalDuration(grouped.durationMinutes)}</span>
-                          </td>
-                        </React.Fragment>
-                      );
-                    })}
-                    <td className="text-center px-2 py-1 border-b border-border/50 tabular-nums bg-muted/10">
-                      <span className="text-xs font-semibold text-foreground">{formatTotalCount((yearRowTotals[ri] ?? EMPTY_TOTALS).count)}</span>
-                    </td>
-                    <td className="text-center px-2 py-1 border-b border-border/50 tabular-nums bg-muted/10">
-                      <span className="text-xs font-semibold text-foreground">{formatTotalDuration((yearRowTotals[ri] ?? EMPTY_TOTALS).durationMinutes)}</span>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className="text-center px-2 py-1 border-b border-border/50 tabular-nums bg-muted/10">
-                      <span className="text-xs font-semibold text-foreground">{formatTotalCount((yearRowTotals[ri] ?? EMPTY_TOTALS).count)}</span>
-                    </td>
-                    <td className="text-center px-2 py-1 border-b border-border/50 tabular-nums bg-muted/10">
-                      <span className="text-xs font-semibold text-foreground">{formatTotalDuration((yearRowTotals[ri] ?? EMPTY_TOTALS).durationMinutes)}</span>
-                    </td>
-                  </>
-                )}
+                <TotalCells
+                  isGrandTotal={isGrandTotal}
+                  totals={selectedSubtotal
+                    ? computeTotalsByIndices(yearCells[ri] ?? [], leaves, selectedSubtotal.indices)
+                    : yearRowTotals[ri] ?? EMPTY_TOTALS}
+                />
               </tr>
             ))}
           </tbody>
@@ -1654,39 +1529,7 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                   </span>
                 </td>
               ))}
-              {splitTotalsByCollection ? (
-                <>
-                  {totalsByCollection.map((group) => {
-                    const sourceValues = mode === 'month' ? displayedMonthLeafTotals : leafTotals;
-                    const grouped = computeTotalsByIndices(sourceValues, leaves, group.indices);
-                    return (
-                      <React.Fragment key={`foot-total-${group.key}`}>
-                        <td className="text-center px-2 py-1 tabular-nums bg-muted/20">
-                          <span className="text-xs font-bold text-foreground">{formatTotalCount(grouped.count)}</span>
-                        </td>
-                        <td className="text-center px-2 py-1 tabular-nums bg-muted/20">
-                          <span className="text-xs font-bold text-foreground">{formatTotalDuration(grouped.durationMinutes)}</span>
-                        </td>
-                      </React.Fragment>
-                    );
-                  })}
-                  <td className="text-center px-2 py-1 tabular-nums bg-muted/20">
-                    <span className="text-xs font-bold text-foreground">{formatTotalCount(mode === 'month' ? displayedTotalsByType.count : grandTotalsByType.count)}</span>
-                  </td>
-                  <td className="text-center px-2 py-1 tabular-nums bg-muted/20">
-                    <span className="text-xs font-bold text-foreground">{formatTotalDuration(mode === 'month' ? displayedTotalsByType.durationMinutes : grandTotalsByType.durationMinutes)}</span>
-                  </td>
-                </>
-              ) : (
-                <>
-                  <td className="text-center px-2 py-1 tabular-nums bg-muted/20">
-                    <span className="text-xs font-bold text-foreground">{formatTotalCount(mode === 'month' ? displayedTotalsByType.count : grandTotalsByType.count)}</span>
-                  </td>
-                  <td className="text-center px-2 py-1 tabular-nums bg-muted/20">
-                    <span className="text-xs font-bold text-foreground">{formatTotalDuration(mode === 'month' ? displayedTotalsByType.durationMinutes : grandTotalsByType.durationMinutes)}</span>
-                  </td>
-                </>
-              )}
+              <TotalCells isGrandTotal={isGrandTotal} totals={selectedPeriodTotals} />
             </tr>
           </tfoot>
         </table>
