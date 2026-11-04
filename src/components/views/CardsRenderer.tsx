@@ -31,6 +31,7 @@ const CardsRenderer: React.FC<CardsRendererProps> = ({
       onViewDetail={onViewDetail}
       collections={collections}
       orderedProperties={properties}
+      showHiddenRelations={view.cardShowRelations === true}
       hiddenFields={Array.isArray(view.hiddenFields) ? view.hiddenFields : []}
       onRelationChange={onRelationChange}
       onNavigateToCollection={onNavigateToCollection}
@@ -39,7 +40,11 @@ const CardsRenderer: React.FC<CardsRendererProps> = ({
       onDeleteProperty={legacyProps.onDeleteProperty || (() => {})}
       onEditProperty={legacyProps.onEditProperty || (() => {})}
       groups={Array.isArray(view.groups) ? view.groups as string[] : []}
+      groupDisplayMode={view.groupDisplayMode as TableViewProps['groupDisplayMode']}
+      groupDisplayModes={view.groupDisplayModes as TableViewProps['groupDisplayModes']}
+      groupTabStyleFieldIds={view.groupTabStyleFieldIds as TableViewProps['groupTabStyleFieldIds']}
       cardStyle={view.cardStyle === 'steamFullArt' ? 'steamFullArt' : 'default'}
+      cardColumns={typeof view.cardColumns === 'number' ? view.cardColumns : 'auto'}
       cardDensity={view.cardDensity === 'compact' || view.cardDensity === 'spacious' ? view.cardDensity : 'comfortable'}
       cardIconFieldId={typeof view.cardIconFieldId === 'string' ? view.cardIconFieldId : null}
       cardColorFieldId={typeof view.cardColorFieldId === 'string' ? view.cardColorFieldId : null}

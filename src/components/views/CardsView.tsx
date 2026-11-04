@@ -19,6 +19,7 @@ import { BulkSelectionToolbar } from './BulkSelectionToolbar';
 import { ViewTotals } from './ViewTotals';
 
 type CardsViewProps = Omit<TableViewProps, 'displayAsCards'> & {
+  showHiddenRelations?: boolean;
   cardStyle?: 'default' | 'steamFullArt';
   cardDensity?: 'compact' | 'comfortable' | 'spacious';
   cardIconFieldId?: string | null;
@@ -52,6 +53,8 @@ const CardsView: React.FC<CardsViewProps> = ({
   groupDisplayModes = {},
   groupDisplayColumnCount = 3,
   groupDisplayColumnCounts = {},
+  groupTabStyleFieldIds,
+  showHiddenRelations = false,
   cardStyle = 'default',
   cardDensity = 'comfortable',
   cardIconFieldId,
@@ -92,21 +95,32 @@ const CardsView: React.FC<CardsViewProps> = ({
   );
   const visibleProperties = useMemo(
     () => orderedProperties
-      .filter((property) => property.id !== steamProperty?.id && !hiddenFields.includes(property.id))
+      .filter((property) => property.id !== steamProperty?.id && (
+        !hiddenFields.includes(property.id) ||
+        (showHiddenRelations && (property.type === 'relation' || ('isRelationLinkedColumn' in property && property.isRelationLinkedColumn)))
+      ))
       .map((property) => ({
         ...(collection.properties?.find((candidate) => candidate.id === property.id) || {}),
         ...property,
         options: property.options || collection.properties?.find((candidate) => candidate.id === property.id)?.options || [],
       })),
-    [collection.properties, hiddenFields, orderedProperties, steamProperty?.id],
+    [collection.properties, hiddenFields, orderedProperties, showHiddenRelations, steamProperty?.id],
   );
   const fieldPlacements = useMemo(() => {
     const groupedIds = new Set(fieldGroups.flatMap((group) => group.fieldIds));
-    return Object.fromEntries([
+    const placements = Object.fromEntries([
       ...fieldGroups.flatMap((group) => group.fieldIds.map((fieldId) => [fieldId, cardGroupPlacements[group.id] || 'description'])),
       ...visibleProperties.filter((property) => !groupedIds.has(property.id)).map((property) => [property.id, cardGroupPlacements.__ungrouped__ || 'description']),
     ]) as Record<string, string>;
-  }, [cardGroupPlacements, fieldGroups, visibleProperties]);
+    if (showHiddenRelations) {
+      visibleProperties.forEach((property) => {
+        if ((property.type === 'relation' || ('isRelationLinkedColumn' in property && property.isRelationLinkedColumn)) && placements[property.id] === 'hidden') {
+          placements[property.id] = 'description';
+        }
+      });
+    }
+    return placements;
+  }, [cardGroupPlacements, fieldGroups, showHiddenRelations, visibleProperties]);
   const canEditField = useCallback(() => canEdit, [canEdit]);
   const bulkEditableProperties = useMemo(() => visibleProperties.filter((property: any) => !property.showContextMenu && !property.isCalculated), [visibleProperties]);
   const selectedBulkProperty = useMemo(() => bulkEditableProperties.find((property) => property.id === bulkFieldId), [bulkEditableProperties, bulkFieldId]);
@@ -234,6 +248,7 @@ const CardsView: React.FC<CardsViewProps> = ({
       groupDisplayModes={groupDisplayModes}
       groupDisplayColumnCount={groupDisplayColumnCount}
       groupDisplayColumnCounts={groupDisplayColumnCounts}
+      groupTabStyleFieldIds={groupTabStyleFieldIds}
       paginateItems={paginateItems}
       renderItems={renderCards}
       className="min-h-0 mt-4 flex-1 overflow-auto"

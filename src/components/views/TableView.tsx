@@ -1481,6 +1481,7 @@ const TableView: React.FC<TableViewProps> = ({
               groupDisplayModes={groupDisplayModes}
               groupDisplayColumnCount={normalizeGroupColumnCount(groupDisplayColumnCount)}
               groupDisplayColumnCounts={groupDisplayColumnCounts}
+              groupTabStyleFieldIds={groupTabStyleFieldIds}
               collectionId={collection.id}
               renderItems={(groupItems) => renderTableShell(
                 renderFlatRows(sortItems(groupItems)),

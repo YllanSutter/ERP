@@ -11,6 +11,7 @@ export type ModuleType =
   | 'chart'      // Graphique (recharts)
   | 'metric'     // Carte KPI / métrique
   | 'list'       // Liste simple d'items
+  | (string & {}) // Type de vue fourni par le registre
   | 'recap';     // Tableau récap semaines × colonnes (ou mois × colonnes)
 
 export type ChartType = 'bar' | 'line' | 'area' | 'pie';
@@ -139,6 +140,7 @@ export interface ModuleLayout {
 
 /** Configuration complète d'un module */
 export interface DashboardModuleConfig {
+  viewSettings?: Record<string, unknown>;
   id: string;
   type: ModuleType;
   title?: string;

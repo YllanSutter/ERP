@@ -15,7 +15,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { addMonths, endOfMonth, format, parseISO, startOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
-  DashboardConfig,
   DashboardModuleConfig,
   RecapAssignments,
   GlobalDatePreset,
@@ -26,20 +25,16 @@ import DashboardModuleWrapper from './DashboardModuleWrapper';
 import DashboardModuleConfigPanel from './DashboardModuleConfigPanel';
 import DashboardAddModule from './DashboardAddModule';
 
-interface Props {
-  dashboard: DashboardConfig | null;
-  collections: any[];
-  onUpdate: (patch: Partial<DashboardConfig>) => void;
-  onEdit?: (item: any) => void;
-  onViewDetail?: (item: any) => void;
-  onShowNewItemModal?: (collection: any, item?: any) => void;
-}
+import type { DashboardRendererProps } from '@/lib/dashboardRegistry';
+
+type Props = DashboardRendererProps;
 
 // Composant interne pour un seul module (avec son propre hook de données)
 const ModuleWithData: React.FC<{
   module: DashboardModuleConfig;
   collections: any[];
   globalFilter?: GlobalDateFilter;
+  views?: Props['views'];
   isEditMode: boolean;
   isFirst: boolean;
   isLast: boolean;
@@ -51,16 +46,18 @@ const ModuleWithData: React.FC<{
   onMoveUp: () => void;
   onMoveDown: () => void;
   recapAssignments?: RecapAssignments;
+  recapCountDateField?: string;
   onRecapAssignmentChange?: (key: string, date?: string) => void;
   onUpdateModule?: (patch: Partial<DashboardModuleConfig>) => void;
 }> = (props) => {
-  const data = useDashboardItemData(props.module, props.collections, props.globalFilter, props.recapAssignments);
+  const data = useDashboardItemData(props.module, props.collections, props.globalFilter, props.recapAssignments, props.recapCountDateField);
 
   return (
     <DashboardModuleWrapper
       module={props.module}
       data={data}
       globalFilter={props.globalFilter}
+      views={props.views}
       collections={props.collections}
       isEditMode={props.isEditMode}
       isFirst={props.isFirst}
@@ -87,6 +84,7 @@ const PRESET_OPTIONS = Object.entries(GLOBAL_DATE_PRESET_LABELS).map(([value, la
 const DashboardView: React.FC<Props> = ({
   dashboard,
   collections,
+  views,
   onUpdate,
   onEdit,
   onViewDetail,
@@ -347,6 +345,7 @@ const DashboardView: React.FC<Props> = ({
                   module={module}
                   collections={collections}
                   globalFilter={globalFilter}
+                  views={views}
                   isEditMode={isEditMode}
                   isFirst={idx === 0}
                   isLast={idx === sortedModules.length - 1}
@@ -358,6 +357,9 @@ const DashboardView: React.FC<Props> = ({
                   onMoveUp={() => handleMoveModule(module.id, 'up')}
                   onMoveDown={() => handleMoveModule(module.id, 'down')}
                   recapAssignments={dashboard?.recapAssignments}
+                  recapCountDateField={sortedModules.find((candidate) =>
+                    candidate.type === 'recap' && candidate.collectionId === module.collectionId
+                  )?.recapDateField}
                   onRecapAssignmentChange={(key, date) => {
                     const recapAssignments = { ...dashboard?.recapAssignments };
                     if (date) recapAssignments[key] = date;
@@ -384,6 +386,7 @@ const DashboardView: React.FC<Props> = ({
             <DashboardModuleConfigPanel
               module={configuringModule}
               collections={collections}
+              views={views}
               onUpdate={(patch) => handleUpdateModule(configuringModule.id, patch)}
               onClose={() => setConfiguringModuleId(null)}
             />

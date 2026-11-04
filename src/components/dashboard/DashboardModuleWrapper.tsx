@@ -21,6 +21,11 @@ import TableModule from './modules/TableModule';
 import KanbanModule from './modules/KanbanModule';
 import CalendarModule from './modules/CalendarModule';
 import RecapModule from './modules/RecapModule';
+import { getDashboardViewConfig, getDashboardViewRegistration } from './dashboardModuleTypes';
+import type { ViewDefinition } from '@/lib/views';
+import { getOrderedProperties } from '@/lib/filterUtils';
+
+const noop = () => {};
 
 const MODULE_ICONS: Record<ModuleType, React.ReactNode> = {
   table:    <Table2 size={14} />,
@@ -37,6 +42,7 @@ interface Props {
   data: DashboardItemData;
   globalFilter?: GlobalDateFilter;
   collections: any[];
+  views?: Record<string, ViewDefinition[]>;
   isEditMode: boolean;
   isFirst: boolean;
   isLast: boolean;
@@ -57,6 +63,7 @@ const DashboardModuleWrapper: React.FC<Props> = ({
   data,
   globalFilter,
   collections,
+  views,
   isEditMode,
   isFirst,
   isLast,
@@ -71,9 +78,19 @@ const DashboardModuleWrapper: React.FC<Props> = ({
   recapAssignments,
   onRecapAssignmentChange,
 }) => {
-  const title = module.title ?? (data.collection?.name
-    ? `${data.collection.name} · ${MODULE_TYPE_LABELS[module.type]}`
-    : MODULE_TYPE_LABELS[module.type]);
+  const registration = getDashboardViewRegistration(module.type);
+  const Renderer = registration?.Renderer;
+  const viewCollection = module.type === 'layout' && data.collection
+    ? { ...data.collection, items: data.filteredItems }
+    : data.collection;
+  const viewCollections = module.type === 'layout' && viewCollection
+    ? collections.map((collection) => collection.id === viewCollection.id ? viewCollection : collection)
+    : collections;
+  const view = registration && viewCollection
+    ? getDashboardViewConfig(module, registration, viewCollection.id, views)
+    : undefined;
+  const label = MODULE_TYPE_LABELS[module.type] ?? registration?.label ?? module.type;
+  const title = module.title ?? (data.collection ? `${data.collection.name} · ${label}` : label);
 
   const gridColSpan = `col-span-${module.layout.w}`;
 
@@ -86,7 +103,7 @@ const DashboardModuleWrapper: React.FC<Props> = ({
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0">
         {/* Icône type */}
         <span className="text-muted-foreground flex-shrink-0">
-          {MODULE_ICONS[module.type]}
+          {MODULE_ICONS[module.type] ?? <LayoutGrid size={14} />}
         </span>
 
         {/* Titre */}
@@ -140,6 +157,39 @@ const DashboardModuleWrapper: React.FC<Props> = ({
 
       {/* Contenu du module */}
       <div className="flex-1 overflow-hidden">
+        {registration && Renderer && (viewCollection && view ? (
+          <div className="h-full overflow-auto">
+            <Renderer
+              key={module.type}
+              collection={viewCollection}
+              collections={viewCollections}
+              view={view}
+              views={views}
+              items={data.filteredItems}
+              properties={module.type === 'cards' || module.type === 'steamcards'
+                ? getOrderedProperties(viewCollection, view, viewCollections)
+                : data.properties}
+              activeCollectionId={viewCollection.id}
+              relationFilter={{ collectionId: null, ids: [] }}
+              onEdit={onEdit ?? noop}
+              onViewDetail={onViewDetail ?? noop}
+              onDelete={noop}
+              onRelationChange={noop}
+              onNavigateToCollection={noop}
+              onUpdateView={(updates) => onUpdateModule?.({ viewSettings: { ...module.viewSettings, ...updates } })}
+              onShowNewItemModalForCollection={onShowNewItemModal}
+            />
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            Aucune collection sélectionnée
+          </div>
+        ))}
+        {!Renderer && !Object.hasOwn(MODULE_TYPE_LABELS, module.type) && (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            Ce type de vue est indisponible
+          </div>
+        )}
         {module.type === 'chart' && (
           <ChartModule module={module} data={data} />
         )}

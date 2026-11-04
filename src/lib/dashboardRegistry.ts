@@ -1,10 +1,12 @@
 import type { ComponentType } from 'react';
 import type { Collection, Item } from '@/lib/types';
+import type { ViewDefinition } from './views/viewTypes';
 import type { DashboardConfig } from './dashboardTypes';
 
 export interface DashboardRendererProps {
   dashboard: DashboardConfig | null;
   collections: Collection[];
+  views?: Record<string, ViewDefinition[]>;
   onUpdate: (patch: Partial<DashboardConfig>) => void;
   onEdit?: (item: Item) => void;
   onViewDetail?: (item: Item) => void;

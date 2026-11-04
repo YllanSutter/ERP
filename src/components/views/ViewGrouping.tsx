@@ -5,7 +5,7 @@ import { GroupHeader } from '@/components/ui/group-header';
 import ViewGroupTabs from './ViewGroupTabs';
 import { useGrouping } from '@/lib/hooks/useGrouping';
 import type { Collection, Item, Property, TableGroupDisplayMode } from '@/lib/types';
-import { countItemsInGroup, getGroupLabel } from '@/lib/groupingUtils';
+import { countItemsInGroup, getGroupLabel, resolveGroupVisualStyle } from '@/lib/groupingUtils';
 import { getGroupSelectionStorageKey, GROUPING_SELECTION_CHANGE_EVENT, readGroupFieldSelections, saveGroupFieldSelection, saveGroupingSelection } from '@/lib/groupingSelectionStorage';
 
 // TabsContent is a general-purpose panel with a border and generous padding.
@@ -33,6 +33,7 @@ interface ViewGroupingProps {
   groupDisplayModes?: Record<string, TableGroupDisplayMode>;
   groupDisplayColumnCount?: 1 | 2 | 3;
   groupDisplayColumnCounts?: Record<string, 1 | 2 | 3>;
+  groupTabStyleFieldIds?: Record<string, string>;
   paginateItems?: (items: Item[]) => Item[];
   renderItems: (items: Item[]) => React.ReactNode;
   className?: string;
@@ -88,6 +89,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
   groupDisplayModes = {},
   groupDisplayColumnCount = 3,
   groupDisplayColumnCounts = {},
+  groupTabStyleFieldIds,
   paginateItems,
   renderItems,
   className,
@@ -208,6 +210,16 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
     return 'grid-cols-1 md:grid-cols-2 2xl:grid-cols-3';
   }, [groupDisplayColumnCount, groupDisplayColumnCounts]);
 
+  const makeTab = useCallback((path: string, property?: Property) => {
+    const value = path.split('/').pop() || path;
+    return {
+      id: path,
+      label: property ? getGroupLabel(property, value === '(vide)' ? undefined : value, collections) : value,
+      itemCount: groupedStructure ? countItemsInGroup(path, groupedStructure.structure) : 0,
+      ...(property && resolveGroupVisualStyle(property, value, collections, groupTabStyleFieldIds?.[property.id])),
+    };
+  }, [collections, groupedStructure, groupTabStyleFieldIds]);
+
   const renderGroup = useMemo(() => {
     const renderRecursive = (path: string): React.ReactNode => {
       if (!groupedStructure) return null;
@@ -239,13 +251,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
           }}
         >
           <ViewGroupTabs
-            items={children.map((child) => ({
-              id: child,
-              label: childProperty
-                ? getGroupLabel(childProperty, child.split('/').pop() === '(vide)' ? undefined : child.split('/').pop(), collections)
-                : child.split('/').pop() || child,
-              itemCount: countItemsInGroup(child, groupedStructure.structure),
-            }))}
+            items={children.map((child) => makeTab(child, childProperty))}
             activeId={activeTab}
           />
           {children.map((child) => (
@@ -307,6 +313,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
     getItemsForGroup,
     getMode,
     getColumnsClassName,
+    makeTab,
     groupDisplayModes,
     groups,
     groupedStructure,
@@ -326,14 +333,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
 
   const roots = groupedStructure.rootGroups;
   const rootProperty = properties.find((property) => property.id === groups[0]);
-  const rootTabs = roots.map((path) => {
-    const value = path.split('/').pop() || path;
-    return {
-      id: path,
-      label: rootProperty ? getGroupLabel(rootProperty, value === '(vide)' ? undefined : value, collections) : value,
-      itemCount: countItemsInGroup(path, groupedStructure.structure),
-    };
-  });
+  const rootTabs = roots.map((path) => makeTab(path, rootProperty));
   const activeRoot = activeTabs.root && roots.includes(activeTabs.root) ? activeTabs.root : roots[0];
 
   if (rootMode === 'tabs') {
@@ -453,11 +453,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
             {groupSelectors}
             <ViewGroupTabs
               className="ml-auto shrink-0"
-              items={children.map((path) => ({
-                id: path,
-                label: childProperty ? getGroupLabel(childProperty, path.split('/').pop() === '(vide)' ? undefined : path.split('/').pop(), collections) : path.split('/').pop() || path,
-                itemCount: countItemsInGroup(path, groupedStructure.structure),
-              }))}
+              items={children.map((path) => makeTab(path, childProperty))}
               activeId={activeTab}
             />
           </div>

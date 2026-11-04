@@ -39,6 +39,9 @@ const TableRenderer: React.FC<TableRendererProps> = ({
       onDeleteProperty={legacyProps.onDeleteProperty || (() => {})}
       onEditProperty={legacyProps.onEditProperty || (() => {})}
       groups={Array.isArray(view.groups) ? view.groups as string[] : []}
+      groupDisplayMode={view.groupDisplayMode as TableViewProps['groupDisplayMode']}
+      groupDisplayModes={view.groupDisplayModes as TableViewProps['groupDisplayModes']}
+      groupTabStyleFieldIds={view.groupTabStyleFieldIds as TableViewProps['groupTabStyleFieldIds']}
       {...legacyProps}
     />
   );

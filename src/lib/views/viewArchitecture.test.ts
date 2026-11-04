@@ -7,6 +7,7 @@ import {
 import { createDefaultViewConfig, getViewRegistration } from './viewRegistry';
 import { migrateViewConfig } from './viewConfigMigration';
 import type { ViewRegistration } from './viewTypes';
+import { getDashboardViewConfig, getDashboardModuleOptions, getDashboardViewRegistration } from '@/components/dashboard/dashboardModuleTypes';
 
 const pluginRegistration: ViewRegistration = {
   type: 'test-plugin-view',
@@ -49,6 +50,59 @@ describe('view architecture contracts', () => {
 
     unregisterPluginViews('architecture-test-plugin');
     expect(getViewRegistration('test-plugin-view').type).toBe('table');
+  });
+
+  it('offers registered view types as dashboard modules alongside existing modules', () => {
+    expect(getDashboardModuleOptions().map(([type]) => type)).toEqual(
+      expect.arrayContaining(['table', 'cards', 'steamcards', 'kanban', 'calendar', 'layout', 'chart', 'metric', 'list', 'recap'])
+    );
+    const registration = { ...pluginRegistration, Renderer: () => null };
+    registerPluginView('architecture-test-plugin', registration);
+    expect(getDashboardModuleOptions()).toContainEqual([registration.type, registration.label]);
+    expect(getDashboardViewRegistration(registration.type)).toBe(registration);
+
+    unregisterPluginViews('architecture-test-plugin');
+    expect(getDashboardModuleOptions()).not.toContainEqual([registration.type, registration.label]);
+    expect(getDashboardViewRegistration(registration.type)).toBeUndefined();
+  });
+
+  it('inherits card presentation while preserving dashboard overrides and scope', () => {
+    const collectionId = 'games';
+    const config = getDashboardViewConfig(
+      {
+        id: 'module',
+        type: 'cards',
+        layout: { w: 12, h: 400, order: 0 },
+        viewSettings: { cardColumns: 2 },
+      },
+      getViewRegistration('cards'),
+      collectionId,
+      {
+        games: [{
+          id: 'steam',
+          type: 'steamcards',
+          name: 'Steam',
+          cardStyle: 'steamFullArt',
+          cardColumns: 4,
+          fieldOrder: ['price'],
+          hiddenFields: ['notes'],
+          cardGroupPlacements: { prices: 'footer' },
+          filters: [{ property: 'price', operator: 'equals', value: 10 }],
+        }],
+      }
+    );
+
+    expect(config).toMatchObject({
+      id: 'module',
+      collectionId,
+      type: 'cards',
+      cardStyle: 'default',
+      cardColumns: 2,
+      fieldOrder: ['price'],
+      hiddenFields: ['notes'],
+      cardGroupPlacements: { prices: 'footer' },
+    });
+    expect(config.filters).toBeUndefined();
   });
 
   it('migrates legacy card style fields without losing view identity', () => {

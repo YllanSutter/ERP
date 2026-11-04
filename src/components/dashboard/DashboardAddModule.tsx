@@ -9,8 +9,8 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   DashboardModuleConfig,
   ModuleType,
-  MODULE_TYPE_LABELS,
 } from '@/lib/dashboardTypes';
+import { getDashboardModuleOptions } from './dashboardModuleTypes';
 
 const MODULE_TYPE_ICONS: Record<ModuleType, React.ReactNode> = {
   table:    <Table2 size={24} />,
@@ -115,7 +115,7 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
           <div>
             <div className="text-sm font-medium text-foreground mb-3">Type de module</div>
             <div className="grid grid-cols-3 gap-3">
-              {(Object.entries(MODULE_TYPE_LABELS) as [ModuleType, string][]).map(([type, label]) => (
+              {getDashboardModuleOptions().map(([type, label]) => (
                 <button
                   key={type}
                   onClick={() => setSelectedType(type)}
@@ -127,14 +127,14 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
                 >
                   <div
                     className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{ background: `${MODULE_COLORS[type]}20`, color: MODULE_COLORS[type] }}
+                    style={{ background: `${MODULE_COLORS[type] ?? '#64748b'}20`, color: MODULE_COLORS[type] ?? '#64748b' }}
                   >
-                    {MODULE_TYPE_ICONS[type]}
+                    {MODULE_TYPE_ICONS[type] ?? <LayoutGrid size={24} />}
                   </div>
                   <div>
                     <div className="text-sm font-medium text-foreground">{label}</div>
                     <div className="text-xs text-muted-foreground mt-0.5 leading-tight">
-                      {MODULE_TYPE_DESC[type]}
+                      {MODULE_TYPE_DESC[type] ?? 'Vue de collection'}
                     </div>
                   </div>
                 </button>

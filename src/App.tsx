@@ -729,7 +729,8 @@ const App = () => {
           ) : activeDashboard ? (
             <dashboardRegistration.Renderer
               dashboard={activeDashboardConfig}
-              collections={collections}
+              collections={collectionsWithCalculatedFields}
+              views={views}
               onUpdate={(patch) => activeDashboard && handleUpdateDashboard(activeDashboard, patch)}
               onEdit={(item: any) => {
                 const itemCollection = collections.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));

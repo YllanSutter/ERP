@@ -1,3 +1,5 @@
+import { formatDateByGranularity } from '@/lib/groupingUtils';
+import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 import { getSteamAppId } from '@/lib/plugins/steam/steamUtils';
 import React, { useId, useMemo, useState } from 'react';
 import { SteamImage } from '@/lib/plugins/steam/SteamImage';
@@ -99,7 +101,30 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
   const { header, description, footer, tags } = useMemo(() => {
     const filled = properties
       .filter((property) => property.type !== 'steam' && property.id !== steamProperty?.id && fieldPlacements[property.id] !== 'hidden')
-      .map((property) => ({ property, value: getDisplayValue(item?.[property.id]) }))
+      .map((property) => {
+        const rawValue = item?.[property.id];
+        if (property.type === 'date') {
+          const target = property.isRelationLinkedColumn
+            ? collections.find((collection) => collection.id === property.sourceTargetCollectionId)
+            : undefined;
+          const linkedDates = target
+            ? normalizeRelationIds(item?.[property.sourceRelationPropertyId])
+                .map((id) => target.items?.find((candidate: any) => candidate.id === id)?.[property.sourceDisplayFieldId])
+                .filter(Boolean)
+            : [];
+          const dates = linkedDates.length > 0 ? linkedDates : [rawValue];
+          const labels = dates.filter(Boolean).map((date) => formatDateByGranularity(date, property.dateGranularity));
+          return { property, value: [...new Set(labels)].join(' · ') };
+        }
+        if (property.type !== 'relation') return { property, value: getDisplayValue(rawValue) };
+
+        const target = collections.find((collection) => collection.id === property.relation?.targetCollectionId);
+        const names = normalizeRelationIds(rawValue).map((id) => {
+          const linked = target?.items?.find((candidate: any) => candidate.id === id);
+          return linked?.name || linked?.title;
+        });
+        return { property, value: getDisplayValue(names) };
+      })
       .filter((entry) => entry.value);
     const inZone = (zone: string, fallback: boolean) => filled.filter((entry) => fieldPlacements[entry.property.id] === zone || (!fieldPlacements[entry.property.id] && fallback));
     const tagEntries = inZone('tags', false).concat(filled.filter((entry) => !fieldPlacements[entry.property.id] && ['select', 'multiselect', 'multi_select'].includes(entry.property.type)));
@@ -107,9 +132,9 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
       header: inZone('header', false),
       description: inZone('description', true),
       footer: inZone('footer', false),
-      tags: tagEntries.map((entry) => ({ property: entry.property, value: item?.[entry.property.id] })),
+      tags: tagEntries,
     };
-  }, [fieldPlacements, item, properties, steamProperty?.id]);
+  }, [collections, fieldPlacements, item, properties, steamProperty?.id]);
 
   // Frame colour and badge icon come from the item's option in the view's style field.
   const styleValue = styleProperty ? item?.[styleProperty.id] : undefined;
@@ -269,7 +294,9 @@ const SteamCardFullArt: React.FC<SteamCardFullArtProps> = ({
 
       {tags.length > 0 && (
         <div className={`absolute inset-x-[7%] z-20 flex flex-wrap justify-center gap-1.5 ${fullArt ? 'top-[12%]' : 'top-[58%]'}`} onClick={(event) => event.stopPropagation()}>
-          {tags.map(({ property, value }) => <OptionTags key={property.id} options={property.options || []} value={value} prominent borderless />)}
+          {tags.map(({ property, value }) => property.type === 'date'
+            ? <span key={property.id}>{value}</span>
+            : <OptionTags key={property.id} options={property.options || []} value={item?.[property.id]} prominent borderless />)}
         </div>
       )}
       {header.length > 0 && <div className="absolute inset-x-[10%] top-[20%] z-10 text-center text-xs font-semibold text-white">{header.map((entry) => <p key={entry.property.id}>{entry.value}</p>)}</div>}

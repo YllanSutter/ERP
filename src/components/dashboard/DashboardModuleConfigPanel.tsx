@@ -27,9 +27,11 @@ import {
   MODULE_HEIGHT_OPTIONS,
   AGGREGATION_LABELS,
   DATE_GROUPING_LABELS,
-  MODULE_TYPE_LABELS,
   RecapColumn,
 } from '@/lib/dashboardTypes';
+import { getDashboardModuleOptions, getDashboardViewConfig, getDashboardViewRegistration } from './dashboardModuleTypes';
+import { Switch } from '@/components/ui/switch';
+import type { ViewDefinition } from '@/lib/views';
 import { getPropOptions } from '@/lib/utils/recapColumnUtils';
 import { getOrderedProperties } from '@/lib/filterUtils';
 import { Property, Collection } from '@/lib/types';
@@ -38,6 +40,7 @@ import { v4 as uuidv4 } from 'uuid';
 interface Props {
   module: DashboardModuleConfig;
   collections: Collection[];
+  views?: Record<string, ViewDefinition[]>;
   onUpdate: (patch: Partial<DashboardModuleConfig>) => void;
   onClose: () => void;
 }
@@ -802,13 +805,15 @@ const RecapColumnsEditor: React.FC<RecapColumnsEditorProps> = ({ columns, proper
 
 // ---------------------------------------------------------------------------
 
-const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUpdate, onClose }) => {
+const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, views, onUpdate, onClose }) => {
   const [activeTab, setActiveTab] = useState<ConfigTab>('type');
   const collection = collections.find((c) => c.id === module.collectionId) ?? null;
   const properties: Property[] = collection
     ? ((getOrderedProperties(collection, undefined, collections) as Property[]) ?? [])
     : [];
 
+  const registration = getDashboardViewRegistration(module.type);
+  const ViewSettings = registration?.Settings;
   const dateProps = properties.filter((p) => p.type === 'date' || (p.type as string) === 'date_range');
   const numericProps = properties.filter((p) => p.type === 'number');
   const selectProps = properties.filter((p) => p.type === 'select' || p.type === 'multiselect' || (p.type as string) === 'multi_select');
@@ -897,17 +902,17 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
           <>
             <SectionLabel>Type</SectionLabel>
             <div className="grid grid-cols-3 gap-1.5">
-              {(Object.entries(MODULE_TYPE_LABELS) as [ModuleType, string][]).map(([type, label]) => (
+              {getDashboardModuleOptions().map(([type, label]) => (
                 <button
                   key={type}
-                  onClick={() => patch({ type })}
+                  onClick={() => { if (module.type !== type) patch({ type, viewSettings: undefined }); }}
                   className={`flex flex-col items-center gap-1 py-2 px-1 rounded-lg border text-xs font-medium transition-colors ${
                     module.type === type
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'border-border hover:bg-accent text-muted-foreground'
                   }`}
                 >
-                  {MODULE_TYPE_ICONS[type]}
+                  {MODULE_TYPE_ICONS[type] ?? <LayoutGrid size={16} />}
                   {label}
                 </button>
               ))}
@@ -968,7 +973,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
         )}
 
         {/* Champ date (pour modules avec groupement temporel) */}
-        {activeTab === 'infos' && dateProps.length > 0 && (module.type === 'chart' || module.type === 'table' || module.type === 'metric' || module.type === 'list') && (
+        {activeTab === 'infos' && dateProps.length > 0 && (module.type === 'chart' || module.type === 'table' || module.type === 'metric' || module.type === 'list' || registration) && (
           <>
             <SectionLabel>Champ date (filtre global)</SectionLabel>
             <Sel
@@ -1583,6 +1588,31 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, onUp
               onChange={(cols) => patch({ recapColumns: cols })}
             />
           </>
+        )}
+
+        {activeTab === 'infos' && collection && registration && ViewSettings && (
+          <ViewSettings
+            key={module.type}
+            view={getDashboardViewConfig(module, registration, collection.id, views)}
+            collection={collection}
+            collections={collections}
+            properties={properties}
+            views={views}
+            onUpdate={(updates) => patch({ viewSettings: { ...module.viewSettings, ...updates } })}
+          />
+        )}
+
+        {activeTab === 'infos' && (module.type === 'cards' || module.type === 'steamcards') &&
+          properties.some((property) => property.type === 'relation') && (
+          <label className="flex items-center justify-between gap-3 text-sm">
+            Afficher les relations masquées
+            <Switch
+              checked={module.viewSettings?.cardShowRelations === true}
+              onCheckedChange={(cardShowRelations) => patch({
+                viewSettings: { ...module.viewSettings, cardShowRelations },
+              })}
+            />
+          </label>
         )}
 
         {/* ---- Filtres ---- */}
