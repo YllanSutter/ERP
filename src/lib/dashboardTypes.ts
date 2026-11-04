@@ -138,8 +138,15 @@ export interface ModuleLayout {
   order: number;  // ordre d'affichage
 }
 
+export interface ModulePeriod {
+  preset: GlobalDatePreset | 'all';
+  start?: string;
+  end?: string;
+}
+
 /** Configuration complète d'un module */
 export interface DashboardModuleConfig {
+  period?: ModulePeriod;
   viewSettings?: Record<string, unknown>;
   id: string;
   type: ModuleType;

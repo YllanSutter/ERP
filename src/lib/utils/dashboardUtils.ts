@@ -58,7 +58,7 @@ export function computeDateRange(
     case 'custom':
       return {
         start: customStart ? parseISO(customStart) : startOfMonth(now),
-        end: customEnd ? parseISO(customEnd) : endOfMonth(now),
+        end: customEnd ? (/^\d{4}-\d{2}-\d{2}$/.test(customEnd) ? endOfDay(parseISO(customEnd)) : parseISO(customEnd)) : endOfMonth(now),
       };
     default:
       return { start: startOfMonth(now), end: endOfMonth(now) };

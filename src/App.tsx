@@ -17,6 +17,8 @@ import AppHeader from '@/components/layout/AppHeader';
 import Sidebar from '@/components/menus/Sidebar';
 import CommandMenu from '@/components/menus/CommandMenu';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import PinnedCollectionFilters from '@/components/filters/PinnedCollectionFilters';
+import type { CollectionFilter } from '@/lib/types';
 import ViewToolbar from '@/components/views/ViewToolbar';
 import ViewShell from '@/components/views/ViewShell';
 import { useAuth } from '@/auth/AuthProvider';
@@ -606,6 +608,32 @@ const App = () => {
       ),
     [currentCollection, activeViewConfig, relationFilter, activeCollection, collectionsWithCalculatedFields]
   );
+  const updatePinnedFilters = (update: (filters: CollectionFilter[]) => CollectionFilter[]) => {
+    if (!canEdit || !activeCollection) return;
+    setCollections((previous) => previous.map((collection) =>
+      collection.id === activeCollection
+        ? { ...collection, pinnedFilters: update(collection.pinnedFilters ?? []) }
+        : collection
+    ));
+  };
+
+  const pinViewFilter = (index: number) => {
+    const filter = activeViewConfig?.filters?.[index];
+    if (!filter || !canEdit) return;
+    updatePinnedFilters((filters) => [...filters, filter]);
+    viewHooks.removeFilter(index);
+    setEditingFilterIndex(null);
+    setShowFilterModal(false);
+    setShowViewSettings(true);
+  };
+
+  const unpinViewFilter = (index: number) => {
+    const filter = currentCollection?.pinnedFilters?.[index];
+    if (!filter || !activeView || !activeViewConfig || !canEdit) return;
+    viewHooks.updateView(activeView, { filters: [...(activeViewConfig.filters ?? []), filter] });
+    updatePinnedFilters((filters) => filters.filter((_, filterIndex) => filterIndex !== index));
+  };
+
   const activeViewRegistration = getViewRegistration(activeViewConfig?.type);
 
   if (authLoading) {
@@ -710,6 +738,17 @@ const App = () => {
             impersonatedRoleId={impersonatedRoleId}
             availableRoles={availableRoles}
             activeCollectionName={currentCollection?.name || null}
+            collectionFilters={currentCollection && !showAutomations && !activeDashboard && (
+              <PinnedCollectionFilters
+                collection={currentCollection}
+                collections={collectionsWithCalculatedFields}
+                canEdit={Boolean(canEdit && activeViewConfig)}
+                onUpdateValue={(index, value) => updatePinnedFilters((filters) =>
+                  filters.map((filter, filterIndex) => filterIndex === index ? { ...filter, value } : filter)
+                )}
+                onUnpin={unpinViewFilter}
+              />
+            )}
             dashboardTitle={!showAutomations && activeDashboardConfig ? {
               name: activeDashboardConfig.name,
               onRename: (name) => handleUpdateDashboard(activeDashboardConfig.id, { name }),
@@ -815,6 +854,7 @@ const App = () => {
                     onClose={() => {
                       setShowFilterModal(false);
                       setEditingFilterIndex(null);
+                      setShowViewSettings(true);
                     }}
                     onAdd={(property, operator, value, sourceCollectionId, filterMeta) => {
                       if (editingFilterIndex !== null) {
@@ -824,6 +864,7 @@ const App = () => {
                       }
                       setShowFilterModal(false);
                       setEditingFilterIndex(null);
+                      setShowViewSettings(true);
                     }}
                   />
                 )}
@@ -908,6 +949,7 @@ const App = () => {
                   setEditingFilterIndex(index);
                   setShowFilterModal(true);
                 }}
+                onPinFilter={pinViewFilter}
                 onRemoveFilter={viewHooks.removeFilter}
                 onUpdateFilterValue={(index, newValue) => {
                   if (!activeView) return;
@@ -983,11 +1025,15 @@ const App = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.2 }}
-                    className="z-[1] m-2 min-h-0 shrink overflow-auto rounded-[var(--view-control-radius)] border border-black/10 bg-white/50 p-2 shadow-sm dark:border-white/10 dark:bg-black/50 sm:m-4 sm:p-4 lg:m-6 lg:p-6"
+                    className={activeViewConfig?.type === 'layout'
+                      ? 'z-[1] min-h-0 flex-1 overflow-auto p-2 sm:p-4'
+                      : 'z-[1] m-2 min-h-0 shrink overflow-auto rounded-[var(--view-control-radius)] border border-black/10 bg-white/50 p-2 shadow-sm dark:border-white/10 dark:bg-black/50 sm:m-4 sm:p-4 lg:m-6 lg:p-6'}
                   >
                 {activeViewRegistration.Renderer && activeViewConfig && currentCollection && (
                   <ViewRendererHost
+                    key={activeViewConfig.type === 'layout' ? activeViewConfig.id : undefined}
                     view={activeViewConfig}
+                    canConfigureLayout={canEdit}
                     views={views}
                     relationFilter={relationFilter}
                     activeCollectionId={activeCollection}

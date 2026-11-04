@@ -2,11 +2,20 @@
  * Types et interfaces communes pour l'application
  */
 
+export interface CollectionFilter {
+  property: string;
+  operator: string;
+  value: unknown;
+  sourceCollectionId?: string;
+  [key: string]: unknown;
+}
+
 export interface Collection {
   id: string;
   name: string;
   properties: Property[];
   items: Item[];
+  pinnedFilters?: CollectionFilter[];
   [key: string]: any;
 }
 

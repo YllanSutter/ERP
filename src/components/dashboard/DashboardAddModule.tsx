@@ -43,13 +43,14 @@ const MODULE_COLORS: Record<ModuleType, string> = {
 };
 
 interface Props {
+  excludeLayout?: boolean;
   collections: any[];
   currentOrder: number;
   onAdd: (module: DashboardModuleConfig) => void;
   onClose: () => void;
 }
 
-const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd, onClose }) => {
+const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd, onClose, excludeLayout }) => {
   const [selectedType, setSelectedType] = useState<ModuleType | null>(null);
   const [selectedCollection, setSelectedCollection] = useState(collections[0]?.id ?? '');
 
@@ -100,7 +101,7 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
+        className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
@@ -114,8 +115,8 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
           {/* Choix du type */}
           <div>
             <div className="text-sm font-medium text-foreground mb-3">Type de module</div>
-            <div className="grid grid-cols-3 gap-3">
-              {getDashboardModuleOptions().map(([type, label]) => (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {getDashboardModuleOptions().filter(([type]) => !excludeLayout || type !== 'layout').map(([type, label]) => (
                 <button
                   key={type}
                   onClick={() => setSelectedType(type)}

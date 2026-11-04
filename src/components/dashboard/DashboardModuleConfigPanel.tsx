@@ -30,6 +30,8 @@ import {
   RecapColumn,
 } from '@/lib/dashboardTypes';
 import { getDashboardModuleOptions, getDashboardViewConfig, getDashboardViewRegistration } from './dashboardModuleTypes';
+import { getLayoutSizeOptions, getLayoutTileHeight, LAYOUT_HEIGHT_OPTIONS, LAYOUT_WIDTH_OPTIONS } from '@/lib/layoutDimensions';
+import ModulePeriodSelect from './ModulePeriodSelect';
 import { Switch } from '@/components/ui/switch';
 import type { ViewDefinition } from '@/lib/views';
 import { getPropOptions } from '@/lib/utils/recapColumnUtils';
@@ -38,6 +40,11 @@ import { Property, Collection } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 interface Props {
+  excludeLayout?: boolean;
+  embedded?: boolean;
+  raised?: boolean;
+  allowPeriod?: boolean;
+  useLayoutUnits?: boolean;
   module: DashboardModuleConfig;
   collections: Collection[];
   views?: Record<string, ViewDefinition[]>;
@@ -805,7 +812,7 @@ const RecapColumnsEditor: React.FC<RecapColumnsEditorProps> = ({ columns, proper
 
 // ---------------------------------------------------------------------------
 
-const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, views, onUpdate, onClose }) => {
+const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, views, onUpdate, onClose, excludeLayout, embedded, raised, allowPeriod, useLayoutUnits }) => {
   const [activeTab, setActiveTab] = useState<ConfigTab>('type');
   const collection = collections.find((c) => c.id === module.collectionId) ?? null;
   const properties: Property[] = collection
@@ -824,6 +831,12 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, view
       ? [{ id: CHART_AGG_DURATION_FIELD_ID, name: CHART_AGG_DURATION_FIELD_LABEL }]
       : []),
   ];
+
+  const layoutHeight = useLayoutUnits ? getLayoutTileHeight(module.layout.h) : module.layout.h;
+  const widthOptions = useLayoutUnits ? LAYOUT_WIDTH_OPTIONS : MODULE_WIDTH_OPTIONS;
+  const heightOptions = useLayoutUnits
+    ? getLayoutSizeOptions(LAYOUT_HEIGHT_OPTIONS, layoutHeight, `${layoutHeight} px`)
+    : MODULE_HEIGHT_OPTIONS;
 
   const patch = useCallback(
     (p: Partial<DashboardModuleConfig>) => onUpdate(p),
@@ -850,11 +863,13 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, view
 
   return (
     <motion.div
-      initial={{ x: '100%', opacity: 0 }}
+      initial={embedded ? false : { x: '100%', opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: '100%', opacity: 0 }}
       transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-      className="fixed top-0 right-0 h-full w-80 bg-background border-l border-border shadow-2xl z-50 flex flex-col"
+      className={embedded
+        ? 'flex min-w-0 flex-col rounded-lg border border-border bg-background'
+        : `fixed top-0 right-0 flex h-full w-80 max-w-full flex-col border-l border-border bg-background shadow-2xl ${raised ? 'z-[310]' : 'z-50'}`}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -902,7 +917,7 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, view
           <>
             <SectionLabel>Type</SectionLabel>
             <div className="grid grid-cols-3 gap-1.5">
-              {getDashboardModuleOptions().map(([type, label]) => (
+              {getDashboardModuleOptions().filter(([type]) => !excludeLayout || type !== 'layout').map(([type, label]) => (
                 <button
                   key={type}
                   onClick={() => { if (module.type !== type) patch({ type, viewSettings: undefined }); }}
@@ -944,15 +959,15 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, view
                 <Sel
                   value={String(module.layout.w)}
                   onChange={(v) => patch({ layout: { ...module.layout, w: Number(v) } })}
-                  options={MODULE_WIDTH_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+                  options={widthOptions.map((o) => ({ value: String(o.value), label: o.label }))}
                 />
               </div>
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Hauteur</div>
                 <Sel
-                  value={String(module.layout.h)}
+                  value={String(layoutHeight)}
                   onChange={(v) => patch({ layout: { ...module.layout, h: Number(v) } })}
-                  options={MODULE_HEIGHT_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+                  options={heightOptions.map((o) => ({ value: String(o.value), label: o.label }))}
                 />
               </div>
             </div>
@@ -972,15 +987,23 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, view
           </>
         )}
 
-        {/* Champ date (pour modules avec groupement temporel) */}
-        {activeTab === 'infos' && dateProps.length > 0 && (module.type === 'chart' || module.type === 'table' || module.type === 'metric' || module.type === 'list' || registration) && (
+        {activeTab === 'infos' && allowPeriod && (
           <>
-            <SectionLabel>Champ date (filtre global)</SectionLabel>
+            <SectionLabel>Période du module</SectionLabel>
+            <ModulePeriodSelect inherit value={module.period} onChange={(period) => patch({ period })} />
+            {dateProps.length === 0 && <p className="text-xs text-muted-foreground">Cette collection n’a pas de champ date pour filtrer la période.</p>}
+          </>
+        )}
+
+        {/* Champ date (pour modules avec groupement temporel) */}
+        {activeTab === 'infos' && dateProps.length > 0 && ((allowPeriod && module.type !== 'calendar' && module.type !== 'recap') || module.type === 'chart' || module.type === 'table' || module.type === 'metric' || module.type === 'list' || registration) && (
+          <>
+            <SectionLabel>Champ date de la période</SectionLabel>
             <Sel
               value={module.dateField ?? ''}
               onChange={(v) => patch({ dateField: v })}
               options={dateProps.map((p) => ({ value: p.id, label: p.name }))}
-              placeholder="Auto-detect"
+              placeholder="Premier champ date"
             />
           </>
         )}

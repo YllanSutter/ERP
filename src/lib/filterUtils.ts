@@ -142,7 +142,8 @@ export const getFilteredItems = (
       .filter((v: any) => v !== undefined && v !== null && v !== '');
   };
   
-  currentViewConfig.filters.forEach((filter: any) => {
+  const filters = [...(currentCollection.pinnedFilters ?? []), ...(currentViewConfig.filters ?? [])];
+  filters.forEach((filter: any) => {
     filtered = filtered.filter((item) => {
       const sourceCollectionId = filter?.sourceCollectionId || currentCollection?.id;
 
@@ -209,7 +210,7 @@ export const getFilteredItems = (
     });
   });
 
-  if (relationFilter.collectionId === activeCollection && relationFilter.ids?.length) {
+  if (relationFilter.collectionId === activeCollection && currentCollection.id === activeCollection && relationFilter.ids?.length) {
     filtered = filtered.filter((item) => relationFilter.ids.includes(item.id));
   }
   

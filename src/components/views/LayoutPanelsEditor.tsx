@@ -1,4 +1,6 @@
 import React from 'react';
+import type { ModulePeriod } from '@/lib/dashboardTypes';
+import { getLayoutSizeOptions, getLayoutTileHeight, LAYOUT_HEIGHT_OPTIONS, LAYOUT_WIDTH_OPTIONS } from '@/lib/layoutDimensions';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,12 +9,24 @@ export interface LayoutPanelConfig {
   id: string;
   collectionId?: string;
   viewId: string;
+  title?: string;
+  period?: ModulePeriod;
+  dateField?: string;
+  viewSettings?: Record<string, unknown>;
   colSpan?: number;
   rowSpan?: number;
+  height?: number;
+}
+
+export function getLayoutPanelHeight(panel: LayoutPanelConfig) {
+  if (panel.height !== undefined) return getLayoutTileHeight(panel.height);
+  const rows = Math.min(6, Math.max(1, panel.rowSpan || 2));
+  return rows * 160 + (rows - 1) * 12;
 }
 
 interface LayoutPanelsEditorProps {
   panels: LayoutPanelConfig[];
+  hideAdd?: boolean;
   onChange: (panels: LayoutPanelConfig[]) => void;
   collection: any;
   collections?: any[];
@@ -23,6 +37,7 @@ interface LayoutPanelsEditorProps {
 /** Shared composition editor used when creating a Layout view and in its live settings. */
 const LayoutPanelsEditor: React.FC<LayoutPanelsEditorProps> = ({
   panels,
+  hideAdd = false,
   onChange,
   collection,
   collections = [],
@@ -39,8 +54,10 @@ const LayoutPanelsEditor: React.FC<LayoutPanelsEditorProps> = ({
       {panels.map((panel, index) => {
         const targetCollectionId = panel.collectionId || collection?.id || '';
         const selectableViews = views[targetCollectionId] || availableViews;
+        const width = panel.colSpan || 6;
+        const height = getLayoutPanelHeight(panel);
         return (
-          <div key={panel.id || index} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_4.5rem_4.5rem_2rem] items-end gap-2">
+          <div key={panel.id || index} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem] sm:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_3.5rem_3rem_2rem] items-end gap-2">
             <Select value={targetCollectionId || '__none__'} onValueChange={(value) => updatePanel(index, { collectionId: value === '__none__' ? '' : value, viewId: '' })}>
               <SelectTrigger className="h-8 min-w-0 text-xs"><SelectValue placeholder="Collection" /></SelectTrigger>
               <SelectContent>
@@ -55,21 +72,25 @@ const LayoutPanelsEditor: React.FC<LayoutPanelsEditorProps> = ({
                 {selectableViews.filter((entry: any) => entry.type !== 'layout').map((entry: any) => <SelectItem key={entry.id} value={entry.id}>{entry.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={String(panel.colSpan || 6)} onValueChange={(value) => updatePanel(index, { colSpan: Number(value) })}>
-              <SelectTrigger className="h-8 min-w-0 px-2 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>{[3, 4, 6, 8, 12].map((value) => <SelectItem key={value} value={String(value)}>{value}/12</SelectItem>)}</SelectContent>
+            <Select value={String(width)} onValueChange={(value) => updatePanel(index, { colSpan: Number(value) })}>
+              <SelectTrigger aria-label="Largeur" className="h-8 min-w-0 px-2 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {LAYOUT_WIDTH_OPTIONS.map(({ value, label }) => <SelectItem key={value} value={String(value)}>{label}</SelectItem>)}
+              </SelectContent>
             </Select>
-            <Select value={String(panel.rowSpan || 2)} onValueChange={(value) => updatePanel(index, { rowSpan: Number(value) })}>
-              <SelectTrigger className="h-8 min-w-0 px-2 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>{[1, 2, 3, 4].map((value) => <SelectItem key={value} value={String(value)}>{value} L</SelectItem>)}</SelectContent>
+            <Select value={String(height)} onValueChange={(value) => updatePanel(index, { height: Number(value) })}>
+              <SelectTrigger aria-label="Hauteur" className="h-8 min-w-0 px-2 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {getLayoutSizeOptions(LAYOUT_HEIGHT_OPTIONS, height, `${height} px`).map(({ value, label }) => <SelectItem key={value} value={String(value)}>{label}</SelectItem>)}
+              </SelectContent>
             </Select>
             <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => onChange(panels.filter((_, panelIndex) => panelIndex !== index))} aria-label="Retirer ce panneau" title="Retirer ce panneau"><Trash2 /></Button>
           </div>
         );
       })}
-      <Button type="button" variant="ghost" size="sm" onClick={() => onChange([...panels, { id: crypto.randomUUID(), collectionId: collection?.id || '', viewId: '', colSpan: 6, rowSpan: 2 }])}>
+      {!hideAdd && <Button type="button" variant="ghost" size="sm" onClick={() => onChange([...panels, { id: crypto.randomUUID(), collectionId: collection?.id || '', viewId: '', colSpan: 6, height: LAYOUT_HEIGHT_OPTIONS[1].value }])}>
         <Plus /> Ajouter un panneau
-      </Button>
+      </Button>}
     </div>
   );
 };

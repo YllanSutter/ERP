@@ -742,7 +742,7 @@ const ChartModule: React.FC<Props> = ({ module, data }) => {
             {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />}
             <XAxis dataKey="name" tick={{ fontSize: 11 }} tickLine={false} />
             <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={36} tickFormatter={yAxisTickFormatter} />
-            <Tooltip content={renderTooltip} />
+            <Tooltip content={renderTooltip} cursor={{ fill: 'hsl(var(--foreground) / 0.07)' }} />
             {showLegend && (seriesKeys.length > 1 || Boolean(module.chartLegendLabel?.trim())) && <Legend wrapperStyle={{ fontSize: 11 }} />}
             {seriesKeys.map((key, i) => (
               <Bar

@@ -29,6 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import DraggableList from '@/components/inputs/DraggableList';
+import { COMPACT_OPERATOR_LABELS, getOrderedProperties } from '@/components/modals/modalLib';
 import FilterValueDisplay from '@/components/filters/FilterValueDisplay';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
@@ -72,6 +73,7 @@ interface ViewToolbarProps {
   onEditProperty: (property: any) => void;
   onEditFilter: (index: number) => void;
   onUpdateFilterValue: (index: number, value: any) => void;
+  onPinFilter: (index: number) => void;
   onRemoveFilter: (index: number) => void;
   onClearRelationFilter: () => void;
   onToggleFavoriteView: (viewId: string) => void;
@@ -117,6 +119,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onEditFilter,
   onUpdateFilterValue,
   onRemoveFilter,
+  onPinFilter,
   onClearRelationFilter,
   onToggleFavoriteView,
   onManageViewVisibility,
@@ -128,15 +131,13 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
   onUpdateFieldGroupsLayout,
   onUpdateViewConfig,
 }) => {
+  const isLayout = currentViewConfig?.type === 'layout';
   const [settingsTab, setSettingsTab] = useState('settings');
   const activeSettingsTab = viewSettingsSection ?? settingsTab;
   const openSettingsTab = (tab: string) => {
-    if (tab === 'filters') onShowFilterModal();
-    else if (tab === 'groups') onShowGroupModal();
-    else {
-      setSettingsTab(tab);
-      onSetShowViewSettings(true);
-    }
+    setSettingsTab(tab);
+    if (tab === 'groups') onShowGroupModal();
+    else onSetShowViewSettings(true);
   };
   
   // Hook de permission
@@ -184,28 +185,6 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
     () => [...tableSystemOptions, ...viewableProperties],
     [tableSystemOptions, viewableProperties]
   );
-  const operatorLabels: Record<string, string> = {
-    equals: 'Est égal à',
-    not_equals: 'Est différent de',
-    contains: 'Contient',
-    not_contains: 'Ne contient pas',
-    greater: 'Supérieur à',
-    less: 'Inférieur à',
-    is_empty: 'Est vide',
-    is_not_empty: "N'est pas vide"
-  };
-  const compactOperatorLabels: Record<string, string> = {
-    equals: '=',
-    not_equals: '≠',
-    contains: 'contient',
-    not_contains: 'exclut',
-    greater: '>',
-    less: '<',
-    is_empty: 'vide',
-    is_not_empty: 'non vide'
-  };
-  const getOperatorLabel = (op: string) => operatorLabels[op] || op;
-  const getCompactOperatorLabel = (op: string) => compactOperatorLabels[op] || getOperatorLabel(op);
   const getFilterSource = (filter: any) => {
     const sourceCollection =
       (filter?.sourceCollectionId
@@ -213,7 +192,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         : null) ||
       collections.find((c: any) => c.properties?.some((p: any) => p.id === filter.property)) ||
       currentCollection;
-    const sourceProp = sourceCollection?.properties?.find((p: any) => p.id === filter.property);
+    const sourceProp = getOrderedProperties(sourceCollection, null, collections).find((p: any) => p.id === filter.property);
     return { sourceCollection, sourceProp };
   };
   const calendarCollectionIds = Array.isArray(currentViewConfig?.calendarCollectionIds)
@@ -319,7 +298,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       initial={{ y: -10, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.15 }}
-      className="relative min-w-0 border-b border-black/5 dark:border-white/5 px-2 py-3 sm:px-4 sm:py-4 lg:px-6 z-10"
+      className={cn('relative z-10 min-w-0 border-b', isLayout ? 'border-border bg-card px-4 py-2.5' : 'border-black/5 px-2 py-3 dark:border-white/5 sm:px-4 sm:py-4 lg:px-6')}
     >
 
       <div className="flex min-w-0 items-center gap-2 flex-wrap">
@@ -334,6 +313,11 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         >
           <Settings size={14} />
         </ToolbarButton>
+        {isLayout && canEdit && (
+          <ToolbarButton type="button" onClick={() => openSettingsTab('filters')} title="Filtres du layout">
+            <Filter size={14} /> Filtres
+          </ToolbarButton>
+        )}
           {relationFilter.collectionId === activeCollection && relationFilter.ids.length > 0 && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -601,7 +585,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         </div>
       </div>
 
-      {currentViewConfig && currentViewConfig.type !== 'layout' && (
+      {currentViewConfig && (
                 <Sheet open={showViewSettings || Boolean(viewSettingsSection)} onOpenChange={(open) => { if (!open) onSetShowViewSettings(false); }}>
                   <SheetContent side="right" overlayClassName="z-[299] bg-transparent" className="z-[300] flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
                     <div className="border-b px-4 py-3 pr-10">
@@ -646,7 +630,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                       )}
                                       <span className="max-w-[130px] truncate font-medium" title={sourceProp?.name || 'Champ'}>{sourceProp?.name || 'Champ'}</span>
                                       <span className="rounded-full bg-black/5 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600 dark:bg-white/10 dark:text-neutral-300">
-                                        {getCompactOperatorLabel(filter.operator)}
+                                        {COMPACT_OPERATOR_LABELS[filter.operator] || filter.operator}
                                       </span>
                                     </span>
                                     {hasValue && (
@@ -663,6 +647,15 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                       </div>
                                     )}
                                     <div className="ml-auto flex shrink-0 items-center gap-1">
+                                      {canEdit && (
+                                        <IconButton
+                                          onClick={() => onPinFilter(idx)}
+                                          label="Épingler à toutes les vues de la collection"
+                                          className="h-6 w-6 rounded-full p-1"
+                                        >
+                                          <Icons.Pin size={13} />
+                                        </IconButton>
+                                      )}
                                       <IconButton
                                         onClick={() => {
                                           if (!canEdit) return;
@@ -706,7 +699,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                             </div>
                           </section>
                         )}
-                        {(currentViewConfig?.filters || []).length > 0 && (
+                        {canEdit && !filterEditor && (
                           <button type="button" onClick={onShowFilterModal} className="mt-2 flex items-center gap-1 rounded px-1 py-1 text-xs font-medium text-primary hover:underline">
                             <Plus size={12} aria-hidden="true" /> Nouveau filtre
                           </button>
@@ -1105,19 +1098,6 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     </Tabs>
                   </SheetContent>
                 </Sheet>
-      )}
-      {currentViewConfig?.type === 'layout' && (
-              <Sheet open={showViewSettings} onOpenChange={onSetShowViewSettings}>
-                <SheetContent side="right" overlayClassName="z-[299] bg-transparent" className="z-[300] flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-                  <div className="border-b px-4 py-3 pr-10">
-                    <SheetTitle className="text-sm">Réglages de la vue</SheetTitle>
-                    <SheetDescription className="mt-1 truncate text-xs">{currentViewConfig?.name}</SheetDescription>
-                  </div>
-                  <div className="min-h-0 overflow-y-auto p-3">
-                    <ViewSettingsPanel view={currentViewConfig} collection={currentCollection} properties={orderedProperties} collections={collections} views={allViews} onUpdate={onUpdateViewConfig} />
-                  </div>
-                </SheetContent>
-              </Sheet>
       )}
 
     </motion.div>

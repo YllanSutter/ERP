@@ -18,6 +18,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 interface AppHeaderProps {
   impersonatedRoleId: string | null;
   availableRoles: any[];
+  collectionFilters?: React.ReactNode;
   activeCollectionName?: string | null;
   dashboardTitle?: { name: string; onRename: (name: string) => void };
   saveStatus?: SaveStatus;
@@ -33,6 +34,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   impersonatedRoleId,
   availableRoles,
   activeCollectionName,
+  collectionFilters,
   dashboardTitle,
   saveStatus,
   onRetrySave,
@@ -92,7 +94,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       animate={{ y: 0, opacity: 1 }}
       className="border-b border-black/10 dark:border-white/5 backdrop-blur lg:px-4 px-2 py-2 flex items-center justify-between"
     >
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
         <SidebarTrigger
           className="md:hidden shrink-0 rounded-full border border-black/10 dark:border-white/10"
           title="Ouvrir la navigation"
@@ -117,8 +119,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             {activeCollectionName || 'Collections'}
           </h1>
         )}
+        {collectionFilters}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="ml-2 flex shrink-0 items-center gap-2">
         {saveStatus && (
           <span
             role="status"

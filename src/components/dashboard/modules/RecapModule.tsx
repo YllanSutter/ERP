@@ -461,7 +461,7 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
 
     const hasGlobalDate = !!(globalFilter?.preset || globalFilter?.start || globalFilter?.end);
     const yearForMode = sharedPeriodDate?.getFullYear() ?? new Date().getFullYear();
-    const forcedYearRange = mode === 'year'
+    const forcedYearRange = mode === 'year' && !(hasGlobalDate && globalFilter?.matchIntervals)
       ? {
           start: startOfYear(new Date(yearForMode, 0, 1)),
           end: endOfYear(new Date(yearForMode, 0, 1)),
@@ -507,7 +507,7 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
     });
 
     return byId;
-  }, [allCollections, mode, sharedPeriodDate, module.recapDateField, module.dateField, module.filters, globalFilter?.preset, globalFilter?.start, globalFilter?.end, globalFilter?.field]);
+  }, [allCollections, mode, sharedPeriodDate, module.recapDateField, module.dateField, module.filters, globalFilter?.preset, globalFilter?.start, globalFilter?.end, globalFilter?.field, globalFilter?.matchIntervals]);
 
   const itemNameField = useMemo(
     () => collection?.properties?.find((p) => p.id === 'name' || p.name === 'Nom') ?? undefined,

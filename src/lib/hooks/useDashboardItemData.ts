@@ -8,7 +8,7 @@ import { parseISO, isWithinInterval } from 'date-fns';
 import { DashboardModuleConfig, GlobalDatePreset, RecapAssignments } from '@/lib/dashboardTypes';
 import { Property, Item, Collection } from '@/lib/types';
 import { applyModuleFilters, computeDateRange, getDateValue } from '@/lib/utils/dashboardUtils';
-import { getItemCanonicalStartMs } from '@/lib/utils/recapColumnUtils';
+import { getItemCanonicalStartMs, getItemIntervalsForDateField } from '@/lib/utils/recapColumnUtils';
 import { getAssignedDate, getAssignmentKey } from '@/lib/utils/recapAssignments';
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 
@@ -18,6 +18,7 @@ export interface GlobalDateFilter {
   end?: string;
   /** ID du champ date ciblé (sinon, premier champ date de la collection) */
   field?: string;
+  matchIntervals?: boolean;
 }
 
 export interface DashboardItemData {
@@ -179,7 +180,11 @@ export function useDashboardItemData(
 
   const isMetricCount = module.type === 'metric' && (module.metricAggregation ?? 'count') === 'count';
   const usesAssignments = module.type === 'list' || isMetricCount;
-  const periodDateField = isMetricCount
+  const periodDateField = globalFilter?.matchIntervals
+    ? dateFields.find((field) => field.id === (module.type === 'recap' ? module.recapDateField : module.dateField))
+      ?? dateFields.find((field) => field.id === recapCountDateField && isMetricCount)
+      ?? dateFields[0]
+    : isMetricCount
     ? dateFields.find((field) => field.id === module.dateField)
       ?? dateFields.find((field) => field.id === recapCountDateField)
       ?? dateFields.find((field) => field.id === globalFilter?.field)
@@ -192,7 +197,7 @@ export function useDashboardItemData(
     // 1) Filtre date global
     const hasGlobalDate = globalFilter?.preset || globalFilter?.start || globalFilter?.end;
     if (hasGlobalDate) {
-      const dateFieldId = isMetricCount
+      const dateFieldId = isMetricCount || globalFilter?.matchIntervals
         ? periodDateField?.id
         : globalFilter?.field ?? module.dateField ?? dateFields[0]?.id;
       if (dateFieldId) {
@@ -206,6 +211,10 @@ export function useDashboardItemData(
             const key = getAssignmentKey(collection.id, item.id, dateFieldId);
             const assigned = getAssignedDate(item, periodDateField, recapAssignments[key]);
             if (assigned !== undefined) return isWithinInterval(assigned, range);
+          }
+          if (globalFilter?.matchIntervals && !isMetricCount) {
+            return range.start <= range.end && getItemIntervalsForDateField(item, periodDateField)
+              .some(({ start, end }) => end >= range.start.getTime() && start <= range.end.getTime());
           }
           if (isMetricCount) {
             const start = getItemCanonicalStartMs(item, periodDateField);

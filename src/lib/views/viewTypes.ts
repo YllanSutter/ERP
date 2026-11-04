@@ -33,6 +33,7 @@ export interface ViewRenderContext {
 }
 
 export interface ViewRendererProps extends ViewRenderContext {
+  canConfigureLayout?: boolean;
   onUpdateView: (updates: Record<string, unknown>) => void;
   views?: Record<string, ViewDefinition[]>;
   relationFilter?: { collectionId: string | null; ids: string[] };

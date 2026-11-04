@@ -9,7 +9,7 @@ import {
 import { getPluginViewRegistrations } from './pluginViewRegistry';
 import KanbanRenderer from '@/components/views/KanbanRenderer';
 import CalendarRenderer from '@/components/views/CalendarRenderer';
-import LayoutRenderer from '@/components/views/LayoutRenderer';
+import LayoutView from '@/components/views/LayoutView';
 import TableRenderer from '@/components/views/TableRenderer';
 import CardsRenderer from '@/components/views/CardsRenderer';
 
@@ -68,7 +68,7 @@ const registrations: Record<NativeViewType, ViewRegistration> = {
     type: 'layout',
     label: 'Layout',
     Settings: LayoutViewSettings,
-    Renderer: LayoutRenderer,
+    Renderer: LayoutView,
     capabilities: { ...defaultCapabilities, supportsNestedViews: false },
     createDefaultConfig: (id, collectionId) => ({ id, name: 'Layout', type: 'layout', collectionId, layoutPanels: [] }),
   },

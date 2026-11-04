@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ChevronDown, ChevronUp, Settings2, Trash2 } from 'lucide-react';
 import type { ViewSettingsProps } from '@/lib/views';
 import {
   Select,
@@ -8,7 +9,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import LayoutPanelsEditor, { type LayoutPanelConfig } from './LayoutPanelsEditor';
+import LayoutPanelsEditor from './LayoutPanelsEditor';
+import LayoutPanelSettings from './LayoutPanelSettings';
+import { getLayoutEntries, moveLayoutEntry } from './layoutOrder';
+import DashboardModuleConfigPanel from '@/components/dashboard/DashboardModuleConfigPanel';
+import { MODULE_TYPE_LABELS } from '@/lib/dashboardTypes';
+import { getViewRegistration } from '@/lib/views';
+import { IconButton } from '@/components/ui/icon-button';
 
 const fieldClassName =
   'h-8 min-w-0 rounded-md border border-black/10 bg-white/70 px-2.5 text-xs text-neutral-800 outline-none transition-colors hover:border-brand-400/60 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200';
@@ -179,16 +186,71 @@ export const CalendarViewSettings: React.FC<ViewSettingsProps> = ({ view, proper
 );
 
 export const LayoutViewSettings: React.FC<ViewSettingsProps> = ({ view, collection, collections, views, onUpdate }) => {
-  const panels = Array.isArray(view.layoutPanels) ? view.layoutPanels as LayoutPanelConfig[] : [];
+  const { panels, modules, entries, order } = getLayoutEntries(view);
+  const [configuringId, setConfiguringId] = useState<string | null>(null);
+  const move = (index: number, offset: number) => onUpdate({ layoutOrder: moveLayoutEntry(order, index, offset) });
   return (
     <div className="space-y-3">
       <div className="grid gap-2 sm:grid-cols-2">
+        <SettingsToggle label="Fond des vues et modules" checked={view.layoutTileBackground === true} onChange={(checked) => onUpdate({ layoutTileBackground: checked })} />
         <SettingsToggle label="Panneaux redimensionnables" checked={view.layoutResizable !== false} onChange={(checked) => onUpdate({ layoutResizable: checked })} />
         <SettingsToggle label="Adapter la hauteur au contenu" checked={Boolean(view.layoutAutoHeight)} onChange={(checked) => onUpdate({ layoutAutoHeight: checked })} />
       </div>
       <div className="space-y-2 border-t border-black/10 pt-3 dark:border-white/10">
-        <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">Vues à combiner</p>
-        <LayoutPanelsEditor panels={panels} onChange={(layoutPanels) => onUpdate({ layoutPanels })} collection={collection} collections={collections} views={views} />
+        <h3 className="text-xs font-semibold">Vues et modules</h3>
+        {order.map((key, index) => {
+          const { panel, module } = entries.get(key)!;
+          const moduleCollection = module && (collections ?? [collection]).find(({ id }) => id === module.collectionId);
+          const moduleLabel = module && (MODULE_TYPE_LABELS[module.type] ?? getViewRegistration(module.type).label);
+          const title = module
+            ? module.title ?? (moduleCollection ? `${moduleCollection.name} · ${moduleLabel}` : moduleLabel)
+            : panel?.title || views?.[panel?.collectionId || collection.id]?.find(({ id }) => id === panel?.viewId)?.name || 'Vue à configurer';
+          return (
+            <div key={key} className="space-y-2 rounded-lg border border-border p-2">
+              <div className="flex min-w-0 items-center gap-1">
+                <span className="min-w-0 flex-1 truncate text-xs font-medium" title={title}>{title}</span>
+                <span className="text-[11px] text-muted-foreground">{module ? 'Module' : 'Vue'}</span>
+                <IconButton label={`Monter ${title}`} className="size-7" disabled={index === 0} onClick={() => move(index, -1)}><ChevronUp size={14} /></IconButton>
+                <IconButton label={`Descendre ${title}`} className="size-7" disabled={index === order.length - 1} onClick={() => move(index, 1)}><ChevronDown size={14} /></IconButton>
+                {panel && (
+                  <IconButton label={`Configurer ${title}`} className="size-7" onClick={() => setConfiguringId(configuringId === key ? null : key)}><Settings2 size={14} /></IconButton>
+                )}
+                {module && (
+                  <>
+                    <IconButton label={`Configurer ${title}`} className="size-7" onClick={() => setConfiguringId(configuringId === module.id ? null : module.id)}><Settings2 size={14} /></IconButton>
+                    <IconButton label={`Retirer ${title}`} className="size-7" onClick={() => onUpdate({ layoutModules: modules.filter(({ id }) => id !== module.id) })}><Trash2 size={14} /></IconButton>
+                  </>
+                )}
+              </div>
+              {panel && configuringId === key && (
+                <LayoutPanelSettings
+                  panel={panel}
+                  onChange={(updated) => onUpdate({ layoutPanels: updated
+                    ? panels.map((entry) => entry.id === panel.id ? updated : entry)
+                    : panels.filter(({ id }) => id !== panel.id) })}
+                  collection={collection}
+                  collections={collections ?? [collection]}
+                  views={views}
+                />
+              )}
+              {module && configuringId === module.id && (
+                <DashboardModuleConfigPanel
+                  embedded
+                  allowPeriod
+                  useLayoutUnits
+                  excludeLayout
+                  module={module}
+                  collections={collections ?? [collection]}
+                  views={views}
+                  onUpdate={(patch) => onUpdate({ layoutModules: modules.map((entry) =>
+                    entry.id === module.id ? { ...entry, ...patch } : entry) })}
+                  onClose={() => setConfiguringId(null)}
+                />
+              )}
+            </div>
+          );
+        })}
+        <LayoutPanelsEditor panels={[]} onChange={(added) => onUpdate({ layoutPanels: [...panels, ...added] })} collection={collection} />
       </div>
     </div>
   );

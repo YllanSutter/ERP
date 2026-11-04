@@ -13,7 +13,7 @@ import {
   ModuleType,
   MODULE_TYPE_LABELS,
 } from '@/lib/dashboardTypes';
-import { DashboardItemData, GlobalDateFilter } from '@/lib/hooks/useDashboardItemData';
+import { useDashboardItemData, type GlobalDateFilter } from '@/lib/hooks/useDashboardItemData';
 import ChartModule from './modules/ChartModule';
 import MetricModule from './modules/MetricModule';
 import ListModule from './modules/ListModule';
@@ -39,11 +39,13 @@ const MODULE_ICONS: Record<ModuleType, React.ReactNode> = {
 
 interface Props {
   module: DashboardModuleConfig;
-  data: DashboardItemData;
   globalFilter?: GlobalDateFilter;
   collections: any[];
   views?: Record<string, ViewDefinition[]>;
   isEditMode: boolean;
+  showConfig?: boolean;
+  showReorder?: boolean;
+  withBackground?: boolean;
   isFirst: boolean;
   isLast: boolean;
   onEdit?: (item: any) => void;
@@ -54,17 +56,20 @@ interface Props {
   onMoveUp: () => void;
   onMoveDown: () => void;
   recapAssignments?: RecapAssignments;
+  recapCountDateField?: string;
   onRecapAssignmentChange?: (key: string, date?: string) => void;
   onUpdateModule?: (patch: Partial<DashboardModuleConfig>) => void;
 }
 
 const DashboardModuleWrapper: React.FC<Props> = ({
   module,
-  data,
   globalFilter,
   collections,
   views,
   isEditMode,
+  showConfig = false,
+  showReorder = false,
+  withBackground = false,
   isFirst,
   isLast,
   onEdit,
@@ -76,8 +81,10 @@ const DashboardModuleWrapper: React.FC<Props> = ({
   onMoveDown,
   onUpdateModule,
   recapAssignments,
+  recapCountDateField,
   onRecapAssignmentChange,
 }) => {
+  const data = useDashboardItemData(module, collections, globalFilter, recapAssignments, recapCountDateField);
   const registration = getDashboardViewRegistration(module.type);
   const Renderer = registration?.Renderer;
   const viewCollection = module.type === 'layout' && data.collection
@@ -96,7 +103,7 @@ const DashboardModuleWrapper: React.FC<Props> = ({
 
   return (
     <div
-      className={`${gridColSpan} flex flex-col rounded-xl border border-border shadow-sm overflow-hidden transition-shadow ${isEditMode ? '' : ''}`}
+      className={`${gridColSpan} flex flex-col rounded-xl border border-border shadow-sm overflow-hidden transition-shadow ${withBackground ? 'bg-card' : 'bg-transparent'}`}
       style={{ height: module.layout.h }}
     >
       {/* Header */}
@@ -118,8 +125,13 @@ const DashboardModuleWrapper: React.FC<Props> = ({
           </span>
         )}
 
+        {showConfig && !isEditMode && (
+          <button type="button" onClick={onConfigOpen} className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-primary" aria-label="Configurer le module" title="Configurer le module">
+            <Settings2 size={13} />
+          </button>
+        )}
         {/* Contrôles édition */}
-        {isEditMode && (
+        {(isEditMode || showReorder) && (
           <div className="flex items-center gap-0.5 flex-shrink-0">
             <button
               onClick={onMoveUp}
@@ -137,20 +149,20 @@ const DashboardModuleWrapper: React.FC<Props> = ({
             >
               <ChevronDown size={13} />
             </button>
-            <button
+            {isEditMode && <button
               onClick={onConfigOpen}
               className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-primary"
               title="Configurer"
             >
               <Settings2 size={13} />
-            </button>
-            <button
+            </button>}
+            {isEditMode && <button
               onClick={onDelete}
               className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-destructive"
               title="Supprimer"
             >
               <Trash2 size={13} />
-            </button>
+            </button>}
           </div>
         )}
       </div>

@@ -44,6 +44,7 @@ export const COMPACT_OPERATOR_LABELS: Record<string, string> = {
   equals:       '=',
   not_equals:   '≠',
   contains:     'contient',
+  not_contains: 'exclut',
   greater:      '>',
   less:         '<',
   is_empty:     'vide',
