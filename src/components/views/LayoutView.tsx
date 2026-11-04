@@ -45,6 +45,7 @@ const LayoutView: React.FC<LayoutViewProps> = ({
   onShowNewItemModalForCollection,
   onBulkImportItad,
 }) => {
+  const layoutId = viewConfig?.id;
   const layoutPanels: LayoutPanelConfig[] = Array.isArray(viewConfig?.layoutPanels)
     ? viewConfig.layoutPanels
     : [];
@@ -122,7 +123,9 @@ const LayoutView: React.FC<LayoutViewProps> = ({
             <div className="h-[calc(100%-1.5rem)] overflow-auto">
               {PanelRenderer && (
                 <PanelRenderer
+                  key={viewConfig.id}
                   view={viewConfig}
+                  viewModeStorageKey={`layout:${collection.id}:${layoutId}:${panel.id}:${viewConfig.id}`}
                   collection={targetCollection}
                   collections={collections}
                   items={filteredItems}

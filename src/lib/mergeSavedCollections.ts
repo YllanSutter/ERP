@@ -19,9 +19,12 @@ export function mergeSavedCollections(submitted: Collection[], saved: Collection
           const stored = remoteItems.get(item.id);
           if (!previous) return [item];
           if (!stored) return JSON.stringify(item) === JSON.stringify(previous) ? [] : [item];
+          const segmentsChanged = JSON.stringify(previous._eventSegments) !== JSON.stringify(item._eventSegments);
           const result = { ...stored };
           for (const key of new Set([...Object.keys(previous), ...Object.keys(item)])) {
-            if (JSON.stringify(previous[key]) === JSON.stringify(item[key])) continue;
+            // Une nouvelle édition de segments réutilise parfois le même marqueur que la requête précédente.
+            if (!(key === '_preserveEventSegments' && segmentsChanged) &&
+                JSON.stringify(previous[key]) === JSON.stringify(item[key])) continue;
             if (Object.hasOwn(item, key)) result[key] = item[key];
             else delete result[key];
           }

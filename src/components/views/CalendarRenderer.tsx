@@ -2,11 +2,12 @@ import React from 'react';
 import CalendarView from './CalendarView';
 import type { ViewRendererProps } from '@/lib/views';
 
-const CalendarRenderer: React.FC<ViewRendererProps> = ({
+const CalendarRenderer: React.FC<ViewRendererProps & { viewModeStorageKey?: string }> = ({
   collection,
   items,
   collections,
   view,
+  viewModeStorageKey,
   views,
   relationFilter,
   activeCollectionId,
@@ -33,6 +34,7 @@ const CalendarRenderer: React.FC<ViewRendererProps> = ({
       hiddenFields={Array.isArray(view.hiddenFields) ? view.hiddenFields : []}
       collections={collections}
       viewConfig={view}
+      viewModeStorageKey={viewModeStorageKey}
       showCollectionsSelector={view.showCollectionsSelector !== false}
       views={views}
       relationFilter={relationFilter}
