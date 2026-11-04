@@ -176,7 +176,7 @@ export function useDashboardItemData(
   );
 
   const periodDateField = dateFields.find((field) => field.id === (globalFilter?.field ?? module.dateField ?? dateFields[0]?.id));
-  const usesAssignments = module.type === 'list' || module.type === 'metric';
+  const usesAssignments = module.type === 'list' || (module.type === 'metric' && (module.metricAggregation ?? 'count') === 'count');
 
   const filteredItems: Item[] = useMemo(() => {
     let items = [...allItems];

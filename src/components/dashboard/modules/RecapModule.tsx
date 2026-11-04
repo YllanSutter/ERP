@@ -652,13 +652,12 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
             leaf,
             { key: day.key, label: day.dayLabel, sublabel: day.dateLabel, start: day.start, end: day.end },
             source.dateField,
-            source.properties,
-            getAssignment(leaf)
+            source.properties
           );
         })
       )
     );
-  }, [mode, visibleWeekGroups, leaves, getLeafSource, getAssignment]);
+  }, [mode, visibleWeekGroups, leaves, getLeafSource]);
 
   const visibleMonthCellLayout = useMemo(() => {
     if (mode !== 'month') return [] as Array<Array<Array<{ rowSpan: number; skip: boolean }>>>;
@@ -682,7 +681,7 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
         const currentItems = visibleMonthCellItems[weekIdx]?.[dayIdx]?.[leafIdx] ?? [];
         const currentMeta = layout[weekIdx][dayIdx][leafIdx];
 
-        if (currentMeta.skip || leaf.displayType !== 'count' || currentItems.length !== 1) {
+        if (currentMeta.skip || leaf.displayType !== 'count' || currentItems.length !== 1 || getAssignment(leaf)(currentItems[0]) !== undefined) {
           continue;
         }
 
@@ -704,7 +703,7 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
     }
 
     return layout;
-  }, [mode, visibleWeekGroups, visibleMonthCellItems, leaves]);
+  }, [mode, visibleWeekGroups, visibleMonthCellItems, leaves, getAssignment]);
 
   // cells[wgIdx][dayIdx][leafIdx]
   const dayCells = useMemo(() => {
@@ -874,14 +873,8 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
 
   const getInteractiveCellItems = useCallback((leaf: LeafColumn, period: PeriodRow) => {
     const source = getLeafSource(leaf);
-    const assignment = getAssignment(leaf);
-    const items = getLeafCellItems(source.items, leaf, period, source.dateField, source.properties, assignment);
-    if (mode !== 'year' || leaf.displayType !== 'count') return items;
-    return items.filter((item) => {
-      const date = assignment(item) ?? getItemCanonicalStartMs(item, source.dateField);
-      return date !== null && date >= period.start.getTime() && date <= period.end.getTime();
-    });
-  }, [getLeafSource, getAssignment, mode]);
+    return getLeafCellItems(source.items, leaf, period, source.dateField, source.properties);
+  }, [getLeafSource]);
 
   const getAssignableItems = (cell: Pick<TooltipState, 'items' | 'leaf'> | null) => {
     if (!cell || !onAssignmentChange) return [];
@@ -1064,14 +1057,13 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
       if (leaf.displayType === 'count') {
         const layout = visibleMonthCellLayout[visibleIdx]?.[dayIdx]?.[li] ?? { rowSpan: 1, skip: false };
         if (layout.skip) return acc;
-        const items = visibleMonthCellItems[visibleIdx]?.[dayIdx]?.[li] ?? [];
-        return accumulateLeafTotal(acc, leaf, items.length);
+        return accumulateLeafTotal(acc, leaf, dayCells[sourceIdx]?.[dayIdx]?.[li] ?? 0);
       }
 
       const raw = dayCells[sourceIdx]?.[dayIdx]?.[li] ?? 0;
       return accumulateLeafTotal(acc, leaf, raw);
     }, { ...EMPTY_TOTALS });
-  }, [leaves, visibleMonthCellLayout, visibleMonthCellItems, dayCells]);
+  }, [leaves, visibleMonthCellLayout, dayCells]);
 
   // ── États vides ───────────────────────────────────────────────────────
 
@@ -1336,6 +1328,20 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
 
                       const shownItems = items.slice(0, 2);
                       const rest = items.length - shownItems.length;
+                      const assignment = getAssignment(leaf);
+                      const renderLabel = (item: Item, abbreviation: string) => {
+                        const assigned = assignment(item);
+                        if (assigned === undefined) return abbreviation;
+                        const counted = assigned >= period.start.getTime() && assigned <= period.end.getTime();
+                        return (
+                          <span className={counted ? undefined : 'opacity-70'}>
+                            {abbreviation}
+                            <span className="ml-1 text-[9px] font-normal" aria-label={counted ? 'Compté ce jour' : 'Compté dans une autre période'}>
+                              {counted ? '+1' : '·'}
+                            </span>
+                          </span>
+                        );
+                      };
 
                       if (items.length === 1) {
                         const label = getItemLabel(items[0], leaf);
@@ -1349,7 +1355,7 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                               }}
                               title={label}
                             >
-                              {abbr}
+                              {renderLabel(items[0], abbr)}
                             </span>
                             {cellLayout.rowSpan > 1 && (
                               <span className="text-[10px] text-muted-foreground">
@@ -1374,7 +1380,7 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                                 }}
                                 title={label}
                               >
-                                {abbr}
+                                {renderLabel(item, abbr)}
                               </span>
                             );
                           })}

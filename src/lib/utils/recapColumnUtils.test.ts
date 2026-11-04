@@ -19,7 +19,6 @@ const may = period('2026-05-01T00:00:00', '2026-05-31T23:59:59.999');
 const june = period('2026-06-01T00:00:00', '2026-06-30T23:59:59.999');
 const sunday = period('2026-05-31T00:00:00', '2026-05-31T23:59:59.999');
 const monday = period('2026-06-01T00:00:00', '2026-06-01T23:59:59.999');
-const assignment = () => new Date('2026-06-01T00:00:00').getTime();
 
 describe('récap du dashboard', () => {
   it('conserve le comptage annuel par date de début et la durée répartie par défaut', () => {
@@ -44,20 +43,41 @@ describe('récap du dashboard', () => {
     expect(item.dates).toEqual(originalDates);
   });
 
-  it('déplace le compte, la somme et la durée vers la même période', () => {
+  it('compte PT dans une seule période et garde ses heures et sa présence sur les deux jours', () => {
+    const pt = {
+      id: 'pt',
+      amount: 120,
+      _eventSegments: [
+        { label: 'Dates', start: '2026-10-30T09:30:00', end: '2026-10-30T12:00:00' },
+        { label: 'Dates', start: '2026-10-30T13:00:00', end: '2026-10-30T17:00:00' },
+        { label: 'Dates', start: '2026-11-02T09:00:00', end: '2026-11-02T12:00:00' },
+      ],
+    } as Item;
+    const days = [
+      period('2026-10-30T00:00:00', '2026-10-30T23:59:59.999'),
+      period('2026-11-02T00:00:00', '2026-11-02T23:59:59.999'),
+    ];
+    const months = [
+      period('2026-10-01T00:00:00', '2026-10-31T23:59:59.999'),
+      period('2026-11-01T00:00:00', '2026-11-30T23:59:59.999'),
+    ];
     const duration = { ...leaf, displayType: 'duration' as const };
     const amount = { ...leaf, displayType: 'sum' as const, aggregationField: 'amount' };
 
-    for (const [column, value] of [[leaf, 1], [amount, 120], [duration, 240]] as const) {
-      for (const row of [sunday, may]) {
-        expect(getLeafCellItems([item], column, row, dateField, [], assignment)).toEqual([]);
-        expect(computeLeafCell([item], column, row, dateField, [], assignment)).toBe(0);
-      }
-      for (const row of [monday, june]) {
-        expect(getLeafCellItems([item], column, row, dateField, [], assignment)).toEqual([item]);
-        expect(computeLeafCell([item], column, row, dateField, [], assignment)).toBe(value);
+    const options = getAssignmentOptions(pt, dateField);
+    expect(options.map(({ date }) => date)).toEqual(['2026-10-30', '2026-11-02']);
+    for (const [selected, option] of options.entries()) {
+      const assigned = () => getAssignedDate(pt, dateField, option.date);
+      for (const periods of [days, months]) {
+        expect(periods.map((row) => computeLeafCell([pt], leaf, row, dateField, [], assigned)))
+          .toEqual(selected === 0 ? [1, 0] : [0, 1]);
+        expect(periods.map((row) => computeLeafCell([pt], duration, row, dateField, [], assigned)))
+          .toEqual([390, 180]);
+        expect(periods.map((row) => computeLeafCell([pt], amount, row, dateField, [], assigned)))
+          .toEqual([120, 120]);
       }
     }
+    expect(days.map((row) => getLeafCellItems([pt], leaf, row, dateField, []))).toEqual([[pt], [pt]]);
   });
 });
 

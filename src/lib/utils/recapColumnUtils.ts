@@ -605,7 +605,7 @@ export function getLeafCellItems(
   return applyFilterChain(items, leaf.filterChain, properties).filter((item) => {
     const intervals = getItemIntervalsForDateField(item, dateField);
     if (intervals.length === 0) return false;
-    const assigned = assignment?.(item);
+    const assigned = leaf.displayType === 'count' ? assignment?.(item) : undefined;
     if (assigned !== undefined) return assigned >= periodStart && assigned <= periodEnd;
     return intervals.some(({ start, end }) => end >= periodStart && start <= periodEnd);
   });
@@ -646,11 +646,10 @@ export function computeLeafCell(
     }
 
     const intervals = getItemIntervalsForDateField(item, dateField);
-    const isAssigned = assignment?.(item) !== undefined;
     if (intervals.length > 0) {
       const totalMins = intervals.reduce((sum, r) => {
-        const overlapStart = isAssigned ? r.start : Math.max(r.start, periodStartMs);
-        const overlapEnd = isAssigned ? r.end : Math.min(r.end, periodEndMs);
+        const overlapStart = Math.max(r.start, periodStartMs);
+        const overlapEnd = Math.min(r.end, periodEndMs);
         const mins = (overlapEnd - overlapStart) / 60000;
         return sum + (Number.isFinite(mins) && mins > 0 ? mins : 0);
       }, 0);
