@@ -46,6 +46,7 @@ export interface HeaderCell {
   label: string;
   color?: string;
   colspan: number;
+  lastLeafIndex: number;
   rowspan: number;
   isLeaf: boolean;
 }
@@ -284,6 +285,7 @@ export function buildRecapHeaderRows(
   const maxDepth = Math.max(...cols.map((c) => getRecapTreeDepth(c, properties, moduleDefaults, propertyResolver)));
   const numRows = maxDepth + 1;
   const rows: HeaderCell[][] = Array.from({ length: numRows }, () => []);
+  let nextLeafIndex = 0;
 
   function process(
     col: RecapColumn,
@@ -314,11 +316,14 @@ export function buildRecapHeaderRows(
       label: col.label,
       color: col.color,
       colspan,
+      lastLeafIndex: nextLeafIndex + colspan - 1,
       rowspan,
       isLeaf,
     });
 
-    if (!isLeaf) {
+    if (isLeaf) {
+      nextLeafIndex += 1;
+    } else {
       const nextCollectionId = col.collectionId ?? inheritedCollectionId ?? moduleDefaults?.collectionId;
       const nextDateFieldId = col.dateFieldId ?? inheritedDateFieldId ?? moduleDefaults?.dateFieldId;
       const nextDurationField = col.durationField ?? inheritedDurationField ?? moduleDefaults?.durationField;
@@ -511,67 +516,98 @@ export function getItemDate(item: Item, dateField: Property | undefined): Date |
 // Calcul d'une cellule
 // ---------------------------------------------------------------------------
 
-/** Retourne les items qui correspondent à une feuille + période (avant agrégation). */
+export function getItemIntervalsForDateField(item: Item, dateField?: Property): Array<{ start: number; end: number }> {
+  if (!dateField) return [];
+
+  const segments: any[] = Array.isArray((item as any)._eventSegments)
+    ? (item as any)._eventSegments
+    : [];
+
+  const segIntervals = segments
+    .filter((s) => s?.label === dateField.name && (s.start || s.__eventStart) && (s.end || s.__eventEnd))
+    .map((s) => ({
+      start: new Date(s.start || s.__eventStart).getTime(),
+      end: new Date(s.end || s.__eventEnd).getTime(),
+    }))
+    .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end >= r.start);
+
+  if (segIntervals.length > 0) return segIntervals;
+
+  if ((dateField.type as string) === 'date_range') {
+    const value = (item as any)[dateField.id];
+    const ranges: { start?: string; end?: string }[] = Array.isArray(value)
+      ? value
+      : value?.start && value?.end ? [value] : [];
+
+    return ranges
+      .map((r) => ({
+        start: new Date(r.start ?? '').getTime(),
+        end: new Date(r.end ?? '').getTime(),
+      }))
+      .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end >= r.start);
+  }
+
+  if (dateField.type === 'date') {
+    const value = item[dateField.id];
+    if (!value) return [];
+    const start = new Date(value).getTime();
+    if (!Number.isFinite(start)) return [];
+
+    const rawDurationHours = Number((item as any)[`${dateField.id}_duration`]);
+    const end = Number.isFinite(rawDurationHours) && rawDurationHours > 0
+      ? start + rawDurationHours * 3600000
+      : start;
+
+    return [{ start, end }];
+  }
+
+  return [];
+}
+
+export function getItemCanonicalStartMs(item: Item, dateField?: Property): number | null {
+  if (!dateField) return null;
+
+  if ((dateField.type as string) === 'date_range') {
+    const raw = (item as any)[dateField.id];
+    const ranges: Array<{ start?: string }> = Array.isArray(raw)
+      ? raw
+      : raw?.start ? [raw] : [];
+    const starts = ranges
+      .map((r) => new Date(r.start ?? '').getTime())
+      .filter((ms) => Number.isFinite(ms));
+    if (starts.length > 0) return Math.min(...starts);
+  }
+
+  if (dateField.type === 'date') {
+    const start = new Date((item as any)[dateField.id]).getTime();
+    if (Number.isFinite(start)) return start;
+  }
+
+  const intervals = getItemIntervalsForDateField(item, dateField);
+  if (intervals.length > 0) return Math.min(...intervals.map((r) => r.start));
+
+  return null;
+}
+
+export type RecapAssignment = (item: Item) => number | undefined;
+
 export function getLeafCellItems(
   items: Item[],
   leaf: LeafColumn,
   period: PeriodRow,
   dateField: Property | undefined,
-  properties: Property[]
+  properties: Property[],
+  assignment?: RecapAssignment
 ): Item[] {
-  const filtered = applyFilterChain(items, leaf.filterChain, properties);
-
   const periodStart = period.start.getTime();
   const periodEnd = period.end.getTime();
 
-  const getItemIntervals = (item: Item): { start: number; end: number }[] => {
-    if (!dateField) return [];
-
-    // 1) Segments calendrier (source la plus fiable pour multi-jours)
-    const segments: any[] = Array.isArray((item as any)._eventSegments)
-      ? (item as any)._eventSegments
-      : [];
-    const segIntervals = segments
-      .filter((s) => s?.label === dateField.name && (s.start || s.__eventStart) && (s.end || s.__eventEnd))
-      .map((s) => {
-        const start = new Date(s.start || s.__eventStart).getTime();
-        const end = new Date(s.end || s.__eventEnd).getTime();
-        return { start, end };
-      })
-      .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end >= r.start);
-    if (segIntervals.length > 0) return segIntervals;
-
-    // 2) date_range brut
-    if ((dateField.type as string) === 'date_range') {
-      const value = (item as any)[dateField.id];
-      const ranges: { start?: string; end?: string }[] = Array.isArray(value)
-        ? value
-        : value?.start && value?.end ? [value] : [];
-      return ranges
-        .map((r) => ({
-          start: new Date(r.start ?? '').getTime(),
-          end: new Date(r.end ?? '').getTime(),
-        }))
-        .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end >= r.start);
-    }
-
-    // 3) date simple + éventuelle durée dédiée (<dateField>_duration)
-    if (dateField.type === 'date') {
-      const start = new Date((item as any)[dateField.id]).getTime();
-      if (!Number.isFinite(start)) return [];
-      const rawDurationHours = Number((item as any)[`${dateField.id}_duration`]);
-      const end = Number.isFinite(rawDurationHours) && rawDurationHours > 0
-        ? start + rawDurationHours * 3600000
-        : start;
-      return [{ start, end }];
-    }
-
-    return [];
-  };
-
-  return filtered.filter((item) => {
-    const intervals = getItemIntervals(item);
-    return intervals.some((r) => r.end >= periodStart && r.start <= periodEnd);
+  return applyFilterChain(items, leaf.filterChain, properties).filter((item) => {
+    const intervals = getItemIntervalsForDateField(item, dateField);
+    if (intervals.length === 0) return false;
+    const assigned = assignment?.(item);
+    if (assigned !== undefined) return assigned >= periodStart && assigned <= periodEnd;
+    return intervals.some(({ start, end }) => end >= periodStart && start <= periodEnd);
   });
 }
 
@@ -580,118 +616,22 @@ export function computeLeafCell(
   leaf: LeafColumn,
   period: PeriodRow,
   dateField: Property | undefined,
-  properties: Property[]
+  properties: Property[],
+  assignment?: RecapAssignment
 ): number {
-  const inRange = getLeafCellItems(items, leaf, period, dateField, properties);
-
+  const inRange = getLeafCellItems(items, leaf, period, dateField, properties, assignment);
   const fid = leaf.aggregationField;
 
-  const toLeafUnit = (mins: number): number =>
-    (leaf.durationUnit === 'hours' ? mins / 60 : mins);
-
+  const toLeafUnit = (mins: number) => leaf.durationUnit === 'hours' ? mins / 60 : mins;
   const periodStartMs = period.start.getTime();
-  const periodEndMs = period.end.getTime();
-
-  const getIntervalsForDuration = (item: Item): { start: number; end: number }[] => {
-    if (!dateField) return [];
-
-    const segments: any[] = Array.isArray((item as any)._eventSegments)
-      ? (item as any)._eventSegments
-      : [];
-    const segIntervals = segments
-      .filter((s) => s?.label === dateField.name && (s.start || s.__eventStart) && (s.end || s.__eventEnd))
-      .map((s) => ({
-        start: new Date(s.start || s.__eventStart).getTime(),
-        end: new Date(s.end || s.__eventEnd).getTime(),
-      }))
-      .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end >= r.start);
-    if (segIntervals.length > 0) return segIntervals;
-
-    if ((dateField.type as string) === 'date_range') {
-      const value = (item as any)[dateField.id];
-      const ranges: { start?: string; end?: string }[] = Array.isArray(value)
-        ? value
-        : value?.start && value?.end ? [value] : [];
-      return ranges
-        .map((r) => ({
-          start: new Date(r.start ?? '').getTime(),
-          end: new Date(r.end ?? '').getTime(),
-        }))
-        .filter((r) => Number.isFinite(r.start) && Number.isFinite(r.end) && r.end >= r.start);
-    }
-
-    if (dateField.type === 'date') {
-      const start = new Date((item as any)[dateField.id]).getTime();
-      if (!Number.isFinite(start)) return [];
-      const rawDurationHours = Number((item as any)[`${dateField.id}_duration`]);
-      const end = Number.isFinite(rawDurationHours) && rawDurationHours > 0
-        ? start + rawDurationHours * 3600000
-        : start;
-      return [{ start, end }];
-    }
-
-    return [];
-  };
-
-  const getCanonicalStartMs = (item: Item): number | null => {
-    if (!dateField) return null;
-
-    // Source prioritaire: valeur brute du champ date/date_range (évite les segments tronqués)
-    if ((dateField.type as string) === 'date_range') {
-      const value = (item as any)[dateField.id];
-      const ranges: { start?: string }[] = Array.isArray(value)
-        ? value
-        : value?.start ? [value] : [];
-      const starts = ranges
-        .map((r) => new Date(r.start ?? '').getTime())
-        .filter((ms) => Number.isFinite(ms));
-      if (starts.length > 0) return Math.min(...starts);
-    }
-
-    if (dateField.type === 'date') {
-      const start = new Date((item as any)[dateField.id]).getTime();
-      if (Number.isFinite(start)) return start;
-    }
-
-    // Fallback: segments
-    const intervals = getIntervalsForDuration(item);
-    if (intervals.length > 0) {
-      return Math.min(...intervals.map((r) => r.start));
-    }
-
-    return null;
-  };
+  const periodEndMs = period.end.getTime() + 1;
 
   if (leaf.displayType === 'count') {
-    // Périodes longues (ex: mois en mode année) : on attribue l'item
-    // à une seule période, celle contenant son début, pour éviter les doublons.
-    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-    const isLongPeriod = (periodEndMs - periodStartMs) > ONE_DAY_MS;
-
-    if (!isLongPeriod) return inRange.length;
-
-    const seen = new Set<string>();
-    let count = 0;
-
-    for (const item of inRange) {
-      const itemId = String((item as any).id ?? '');
-      if (seen.has(itemId)) continue;
-
-      const itemStartMs = getCanonicalStartMs(item);
-      if (itemStartMs === null || !Number.isFinite(itemStartMs)) {
-        // Fallback conservateur si on n'arrive pas à extraire les intervalles
-        seen.add(itemId);
-        count += 1;
-        continue;
-      }
-
-      if (itemStartMs >= periodStartMs && itemStartMs <= periodEndMs) {
-        seen.add(itemId);
-        count += 1;
-      }
-    }
-
-    return count;
+    if (periodEndMs - periodStartMs <= 25 * 3600000) return inRange.length;
+    return new Set(inRange.filter((item) => {
+      const date = assignment?.(item) ?? getItemCanonicalStartMs(item, dateField);
+      return date !== null && date >= periodStartMs && date < periodEndMs;
+    }).map((item) => item.id)).size;
   }
 
   // Durée depuis la source principale du champ date sélectionné
@@ -705,11 +645,12 @@ export function computeLeafCell(
       }
     }
 
-    const intervals = getIntervalsForDuration(item);
+    const intervals = getItemIntervalsForDateField(item, dateField);
+    const isAssigned = assignment?.(item) !== undefined;
     if (intervals.length > 0) {
       const totalMins = intervals.reduce((sum, r) => {
-        const overlapStart = Math.max(r.start, periodStartMs);
-        const overlapEnd = Math.min(r.end, periodEndMs);
+        const overlapStart = isAssigned ? r.start : Math.max(r.start, periodStartMs);
+        const overlapEnd = isAssigned ? r.end : Math.min(r.end, periodEndMs);
         const mins = (overlapEnd - overlapStart) / 60000;
         return sum + (Number.isFinite(mins) && mins > 0 ? mins : 0);
       }, 0);

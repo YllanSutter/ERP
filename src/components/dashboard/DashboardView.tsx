@@ -17,6 +17,7 @@ import { fr } from 'date-fns/locale';
 import {
   DashboardConfig,
   DashboardModuleConfig,
+  RecapAssignments,
   GlobalDatePreset,
   GLOBAL_DATE_PRESET_LABELS,
 } from '@/lib/dashboardTypes';
@@ -49,6 +50,8 @@ const ModuleWithData: React.FC<{
   onDelete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  recapAssignments?: RecapAssignments;
+  onRecapAssignmentChange?: (key: string, date?: string) => void;
   onUpdateModule?: (patch: Partial<DashboardModuleConfig>) => void;
 }> = (props) => {
   const data = useDashboardItemData(props.module, props.collections, props.globalFilter);
@@ -70,6 +73,8 @@ const ModuleWithData: React.FC<{
       onMoveUp={props.onMoveUp}
       onMoveDown={props.onMoveDown}
       onUpdateModule={props.onUpdateModule}
+      recapAssignments={props.recapAssignments}
+      onRecapAssignmentChange={props.onRecapAssignmentChange}
     />
   );
 };
@@ -359,6 +364,13 @@ const DashboardView: React.FC<Props> = ({
                   onDelete={() => handleDeleteModule(module.id)}
                   onMoveUp={() => handleMoveModule(module.id, 'up')}
                   onMoveDown={() => handleMoveModule(module.id, 'down')}
+                  recapAssignments={dashboard?.recapAssignments}
+                  onRecapAssignmentChange={(key, date) => {
+                    const recapAssignments = { ...dashboard?.recapAssignments };
+                    if (date) recapAssignments[key] = date;
+                    else delete recapAssignments[key];
+                    onUpdate({ recapAssignments });
+                  }}
                   onUpdateModule={(patch) => handleUpdateModule(module.id, patch)}
                 />
               </div>

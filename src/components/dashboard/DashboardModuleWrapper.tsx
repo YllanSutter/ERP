@@ -9,7 +9,7 @@ import {
   BarChart2, Table2, Columns, CalendarDays, List, Gauge, LayoutGrid
 } from 'lucide-react';
 import {
-  DashboardModuleConfig,
+  DashboardModuleConfig, RecapAssignments,
   ModuleType,
   MODULE_TYPE_LABELS,
 } from '@/lib/dashboardTypes';
@@ -47,6 +47,8 @@ interface Props {
   onDelete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  recapAssignments?: RecapAssignments;
+  onRecapAssignmentChange?: (key: string, date?: string) => void;
   onUpdateModule?: (patch: Partial<DashboardModuleConfig>) => void;
 }
 
@@ -66,6 +68,8 @@ const DashboardModuleWrapper: React.FC<Props> = ({
   onMoveUp,
   onMoveDown,
   onUpdateModule,
+  recapAssignments,
+  onRecapAssignmentChange,
 }) => {
   const title = module.title ?? (data.collection?.name
     ? `${data.collection.name} · ${MODULE_TYPE_LABELS[module.type]}`
@@ -179,6 +183,8 @@ const DashboardModuleWrapper: React.FC<Props> = ({
             collections={collections}
             globalFilter={globalFilter}
             onUpdate={onUpdateModule}
+            assignments={recapAssignments}
+            onAssignmentChange={onRecapAssignmentChange}
             onViewDetail={onViewDetail}
             onShowNewItemModal={onShowNewItemModal}
           />

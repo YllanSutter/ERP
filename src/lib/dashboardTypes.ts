@@ -246,7 +246,11 @@ export interface DashboardModuleConfig {
 }
 
 /** Configuration globale d'un dashboard */
+export type RecapAssignments = Record<string, string>;
+
 export interface DashboardConfig {
+  /** Jour de rattachement par collection, objet et champ date. */
+  recapAssignments?: RecapAssignments;
   id: string;
   name: string;
   modules: DashboardModuleConfig[];
