@@ -1,50 +1,36 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import React from 'react';
-import { Download, Trash2, Database, RotateCcw, RefreshCw, Save, Zap, FileUp, X } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PluginManagerUI } from '@/components/admin/PluginManager';
 import type { AccessContext } from './panelTypes';
 export type ImportMappingPanelProps = { context: AccessContext };
 export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
 
-            <div className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center px-4">
-              <div className="w-full max-w-6xl max-h-[88vh] overflow-hidden rounded-xl border border-white/10 bg-white dark:bg-neutral-950 shadow-2xl flex flex-col">
-                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/10">
-                  <div>
-                    <h4 className="font-semibold">Prévisualisation & remapping import</h4>
-                    <p className="text-xs text-neutral-500">Vous pouvez tout ajuster à la main avant création des organisations.</p>
-                    <p className="text-[11px] mt-1 text-neutral-500">
-                      {context.importMappingDiagnostics.errors.length} erreur(s) · {context.importMappingDiagnostics.warnings.length} avertissement(s)
-                    </p>
-                  </div>
-                  <button
-                    className="p-2 rounded hover:bg-white/10"
-                    onClick={() => {
-                      if (context.importCommitBusy) return;
-                      context.setShowImportMapper(false);
-                    }}
-                    disabled={context.importCommitBusy}
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                <div className="flex-1 overflow-auto p-4">
+  <div className="min-w-0 space-y-2">
+    <Button type="button" variant="ghost" size="sm" onClick={() => context.setShowImportMapper(false)} disabled={context.importCommitBusy}>
+      <ArrowLeft /> Retour aux transferts
+    </Button>
+    <div>
+      <h3 className="font-semibold">Préparer l’import</h3>
+      <p className="mt-1 text-sm text-muted-foreground">Vérifiez les collections et les champs avant de créer les organisations.</p>
+    </div>
                   <Tabs
                     value={context.importMapperTab}
                     onValueChange={(value) => context.setImportMapperTab(value as 'mapping' | 'diagnostics')}
-                    className="space-y-4"
+                    className="space-y-2"
                   >
                     <TabsList className="grid w-full grid-cols-2 h-auto gap-2 bg-transparent p-0">
-                      <TabsTrigger value="mapping" className="border border-cyan-500/30 data-[state=active]:bg-cyan-600 data-[state=active]:text-white">
-                        Mapping manuel
+                      <TabsTrigger value="mapping" className="border border-brand-500/30 data-[state=active]:bg-brand-600 data-[state=active]:text-white">
+                        Champs et relations
                       </TabsTrigger>
                       <TabsTrigger value="diagnostics" className="border border-amber-500/30 data-[state=active]:bg-amber-600 data-[state=active]:text-white">
                         Diagnostics ({context.importMappingDiagnostics.errors.length} / {context.importMappingDiagnostics.warnings.length})
                       </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="diagnostics" className="mt-0 space-y-3">
-                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                    <TabsContent value="diagnostics" className="mt-0 space-y-2 p-2">
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2">
                         <div className="text-xs text-neutral-700 dark:text-neutral-300 mb-2">
                           Corrigez d’abord les erreurs bloquantes, puis utilisez l’import final.
                         </div>
@@ -73,8 +59,8 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                         )}
                       </div>
 
-                      <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3">
-                        <div className="text-xs font-semibold text-cyan-700 dark:text-cyan-300 mb-2">
+                      <div className="rounded-lg border border-brand-500/30 bg-brand-500/10 p-2">
+                        <div className="text-xs font-semibold text-brand-700 dark:text-brand-300 mb-2">
                           Relations détectées ({context.importRelationSummary.length})
                         </div>
                         {context.importRelationSummary.length === 0 ? (
@@ -92,20 +78,21 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                                   <span className="mx-1">({rel.relationType})</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <select
-                                    className="px-2 py-1 rounded text-[11px] bg-white dark:bg-neutral-900 border border-white/20"
+                                  <Select
                                     value={context.relationChoiceFieldByKey[`${rel.orgIdx}:${rel.colIdx}:${rel.propIdx}`] || rel.targetFields[0]?.id || ''}
-                                    onChange={(e) => {
+                                    onValueChange={(value) => {
                                       const key = `${rel.orgIdx}:${rel.colIdx}:${rel.propIdx}`;
-                                      context.setRelationChoiceFieldByKey((prev) => ({ ...prev, [key]: e.target.value }));
+                                      context.setRelationChoiceFieldByKey((prev) => ({ ...prev, [key]: value }));
                                     }}
                                     disabled={context.importCommitBusy || rel.targetFields.length === 0}
-                                    title="Champ utilisé pour générer les options du select"
                                   >
-                                    {rel.targetFields.map((f) => (
-                                      <option key={f.id} value={f.id}>{f.name}</option>
-                                    ))}
-                                  </select>
+                                    <SelectTrigger aria-label="Champ utilisé pour générer les options" className="h-8 min-w-0 text-xs"><SelectValue placeholder="Sélectionner…" /></SelectTrigger>
+                                    <SelectContent className="p-1">
+                                      {rel.targetFields.map((f) => (
+                                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                   <button
                                     type="button"
                                     className="px-2 py-1 rounded text-[11px] bg-white/70 dark:bg-white/10 border border-white/20 hover:bg-white"
@@ -140,8 +127,8 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                       </div>
 
                       {context.deletedImportProperties.length > 0 && (
-                        <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
-                          <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2">Champs supprimés ({context.deletedImportProperties.length})</div>
+                        <div className="rounded-lg border border-brand-500/30 bg-brand-500/10 p-2">
+                          <div className="text-xs font-semibold text-brand-700 dark:text-brand-300 mb-2">Champs supprimés ({context.deletedImportProperties.length})</div>
                           <div className="space-y-2">
                             {context.deletedImportProperties.map((deleted: any, idx: number) => (
                               <div key={`deleted-${idx}`} className="flex items-center justify-between gap-2 p-2 bg-white/30 dark:bg-white/5 rounded text-xs">
@@ -160,7 +147,7 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                                     });
                                     context.setDeletedImportProperties((prev) => prev.filter((_, i) => i !== idx));
                                   }}
-                                  className="px-2 py-1 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-500/20"
+                                  className="px-2 py-1 rounded text-brand-600 dark:text-brand-400 hover:bg-brand-500/20"
                                 >
                                   Restaurer
                                 </button>
@@ -171,11 +158,11 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                       )}
                     </TabsContent>
 
-                    <TabsContent value="mapping" className="mt-0 space-y-4">
+                    <TabsContent value="mapping" className="mt-0 space-y-2 p-2">
                       {context.importPreviewOrganizations.map((org: any, orgIdx: number) => {
                         const orgCollections = Array.isArray(org?.state?.collections) ? org.state.collections : [];
                         return (
-                          <div key={`org-${orgIdx}`} className="rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900/70 p-3 space-y-3">
+                          <div key={`org-${orgIdx}`} className="rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900/70 p-2 space-y-2">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                               <div className="md:col-span-2">
                                 <label className="block text-xs text-neutral-500 mb-1">Nom de l’organisation</label>
@@ -199,19 +186,19 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                               </div>
                             </div>
 
-                            <div className="space-y-3">
+                            <div className="space-y-2">
                               {orgCollections.length === 0 ? (
-                                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+                                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-900 dark:text-amber-200">
                                   Aucune collection détectée pour cette organisation.
                                 </div>
                               ) : (
-                                <Tabs defaultValue={`col-${orgIdx}-0`} className="space-y-3">
+                                <Tabs defaultValue={`col-${orgIdx}-0`} className="space-y-2">
                                   <TabsList className="w-full justify-start overflow-x-auto flex-nowrap bg-transparent p-0 gap-2">
                                     {orgCollections.map((col: any, colIdx: number) => (
                                       <TabsTrigger
                                         key={`org-${orgIdx}-tab-${colIdx}`}
                                         value={`col-${orgIdx}-${colIdx}`}
-                                        className="border border-cyan-500/30 data-[state=active]:bg-cyan-600 data-[state=active]:text-white whitespace-nowrap"
+                                        className="border border-brand-500/30 data-[state=active]:bg-brand-600 data-[state=active]:text-white whitespace-nowrap"
                                       >
                                         {col?.name || `Collection ${colIdx + 1}`}
                                       </TabsTrigger>
@@ -223,7 +210,7 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                                     const targetCollections = orgCollections.map((c: any) => ({ id: c.id, name: c.name || c.id }));
                                     return (
                                       <TabsContent key={`org-${orgIdx}-content-${colIdx}`} value={`col-${orgIdx}-${colIdx}`} className="mt-0">
-                                        <div className="rounded-lg border border-black/10 dark:border-white/10 p-3 space-y-3">
+                                        <div className="rounded-lg border border-black/10 dark:border-white/10 p-2 space-y-2">
                                           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-1">
                                             <div>
                                               <label className="block text-xs text-neutral-500 mb-1">Nom collection</label>
@@ -302,11 +289,10 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                                                     </div>
 
                                                     <div className="col-span-3">
-                                                      <select
-                                                        className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs"
+                                                      <Select
                                                         value={prop?.type || 'text'}
-                                                        onChange={(e) => {
-                                                          const nextType = e.target.value;
+                                                        onValueChange={(value) => {
+                                                          const nextType = value;
                                                           const fromRelationTarget = String(prop?.relation?.targetCollectionId || '').trim();
                                                           if (nextType === 'select' || nextType === 'multi_select') {
                                                             const sourceCollectionId = fromRelationTarget || choiceSourceCollectionId || '';
@@ -336,38 +322,43 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                                                         }}
                                                         disabled={context.importCommitBusy}
                                                       >
-                                                        {context.IMPORT_PROPERTY_TYPE_OPTIONS.map((typeOpt) => (
-                                                          <option key={typeOpt} value={typeOpt}>{typeOpt}</option>
-                                                        ))}
-                                                      </select>
+                                                        <SelectTrigger aria-label="Type de champ" className="h-8 min-w-0 text-xs"><SelectValue placeholder="Sélectionner…" /></SelectTrigger>
+                                                        <SelectContent className="p-1">
+                                                          {context.IMPORT_PROPERTY_TYPE_OPTIONS.map((typeOpt) => (
+                                                            <SelectItem key={typeOpt} value={typeOpt}>{typeOpt}</SelectItem>
+                                                          ))}
+                                                        </SelectContent>
+                                                      </Select>
                                                     </div>
 
                                                     <div className="col-span-3">
                                                       {isRelation ? (
-                                                        <select
-                                                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs"
-                                                          value={relationTarget}
-                                                          onChange={(e) => context.updateImportProperty(orgIdx, colIdx, propIdx, {
+                                                        <Select
+                                                          value={relationTarget || '__unset__'}
+                                                          onValueChange={(selectedValue) => context.updateImportProperty(orgIdx, colIdx, propIdx, {
                                                             relation: {
                                                               ...(prop?.relation || {}),
-                                                              targetCollectionId: e.target.value,
+                                                              targetCollectionId: selectedValue === '__unset__' ? '' : selectedValue,
                                                               type: relationType,
                                                             },
                                                           })}
                                                           disabled={context.importCommitBusy}
                                                         >
-                                                          <option value="">Sélectionner une cible…</option>
-                                                          {targetCollections.map((target: any) => (
-                                                            <option key={target.id} value={target.id}>{target.name}</option>
-                                                          ))}
-                                                        </select>
+                                                          <SelectTrigger aria-label="Collection liée" className="h-8 min-w-0 text-xs"><SelectValue placeholder="Sélectionner une cible…" /></SelectTrigger>
+                                                          <SelectContent className="p-1">
+                                                            <SelectItem value="__unset__">Aucune sélection</SelectItem>
+                                                            {targetCollections.map((target: any) => (
+                                                              <SelectItem key={target.id} value={target.id}>{target.name}</SelectItem>
+                                                            ))}
+                                                          </SelectContent>
+                                                        </Select>
                                                       ) : isChoiceType ? (
                                                         <div className="grid grid-cols-1 gap-1">
-                                                          <select
-                                                            className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1 text-[11px]"
-                                                            value={choiceSourceCollectionId}
-                                                            onChange={(e) => {
-                                                              const collectionId = e.target.value;
+                                                          <Select
+                                                            value={choiceSourceCollectionId || '__unset__'}
+                                                            onValueChange={(selectedValue) => {
+                                                              const value = selectedValue === '__unset__' ? '' : selectedValue;
+                                                              const collectionId = value;
                                                               context.updateImportProperty(orgIdx, colIdx, propIdx, {
                                                                 importChoiceSource: {
                                                                   collectionId,
@@ -380,16 +371,18 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                                                             }}
                                                             disabled={context.importCommitBusy}
                                                           >
-                                                            <option value="">Source options…</option>
-                                                            {targetCollections.map((target: any) => (
-                                                              <option key={target.id} value={target.id}>{target.name}</option>
-                                                            ))}
-                                                          </select>
-                                                          <select
-                                                            className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1 text-[11px]"
+                                                            <SelectTrigger aria-label="Source des options" className="h-8 min-w-0 text-xs"><SelectValue placeholder="Source options…" /></SelectTrigger>
+                                                            <SelectContent className="p-1">
+                                                              <SelectItem value="__unset__">Aucune sélection</SelectItem>
+                                                              {targetCollections.map((target: any) => (
+                                                                <SelectItem key={target.id} value={target.id}>{target.name}</SelectItem>
+                                                              ))}
+                                                            </SelectContent>
+                                                          </Select>
+                                                          <Select
                                                             value={choiceSourceFieldId}
-                                                            onChange={(e) => {
-                                                              const fieldId = e.target.value;
+                                                            onValueChange={(value) => {
+                                                              const fieldId = value;
                                                               context.updateImportProperty(orgIdx, colIdx, propIdx, {
                                                                 importChoiceSource: {
                                                                   collectionId: choiceSourceCollectionId,
@@ -402,11 +395,13 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                                                             }}
                                                             disabled={context.importCommitBusy || !choiceSourceCollectionId}
                                                           >
-                                                            {choiceTargetFields.length === 0 && <option value="">Champ…</option>}
-                                                            {choiceTargetFields.map((f: any) => (
-                                                              <option key={f.id} value={f.id}>{f.name}</option>
-                                                            ))}
-                                                          </select>
+                                                            <SelectTrigger aria-label="Champ source" className="h-8 min-w-0 text-xs"><SelectValue placeholder="Champ…" /></SelectTrigger>
+                                                            <SelectContent className="p-1">
+                                                              {choiceTargetFields.map((f: any) => (
+                                                                <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                                                              ))}
+                                                            </SelectContent>
+                                                          </Select>
                                                         </div>
                                                       ) : (
                                                         <div className="text-[11px] text-neutral-500 py-1.5">—</div>
@@ -415,22 +410,24 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
 
                                                     <div className="col-span-1">
                                                       {isRelation ? (
-                                                        <select
-                                                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded px-2 py-1.5 text-xs"
+                                                        <Select
                                                           value={relationType}
-                                                          onChange={(e) => context.updateImportProperty(orgIdx, colIdx, propIdx, {
+                                                          onValueChange={(value) => context.updateImportProperty(orgIdx, colIdx, propIdx, {
                                                             relation: {
                                                               ...(prop?.relation || {}),
                                                               targetCollectionId: relationTarget || targetCollections[0]?.id || null,
-                                                              type: e.target.value,
+                                                              type: value,
                                                             },
                                                           })}
                                                           disabled={context.importCommitBusy}
                                                         >
-                                                          <option value="one_to_one">one_to_one</option>
-                                                          <option value="one_to_many">one_to_many</option>
-                                                          <option value="many_to_many">many_to_many</option>
-                                                        </select>
+                                                          <SelectTrigger aria-label="Type de relation" className="h-8 min-w-0 text-xs"><SelectValue placeholder="Sélectionner…" /></SelectTrigger>
+                                                          <SelectContent className="p-1">
+                                                            <SelectItem value="one_to_one">one_to_one</SelectItem>
+                                                            <SelectItem value="one_to_many">one_to_many</SelectItem>
+                                                            <SelectItem value="many_to_many">many_to_many</SelectItem>
+                                                          </SelectContent>
+                                                        </Select>
                                                       ) : (
                                                         <div className="text-[11px] text-neutral-500 py-1.5">—</div>
                                                       )}
@@ -442,7 +439,7 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                                                           <>
                                                             <button
                                                               type="button"
-                                                              className="px-1.5 py-1 rounded text-[10px] bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/25 disabled:opacity-50"
+                                                              className="px-1.5 py-1 rounded text-[10px] bg-brand-500/15 text-brand-700 dark:text-brand-300 hover:bg-brand-500/25 disabled:opacity-50"
                                                               onClick={() => context.convertRelationToChoiceField(orgIdx, colIdx, propIdx, 'select', selectedRelationChoiceFieldId || undefined)}
                                                               disabled={context.importCommitBusy}
                                                               title="Convertir cette relation en select"
@@ -451,7 +448,7 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                                                             </button>
                                                             <button
                                                               type="button"
-                                                              className="px-1.5 py-1 rounded text-[10px] bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/25 disabled:opacity-50"
+                                                              className="px-1.5 py-1 rounded text-[10px] bg-brand-500/15 text-brand-700 dark:text-brand-300 hover:bg-brand-500/25 disabled:opacity-50"
                                                               onClick={() => context.convertRelationToChoiceField(orgIdx, colIdx, propIdx, 'multi_select', selectedRelationChoiceFieldId || undefined)}
                                                               disabled={context.importCommitBusy}
                                                               title="Convertir cette relation en multi_select"
@@ -488,15 +485,14 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                       })}
                     </TabsContent>
                   </Tabs>
-                </div>
 
-                <div className="px-4 py-3 border-t border-white/10 flex items-center justify-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border py-2">
                   <button
                     className="px-3 py-2 rounded bg-amber-600 hover:bg-amber-700 text-white text-sm disabled:opacity-60"
                     onClick={context.autoFixImportMapping}
                     disabled={context.importCommitBusy || !context.importPreviewOrganizations.length}
                   >
-                    Auto-fix mapping
+                    Corriger automatiquement
                   </button>
                   <button
                     className="px-3 py-2 rounded border border-white/20 text-sm"
@@ -506,14 +502,12 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                     Annuler
                   </button>
                   <button
-                    className="px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-60"
+                    className="px-3 py-2 rounded bg-brand-600 hover:bg-brand-700 text-white text-sm disabled:opacity-60"
                     onClick={context.importOrganizationsWithManualMapping}
                     disabled={context.importCommitBusy || !context.importPreviewOrganizations.length || context.importMappingDiagnostics.errors.length > 0}
                   >
                     {context.importCommitBusy ? 'Import en cours…' : 'Créer les organisations'}
                   </button>
                 </div>
-              </div>
-            </div>
-
+  </div>
 );

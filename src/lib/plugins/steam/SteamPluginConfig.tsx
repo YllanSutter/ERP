@@ -1,3 +1,5 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { invalidateSteamGamesList } from './steamUtils';
 import { refreshSteamImages } from './steamImages';
 import { bundleRequest } from './bundleApi';
@@ -112,13 +114,11 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white dark:bg-neutral-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-          <h3 className="text-lg font-semibold">Configuration Steam Plugin</h3>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10">
-            <X size={18} />
-          </button>
+    <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
+      <DialogContent className="flex max-h-[90dvh] w-[calc(100%_-_1rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-md">
+        <div className="shrink-0 border-b border-border px-6 py-4 pr-12">
+          <DialogTitle>Configuration Steam</DialogTitle>
+          <DialogDescription className="mt-1">Catalogue, images, bundles et prix ITAD.</DialogDescription>
         </div>
 
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
@@ -184,56 +184,62 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
           </fieldset>
           <div>
             <label className="text-sm font-medium mb-2 block">Colonne Prix Soldé</label>
-            <select
-              value={config.priceSaleColumn}
-              onChange={(e) => setConfig((prev) => ({ ...prev, priceSaleColumn: e.target.value }))}
-              className="w-full px-3 py-2 rounded border border-white/10 bg-white dark:bg-neutral-900 text-sm"
+            <Select
+              value={config.priceSaleColumn || '__unset__'}
+              onValueChange={(selectedValue) => setConfig((prev) => ({ ...prev, priceSaleColumn: selectedValue === '__unset__' ? '' : selectedValue }))}
             >
-              <option value="">-- Sélectionner --</option>
-              {properties.map((prop) => (
-                <option key={prop.id} value={prop.id}>
-                  {prop.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-label="Colonne Prix soldé" className="h-8 min-w-0 text-xs"><SelectValue placeholder="Sélectionner…" /></SelectTrigger>
+              <SelectContent className="p-1">
+                <SelectItem value="__unset__">Aucune sélection</SelectItem>
+                {properties.map((prop) => (
+                  <SelectItem key={prop.id} value={prop.id}>
+                    {prop.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
             <label className="text-sm font-medium mb-2 block">Colonne Prix Régulier</label>
-            <select
-              value={config.priceRegularColumn}
-              onChange={(e) =>
-                setConfig((prev) => ({ ...prev, priceRegularColumn: e.target.value }))
+            <Select
+              value={config.priceRegularColumn || '__unset__'}
+              onValueChange={(selectedValue) =>
+                setConfig((prev) => ({ ...prev, priceRegularColumn: selectedValue === '__unset__' ? '' : selectedValue }))
               }
-              className="w-full px-3 py-2 rounded border border-white/10 bg-white dark:bg-neutral-900 text-sm"
             >
-              <option value="">-- Sélectionner --</option>
-              {properties.map((prop) => (
-                <option key={prop.id} value={prop.id}>
-                  {prop.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-label="Colonne Prix régulier" className="h-8 min-w-0 text-xs"><SelectValue placeholder="Sélectionner…" /></SelectTrigger>
+              <SelectContent className="p-1">
+                <SelectItem value="__unset__">Aucune sélection</SelectItem>
+                {properties.map((prop) => (
+                  <SelectItem key={prop.id} value={prop.id}>
+                    {prop.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
             <label className="text-sm font-medium mb-2 block">
               Colonne Prix Marché Gris (optionnel)
             </label>
-            <select
-              value={config.priceBlackMarketColumn}
-              onChange={(e) =>
-                setConfig((prev) => ({ ...prev, priceBlackMarketColumn: e.target.value }))
+            <Select
+              value={config.priceBlackMarketColumn || '__unset__'}
+              onValueChange={(selectedValue) =>
+                setConfig((prev) => ({ ...prev, priceBlackMarketColumn: selectedValue === '__unset__' ? '' : selectedValue }))
               }
-              className="w-full px-3 py-2 rounded border border-white/10 bg-white dark:bg-neutral-900 text-sm"
             >
-              <option value="">-- Sélectionner --</option>
-              {properties.map((prop) => (
-                <option key={prop.id} value={prop.id}>
-                  {prop.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-label="Colonne Prix marché gris" className="h-8 min-w-0 text-xs"><SelectValue placeholder="Sélectionner…" /></SelectTrigger>
+              <SelectContent className="p-1">
+                <SelectItem value="__unset__">Aucune sélection</SelectItem>
+                {properties.map((prop) => (
+                  <SelectItem key={prop.id} value={prop.id}>
+                    {prop.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="border-t border-white/10 pt-4">
@@ -297,14 +303,14 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition disabled:opacity-60 flex items-center justify-center gap-2"
+            className="flex-1 px-4 py-2 rounded bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium transition disabled:opacity-60 flex items-center justify-center gap-2"
           >
             <Save size={16} />
             Enregistrer
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

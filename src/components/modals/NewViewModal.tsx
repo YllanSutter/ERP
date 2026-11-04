@@ -91,7 +91,7 @@ const NewViewModal: React.FC<NewViewModalProps> = ({
               className={cn(
                 'flex flex-col items-center gap-2 px-4 py-4 rounded-xl border transition-all',
                 type === vt.value
-                  ? 'border-violet-500 bg-violet-500/15 text-violet-600 dark:text-violet-400'
+                  ? 'border-brand-500 bg-brand-500/15 text-brand-600 dark:text-brand-400'
                   : 'border-black/10 hover:border-black/20 dark:border-white/10 dark:hover:border-white/20 text-neutral-500 dark:text-neutral-400'
               )}
             >

@@ -32,7 +32,7 @@ export const OrganizationPanel = (props: AccessPanelProps) => (
 );
 
 export const PermissionsPanel = (props: AccessPanelProps) => (
-  <PanelFrame {...props} accentClass="border-violet-500/20" />
+  <PanelFrame {...props} accentClass="border-brand-500/20" />
 );
 
 export const UsersPanel = (props: AccessPanelProps) => (

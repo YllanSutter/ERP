@@ -39,7 +39,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, className })
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
           placeholder="#8b5cf6"
-          className="flex-1 px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white text-sm placeholder-neutral-500 focus:border-violet-500 focus:outline-none font-mono"
+          className="flex-1 px-4 py-2 bg-neutral-800/50 border border-white/10 rounded-lg text-white text-sm placeholder-neutral-500 focus:border-brand-500 focus:outline-none font-mono"
         />
       </div>
 

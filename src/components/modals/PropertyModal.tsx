@@ -234,7 +234,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                   className={cn(
                     'flex flex-col items-center gap-1.5 px-2 py-3 rounded-lg border text-xs transition-all',
                     type === v
-                      ? 'border-violet-500 bg-violet-500/15 text-violet-600 dark:text-violet-400'
+                      ? 'border-brand-500 bg-brand-500/15 text-brand-600 dark:text-brand-400'
                       : 'border-black/10 hover:border-black/20 dark:border-white/10 dark:hover:border-white/20 text-neutral-500 dark:text-neutral-400'
                   )}
                 >
@@ -318,7 +318,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                     step={1}
                     value={relationMaxVisible}
                     onChange={(e) => setRelationMaxVisible(e.target.value)}
-                    className="w-12 px-2 py-0.5 text-xs rounded-md border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                    className="w-12 px-2 py-0.5 text-xs rounded-md border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
                   />
                 </div>
               </div>
@@ -356,7 +356,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                 <Icons.ChevronRight size={12} className={cn('transition-transform', showRelationFilter && 'rotate-90')} />
                 {showRelationFilter ? 'Masquer le filtre' : 'Filtrer les éléments liés'}
                 {relationFilterField && relationFilterValue && !showRelationFilter && (
-                  <span className="ml-1 px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-[10px] font-medium">actif</span>
+                  <span className="ml-1 px-1.5 py-0.5 rounded bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 text-[10px] font-medium">actif</span>
                 )}
               </button>
               {showRelationFilter && (
@@ -503,7 +503,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                       className={cn(
                         'flex items-center gap-1 px-2.5 py-1.5 text-xs cursor-pointer whitespace-nowrap transition-colors border-b-2 -mb-px',
                         isActive
-                          ? 'border-violet-500 text-violet-600 dark:text-violet-400'
+                          ? 'border-brand-500 text-brand-600 dark:text-brand-400'
                           : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
                       )}
                       onClick={() => setSelectedTplIndex(index)}
@@ -587,7 +587,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                       </div>
                     </div>
                     <div className="px-4 py-3 border-t border-black/10 dark:border-white/10">
-                      <span className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider block mb-2">→ Définir à</span>
+                      <span className="text-[10px] font-semibold text-brand-400 uppercase tracking-wider block mb-2">→ Définir à</span>
                       {type === 'rich_text' ? (
                         <React.Suspense fallback={<div className="text-xs text-neutral-500 py-2">Chargement de l’éditeur…</div>}>
                           <LazyRichTextEditor value={tpl.value} onChange={(val) => updateTemplate({ value: val })} className="bg-gray-200 dark:bg-neutral-800/50" />

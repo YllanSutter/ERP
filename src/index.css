@@ -60,6 +60,7 @@ body {
     --brand-700: 61 63 171;
     --brand-800: 51 53 138;
     --brand-900: 46 48 110;
+    --brand-950: 27 28 64;
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
@@ -139,21 +140,37 @@ body {
 ::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 9999px;
-  background: hsl(var(--foreground) / 0.24);
+  background: rgb(var(--brand-600) / 0.48);
   background-clip: padding-box;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--brand-400) / 0.48);
+}
+
 ::-webkit-scrollbar-thumb:hover {
-  background-color: hsl(var(--foreground) / 0.42);
+  background-color: rgb(var(--brand-500) / 0.85);
 }
 
 ::-webkit-scrollbar-thumb:active {
-  background-color: hsl(var(--foreground) / 0.58);
+  background-color: rgb(var(--brand-700));
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--brand-400) / 0.85);
+}
+
+.dark ::-webkit-scrollbar-thumb:active {
+  background-color: rgb(var(--brand-300));
 }
 
 @supports not selector(::-webkit-scrollbar) {
   :root {
-    scrollbar-color: hsl(var(--foreground) / 0.42) transparent;
+    scrollbar-color: rgb(var(--brand-600) / 0.7) transparent;
+  }
+
+  :root.dark {
+    scrollbar-color: rgb(var(--brand-400) / 0.7) transparent;
   }
 
   * {

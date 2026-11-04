@@ -6,37 +6,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { AccessContext } from './panelTypes';
 export type DataTransferPanelProps = { context: AccessContext };
 export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
-            <div className="lg:col-span-3 bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
-              <div className="w-full text-left">
-                <div>
-                  <h4 className="font-semibold">Imports / Exports</h4>
-                  <p className="text-xs text-neutral-500 mt-1">
-                    Zone de transfert de données (exports, import nouvelles orga, import remplacement).
-                  </p>
-                </div>
-              </div>
-
+  <div className="min-w-0">
               <Tabs
                 value={context.dataTransferTab}
                 onValueChange={(value) => context.setDataTransferTab(value as 'import-new' | 'import-replace' | 'export')}
-                className="mt-4"
+                className="space-y-2"
               >
-                <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto gap-2 bg-transparent p-0">
-                  <TabsTrigger value="import-new" className="border border-emerald-500/30 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
-                    Import nouvelles orgas
+                <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-lg bg-muted p-1">
+                  <TabsTrigger value="import-new" >
+                    Nouvelle organisation
                   </TabsTrigger>
-                  <TabsTrigger value="import-replace" className="border border-amber-500/30 data-[state=active]:bg-amber-600 data-[state=active]:text-white">
-                    Import remplacement
+                  <TabsTrigger value="import-replace" >
+                    Remplacer des données
                   </TabsTrigger>
-                  <TabsTrigger value="export" className="border border-blue-500/30 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                    Exports
+                  <TabsTrigger value="export" >
+                    Exporter
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="import-new" className="mt-3">
-                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
-                    <div className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-200 mb-2">IMPORT NOUVELLES ORGAS</div>
-                    <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-3">
+                <TabsContent value="import-new" className="mt-3 rounded-lg border-border p-2">
+                  <div className="space-y-2">
+                    <div className="text-sm font-semibold">Créer des organisations depuis un fichier</div>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-2">
                       Ajoute une ou plusieurs organisations à partir de fichiers JSON/CSV, avec prévisualisation et remapping avant validation.
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
@@ -48,7 +39,7 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                         disabled={context.importBusy}
                       />
                       <label
-                        className={`px-3 py-1 rounded text-white text-xs shadow cursor-pointer flex items-center gap-1 ${context.importBusy ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                        className={`px-3 py-1 rounded text-white text-xs shadow cursor-pointer flex items-center gap-1 ${context.importBusy ? 'bg-emerald-400' : 'bg-brand-600 hover:bg-brand-700'}`}
                         title="Importe des .json ou .csv et crée de nouvelles organisations automatiquement"
                       >
                         <FileUp size={13} />
@@ -59,9 +50,9 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                           multiple
                           className="hidden"
                           onChange={async (e) => {
-                            const files = e.target.files;
-                            await context.importOrganizationsFromFiles(files);
-                            e.currentTarget.value = '';
+                            const input = e.currentTarget;
+                            await context.importOrganizationsFromFiles(input.files);
+                            input.value = '';
                           }}
                           disabled={context.importBusy}
                         />
@@ -70,14 +61,14 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                   </div>
                 </TabsContent>
 
-                <TabsContent value="import-replace" className="mt-3">
-                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-                    <div className="text-[11px] font-semibold text-amber-800 dark:text-amber-200 mb-2">IMPORT REMPLACEMENT</div>
-                    <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-3">
+                <TabsContent value="import-replace" className="mt-3 rounded-lg border-border p-2">
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2">
+                    <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">Remplacer les données existantes</div>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-2">
                       Remplace les données existantes via un export appstate JSON (scope auto: organisation ou global).
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
-                      <label className="px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs shadow cursor-pointer" title="Import historique appstate (peut remplacer des données selon le scope)">
+                      <label className="px-3 py-1 rounded bg-brand-600 hover:bg-brand-700 text-white text-xs shadow cursor-pointer" title="Import historique appstate (peut remplacer des données selon le scope)">
                         Importer Appstate JSON
                         <input
                           type="file"
@@ -136,15 +127,15 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                   </div>
                 </TabsContent>
 
-                <TabsContent value="export" className="mt-3">
-                  <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
-                    <div className="text-[11px] font-semibold text-blue-800 dark:text-blue-200 mb-2">EXPORT</div>
-                    <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-3">
+                <TabsContent value="export" className="mt-3 rounded-lg border-border p-2">
+                  <div className="rounded-lg border border-brand-500/30 bg-brand-500/10 p-2">
+                    <div className="text-[11px] font-semibold text-brand-800 dark:text-brand-200 mb-2">EXPORT</div>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-2">
                       Exporte l’organisation active (JSON/CSV) ou tout l’ERP (global JSON).
                     </p>
                     <div className="flex flex-wrap gap-2">
                       <button
-                        className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs shadow"
+                        className="px-3 py-1 rounded bg-brand-600 hover:bg-brand-700 text-white text-xs shadow"
                         onClick={async () => {
                           try {
                             const res = await fetch(`${context.API_URL}/appstate?scope=organization`, { credentials: 'include' });
@@ -168,7 +159,7 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                         Orga JSON
                       </button>
                       <button
-                        className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-xs shadow"
+                        className="px-3 py-1 rounded bg-brand-600 hover:bg-brand-700 text-white text-xs shadow"
                         onClick={async () => {
                           try {
                             const res = await fetch(`${context.API_URL}/appstate?scope=global`, { credentials: 'include' });

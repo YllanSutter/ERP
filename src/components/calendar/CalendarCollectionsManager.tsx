@@ -245,7 +245,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
               className={
                 'px-3 py-1 text-xs rounded-full transition-all ' +
                 (viewMode === option.key
-                  ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                  ? 'bg-brand-500 text-white dark:bg-brand-500/30 dark:text-brand-100 border border-brand-400/40 shadow-sm'
                   : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
               }
             >
@@ -270,7 +270,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                 className={
                   'px-3 py-1 text-xs rounded-full transition-all ' +
                   (moveMode === option.key
-                    ? 'bg-violet-500 text-white dark:bg-violet-500/30 dark:text-violet-100 border border-violet-400/40 shadow-sm'
+                    ? 'bg-brand-500 text-white dark:bg-brand-500/30 dark:text-brand-100 border border-brand-400/40 shadow-sm'
                     : 'text-neutral-700 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5')
                 }
               >
@@ -316,7 +316,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                               type="checkbox"
                               checked={isSelected}
                               onChange={(e) => onToggleCollection(collection.id, e.target.checked)}
-                              className="accent-violet-500"
+                              className="accent-brand-500"
                             />
                             <span>{collection.name}</span>
                           </label>
@@ -393,7 +393,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                 </button>
                 <button
                   onClick={() => setCurrentDate(new Date())}
-                  className="px-4 text-sm font-medium bg-violet-500 dark:bg-violet-500/20 hover:bg-violet-700 dark:hover:bg-violet-500/30 text-white dark:text-violet-200 rounded-lg transition-colors border border-violet-500/30"
+                  className="px-4 text-sm font-medium bg-brand-500 dark:bg-brand-500/20 hover:bg-brand-700 dark:hover:bg-brand-500/30 text-white dark:text-brand-200 rounded-lg transition-colors border border-brand-500/30"
                 >
                   Aujourd'hui
                 </button>

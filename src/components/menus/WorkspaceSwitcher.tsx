@@ -14,6 +14,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command';
+import { getWorkspaceTheme } from '@/lib/workspaceTheme';
 import { cn } from '@/lib/utils';
 
 interface Organization {
@@ -81,7 +82,7 @@ const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
             collapsed ? 'h-9 px-1 justify-center' : 'h-10 px-2'
           )}
         >
-          <div className="w-7 h-7 shrink-0 rounded-md bg-gradient-to-br from-brand-500 to-brand-700 text-white text-[11px] font-semibold grid place-items-center">
+          <div className="w-7 h-7 shrink-0 rounded-md bg-gradient-to-br from-brand-600 to-brand-800 text-white text-[11px] font-semibold grid place-items-center">
             {active ? initials : <Building2 size={14} />}
           </div>
           {!collapsed && (
@@ -118,7 +119,10 @@ const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
                     onSelect={() => handleSelect(org.id)}
                     className="cursor-pointer"
                   >
-                    <div className="w-6 h-6 rounded bg-gradient-to-br from-brand-500 to-brand-700 text-white text-[10px] font-semibold grid place-items-center">
+                    <div
+                      className="w-6 h-6 rounded text-white text-[10px] font-semibold grid place-items-center"
+                      style={{ backgroundColor: `rgb(${getWorkspaceTheme(org.accent_color)['--brand-600']})` }}
+                    >
                       {getInitials(org.name)}
                     </div>
                     <span className="truncate">{org.name}</span>

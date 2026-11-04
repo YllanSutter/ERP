@@ -116,7 +116,7 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
                   type="text"
                   value={opt.label}
                   onChange={(e) => updateOption(opt._idx, { label: e.target.value })}
-                  className="flex-1 px-3 py-2 bg-gray-100 dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white text-sm placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+                  className="flex-1 px-3 py-2 bg-gray-100 dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white text-sm placeholder-neutral-500 focus:border-brand-500 focus:outline-none"
                 />
 
                 <button
@@ -142,7 +142,7 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
             onChange={(e) => setNewOptionValue(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && addOption()}
             placeholder="Nouvelle option"
-            className="flex-1 px-3 py-2 bg-gray-100 dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white text-sm placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+            className="flex-1 px-3 py-2 bg-gray-100 dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white text-sm placeholder-neutral-500 focus:border-brand-500 focus:outline-none"
           />
           <div className="relative">
             <button
@@ -176,7 +176,7 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
           <div className="relative leading-none">
           <button
             onClick={addOption}
-            className="w-9 h-9 px-1 grid items-center justify-center py-2 bg-violet-500 dark:bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/50 rounded-lg text-white text-sm transition-colors"
+            className="w-9 h-9 px-1 grid items-center justify-center py-2 bg-brand-500 dark:bg-brand-500/20 hover:bg-brand-500/30 border border-brand-500/50 rounded-lg text-white text-sm transition-colors"
           >
             <Icons.Plus size={14} />
           </button>

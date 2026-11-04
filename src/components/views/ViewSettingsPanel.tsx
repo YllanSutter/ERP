@@ -29,7 +29,7 @@ const ViewSettingsPanel: React.FC<ViewSettingsPanelProps> = ({
   return (
     <div className="mb-4 border-b border-black/10 pb-4 dark:border-white/10">
       <div className="mb-3 flex items-center gap-2">
-        <Settings size={14} className="text-violet-500" />
+        <Settings size={14} className="text-brand-500" />
         <div className="min-w-0">
           <h4 className="text-sm font-semibold text-neutral-800 dark:text-white">Paramètres de la vue</h4>
           <p className="truncate text-[11px] text-neutral-500 dark:text-neutral-400">{registration.label} · {collection.name}</p>

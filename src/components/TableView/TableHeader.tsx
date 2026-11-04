@@ -252,7 +252,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
     <thead className="bg-gray-100 dark:bg-black/30 border-b border-black/5 dark:border-white/5">
       <tr>
         {enableDragReorder && (
-          <th scope="col" className={`w-8 px-1 py-2 text-center border-b border-r border-[#ffffff10] ${onManualOrder && !sortState?.column ? 'shadow-[inset_0_-2px_0] shadow-violet-500/70' : ''}`}>
+          <th scope="col" className={`w-8 px-1 py-2 text-center border-b border-r border-[#ffffff10] ${onManualOrder && !sortState?.column ? 'shadow-[inset_0_-2px_0] shadow-brand-500/70' : ''}`}>
             {onManualOrder && (
               <button
                 type="button"
@@ -260,7 +260,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                 aria-label="Ordre manuel"
                 aria-pressed={!sortState?.column}
                 title="Ordre manuel"
-                className={`inline-flex rounded p-1 hover:bg-black/5 dark:hover:bg-white/10 ${sortState?.column ? 'text-neutral-500 dark:text-neutral-400' : 'text-violet-700 dark:text-violet-300'}`}
+                className={`inline-flex rounded p-1 hover:bg-black/5 dark:hover:bg-white/10 ${sortState?.column ? 'text-neutral-500 dark:text-neutral-400' : 'text-brand-700 dark:text-brand-300'}`}
               >
                 <Icons.ListOrdered size={14} aria-hidden="true" />
               </button>
@@ -282,7 +282,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
               />
               <span className="h-4 w-4 rounded-md border border-black/20 dark:border-white/20 bg-white/80 dark:bg-neutral-800 shadow-sm transition-colors flex items-center justify-center">
                 {(allSelected || partiallySelected) && (
-                  allSelected ? <Icons.Check size={12} className="text-violet-500" /> : <Icons.Minus size={12} className="text-violet-500" />
+                  allSelected ? <Icons.Check size={12} className="text-brand-500" /> : <Icons.Minus size={12} className="text-brand-500" />
                 )}
               </span>
             </label>
@@ -299,8 +299,8 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                   aria-sort={sortDirection ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
                   className={
                     "px-3 py-2 text-left text-[11px] font-medium text-neutral-600 dark:text-white uppercase tracking-wider border-b border-r border-[#ffffff10] cursor-pointer select-none transition-colors hover:bg-black/5 dark:hover:bg-white/5" +
-                    (sortDirection ? ' shadow-[inset_0_-2px_0] shadow-violet-500/70' : '') +
-                    (overColId === prop.id && dragColId !== prop.id ? ' border-l-2 border-l-violet-500' : '')
+                    (sortDirection ? ' shadow-[inset_0_-2px_0] shadow-brand-500/70' : '') +
+                    (overColId === prop.id && dragColId !== prop.id ? ' border-l-2 border-l-brand-500' : '')
                   }
                   onClick={() => onSort && onSort(prop.id)}
                   onDragStart={() => setDragColId(prop.id)}
@@ -319,7 +319,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                     <PropIcon size={12} />
                     {prop.name}
                     {sortDirection && (
-                      <span aria-hidden="true" className="inline-flex shrink-0 items-center justify-center rounded-md bg-violet-500/10 p-0.5 text-violet-700 dark:text-violet-300">
+                      <span aria-hidden="true" className="inline-flex shrink-0 items-center justify-center rounded-md bg-brand-500/10 p-0.5 text-brand-700 dark:text-brand-300">
                         {sortDirection === 'asc' ? <Icons.ArrowUp size={12} /> : <Icons.ArrowDown size={12} />}
                       </span>
                     )}
@@ -351,7 +351,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                         <Icons.Sigma size={14} />
                         <span>Total</span>
                         {totalFields[prop.id] && (
-                          <Icons.Check size={14} className="ml-auto text-violet-500 dark:text-violet-400" />
+                          <Icons.Check size={14} className="ml-auto text-brand-500 dark:text-brand-400" />
                         )}
                       </ContextMenuSubTrigger>
                       <ContextMenuSubContent>
@@ -370,7 +370,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                           >
                             <span>{totalType.label}</span>
                             {totalFields[prop.id] === totalType.value && (
-                              <Icons.Check size={14} className="text-violet-500 dark:text-violet-400" />
+                              <Icons.Check size={14} className="text-brand-500 dark:text-brand-400" />
                             )}
                           </ContextMenuItem>
                         ))}
@@ -394,7 +394,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                                 >
                                   <span>{numProp.name}</span>
                                   {totalFields[prop.id] === linkedValue && (
-                                    <Icons.Check size={14} className="text-violet-500 dark:text-violet-400" />
+                                    <Icons.Check size={14} className="text-brand-500 dark:text-brand-400" />
                                   )}
                                 </ContextMenuItem>
                               );
@@ -448,7 +448,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                                                   >
                                                     <span className="truncate max-w-[220px]">= {entry.label}</span>
                                                     {totalFields[prop.id] === filteredTotalType && (
-                                                      <Icons.Check size={14} className="text-violet-500 dark:text-violet-400" />
+                                                      <Icons.Check size={14} className="text-brand-500 dark:text-brand-400" />
                                                     )}
                                                   </ContextMenuItem>
                                                 );

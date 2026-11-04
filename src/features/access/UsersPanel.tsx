@@ -1,377 +1,126 @@
+import { Checkbox } from '@/components/ui/checkbox';
 import React from 'react';
-import { Download, Trash2, Database, RotateCcw, RefreshCw, Save, Zap, FileUp, X, Search, Palette, CheckCircle2, BellRing, Clock3 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PluginManagerUI } from '@/components/admin/PluginManager';
+import { Clock3, KeyRound, Palette, Search, UserRound } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { AccessContext } from './panelTypes';
-export type UsersPanelProps = { context: AccessContext };
-export const UsersPanel = ({ context }: UsersPanelProps) => (
-<>
-            <div className="lg:col-span-3 bg-white/5 rounded-xl border border-black/10 dark:border-white/5 p-4">
-              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
-                <div>
-                  <h4 className="font-semibold">Utilisateurs</h4>
-                  <p className="text-xs text-neutral-500 mt-1">
-                    Tout est ici : membres de l’organisation, rôles, mot de passe et préférences.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="px-2 py-1 rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
-                    {context.selectableUsers.length} utilisateur(s)
-                  </span>
-                  <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                    {context.members.length} membre(s) orga
-                  </span>
-                  <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                    {Math.max(context.selectableUsers.length - context.members.length, 0)} hors orga
-                  </span>
-                </div>
-              </div>
 
-              <div className="grid xl:grid-cols-2 gap-2 mt-3">
-                <div className="rounded-lg xl:col-span-2 bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-neutral-500 mb-1">Utilisateur ciblé</label>
-                      <select
-                        className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
-                        value={context.selectedPreferencesUserId}
-                        onChange={(e) => context.setSelectedPreferencesUserId(e.target.value)}
-                      >
-                        {context.filteredUsers.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.email}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-neutral-500 mb-1">Recherche utilisateur</label>
-                      <div className="relative">
-                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                        <input
-                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm"
-                          placeholder="Rechercher par email, provider ou rôle…"
-                          value={context.userQuery}
-                          onChange={(e) => context.setUserQuery(e.target.value)}
-                        />
-                      </div>
-                    </div>
+const selectClass = 'h-8 min-w-0 bg-background';
+const fieldClass = 'grid min-w-0 gap-1 text-sm font-medium text-foreground';
+const panelClass = 'min-w-0 overflow-hidden rounded-lg border border-border bg-card';
+const headingClass = 'flex items-center gap-2 border-b border-border bg-muted/60 px-3 py-1.5 text-sm font-semibold [&_svg]:text-brand-700 dark:[&_svg]:text-brand-300';
+const timeFields = [
+  ['workStart', 'Début de journée'],
+  ['workEnd', 'Fin de journée'],
+  ['breakStart', 'Début de pause'],
+  ['breakEnd', 'Fin de pause'],
+] as const;
 
-                  
-                  </div>
+export const UsersPanel = ({ context }: { context: AccessContext }) => {
+  const selected = context.selectedPreferencesUser;
+  const preferences = context.selectedPreferencesDraft;
+  const isMember = Boolean(selected && context.memberIds.has(selected.id));
 
-                  {context.selectableUsers.length > 0 && context.filteredUsers.length === 0 && (
-                    <p className="text-xs text-neutral-500 mt-2">Aucun résultat pour cette recherche.</p>
-                  )}
-                </div>
-
-                {context.selectableUsers.length === 0 && <p className="text-sm text-neutral-500">Aucun utilisateur.</p>}
-
-                {context.selectedPreferencesUser && (() => {
-                  const roleIds = context.parseRoleIds(context.selectedPreferencesUser.role_ids);
-                  const userRoles = context.roles.filter((r) => roleIds.includes(r.id));
-                  const availableRoles = context.roles.filter((r) => !userRoles.some((ur) => ur.id === r.id));
-                  const isLocal = !context.selectedPreferencesUser.provider || context.selectedPreferencesUser.provider === 'local';
-                  const isSelf = context.user?.id === context.selectedPreferencesUser.id;
-                  const isMember = context.memberIds.has(context.selectedPreferencesUser.id);
-
-                  return (
-                    <div className="grid grid-cols-1 xl:grid-cols-1 gap-3">
-                      <div className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                          <div>
-                            <div className="font-medium break-all">{context.selectedPreferencesUser.email}</div>
-                            <div className="text-xs text-neutral-500 mt-0.5">{context.selectedPreferencesUser.provider || 'local'}</div>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className={`px-2 py-0.5 text-xs rounded-full border ${isMember ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-neutral-500/10 text-neutral-700 dark:text-neutral-300 border-neutral-500/30'}`}>
-                              {isMember ? 'Membre orga' : 'Hors orga'}
-                            </span>
-                            {context.isSelf && (
-                              <span className="px-2 py-0.5 text-xs rounded-full border bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30">
-                                Vous
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="rounded-lg border border-black/10 dark:border-white/10 bg-white/50 dark:bg-neutral-900 p-3 mb-3">
-                          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-2">Rôles actuels</div>
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {!isMember && <span className="text-xs text-neutral-500">Ajoutez d’abord à l’organisation</span>}
-                            {isMember && userRoles.length === 0 && <span className="text-xs text-neutral-500">Aucun rôle</span>}
-                            {userRoles.map((r) => (
-                              <button
-                                key={r.id}
-                                className="px-2 py-1 text-xs rounded-full bg-cyan-500/20 text-black dark:text-white border border-cyan-500/40 hover:bg-cyan-500/30 disabled:opacity-50"
-                                onClick={() => context.assignRole(context.selectedPreferencesUser.id, r.id, 'remove')}
-                                disabled={!isMember}
-                              >
-                                {r.name} ✕
-                              </button>
-                            ))}
-                          </div>
-
-                          <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-2">Ajouter un rôle</div>
-                          <div className="flex flex-wrap gap-2">
-                            {isMember && availableRoles.length === 0 && <span className="text-xs text-neutral-500">Tous les rôles sont déjà attribués</span>}
-                            {availableRoles.map((r) => (
-                              <button
-                                key={r.id}
-                                className="px-2 py-1 text-xs rounded-full bg-white dark:bg-neutral-800 border border-black/10 dark:border-white/10 hover:bg-cyan-500/10 disabled:opacity-50"
-                                onClick={() => context.assignRole(context.selectedPreferencesUser.id, r.id, 'add')}
-                                disabled={!isMember}
-                              >
-                                + {r.name}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          {isMember ? (
-                            <button
-                              className="text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-white border border-red-500/20 hover:bg-red-500/20 disabled:opacity-50"
-                              onClick={() => context.removeMember(context.selectedPreferencesUser.id, context.selectedPreferencesUser.email)}
-                              disabled={context.membersBusy || context.isSelf}
-                              title={context.isSelf ? 'Vous ne pouvez pas vous retirer vous-même.' : 'Retirer de l’organisation'}
-                            >
-                              Retirer de l’organisation
-                            </button>
-                          ) : (
-                            <button
-                              className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20 disabled:opacity-50"
-                              onClick={() => context.addMember(context.selectedPreferencesUser.id, context.selectedPreferencesUser.email)}
-                              disabled={context.membersBusy}
-                            >
-                              Ajouter à l’organisation
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
-                        <div className="text-sm font-semibold mb-2">Sécurité du compte</div>
-                        <div className="text-xs text-neutral-500 mb-2">Mot de passe et suppression du compte.</div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <input
-                            type="password"
-                            className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-sm"
-                            placeholder={context.isLocal ? 'Nouveau mot de passe' : 'Mdp non disponible (SSO)'}
-                            value={context.passwordInputs[context.selectedPreferencesUser.id] || ''}
-                            onChange={(e) =>
-                              context.setPasswordInputs((prev) => ({ ...prev, [context.selectedPreferencesUser.id]: e.target.value }))
-                            }
-                            disabled={!context.isLocal || context.busy}
-                          />
-                          <button
-                            className="text-xs px-3 py-2 rounded-lg bg-cyan-500/20 text-black dark:text-white border border-cyan-500/40 whitespace-nowrap"
-                            onClick={() => context.updateUserPassword(context.selectedPreferencesUser.id)}
-                            disabled={!context.isLocal || context.busy || !(context.passwordInputs[context.selectedPreferencesUser.id] || '').trim()}
-                          >
-                            Modifier
-                          </button>
-                        </div>
-
-                        <button
-                          className="text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-white border border-red-500/20 hover:bg-red-500/20 disabled:opacity-50"
-                          onClick={() => context.deleteUser(context.selectedPreferencesUser.id, context.selectedPreferencesUser.email)}
-                          disabled={context.busy || context.isSelf}
-                          title={context.isSelf ? 'Impossible de supprimer votre propre compte.' : 'Supprimer le compte'}
-                        >
-                          Supprimer le compte
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                  <div className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Palette size={15} className="text-fuchsia-500" />
-                      <h5 className="text-sm font-semibold">Options UI utilisateur</h5>
-                    </div>
-                    <p className="text-xs text-neutral-500 mb-3">Chaque utilisateur a ses propres options, persistées côté serveur.</p>
-
-                    {context.selectedPreferencesUser && (
-                      <div className="text-xs text-neutral-500 mb-3">
-                        Configuration de <span className="font-medium text-black dark:text-white">{context.selectedPreferencesUser.email}</span>
-                      </div>
-                    )}
-
-                    {context.selectedPreferencesUser && !context.memberIds.has(context.selectedPreferencesUser.id) && (
-                      <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
-                        Ajoutez cet utilisateur à l’organisation pour modifier ses options.
-                      </p>
-                    )}
-
-                    <button
-                      className="w-full mb-3 px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-xs disabled:opacity-60 flex items-center justify-center gap-2"
-                      onClick={() => context.saveUserPreferences(context.selectedPreferencesUserId)}
-                      disabled={!context.selectedPreferencesUserId || !!context.preferencesBusyByUser[context.selectedPreferencesUserId] || !context.selectedPreferencesUser || !context.memberIds.has(context.selectedPreferencesUser.id)}
-                    >
-                      {context.preferencesBusyByUser[context.selectedPreferencesUserId] ? (
-                        <>
-                          <RefreshCw size={14} className="animate-spin" /> Sauvegarde…
-                        </>
-                      ) : (
-                        <>
-                          <Save size={14} /> Sauvegarder les options UI
-                        </>
-                      )}
-                    </button>
-
-                    {context.selectedPreferencesUserId && !!context.preferencesSavedAtByUser[context.selectedPreferencesUserId] && (
-                      <div className="text-[11px] text-emerald-600 dark:text-emerald-300 mb-3 flex items-center gap-1">
-                        <CheckCircle2 size={13} />
-                        Dernière sauvegarde à {new Date(context.preferencesSavedAtByUser[context.selectedPreferencesUserId]).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    )}
-
-                    <label className="block text-xs text-neutral-500 mb-1">Couleur d’accent</label>
-                    <div className="flex items-center gap-2 mb-3">
-                      <input
-                        type="color"
-                        value={context.selectedPreferencesDraft.accentColor}
-                        onChange={(e) => context.updateUserPreferencesDraft(context.selectedPreferencesUserId, { accentColor: e.target.value })}
-                        className="h-9 w-12 rounded border border-white/10 bg-transparent"
-                        disabled={!context.selectedPreferencesUserId || !context.selectedPreferencesUser || !context.memberIds.has(context.selectedPreferencesUser.id)}
-                      />
-                      <input
-                        value={context.selectedPreferencesDraft.accentColor}
-                        onChange={(e) => context.updateUserPreferencesDraft(context.selectedPreferencesUserId, { accentColor: e.target.value })}
-                        className="flex-1 bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
-                        disabled={!context.selectedPreferencesUserId || !context.selectedPreferencesUser || !context.memberIds.has(context.selectedPreferencesUser.id)}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      <div>
-                        <label className="block text-xs text-neutral-500 mb-1">Densité</label>
-                        <select
-                          value={context.selectedPreferencesDraft.density}
-                          onChange={(e) => context.updateUserPreferencesDraft(context.selectedPreferencesUserId, { density: e.target.value })}
-                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
-                          disabled={!context.selectedPreferencesUserId || !context.selectedPreferencesUser || !context.memberIds.has(context.selectedPreferencesUser.id)}
-                        >
-                          <option value="compact">Compacte</option>
-                          <option value="comfortable">Confort</option>
-                          <option value="spacious">Aérée</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs text-neutral-500 mb-1">Début de semaine</label>
-                        <select
-                          value={context.selectedPreferencesDraft.weekStartsOn}
-                          onChange={(e) => context.updateUserPreferencesDraft(context.selectedPreferencesUserId, { weekStartsOn: e.target.value })}
-                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
-                          disabled={!context.selectedPreferencesUserId || !context.selectedPreferencesUser || !context.memberIds.has(context.selectedPreferencesUser.id)}
-                        >
-                          <option value="monday">Lundi</option>
-                          <option value="sunday">Dimanche</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <label className="block text-xs text-neutral-500 mb-1">Fuseau horaire</label>
-                    <input
-                      value={context.selectedPreferencesDraft.timezone}
-                      onChange={(e) => context.updateUserPreferencesDraft(context.selectedPreferencesUserId, { timezone: e.target.value })}
-                      className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs mb-3"
-                      placeholder="Europe/Paris"
-                      disabled={!context.selectedPreferencesUserId || !context.selectedPreferencesUser || !context.memberIds.has(context.selectedPreferencesUser.id)}
-                    />
-
-                    <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={context.selectedPreferencesDraft.notificationsEnabled}
-                        onChange={(e) => context.updateUserPreferencesDraft(context.selectedPreferencesUserId, { notificationsEnabled: e.target.checked })}
-                        disabled={!context.selectedPreferencesUserId || !context.selectedPreferencesUser || !context.memberIds.has(context.selectedPreferencesUser.id)}
-                      />
-                      <BellRing size={14} className="text-cyan-500" /> Notifications par défaut
-                    </label>
-                  </div>
-
-                  <div className="rounded-lg bg-white dark:bg-neutral-900/70 border border-black/10 dark:border-white/5 p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock3 size={15} className="text-amber-500" />
-                      <h5 className="text-sm font-semibold">Horaires de travail utilisateur</h5>
-                    </div>
-                    <p className="text-xs text-neutral-500 mb-3">Préconfiguration utile pour le calendrier, les rappels et la charge.</p>
-
-                    {context.selectedPreferencesUser && !context.memberIds.has(context.selectedPreferencesUser.id) && (
-                      <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
-                        Ajoutez cet utilisateur à l’organisation pour modifier ses horaires.
-                      </p>
-                    )}
-
-                    <button
-                      className="w-full mb-3 px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs disabled:opacity-60 flex items-center justify-center gap-2"
-                      onClick={() => context.saveUserPreferences(context.selectedPreferencesUserId)}
-                      disabled={!context.selectedPreferencesUserId || !!context.preferencesBusyByUser[context.selectedPreferencesUserId] || !context.selectedPreferencesUser || !context.memberIds.has(context.selectedPreferencesUser.id)}
-                    >
-                      {context.preferencesBusyByUser[context.selectedPreferencesUserId] ? (
-                        <>
-                          <RefreshCw size={14} className="animate-spin" /> Sauvegarde…
-                        </>
-                      ) : (
-                        <>
-                          <Save size={14} /> Sauvegarder les horaires
-                        </>
-                      )}
-                    </button>
-
-                    <div className="grid grid-cols-2 gap-2 mb-2">
-                      <div>
-                        <label className="block text-xs text-neutral-500 mb-1">Début</label>
-                        <input
-                          type="time"
-                          value={context.selectedPreferencesDraft.workStart}
-                          onChange={(e) => context.updateUserPreferencesDraft(context.selectedPreferencesUserId, { workStart: e.target.value })}
-                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
-                          disabled={!context.selectedPreferencesUserId || !context.selectedPreferencesUser || !context.memberIds.has(context.selectedPreferencesUser.id)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-neutral-500 mb-1">Fin</label>
-                        <input
-                          type="time"
-                          value={context.selectedPreferencesDraft.workEnd}
-                          onChange={(e) => context.updateUserPreferencesDraft(context.selectedPreferencesUserId, { workEnd: e.target.value })}
-                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
-                          disabled={!context.selectedPreferencesUserId || !context.selectedPreferencesUser || !context.memberIds.has(context.selectedPreferencesUser.id)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs text-neutral-500 mb-1">Pause début</label>
-                        <input
-                          type="time"
-                          value={context.selectedPreferencesDraft.breakStart}
-                          onChange={(e) => context.updateUserPreferencesDraft(context.selectedPreferencesUserId, { breakStart: e.target.value })}
-                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
-                          disabled={!context.selectedPreferencesUserId || !context.selectedPreferencesUser || !context.memberIds.has(context.selectedPreferencesUser.id)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-neutral-500 mb-1">Pause fin</label>
-                        <input
-                          type="time"
-                          value={context.selectedPreferencesDraft.breakEnd}
-                          onChange={(e) => context.updateUserPreferencesDraft(context.selectedPreferencesUserId, { breakEnd: e.target.value })}
-                          className="w-full bg-white dark:bg-neutral-900 border border-white/10 rounded-lg px-2 py-2 text-xs"
-                          disabled={!context.selectedPreferencesUserId || !context.selectedPreferencesUser || !context.memberIds.has(context.selectedPreferencesUser.id)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+  return (
+    <div className="space-y-2">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className={fieldClass}>
+          <span className="sr-only">Rechercher un utilisateur</span>
+          <div className="relative">
+            <Search size={15} className="pointer-events-none absolute left-2 top-2 text-muted-foreground" aria-hidden="true" />
+            <Input className="h-8 pl-8" placeholder="E-mail, type de connexion ou rôle" value={context.userQuery} onChange={(event) => context.setUserQuery(event.target.value)} />
+          </div>
+        </label>
+        <Select value={context.selectedPreferencesUserId} onValueChange={context.setSelectedPreferencesUserId} disabled={!context.filteredUsers.length}>
+          <SelectTrigger aria-label="Utilisateur" className={selectClass}>
+            <SelectValue placeholder="Sélectionner un utilisateur">{selected?.email}</SelectValue>
+          </SelectTrigger>
+          <SelectContent className="p-1">
+            {context.filteredUsers.map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.email}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <p className="text-xs text-muted-foreground">{context.members.length} membre(s) de l’organisation · {context.selectableUsers.length} utilisateur(s) au total</p>
+      {context.filteredUsers.length === 0 && <p className="text-sm text-muted-foreground">Aucun utilisateur ne correspond à la recherche.</p>}
+      {selected && (
+        <div className="space-y-2">
+          <section className="rounded-lg border border-brand-500/25 bg-brand-500/5 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <UserRound size={17} className="shrink-0 text-brand-600 dark:text-brand-300" aria-hidden="true" />
+              <h3 className="break-all font-semibold">{selected.email}</h3>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{isMember ? 'Membre' : 'Hors organisation'}</span>
+              {context.isSelf && <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-xs text-brand-700 dark:text-brand-300">Vous</span>}
             </div>
+          </section>
 
-</>
-);
+          <section className={panelClass}>
+            <h3 className={headingClass} title={`Connexion : ${selected.provider || 'locale'}`}><KeyRound size={15} aria-hidden="true" /> Sécurité du compte</h3>
+            <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+              {context.isLocal && (
+                <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:min-w-64 sm:flex-1">
+                  <label className="min-w-36 flex-1 sm:max-w-sm">
+                    <span className="sr-only">Nouveau mot de passe</span>
+                    <Input className="h-8" type="password" placeholder="Nouveau mot de passe" autoComplete="new-password" value={context.passwordInputs[selected.id] || ''} onChange={(event) => context.setPasswordInputs((previous) => ({ ...previous, [selected.id]: event.target.value }))} disabled={context.busy} />
+                  </label>
+                  <Button type="button" size="sm" variant="outline" disabled={context.busy || !context.passwordInputs[selected.id]?.trim()} onClick={() => context.updateUserPassword(selected.id)}>Modifier le mot de passe</Button>
+                </div>
+              )}
+              <Button type="button" variant="ghost" size="sm" className="text-red-600 hover:text-red-700 dark:text-red-400" disabled={context.busy || context.isSelf} onClick={() => context.deleteUser(selected.id, selected.email)}>Supprimer le compte</Button>
+            </div>
+          </section>
+
+          <div>
+            {!isMember && <p className="mb-2 text-sm text-muted-foreground">Ajoutez cet utilisateur à l’organisation pour modifier ses préférences.</p>}
+            <fieldset disabled={!isMember} className="grid min-w-0 gap-2 lg:grid-cols-2">
+              <legend className="sr-only">Préférences et horaires</legend>
+              <section className={panelClass}>
+                <h3 className={headingClass}><Palette size={15} aria-hidden="true" /> Préférences d’interface</h3>
+                <div className="grid gap-2 px-3 py-2 sm:grid-cols-2">
+                  <label className={fieldClass}>
+                    Densité
+                    <Select disabled={!isMember} value={preferences.density} onValueChange={(value) => context.updateUserPreferencesDraft(selected.id, { density: value })}>
+                      <SelectTrigger className={selectClass} aria-label="Densité"><SelectValue /></SelectTrigger>
+                      <SelectContent className="p-1">
+                        <SelectItem value="compact">Compacte</SelectItem>
+                        <SelectItem value="comfortable">Confort</SelectItem>
+                        <SelectItem value="spacious">Aérée</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </label>
+                  <label className={fieldClass}>
+                    Début de semaine
+                    <Select disabled={!isMember} value={preferences.weekStartsOn} onValueChange={(value) => context.updateUserPreferencesDraft(selected.id, { weekStartsOn: value })}>
+                      <SelectTrigger className={selectClass} aria-label="Début de semaine"><SelectValue /></SelectTrigger>
+                      <SelectContent className="p-1">
+                        <SelectItem value="monday">Lundi</SelectItem>
+                        <SelectItem value="sunday">Dimanche</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </label>
+                  <label className={fieldClass}>Fuseau horaire
+                    <Input className="h-8" placeholder="Europe/Paris" value={preferences.timezone} onChange={(event) => context.updateUserPreferencesDraft(selected.id, { timezone: event.target.value })} />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm sm:self-end sm:pb-1.5">
+                    <Checkbox className="size-4 accent-brand-600" checked={preferences.notificationsEnabled} onChange={(event) => context.updateUserPreferencesDraft(selected.id, { notificationsEnabled: event.target.checked })} />
+                    Notifications par défaut
+                  </label>
+                </div>
+              </section>
+              <section className={panelClass}>
+                <h3 className={headingClass}><Clock3 size={15} aria-hidden="true" /> Horaires de travail</h3>
+                <div className="grid grid-cols-2 gap-2 px-3 py-2">
+                  {timeFields.map(([key, label]) => (
+                    <label key={key} className={fieldClass}>{label}
+                      <Input className="h-8 min-w-0" type="time" value={preferences[key]} onChange={(event) => context.updateUserPreferencesDraft(selected.id, { [key]: event.target.value })} />
+                    </label>
+                  ))}
+                </div>
+              </section>
+            </fieldset>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import LayoutPanelsEditor, { type LayoutPanelConfig } from './LayoutPanelsEditor';
 
 const fieldClassName =
-  'h-8 min-w-0 rounded-md border border-black/10 bg-white/70 px-2.5 text-xs text-neutral-800 outline-none transition-colors hover:border-violet-400/60 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200';
+  'h-8 min-w-0 rounded-md border border-black/10 bg-white/70 px-2.5 text-xs text-neutral-800 outline-none transition-colors hover:border-brand-400/60 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200';
 const labelClassName = 'text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400';
 const fieldOptions = (properties: ViewSettingsProps['properties'], types: string[]) =>
   properties.filter((property) => types.includes(property.type));
@@ -65,16 +65,6 @@ export const TableViewSettings: React.FC<ViewSettingsProps> = ({ view, onUpdate 
       ]}
       onChange={(value) => onUpdate({ groupDisplayMode: value })}
     />
-    <SettingsSelect
-      label="Densité"
-      value={typeof view.tableDensity === 'string' ? view.tableDensity : 'comfortable'}
-      options={[
-        { value: 'compact', label: 'Compacte' },
-        { value: 'comfortable', label: 'Confortable' },
-        { value: 'spacious', label: 'Aérée' },
-      ]}
-      onChange={(value) => onUpdate({ tableDensity: value })}
-    />
   </div>
 );
 
@@ -126,16 +116,6 @@ const CardsSettingsContent: React.FC<ViewSettingsProps> = ({ view, properties, o
           ...[1, 2, 3, 4, 5, 6].map((value) => ({ value: String(value), label: `${value} colonne${value > 1 ? 's' : ''}` })),
         ]}
         onChange={(value) => onUpdate({ cardColumns: value === 'auto' ? 'auto' : Number(value) })}
-      />
-      <SettingsSelect
-        label="Densité"
-        value={typeof view.cardDensity === 'string' ? view.cardDensity : 'comfortable'}
-        options={[
-          { value: 'compact', label: 'Compacte' },
-          { value: 'comfortable', label: 'Confortable' },
-          { value: 'spacious', label: 'Aérée' },
-        ]}
-        onChange={(value) => onUpdate({ cardDensity: value })}
       />
     </div>
   );

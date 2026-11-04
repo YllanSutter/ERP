@@ -1,3 +1,5 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 /**
  * Plugin PDF - Écran de configuration (Paramètres → Plugins)
  *
@@ -187,16 +189,11 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
   const currentMapping = config.mappings?.[activeCollectionId] || {};
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-2xl bg-white dark:bg-neutral-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <FileText size={18} className="text-violet-400" />
-            Configuration du plugin PDF
-          </h3>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10">
-            <X size={18} />
-          </button>
+    <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
+      <DialogContent className="flex max-h-[90dvh] w-[calc(100%_-_1rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-2xl">
+        <div className="shrink-0 border-b border-border px-6 py-4 pr-12">
+          <DialogTitle>Configuration du plugin PDF</DialogTitle>
+          <DialogDescription className="mt-1">Modèles et correspondance des champs par collection.</DialogDescription>
         </div>
 
         <div className="p-6 space-y-5 overflow-y-auto">
@@ -218,7 +215,7 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-sm font-medium transition"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-medium transition"
               >
                 {uploading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
                 {config.templateId ? 'Remplacer le modèle' : 'Choisir un fichier PDF'}
@@ -278,7 +275,7 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
                   onClick={() => toggleCollection(col.id)}
                   className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
                     config.enabledCollectionIds.includes(col.id)
-                      ? 'bg-violet-600/20 border-violet-500/50 text-violet-200'
+                      ? 'bg-brand-600/20 border-brand-500/50 text-brand-200'
                       : 'bg-white/5 border-white/10 text-neutral-400 hover:bg-white/10'
                   }`}
                 >
@@ -296,20 +293,22 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
             <div className="border-t border-white/10 pt-4">
               <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
                 <label className="text-sm font-medium">Correspondances champs PDF ↔ propriétés</label>
-                <select
+                <Select
                   value={activeCollectionId}
-                  onChange={(e) => setActiveCollectionId(e.target.value)}
-                  className="px-3 py-1.5 rounded border border-white/10 bg-white dark:bg-neutral-900 text-sm"
+                  onValueChange={(value) => setActiveCollectionId(value)}
                 >
-                  {config.enabledCollectionIds.map((colId) => {
-                    const col = collections.find((c: any) => c.id === colId);
-                    return (
-                      <option key={colId} value={colId}>
-                        {col?.name || colId}
-                      </option>
-                    );
-                  })}
-                </select>
+                  <SelectTrigger aria-label="Collection à configurer" className="h-8 min-w-0 text-xs w-full sm:w-[220px]"><SelectValue placeholder="Sélectionner…" /></SelectTrigger>
+                  <SelectContent className="p-1">
+                    {config.enabledCollectionIds.map((colId) => {
+                      const col = collections.find((c: any) => c.id === colId);
+                      return (
+                        <SelectItem key={colId} value={colId}>
+                          {col?.name || colId}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="rounded-lg border border-white/10 divide-y divide-white/5 overflow-hidden">
@@ -321,18 +320,20 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
                       </div>
                       <div className="text-[10px] uppercase text-neutral-500">{field.type}</div>
                     </div>
-                    <select
-                      value={getPdfMappingPropertyId(currentMapping[field.name])}
-                      onChange={(e) => updateMapping(field.name, { propertyId: e.target.value })}
-                      className="w-[220px] px-2 py-1.5 rounded border border-white/10 bg-white dark:bg-neutral-900 text-sm"
+                    <Select
+                      value={getPdfMappingPropertyId(currentMapping[field.name]) || '__unset__'}
+                      onValueChange={(selectedValue) => updateMapping(field.name, { propertyId: selectedValue === '__unset__' ? '' : selectedValue })}
                     >
-                      <option value="">— aucun —</option>
-                      {collectionProperties.map((prop: any) => (
-                        <option key={prop.id} value={prop.id}>
-                          {prop.name} ({prop.type})
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger aria-label="Propriété associée" className="h-8 min-w-0 text-xs w-full sm:w-[220px]"><SelectValue placeholder="— aucun —" /></SelectTrigger>
+                      <SelectContent className="p-1">
+                        <SelectItem value="__unset__">Aucune sélection</SelectItem>
+                        {collectionProperties.map((prop: any) => (
+                          <SelectItem key={prop.id} value={prop.id}>
+                            {prop.name} ({prop.type})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <input
                       type="text"
                       value={
@@ -358,11 +359,11 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
               type="checkbox"
               checked={config.manualOverride}
               onChange={(e) => setConfig((prev) => ({ ...prev, manualOverride: e.target.checked }))}
-              className="accent-violet-500 w-4 h-4"
+              className="accent-brand-500 w-4 h-4"
             />
             <label htmlFor="pdf-manual-override" className="text-sm">
               Les modifications manuelles dans le modal{' '}
-              <strong className="text-violet-300">prennent le dessus</strong> sur les valeurs mappées
+              <strong className="text-brand-300">prennent le dessus</strong> sur les valeurs mappées
             </label>
           </div>
 
@@ -384,14 +385,14 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition disabled:opacity-60 flex items-center justify-center gap-2"
+            className="flex-1 px-4 py-2 rounded bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium transition disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             Enregistrer
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

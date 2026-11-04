@@ -118,7 +118,7 @@ export interface FormSelectOption {
   icon?: React.ComponentType<{ size?: number; className?: string }>;
 }
 
-const INPUT_CLS = 'w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none';
+const INPUT_CLS = 'w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-brand-500 focus:outline-none';
 const LABEL_CLS = 'block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2';
 
 interface FormFieldProps {
@@ -142,7 +142,7 @@ export const FormInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = 
   <input {...props} className={cn(INPUT_CLS, className)} />
 );
 
-const SELECT_TRIGGER_CLS = 'w-full h-9 px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white text-sm shadow-none focus:ring-1 focus:ring-violet-500';
+const SELECT_TRIGGER_CLS = 'w-full h-9 px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white text-sm shadow-none focus:ring-1 focus:ring-brand-500';
 
 const EMPTY_SENTINEL = '__FORM_SELECT_EMPTY__';
 
@@ -223,7 +223,7 @@ export const FormCheckbox: React.FC<FormCheckboxProps> = ({ label, checked, onCh
   <label className={cn('flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300 cursor-pointer', className)}>
     <input
       type="checkbox"
-      className="w-4 h-4 rounded accent-violet-500 cursor-pointer"
+      className="w-4 h-4 rounded accent-brand-500 cursor-pointer"
       checked={checked}
       onChange={(e) => onChange(e.target.checked)}
       disabled={disabled}
@@ -246,7 +246,7 @@ interface FormRadioGroupProps {
 }
 
 /** Groupe de boutons radio stylisés */
-export const FormRadioGroup: React.FC<FormRadioGroupProps> = ({ value, onChange, options, accentClass = 'accent-violet-500', className }) => (
+export const FormRadioGroup: React.FC<FormRadioGroupProps> = ({ value, onChange, options, accentClass = 'accent-brand-500', className }) => (
   <div className={cn('space-y-2', className)}>
     {options.map(opt => (
       <label
@@ -302,7 +302,7 @@ export const FormNameInput: React.FC<FormNameInputProps> = ({
       {label && (
         <label className={LABEL_CLS}>{label}{required && ' *'}</label>
       )}
-      <div className="flex items-stretch rounded-lg border border-black/10 dark:border-white/10 focus-within:border-violet-500 bg-gray-300 dark:bg-neutral-800/50 transition-colors">
+      <div className="flex items-stretch rounded-lg border border-black/10 dark:border-white/10 focus-within:border-brand-500 bg-gray-300 dark:bg-neutral-800/50 transition-colors">
         <button
           type="button"
           onClick={() => { setShowIconPopover(v => !v); setShowColorPopover(false); }}
@@ -397,7 +397,7 @@ export const FormTabs: React.FC<FormTabsProps> = ({ tabs, active, onChange, clas
         className={cn(
           'px-3 py-1.5 text-sm font-medium border-b-2 -mb-px transition-colors',
           active === tab.id
-            ? 'border-violet-500 text-violet-600 dark:text-violet-400'
+            ? 'border-brand-500 text-brand-600 dark:text-brand-400'
             : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
         )}
       >

@@ -68,10 +68,10 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange, className, mod
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Rechercher..."
-            className="w-full pl-8 pr-3 py-1.5 bg-neutral-800 border border-white/10 rounded-lg text-white text-sm placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+            className="w-full pl-8 pr-3 py-1.5 bg-neutral-800 border border-white/10 rounded-lg text-white text-sm placeholder-neutral-500 focus:border-brand-500 focus:outline-none"
           />
         </div>
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-violet-500/20 border border-violet-500/50 text-violet-300 shrink-0">
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-500/20 border border-brand-500/50 text-brand-300 shrink-0">
           <SelectedIcon size={16} />
         </div>
       </div>
@@ -86,7 +86,7 @@ const IconPicker: React.FC<IconPickerProps> = ({ value, onChange, className, mod
               className={cn(
                 "flex items-center justify-center p-2 rounded-lg transition-all hover:bg-white/10 text-neutral-300",
                 value === iconName
-                  ? 'bg-violet-500/30 border border-violet-500 text-violet-300'
+                  ? 'bg-brand-500/30 border border-brand-500 text-brand-300'
                   : 'border border-transparent'
               )}
               title={iconName}

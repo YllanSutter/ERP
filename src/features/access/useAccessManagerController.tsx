@@ -2,11 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/auth/AuthProvider';
 import { initializePluginRegistry } from '@/lib/plugins';
 import { pluginManager } from '@/lib/plugins/PluginManager';
+import { DEFAULT_WORKSPACE_COLOR } from '@/lib/workspaceTheme';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 type UserPreferenceDraft = {
-  accentColor: string;
   workStart: string;
   workEnd: string;
   breakStart: string;
@@ -18,7 +18,6 @@ type UserPreferenceDraft = {
 };
 
 const createDefaultUserPreferences = (): UserPreferenceDraft => ({
-  accentColor: '#06b6d4',
   workStart: '09:00',
   workEnd: '18:00',
   breakStart: '12:30',
@@ -44,7 +43,6 @@ const normalizeUserPreferences = (value: any): UserPreferenceDraft => {
       : {};
 
   return {
-    accentColor: typeof src.accentColor === 'string' ? src.accentColor : base.accentColor,
     workStart: typeof src.workStart === 'string' ? src.workStart : base.workStart,
     workEnd: typeof src.workEnd === 'string' ? src.workEnd : base.workEnd,
     breakStart: typeof src.breakStart === 'string' ? src.breakStart : base.breakStart,
@@ -55,6 +53,22 @@ const normalizeUserPreferences = (value: any): UserPreferenceDraft => {
     notificationsEnabled: Boolean(src.notificationsEnabled),
   };
 };
+
+type PermissionScope = {
+  type: 'global' | 'collection' | 'property';
+  collectionId: string | null;
+  fieldId: string | null;
+};
+type PermissionDraft = { roleId: string; scope: PermissionScope; changes: Record<string, boolean> };
+
+const permissionKey = (roleId: string, scope: PermissionScope) =>
+  JSON.stringify([roleId, scope.collectionId, scope.fieldId]);
+
+function withoutDraft<T>(drafts: Record<string, T>, key: string) {
+  const next = { ...drafts };
+  delete next[key];
+  return next;
+}
 
 const flags = [
   { key: 'can_read', label: 'Voir', hint: 'Consulter les collections et leurs items' },
@@ -109,7 +123,6 @@ export const useAccessManagerController = ({
   const [users, setUsers] = useState<any[]>([]);
   const [memberCandidates, setMemberCandidates] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
-  const [membersBusy, setMembersBusy] = useState(false);
   const [permissions, setPermissions] = useState<any[]>([]);
   const [backups, setBackups] = useState<any[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
@@ -131,9 +144,12 @@ export const useAccessManagerController = ({
   const [userQuery, setUserQuery] = useState('');
   const [selectedPreferencesUserId, setSelectedPreferencesUserId] = useState<string>('');
   const [userPreferenceDrafts, setUserPreferenceDrafts] = useState<Record<string, UserPreferenceDraft>>({});
-  const [preferencesBusyByUser, setPreferencesBusyByUser] = useState<Record<string, boolean>>({});
-  const [preferencesSavedAtByUser, setPreferencesSavedAtByUser] = useState<Record<string, number>>({});
   const [organizationNameEdits, setOrganizationNameEdits] = useState<Record<string, string>>({});
+  const [organizationColorEdits, setOrganizationColorEdits] = useState<Record<string, string>>({});
+  const [permissionDrafts, setPermissionDrafts] = useState<Record<string, PermissionDraft>>({});
+  const [dashboardDrafts, setDashboardDrafts] = useState<Record<string, string[]>>({});
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsNotice, setSettingsNotice] = useState<{ message: string; error?: boolean } | null>(null);
   const [deletedImportProperties, setDeletedImportProperties] = useState<any[]>([]);
   const [relationChoiceFieldByKey, setRelationChoiceFieldByKey] = useState<Record<string, string>>({});
 
@@ -172,75 +188,6 @@ export const useAccessManagerController = ({
       console.error(err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const addMember = async (userId: string, email: string) => {
-    if (!userId) return;
-    setMembersBusy(true);
-    try {
-      const res = await fetch(`${API_URL}/organization/members`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ userId }),
-      });
-      if (!res.ok) throw new Error('Add member failed');
-      await loadAll();
-    } catch (err) {
-      console.error(err);
-      alert(`Impossible d’ajouter ${email} à l’organisation.`);
-    } finally {
-      setMembersBusy(false);
-    }
-  };
-
-  const removeMember = async (userId: string, email: string) => {
-    const ok = confirm(`Retirer ${email} de l'organisation active ?`);
-    if (!ok) return;
-    setMembersBusy(true);
-    try {
-      const res = await fetch(`${API_URL}/organization/members/${encodeURIComponent(userId)}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || 'Remove member failed');
-      }
-      await loadAll();
-    } catch (err: any) {
-      console.error(err);
-      alert(err?.message || 'Impossible de retirer ce membre.');
-    } finally {
-      setMembersBusy(false);
-    }
-  };
-
-  const renameOrganization = async (organizationId: string) => {
-    const nextName = String(organizationNameEdits[organizationId] || '').trim();
-    if (!nextName) {
-      alert('Le nom de l’organisation ne peut pas être vide.');
-      return;
-    }
-
-    setBusy(true);
-    try {
-      const res = await fetch(`${API_URL}/organizations/${encodeURIComponent(organizationId)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name: nextName }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Rename organization failed');
-      await refreshAuth();
-      await loadAll();
-    } catch (err) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : 'Impossible de renommer l’organisation.');
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -1100,36 +1047,7 @@ export const useAccessManagerController = ({
       return mergedUsers[0].id;
     });
 
-    setUserPreferenceDrafts((prev) => {
-      let changed = false;
-      const next: Record<string, UserPreferenceDraft> = {};
-      mergedUsers.forEach((u) => {
-        const merged = normalizeUserPreferences(u.user_preferences);
-        // Si l'utilisateur est en cours de sauvegarde, conserver le brouillon actuel
-        if (preferencesBusyByUser[u.id]) {
-          next[u.id] = prev[u.id] || merged;
-          return;
-        }
-        next[u.id] = merged;
-        if (JSON.stringify(prev[u.id]) !== JSON.stringify(merged)) {
-          changed = true;
-        }
-      });
-      return changed ? next : prev;
-    });
-  }, [users, memberCandidates, preferencesBusyByUser]);
-
-  useEffect(() => {
-    setOrganizationNameEdits((prev) => {
-      const next: Record<string, string> = {};
-      (organizations || []).forEach((org: any) => {
-        const id = String(org?.id || '');
-        if (!id) return;
-        next[id] = prev[id] ?? String(org?.name || '');
-      });
-      return next;
-    });
-  }, [organizations]);
+  }, [users, memberCandidates]);
 
   const collectionsWithProps = useMemo(() => {
     return collections.map((col: any) => ({
@@ -1191,254 +1109,179 @@ export const useAccessManagerController = ({
     });
   }, [selectableUsers, userQuery, roleById]);
 
-  const updateUserPreferencesDraft = (userId: string, patch: Partial<UserPreferenceDraft>) => {
-    if (!userId) return;
-    setUserPreferenceDrafts((prev) => {
-      const current = prev[userId] || createDefaultUserPreferences();
-      return {
-        ...prev,
-        [userId]: {
-          ...current,
-          ...patch,
-        },
-      };
-    });
-  };
+  const selectedPreferencesUser = selectableUsers.find((entry) => entry.id === selectedPreferencesUserId) || null;
+  const selectedPreferencesDraft = userPreferenceDrafts[selectedPreferencesUserId]
+    || normalizeUserPreferences(selectedPreferencesUser?.user_preferences);
 
-  const saveUserPreferences = async (userId: string) => {
-    if (!userId) return;
-    const payload = userPreferenceDrafts[userId] || createDefaultUserPreferences();
-
-    setPreferencesBusyByUser((prev) => ({ ...prev, [userId]: true }));
-    try {
-      const res = await fetch(`${API_URL}/users/${encodeURIComponent(userId)}/preferences`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ preferences: payload }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || 'Sauvegarde impossible');
-      }
-
-      const data = await res.json().catch(() => ({}));
-      const saved = normalizeUserPreferences(data?.user?.user_preferences || payload);
-
-      setUserPreferenceDrafts((prev) => ({ ...prev, [userId]: saved }));
-      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, user_preferences: saved } : u)));
-      setPreferencesSavedAtByUser((prev) => ({ ...prev, [userId]: Date.now() }));
-    } catch (err: any) {
-      console.error(err);
-      alert(err?.message || 'Impossible de sauvegarder les préférences utilisateur.');
-    } finally {
-      setPreferencesBusyByUser((prev) => ({ ...prev, [userId]: false }));
-    }
-  };
-
-  const selectedPreferencesUser = selectableUsers.find((u) => u.id === selectedPreferencesUserId) || null;
-  const selectedPreferencesDraft = selectedPreferencesUserId
-    ? userPreferenceDrafts[selectedPreferencesUserId] || createDefaultUserPreferences()
-    : createDefaultUserPreferences();
-
-  const isLocal = user?.provider === 'local';
+  const isLocal = !selectedPreferencesUser?.provider || selectedPreferencesUser.provider === 'local';
   const isSelf = selectedPreferencesUser?.id === user?.id;
 
-  const findPermission = (roleId: string, scope: any) => {
-    const collId = scope.collectionId || null;
-    const itmId = scope.itemId || null;
-    const fldId = scope.fieldId || null;
-    
-    return permissions.find(
-      (p) =>
-        p.role_id === roleId &&
-        (p.collection_id || null) === collId &&
-        (p.item_id || null) === itmId &&
-        (p.field_id || null) === fldId
+  const updateUserPreferencesDraft = (userId: string, patch: Partial<UserPreferenceDraft>) => {
+    if (!userId || savingSettings) return;
+    const original = normalizeUserPreferences(selectableUsers.find((entry) => entry.id === userId)?.user_preferences);
+    setUserPreferenceDrafts((previous) => {
+      const updated = { ...(previous[userId] || original), ...patch };
+      return JSON.stringify(updated) === JSON.stringify(original)
+        ? withoutDraft(previous, userId)
+        : { ...previous, [userId]: updated };
+    });
+    setSettingsNotice(null);
+  };
+
+  const findStoredPermission = (roleId: string, scope: PermissionScope) =>
+    permissions.find((entry) =>
+      entry.role_id === roleId &&
+      (entry.collection_id || null) === scope.collectionId &&
+      !entry.item_id &&
+      (entry.field_id || null) === scope.fieldId
     );
+
+  const findPermission = (roleId: string, scope: PermissionScope) => ({
+    ...findStoredPermission(roleId, scope),
+    ...permissionDrafts[permissionKey(roleId, scope)]?.changes,
+  });
+
+  const toggleFlag = (roleId: string, scope: PermissionScope, flag: string, value: boolean) => {
+    if (savingSettings) return;
+    const scopes = [scope];
+    if (scope.type !== 'property') {
+      for (const collection of collectionsWithProps) {
+        if (scope.type === 'collection' && collection.id !== scope.collectionId) continue;
+        if (scope.type === 'global') scopes.push({ type: 'collection', collectionId: collection.id, fieldId: null });
+        for (const property of collection.properties) {
+          scopes.push({ type: 'property', collectionId: collection.id, fieldId: property.id });
+        }
+      }
+    }
+
+    setPermissionDrafts((previous) => {
+      const next = { ...previous };
+      for (const target of scopes) {
+        const key = permissionKey(roleId, target);
+        const changes = { ...next[key]?.changes, [flag]: value };
+        if (Boolean(findStoredPermission(roleId, target)?.[flag]) === value) delete changes[flag];
+        if (Object.keys(changes).length) next[key] = { roleId, scope: target, changes };
+        else delete next[key];
+      }
+      return next;
+    });
+    setSettingsNotice(null);
   };
 
   const isDashboardVisibleForRole = (dashboard: any, roleId: string) => {
-    const allowedRoles = Array.isArray(dashboard?.visibleToRoles) ? dashboard.visibleToRoles : [];
-    const allowedUsers = Array.isArray(dashboard?.visibleToUsers) ? dashboard.visibleToUsers : [];
-    const hasRestriction = allowedRoles.length > 0 || allowedUsers.length > 0;
-    if (!hasRestriction) return true;
-    return allowedRoles.includes(roleId);
+    const rolesForDashboard = dashboardDrafts[dashboard.id] ?? dashboard.visibleToRoles ?? [];
+    return (!rolesForDashboard.length && !dashboard.visibleToUsers?.length) || rolesForDashboard.includes(roleId);
   };
 
   const toggleDashboardVisibilityForRole = (dashboardId: string, roleId: string, visible: boolean) => {
-    if (!onUpdateDashboards) return;
+    const dashboard = dashboards.find((entry) => entry.id === dashboardId);
+    if (!onUpdateDashboards || !dashboard || savingSettings) return;
 
-    const allRoleIds = roles.map((r) => r.id);
-    const nextDashboards = (dashboards || []).map((db: any) => {
-      if (db.id !== dashboardId) return db;
-
-      const currentRoles = Array.isArray(db.visibleToRoles) ? [...db.visibleToRoles] : [];
-      const currentUsers = Array.isArray(db.visibleToUsers) ? [...db.visibleToUsers] : [];
-      const hasRestriction = currentRoles.length > 0 || currentUsers.length > 0;
-
-      if (visible) {
-        // Si non restreint, déjà visible pour tout le monde
-        if (!hasRestriction) return db;
-        const merged = Array.from(new Set([...currentRoles, roleId]));
-        return { ...db, visibleToRoles: merged };
-      }
-
-      // Si non restreint et on retire un rôle, on crée une allow-list pour tous les autres rôles
-      if (!hasRestriction) {
-        return {
-          ...db,
-          visibleToRoles: allRoleIds.filter((id) => id !== roleId),
-          visibleToUsers: currentUsers,
-        };
-      }
-
-      return {
-        ...db,
-        visibleToRoles: currentRoles.filter((id: string) => id !== roleId),
-        visibleToUsers: currentUsers,
-      };
+    const storedRoles: string[] = dashboard.visibleToRoles ?? [];
+    setDashboardDrafts((previous) => {
+      const current = previous[dashboardId] ?? storedRoles;
+      const restricted = current.length > 0 || dashboard.visibleToUsers?.length > 0;
+      const next = visible
+        ? [...new Set([...current, roleId])]
+        : (restricted ? current : roles.map((role) => role.id)).filter((id) => id !== roleId);
+      const restored = next.length === storedRoles.length && next.every((id) => storedRoles.includes(id));
+      return restored ? withoutDraft(previous, dashboardId) : { ...previous, [dashboardId]: next };
     });
-
-    onUpdateDashboards(nextDashboards);
+    setSettingsNotice(null);
   };
 
-  const savePermission = async (roleId: string, scope: any, flag: string, value: boolean) => {
-    const body: Record<string, any> = {
-      role_id: roleId,
-      collection_id: scope.collectionId || null,
-      item_id: scope.itemId || null,
-      field_id: scope.fieldId || null,
+  const updateOrganizationDraft = (id: string, patch: { name?: string; accentColor?: string }) => {
+    if (savingSettings) return;
+    if (patch.name !== undefined) setOrganizationNameEdits((previous) => ({ ...previous, [id]: patch.name! }));
+    if (patch.accentColor !== undefined) setOrganizationColorEdits((previous) => ({ ...previous, [id]: patch.accentColor! }));
+    setSettingsNotice(null);
+  };
+
+  const changedOrganizations = organizations.filter((org) =>
+    (organizationNameEdits[org.id] !== undefined && organizationNameEdits[org.id].trim() !== org.name)
+    || (organizationColorEdits[org.id] !== undefined && organizationColorEdits[org.id] !== (org.accent_color || DEFAULT_WORKSPACE_COLOR))
+  );
+  const pendingSettingsCount = changedOrganizations.length + Object.keys(userPreferenceDrafts).length
+    + Object.keys(permissionDrafts).length + Object.keys(dashboardDrafts).length;
+
+  const saveAllSettings = async () => {
+    if (!pendingSettingsCount || savingSettings || busy || loading) return;
+    if (changedOrganizations.some((org) => !(organizationNameEdits[org.id] ?? org.name).trim())) {
+      setSettingsNotice({ message: 'Renseignez le nom de chaque organisation avant d’enregistrer.', error: true });
+      return;
+    }
+
+    setSavingSettings(true);
+    setSettingsNotice(null);
+    let failed = 0;
+    let refreshNeeded = false;
+    const write = async (path: string, method: string, body: object) => {
+      const response = await fetch(`${API_URL}${path}`, {
+        method,
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-Organization-Id': activeOrganizationId || '' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error(`Échec de l’enregistrement (${response.status})`);
+      return response.json();
+    };
+    const attempt = async (save: () => Promise<void>) => {
+      try { await save(); } catch (error) { failed += 1; console.error(error); }
     };
 
-    const existing = findPermission(roleId, scope);
-    if (existing) {
-      flags.forEach((f) => {
-        body[f.key] = !!existing[f.key];
-      });
-    } else {
-      flags.forEach((f) => {
-        body[f.key] = false;
-      });
-    }
-
-    body[flag] = value;
-
-    const res = await fetch(`${API_URL}/permissions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('Update failed:', errText);
-      throw new Error('Update failed');
-    }
-    const updatedPerm = await res.json();
-    return updatedPerm || { ...body };
-  };
-
-  const applyLocalUpdates = (roleId: string, updates: { scope: any; flag: string; value: boolean; perm: any }[]) => {
-    setPermissions((prev) => {
-      const next = [...prev];
-      updates.forEach(({ scope, flag, value, perm }) => {
-        const collId = scope.collectionId || null;
-        const itmId = scope.itemId || null;
-        const fldId = scope.fieldId || null;
-        const idx = next.findIndex(
-          (p) =>
-            p.role_id === roleId &&
-            (p.collection_id || null) === collId &&
-            (p.item_id || null) === itmId &&
-            (p.field_id || null) === fldId
-        );
-        if (idx >= 0) {
-          next[idx] = { ...next[idx], [flag]: value };
-        } else {
-          next.push({ id: perm.id, role_id: roleId, collection_id: collId, item_id: itmId, field_id: fldId, [flag]: value });
-        }
-      });
-      return next;
-    });
-  };
-
-  const toggleFlag = async (roleId: string, scope: any, flag: string, value: boolean) => {
-    setBusy(true);
     try {
-      const updates: { scope: any; flag: string; value: boolean; perm?: any }[] = [];
-
-      if (scope.type === 'global') {
-        // Apply to global, all collections, and all properties
-        updates.push({ scope, flag, value });
-        collectionsWithProps.forEach((col) => {
-          const colScope = { type: 'collection', label: col.name, collectionId: col.id, itemId: null, fieldId: null };
-          updates.push({ scope: colScope, flag, value });
-          (col.properties || []).forEach((prop: any) => {
-            const propScope = { type: 'property', label: prop.name, collectionId: col.id, itemId: null, fieldId: prop.id };
-            updates.push({ scope: propScope, flag, value });
+      for (const org of changedOrganizations) {
+        await attempt(async () => {
+          await write(`/organizations/${encodeURIComponent(org.id)}`, 'PATCH', {
+            name: (organizationNameEdits[org.id] ?? org.name).trim(),
+            accentColor: organizationColorEdits[org.id],
           });
+          refreshNeeded = true;
         });
-      } else if (scope.type === 'collection') {
-        // Apply to collection and its properties
-        updates.push({ scope, flag, value });
-        const col = collectionsWithProps.find((c) => c.id === scope.collectionId);
-        (col?.properties || []).forEach((prop: any) => {
-          const propScope = { type: 'property', label: prop.name, collectionId: col?.id, itemId: null, fieldId: prop.id };
-          updates.push({ scope: propScope, flag, value });
+      }
+
+      for (const [id, preferences] of Object.entries(userPreferenceDrafts)) {
+        await attempt(async () => {
+          const result = await write(`/users/${encodeURIComponent(id)}/preferences`, 'PATCH', { preferences });
+          const saved = normalizeUserPreferences(result?.user?.user_preferences || preferences);
+          setUsers((previous) => previous.map((entry) => entry.id === id ? { ...entry, user_preferences: saved } : entry));
+          setUserPreferenceDrafts((previous) => withoutDraft(previous, id));
         });
-      } else if (scope.type === 'property') {
-        // Only this property; no automatic cascade to parent collection
-        updates.push({ scope, flag, value });
-      } else {
-        updates.push({ scope, flag, value });
       }
 
-      // Persist sequentially to keep order predictable
-      for (const u of updates) {
-        const perm = await savePermission(roleId, u.scope, u.flag, u.value);
-        u.perm = perm;
+      for (const [key, { roleId, scope, changes }] of Object.entries(permissionDrafts)) {
+        await attempt(async () => {
+          const stored = findStoredPermission(roleId, scope);
+          const values = Object.fromEntries(flags.map(({ key: flag }) => [flag, changes[flag] ?? Boolean(stored?.[flag])]));
+          const saved = await write('/permissions', 'POST', {
+            role_id: roleId,
+            collection_id: scope.collectionId,
+            item_id: null,
+            field_id: scope.fieldId,
+            ...values,
+          });
+          setPermissions((previous) => [...previous.filter((entry) => entry.id !== saved.id), saved]);
+          setPermissionDrafts((previous) => withoutDraft(previous, key));
+          refreshNeeded = true;
+        });
       }
 
-      applyLocalUpdates(roleId, updates as any);
-
-      // Refresh current user's auth if their role was modified
-      if (user && user.role_ids && user.role_ids.includes(roleId)) {
-        await refreshAuth();
+      if (Object.keys(dashboardDrafts).length && onUpdateDashboards) {
+        onUpdateDashboards(dashboards.map((entry) => dashboardDrafts[entry.id]
+          ? { ...entry, visibleToRoles: dashboardDrafts[entry.id] }
+          : entry));
+        setDashboardDrafts({});
       }
-    } catch (err) {
-      console.error(err);
+
+      if (refreshNeeded) await refreshAuth({ silent: true });
+      setSettingsNotice(failed
+        ? { message: `${failed} modification(s) restent à enregistrer. Réessayez.`, error: true }
+        : { message: 'Modifications enregistrées.' });
     } finally {
-      setBusy(false);
+      setSavingSettings(false);
     }
   };
 
-  const assignRole = async (userId: string, roleId: string, action: 'add' | 'remove') => {
-    setBusy(true);
-    try {
-      const res = await fetch(`${API_URL}/user_roles`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ userId, roleId, action }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || 'Assign failed');
-      }
-      await loadAll();
-
-      // Refresh current user's auth if their assignment was modified
-      if (user && user.id === userId) {
-        await refreshAuth();
-      }
-    } catch (err) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : 'Impossible de modifier ce rôle.');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const createRole = async () => {
     if (!newRoleName.trim()) return;
@@ -1507,7 +1350,7 @@ export const useAccessManagerController = ({
   };
 
 
-  const panelContext = { API_URL, collections, dashboards, dataTransferTab, setDataTransferTab, importOrganizationName, setImportOrganizationName, importBusy, importOrganizationsFromFiles, loadAll, activeOrganizationId, organizations, organizationNameEdits, setOrganizationNameEdits, busy, renameOrganization, deleteOrganization, backups, backupLabel, setBackupLabel, reloadBackups, createBackup, backupBusy, visibleBackups, formatBytes, restoreBackup, downloadBackup, deleteBackup, sortedBackups, loading, roles, creatingRole, setCreatingRole, selectedRoleId, setSelectedRoleId, newRoleName, setNewRoleName, newRoleDesc, setNewRoleDesc, createRole, permissionsTab, setPermissionsTab, findPermission, toggleFlag, permissions, collectionsWithProps, flags, toggleDashboardVisibilityForRole, isDashboardVisibleForRole, importRelationSummary, patchImportPreviewOrganizations, IMPORT_PROPERTY_TYPE_OPTIONS, selectableUsers, filteredUsers, userQuery, setUserQuery, selectedPreferencesUserId, setSelectedPreferencesUserId, members, user, parseRoleIds, assignRole, selectedPreferencesDraft, selectedPreferencesUser, memberIds, preferencesBusyByUser, preferencesSavedAtByUser, updateUserPreferencesDraft, saveUserPreferences, passwordInputs, setPasswordInputs, updateUserPassword, deleteUser, isLocal, isSelf, addMember, removeMember, membersBusy, relationChoiceFieldByKey, setRelationChoiceFieldByKey, updateImportOrganizationName, removeImportOrganization, updateImportCollectionName, removeImportCollection, updateImportProperty, removeImportProperty, convertRelationToChoiceField, pickDefaultChoiceFieldId, hydrateChoiceFieldOptions, deletedImportProperties, setDeletedImportProperties, importMapperTab, setImportMapperTab, importMappingDiagnostics, importPreviewOrganizations, importCommitBusy, autoFixImportMapping, importOrganizationsWithManualMapping, showImportMapper, setShowImportMapper };
+  const panelContext = { API_URL, collections, dashboards, dataTransferTab, setDataTransferTab, importOrganizationName, setImportOrganizationName, importBusy, importOrganizationsFromFiles, loadAll, activeOrganizationId, organizations, organizationNameEdits, organizationColorEdits, updateOrganizationDraft, pendingSettingsCount, savingSettings, settingsNotice, saveAllSettings, busy, deleteOrganization, backups, backupLabel, setBackupLabel, reloadBackups, createBackup, backupBusy, visibleBackups, formatBytes, restoreBackup, downloadBackup, deleteBackup, sortedBackups, loading, roles, creatingRole, setCreatingRole, selectedRoleId, setSelectedRoleId, newRoleName, setNewRoleName, newRoleDesc, setNewRoleDesc, createRole, permissionsTab, setPermissionsTab, findPermission, toggleFlag, permissions, collectionsWithProps, flags, toggleDashboardVisibilityForRole, isDashboardVisibleForRole, importRelationSummary, patchImportPreviewOrganizations, IMPORT_PROPERTY_TYPE_OPTIONS, selectableUsers, filteredUsers, userQuery, setUserQuery, selectedPreferencesUserId, setSelectedPreferencesUserId, members, user, parseRoleIds, selectedPreferencesDraft, selectedPreferencesUser, memberIds, updateUserPreferencesDraft, passwordInputs, setPasswordInputs, updateUserPassword, deleteUser, isLocal, isSelf, relationChoiceFieldByKey, setRelationChoiceFieldByKey, updateImportOrganizationName, removeImportOrganization, updateImportCollectionName, removeImportCollection, updateImportProperty, removeImportProperty, convertRelationToChoiceField, pickDefaultChoiceFieldId, hydrateChoiceFieldOptions, deletedImportProperties, setDeletedImportProperties, importMapperTab, setImportMapperTab, importMappingDiagnostics, importPreviewOrganizations, importCommitBusy, autoFixImportMapping, importOrganizationsWithManualMapping, showImportMapper, setShowImportMapper };
 
 
   return { isAdmin, panelContext };

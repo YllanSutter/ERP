@@ -137,6 +137,10 @@ export const registerOrganizationRoutes = ({ app, appContext }) => {
     try {
       const organizationId = String(req.params.id || '').trim();
       const name = String(req.body?.name || '').trim();
+      const accentColor = req.body?.accentColor;
+      if (accentColor !== undefined && (typeof accentColor !== 'string' || !/^#[0-9a-f]{6}$/i.test(accentColor))) {
+        return res.status(400).json({ error: 'Couleur invalide' });
+      }
       if (!organizationId) return res.status(400).json({ error: 'organizationId required' });
       if (!name) return res.status(400).json({ error: 'name required' });
 
@@ -152,11 +156,11 @@ export const registerOrganizationRoutes = ({ app, appContext }) => {
       if (!canManage) return res.status(403).json({ error: 'Forbidden' });
 
       const updated = await pool.query(
-        'UPDATE organizations SET name = $2 WHERE id = $1 RETURNING id, name, owner_user_id, created_at',
-        [organizationId, name]
+        'UPDATE organizations SET name = $2, accent_color = COALESCE($3, accent_color) WHERE id = $1 RETURNING id, name, owner_user_id, created_at, accent_color',
+        [organizationId, name, accentColor?.toLowerCase() ?? null]
       );
 
-      await logAudit(req.auth?.user?.id, 'organization.rename', 'organization', organizationId, { name });
+      await logAudit(req.auth?.user?.id, 'organization.rename', 'organization', organizationId, { name, ...(accentColor ? { accentColor } : {}) });
 
       const organizations = await getUserOrganizations(req.auth.user.id);
       return res.json({

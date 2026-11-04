@@ -121,6 +121,10 @@ export const createAuthAccessService = ({
           : null;
       const baseCtx = await loadUserContext(decoded.sub, null, requestedOrganizationId);
       if (!baseCtx) return res.status(401).json({ error: 'Invalid user' });
+      if (req.headers['x-organization-id'] && baseCtx.activeOrganization?.id !== requestedOrganizationId) {
+        return res.status(403).json({ error: 'Accès à cette organisation refusé' });
+      }
+
 
       const isAdmin = baseCtx.roles.some((r) => r.name === 'admin');
       const impersonateRoleId = req.cookies.impersonate_role_id || req.headers['x-impersonate-role-id'] || null;

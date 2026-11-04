@@ -139,14 +139,14 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
           onDragOver={onDragStart ? handleDragOver : undefined}
           onDrop={onDragStart ? (event) => onDrop?.(item.id, event) : undefined}
           onDragEnd={onDragEnd}
-          className={`hover:bg-white/5 transition-colors border-b border-black/5 dark:border-white/5 cursor-context-menu leading-tight ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'outline outline-1 outline-violet-500/60' : ''}`}
+          className={`hover:bg-white/5 transition-colors border-b border-black/5 dark:border-white/5 cursor-context-menu leading-tight ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'outline outline-1 outline-brand-500/60' : ''}`}
         >
           {enableDragReorder && (
             <td className="px-1 py-1 text-center align-middle w-8">
               <div
                 draggable={Boolean(onDragStart)}
                 onDragStart={onDragStart ? handleDragHandleStart : undefined}
-                className={`inline-flex items-center justify-center ${onDragStart ? 'cursor-grab active:cursor-grabbing hover:text-violet-400 transition-colors' : 'cursor-not-allowed opacity-40'}`}
+                className={`inline-flex items-center justify-center ${onDragStart ? 'cursor-grab active:cursor-grabbing hover:text-brand-400 transition-colors' : 'cursor-not-allowed opacity-40'}`}
                 title={onDragStart ? 'Glisser pour réorganiser' : 'Sélectionner Ordre manuel dans l’en-tête pour déplacer les lignes'}
               >
                 <GripVertical size={14} />
@@ -166,7 +166,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                   className="sr-only peer"
                   aria-label={`Sélectionner ${item.name || item.id}`}
                 />
-                <span className="h-4 w-4 rounded-md border border-black/20 dark:border-white/20 bg-white/80 dark:bg-neutral-800 shadow-sm transition-colors peer-checked:bg-violet-500 peer-checked:border-violet-500 flex items-center justify-center">
+                <span className="h-4 w-4 rounded-md border border-black/20 dark:border-white/20 bg-white/80 dark:bg-neutral-800 shadow-sm transition-colors peer-checked:bg-brand-500 peer-checked:border-brand-500 flex items-center justify-center">
                   {isSelected && <Check size={12} className="text-white" />}
                 </span>
               </label>
@@ -231,7 +231,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
         </ContextMenuItem>
         {onToggleFavoriteItem && (
           <ContextMenuItem onClick={() => onToggleFavoriteItem(item.id)}>
-            <Icons.Star size={14} className={`mr-2 ${isFavorite ? 'text-yellow-500 fill-yellow-500' : ''}`} />
+            <Icons.Star size={14} className={`mr-2 ${isFavorite ? 'text-brand-500 fill-current' : ''}`} />
             <span>{isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}</span>
           </ContextMenuItem>
         )}

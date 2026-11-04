@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 // Symboles courts par type de total (pour la ligne de bas-tableau)
 // ─────────────────────────────────────────────────────────────────────────────
 const TOTAL_SYMBOLS: Record<string, { sym: string; colorClass: string }> = {
-  sum:            { sym: 'Σ',  colorClass: 'text-violet-500 dark:text-violet-400' },
+  sum:            { sym: 'Σ',  colorClass: 'text-brand-500 dark:text-brand-400' },
   avg:            { sym: 'Ø',  colorClass: 'text-blue-500 dark:text-blue-400' },
   min:            { sym: '↓',  colorClass: 'text-emerald-500 dark:text-emerald-400' },
   max:            { sym: '↑',  colorClass: 'text-orange-500 dark:text-orange-400' },
@@ -91,7 +91,7 @@ const TotalsRow: React.FC<TotalsRowProps> = ({
       <tr
         className={
           isFooter
-            ? 'bg-violet-50/70 dark:bg-violet-950/25 border-t-2 border-violet-200/80 dark:border-violet-800/50'
+            ? 'bg-brand-50/70 dark:bg-brand-950/25 border-t-2 border-brand-200/80 dark:border-brand-800/50'
             : 'bg-white/40 dark:bg-neutral-900/20 border-t border-black/6 dark:border-white/6'
         }
       >
@@ -130,7 +130,7 @@ const TotalsRow: React.FC<TotalsRowProps> = ({
             : totalType;
 
         const symMeta = isLinkedProgress
-          ? { sym: '◑', colorClass: 'text-violet-500 dark:text-violet-400' }
+          ? { sym: '◑', colorClass: 'text-brand-500 dark:text-brand-400' }
           : (TOTAL_SYMBOLS[normalizedTotalType] ?? { sym: '·', colorClass: 'text-neutral-400' });
 
         const PropIcon = (Icons as any)[prop.icon] || Icons.Tag;
@@ -156,7 +156,7 @@ const TotalsRow: React.FC<TotalsRowProps> = ({
                   <PropIcon size={11} />
                 </span>
                 <span
-                  className="text-[12px] font-bold leading-none text-violet-700 dark:text-violet-300 truncate max-w-[180px]"
+                  className="text-[12px] font-bold leading-none text-brand-700 dark:text-brand-300 truncate max-w-[180px]"
                   style={iconStyle}
                 >
                   {renderValueWithHint(visibleFormatted, filterHint, iconStyle)}

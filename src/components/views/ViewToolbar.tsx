@@ -373,26 +373,26 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                 className={cn(
                                   'h-auto w-full justify-start px-2 py-1 text-left text-xs transition-all',
                                   isActive
-                                    ? 'bg-violet-500/20 text-neutral-600 dark:text-violet-100 border border-violet-400/30'
+                                    ? 'bg-brand-500/20 text-neutral-600 dark:text-brand-100 border border-brand-400/30'
                                     : 'dark:text-neutral-300 text-neutral-700 hover:bg-white/10 dark:hover:bg-black/10'
                                 )}
                               >
-                                <span>{isFavorite ? '★ ' : ''}{view.name}</span>
+                                <span>{isFavorite && <span className="text-brand-500">★ </span>}{view.name}</span>
                               </Button>
                             </ContextMenuTrigger>
                             <ContextMenuContent className="min-w-[200px]">
                               <ContextMenuItem onSelect={() => onEditView(view.id)} className="gap-2">
-                                <Settings size={14} className="text-violet-400" />
+                                <Settings size={14} className="text-brand-400" />
                                 <span>Modifier…</span>
                               </ContextMenuItem>
                               <ContextMenuItem onSelect={() => onManageViewVisibility(view.id)} className="gap-2">
-                                <Icons.Eye size={14} className="text-cyan-400" />
+                                <Icons.Eye size={14} className="text-brand-400" />
                                 <span>Visibilité…</span>
                               </ContextMenuItem>
                               <ContextMenuItem onSelect={() => onToggleFavoriteView(view.id)} className="gap-2">
                                 <Icons.Star
                                   size={14}
-                                  className={isFavorite ? 'text-yellow-400' : 'text-neutral-300'}
+                                  className={isFavorite ? 'text-brand-500' : 'text-neutral-300'}
                                   fill={isFavorite ? 'currentColor' : 'none'}
                                 />
                                 <span>{isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}</span>
@@ -474,7 +474,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                       className={cn(
                         'h-auto px-2.5 py-1 text-sm font-semibold',
                         activeSearchCollectionId === 'all'
-                          ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30'
+                          ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
                           : 'text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 border border-black/10 dark:border-white/10 '
                       )}
                     >
@@ -490,7 +490,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                         className={cn(
                           'h-auto px-2.5 py-1 text-sm font-semibold',
                           activeSearchCollectionId === col.id
-                            ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30'
+                            ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
                             : 'text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 border border-black/10 dark:border-white/10'
                         )}
                       >
@@ -681,7 +681,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                         <IconButton
                                           onClick={(e) => { e.preventDefault(); if (!canEdit) return; onEditProperty(prop); }}
                                           label="Modifier la propriété"
-                                          className="h-5 w-5 opacity-0 text-neutral-500 transition-opacity hover:text-cyan-400 group-hover:opacity-100"
+                                          className="h-5 w-5 opacity-0 text-neutral-500 transition-opacity hover:text-brand-400 group-hover:opacity-100"
                                         >
                                           <Icons.Edit2 size={11} />
                                         </IconButton>
@@ -701,7 +701,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                           className={cn(
                                             'size-4 shrink-0 rounded-[4px] border p-0 transition-colors',
                                             isVisible
-                                              ? 'bg-violet-500 border-violet-500 text-white'
+                                              ? 'bg-brand-500 border-brand-500 text-white'
                                               : 'border-neutral-400 dark:border-neutral-600 text-transparent'
                                           )}
                                         >
@@ -754,7 +754,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                 <IconButton
                                   onClick={(e) => { e.stopPropagation(); if (!canEdit) return; onEditProperty(prop); }}
                                   label="Modifier la propriété"
-                                  className="h-5 w-5 shrink-0 opacity-0 text-neutral-500 transition-opacity hover:text-cyan-400 group-hover:opacity-100"
+                                  className="h-5 w-5 shrink-0 opacity-0 text-neutral-500 transition-opacity hover:text-brand-400 group-hover:opacity-100"
                                 >
                                   <Icons.Edit2 size={11} />
                                 </IconButton>
@@ -768,7 +768,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                 className={cn(
                                   'size-4 shrink-0 rounded-[4px] border p-0 transition-colors',
                                   !isHidden
-                                    ? 'bg-violet-500 border-violet-500 text-white'
+                                    ? 'bg-brand-500 border-brand-500 text-white'
                                     : 'border-neutral-400 dark:border-neutral-600 text-transparent'
                                 )}
                               >
@@ -801,7 +801,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                             className={cn(
                               'h-auto px-2 py-1 text-[10px] border',
                               (currentViewConfig?.fieldGroupsLayout || 'stacked') === option.value
-                                ? 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-300'
+                                ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-300'
                                 : 'border-black/10 dark:border-white/10 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
                             )}
                           >
@@ -837,7 +837,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                     if (e.key === 'Enter') e.currentTarget.blur();
                                     if (e.key === 'Escape') { setEditingGroupId(null); }
                                   }}
-                                  className="flex-1 text-xs bg-transparent border-b border-violet-500 outline-none text-neutral-800 dark:text-neutral-200 py-0.5"
+                                  className="flex-1 text-xs bg-transparent border-b border-brand-500 outline-none text-neutral-800 dark:text-neutral-200 py-0.5"
                                 />
                               ) : (
                                 <Button
@@ -912,7 +912,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                 onClick={() => setGroupFieldPickerOpen(isPickerOpen ? null : group.id)}
                                 variant="outline"
                                 size="sm"
-                                className="h-auto border-dashed border-neutral-400 px-1.5 py-0.5 text-[10px] text-neutral-500 hover:border-violet-500 hover:text-violet-500 dark:border-neutral-600"
+                                className="h-auto border-dashed border-neutral-400 px-1.5 py-0.5 text-[10px] text-neutral-500 hover:border-brand-500 hover:text-brand-500 dark:border-neutral-600"
                               >
                                 + champ
                               </Button>
@@ -1002,7 +1002,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                           disabled={!newGroupLabel.trim()}
                           label="Créer le groupe"
                           variant="default"
-                          className="h-7 w-7 bg-violet-600 text-white hover:bg-violet-500"
+                          className="h-7 w-7 bg-brand-600 text-white hover:bg-brand-500"
                         >
                           <Icons.Plus size={12} />
                         </IconButton>
@@ -1108,10 +1108,10 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-neutral-700 dark:text-whiterounded-lg text-sm border border-cyan-500/30"
+              className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/20 text-neutral-700 dark:text-whiterounded-lg text-sm border border-brand-500/30"
             >
               <span>Filtre relation : {relationFilter.ids.length} élément(s)</span>
-              <IconButton onClick={onClearRelationFilter} label="Retirer le filtre relation" className="h-6 w-6 rounded p-0.5 hover:bg-cyan-500/30">
+              <IconButton onClick={onClearRelationFilter} label="Retirer le filtre relation" className="h-6 w-6 rounded p-0.5 hover:bg-brand-500/30">
                 <X size={14} />
               </IconButton>
             </motion.div>
@@ -1123,7 +1123,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/20 text-neutral-700 dark:text-white rounded-lg text-xs border border-cyan-500/30"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/20 text-neutral-700 dark:text-white rounded-lg text-xs border border-brand-500/30"
                 >
                   <span>
                     Groupé par: {orderedProperties.find((p: any) => p.id === group)?.name || currentCollection?.properties.find((p: any) => p.id === group)?.name || group}
@@ -1131,7 +1131,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                   <IconButton
                     onClick={() => onRemoveGroup(group)}
                     label="Retirer ce groupage"
-                    className="h-6 w-6 rounded p-0.5 hover:bg-cyan-500/30"
+                    className="h-6 w-6 rounded p-0.5 hover:bg-brand-500/30"
                   >
                     <X size={14} />
                   </IconButton>

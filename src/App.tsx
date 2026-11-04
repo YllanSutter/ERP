@@ -752,7 +752,7 @@ const App = () => {
               className="flex-1 flex items-center justify-center"
             >
               <div className="text-center text-neutral-400">
-                <div className="mx-auto mb-3 h-5 w-5 rounded-full border-2 border-violet-400/30 border-t-violet-400 animate-spin" />
+                <div className="mx-auto mb-3 h-5 w-5 rounded-full border-2 border-brand-400/30 border-t-brand-400 animate-spin" />
                 <p>Chargement de votre espace…</p>
               </div>
             </motion.div>
@@ -927,6 +927,9 @@ const App = () => {
                 {activeViewRegistration.Renderer && activeViewConfig && currentCollection && (
                   <ViewRendererHost
                     view={activeViewConfig}
+                    views={views}
+                    relationFilter={relationFilter}
+                    activeCollectionId={activeCollection}
                     properties={orderedProperties}
                     onUpdateView={(updates) => viewHooks.updateView(activeViewConfig.id, updates)}
                     collection={currentCollection}
@@ -1357,8 +1360,6 @@ const App = () => {
         />
       )}
       {showAccessManager && canManagePermissions && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background dark:bg-neutral-900 bg-opacity-60">
-          <div className="bg-background dark:bg-neutral-900 rounded-lg shadow-lg p-6 min-w-[400px] max-w-[90vw] max-h-[90vh] overflow-auto relative">
             <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Chargement…</div>}>
               <AccessManager
                 collections={collections}
@@ -1431,8 +1432,6 @@ const App = () => {
               }}
               />
             </Suspense>
-          </div>
-        </div>
       )}
     </div>
   );

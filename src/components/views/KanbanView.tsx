@@ -303,7 +303,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                         "bg-gradient-to-br from-white/80 to-neutral-100/80 dark:from-neutral-800/50 dark:to-neutral-900/50",
                         canEdit && "cursor-move",
                         showFieldsOnHover && "space-y-2 p-3 pb-1",
-                        draggedItem?.id === item.id ? 'opacity-50 border-violet-500/50' : ''
+                        draggedItem?.id === item.id ? 'opacity-50 border-brand-500/50' : ''
                       )}
                     >
                     {/* Title with Grip */}

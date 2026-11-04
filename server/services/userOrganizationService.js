@@ -98,7 +98,7 @@ export const createUserOrganizationService = ({
 
   const getUserOrganizations = async (userId) => {
     const orgsRes = await pool.query(
-      `SELECT o.id, o.name, o.created_at, o.owner_user_id
+      `SELECT o.id, o.name, o.created_at, o.owner_user_id, o.accent_color
        FROM organizations o
        INNER JOIN organization_members om ON om.organization_id = o.id
        WHERE om.user_id = $1

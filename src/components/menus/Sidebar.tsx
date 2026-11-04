@@ -334,7 +334,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         icon={IconComponent}
                         label={view.name}
                         onClick={() => onSelectView(collectionId, view.id)}
-                        right={<Star size={12} className="text-yellow-500 opacity-60" fill="currentColor" />}
+                        right={<Star size={12} className="text-brand-500 opacity-60" fill="currentColor" />}
                       />
                     );
                   })}
@@ -348,7 +348,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         icon={IconComponent}
                         label={itemName}
                         onClick={() => onSelectItem(collection.id, item.id)}
-                        right={<Star size={12} className="text-yellow-500 opacity-60" fill="currentColor" />}
+                        right={<Star size={12} className="text-brand-500 opacity-60" fill="currentColor" />}
                       />
                     );
                   })}

@@ -290,8 +290,8 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
       if (Array.isArray(organizations)) {
         for (const org of organizations) {
           await pool.query(
-            'INSERT INTO organizations (id, name, owner_user_id, created_at) VALUES ($1,$2,$3,$4)',
-            [org.id, org.name, org.owner_user_id || null, org.created_at || new Date().toISOString()]
+            'INSERT INTO organizations (id, name, owner_user_id, created_at, accent_color) VALUES ($1,$2,$3,$4,$5)',
+            [org.id, org.name, org.owner_user_id || null, org.created_at || new Date().toISOString(), /^#[0-9a-f]{6}$/i.test(org.accent_color) ? org.accent_color : null]
           );
         }
       }

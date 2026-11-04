@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
+import { getWorkspaceTheme } from '@/lib/workspaceTheme';
+
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 type AuthContextShape = {
@@ -10,7 +12,7 @@ type AuthContextShape = {
   organizations: any[];
   activeOrganizationId: string | null;
   loading: boolean;
-  refresh: () => Promise<void>;
+  refresh: (options?: { silent?: boolean }) => Promise<void>;
   switchOrganization: (organizationId: string) => Promise<void>;
   createOrganization: (name: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
@@ -36,9 +38,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [impersonatedRoleId, setImpersonatedRoleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = async () => {
+  const workspaceColor = user && organizations.find((org) => org.id === activeOrganizationId)?.accent_color;
+  useEffect(() => {
+    const root = document.documentElement;
+    const palette = getWorkspaceTheme(workspaceColor);
+    for (const [name, value] of Object.entries(palette)) root.style.setProperty(name, value);
+    return () => {
+      for (const name of Object.keys(palette)) root.style.removeProperty(name);
+    };
+  }, [workspaceColor]);
+
+  const refresh = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const headers: Record<string, string> = {};
       if (impersonatedRoleId) {
         headers['X-Impersonate-Role-Id'] = impersonatedRoleId;
@@ -70,7 +82,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setActiveOrganizationId(null);
       setImpersonatedRoleId(null);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 

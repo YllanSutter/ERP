@@ -188,7 +188,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <button
             onClick={onShowAccessManager}
             className="h-8 w-8 rounded-full flex items-center justify-center bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300 hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 transition-all duration-300"
-            title="Comptes & rôles"
+            aria-label="Comptes & Permissions"
+            title="Comptes & Permissions"
           >
             <Shield size={16} />
           </button>

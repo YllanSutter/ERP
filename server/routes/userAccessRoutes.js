@@ -29,7 +29,18 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
     if (!organizationId) return res.status(400).json({ error: 'No active organization' });
 
     const candidates = await pool.query(
-      `SELECT u.id, u.email, u.name, u.provider
+      `SELECT u.id, u.email, u.name, u.provider,
+              ARRAY(
+                SELECT DISTINCT r.name
+                FROM user_roles ur
+                JOIN roles r ON r.id = ur.role_id AND r.organization_id = ur.organization_id
+                WHERE ur.user_id = u.id AND ur.organization_id = ANY($2::uuid[])
+                  AND EXISTS (
+                    SELECT 1 FROM user_roles actor
+                    JOIN roles actor_role ON actor_role.id = actor.role_id AND actor_role.organization_id = actor.organization_id
+                    WHERE actor.user_id = $3 AND actor.organization_id = ur.organization_id AND actor_role.name = 'admin'
+                  )
+              ) AS role_names
        FROM users u
        WHERE NOT EXISTS (
          SELECT 1
@@ -38,7 +49,7 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
            AND om.user_id = u.id
        )
        ORDER BY u.email ASC`,
-      [organizationId]
+      [organizationId, (req.auth.organizations || []).map(({ id }) => id), req.auth.user.id]
     );
 
     return res.json(candidates.rows);
@@ -54,9 +65,32 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
     const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
     if (!userCheck.rowCount) return res.status(404).json({ error: 'user not found' });
 
+    const requestedRoleIds = req.body?.roleIds;
+    if (requestedRoleIds !== undefined && (!Array.isArray(requestedRoleIds) || !requestedRoleIds.length
+      || requestedRoleIds.some((id) => typeof id !== 'string'))) {
+      return res.status(400).json({ error: 'Sélectionnez au moins un rôle.' });
+    }
+    const roleIds = requestedRoleIds && [...new Set(requestedRoleIds)];
+    const matchingRoles = await pool.query(
+      roleIds
+        ? 'SELECT id FROM roles WHERE organization_id = $1 AND id::text = ANY($2::text[])'
+        : "SELECT id FROM roles WHERE organization_id = $1 AND name = 'viewer'",
+      roleIds ? [organizationId, roleIds] : [organizationId]
+    );
+    if (matchingRoles.rowCount !== (roleIds?.length ?? 1)) {
+      return res.status(400).json({ error: 'Un rôle sélectionné n’existe pas dans cette organisation.' });
+    }
+
     await pool.query(
-      'INSERT INTO organization_members (organization_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [organizationId, userId]
+      `WITH added AS (
+         INSERT INTO organization_members (organization_id, user_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING RETURNING organization_id, user_id
+       )
+       INSERT INTO user_roles (organization_id, user_id, role_id)
+       SELECT added.organization_id, added.user_id, role_id
+       FROM added CROSS JOIN unnest($3::uuid[]) AS selected(role_id)
+       ON CONFLICT DO NOTHING`,
+      [organizationId, userId, matchingRoles.rows.map(({ id }) => id)]
     );
     await logAudit(req.auth?.user?.id, 'organization_members.add', 'organization', organizationId, { userId });
     return res.json({ ok: true });
@@ -143,9 +177,6 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
 
       // Normaliser UNIQUEMENT les valeurs fournis dans le payload
       const normalized = {};
-      if (typeof payload.accentColor === 'string') {
-        normalized.accentColor = payload.accentColor;
-      }
       if (typeof payload.workStart === 'string') {
         normalized.workStart = payload.workStart;
       }
@@ -173,6 +204,7 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
 
       // Fusionner les valeurs normalisées avec les préférences existantes
       const nextPreferences = mergePreferences(currentPreferences, normalized);
+      delete nextPreferences.accentColor;
 
       const updated = await pool.query(
         `UPDATE users

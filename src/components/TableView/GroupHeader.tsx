@@ -46,7 +46,7 @@ const GroupHeader: React.FC<GroupHeaderProps> = ({
         >
           {depth > 0 && (
             <span
-              className="inline-block h-5 w-[2px] rounded-full bg-violet-500/50"
+              className="inline-block h-5 w-[2px] rounded-full bg-brand-500/50"
               style={{ marginLeft: `${indent - 8}px` }}
             />
           )}

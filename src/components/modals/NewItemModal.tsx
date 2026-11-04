@@ -279,7 +279,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     setFormData(nextData);
                     setManualTemplateField(null);
                   }}
-                  className="w-full text-left rounded-md px-3 py-2 hover:bg-violet-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full text-left rounded-md px-3 py-2 hover:bg-brand-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <div className="text-xs font-medium break-words">{label}</div>
                   <div className="text-xs text-muted-foreground line-clamp-2 break-words">
@@ -1343,7 +1343,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 <>
                   <span className="text-[10px] tracking-widest uppercase text-muted-foreground font-medium shrink-0">Collection</span>
                   <select
-                    className="text-[11px] px-2 py-0.5 rounded-md bg-background text-foreground border border-border focus:border-violet-500 focus:outline-none transition-colors"
+                    className="text-[11px] px-2 py-0.5 rounded-md bg-background text-foreground border border-border focus:border-brand-500 focus:outline-none transition-colors"
                     value={selectedCollectionId}
                     onChange={handleCollectionChange}
                   >
@@ -1353,7 +1353,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   </select>
                 </>
               ) : (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] tracking-widest uppercase font-semibold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] tracking-widest uppercase font-semibold bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">
                   {selectedCollection?.name || 'Collection'}
                 </span>
               )}
@@ -1407,8 +1407,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 className={cn(
                   "p-2 rounded-lg transition-all",
                   isFavorite
-                    ? "text-amber-400 bg-amber-500/10"
-                    : "text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10"
+                    ? "text-brand-500 bg-brand-500/10"
+                    : "text-muted-foreground hover:text-brand-500 hover:bg-brand-500/10"
                 )}
                 title={isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
               >
@@ -1426,8 +1426,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     className={cn(
                       'inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all',
                       pdfPopoverOpen
-                        ? 'text-violet-300 bg-violet-500/10'
-                        : 'text-muted-foreground hover:text-violet-300 hover:bg-violet-500/10'
+                        ? 'text-brand-300 bg-brand-500/10'
+                        : 'text-muted-foreground hover:text-brand-300 hover:bg-brand-500/10'
                     )}
                     title="Ouvrir les options PDF"
                   >
@@ -1473,7 +1473,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               <button
                 type="button"
                 onClick={() => navigateTrailToIndex(relationTrail.length - 2)}
-                className="inline-flex items-center gap-1.5 text-violet-400 hover:text-violet-300 transition-colors font-medium"
+                className="inline-flex items-center gap-1.5 text-brand-400 hover:text-brand-300 transition-colors font-medium"
               >
                 <ChevronLeft size={16} />
                 Retour
@@ -1573,7 +1573,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     </label>
                     {renderTemplatePicker(prop)}
                   </div>
-                  <div className="flex-1 min-w-0 border-l border-white/[0.06] group-focus-within/row:border-violet-500/50 transition-colors duration-150 pl-3 pr-1 flex items-center">
+                  <div className="flex-1 min-w-0 border-l border-white/[0.06] group-focus-within/row:border-brand-500/50 transition-colors duration-150 pl-3 pr-1 flex items-center">
                     <EditableProperty
                       property={prop}
                       value={formData[prop.id]}
@@ -1627,7 +1627,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                           className={cn(
                             'shrink-0 px-3 py-2 text-[10px] tracking-wide transition-colors border-b-2',
                             group.id === activeFieldGroupId
-                              ? 'text-violet-300 border-violet-400'
+                              ? 'text-brand-300 border-brand-400'
                               : 'text-neutral-600 border-transparent hover:text-neutral-300'
                           )}
                         >
@@ -1699,7 +1699,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                           setEditingDateProp(dateProp);
                         }}
                         disabled={!canWriteDateProp}
-                        className="flex items-center gap-1 px-2 py-1 text-[11px] text-neutral-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1 px-2 py-1 text-[11px] text-neutral-500 hover:text-brand-400 hover:bg-brand-500/10 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Edit2 size={11} />
                         Modifier
@@ -1708,7 +1708,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     <div className="flex items-center gap-3 text-xs text-neutral-500">
                       <div className="relative group/seg">
                         <div className="flex items-center gap-1.5">
-                          <Clock size={12} className="text-violet-400" />
+                          <Clock size={12} className="text-brand-400" />
                           <span className="text-neutral-400">{segments.length || 0} plage{segments.length > 1 ? 's' : ''}</span>
                         </div>
                         {segments.length > 0 && (
@@ -1717,7 +1717,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                             <div className="space-y-1.5">
                               {segments.map((seg: any, idx: number) => (
                                 <div key={idx} className="flex items-center gap-2">
-                                  <span className="text-violet-400">▸</span>
+                                  <span className="text-brand-400">▸</span>
                                   {formatSegmentDisplay(seg)}
                                 </div>
                               ))}
@@ -1735,7 +1735,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     {autoSegments.length > 0 && (
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className="mt-3 flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors">
+                          <button className="mt-3 flex items-center gap-1.5 text-[11px] text-brand-400 hover:text-brand-300 transition-colors">
                             <span>Plages auto ({autoSegments.length})</span>
                             {autoSegmentsDiffer && isReallyEditing && (
                               <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-300 rounded text-[10px]">Modifié</span>
@@ -1744,10 +1744,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                         </PopoverTrigger>
                         <PopoverContent className="w-80 bg-popover border-border text-popover-foreground">
                           <div className="space-y-2">
-                            <div className="text-[10px] tracking-widest uppercase text-violet-400 mb-3">Plages calculées auto</div>
+                            <div className="text-[10px] tracking-widest uppercase text-brand-400 mb-3">Plages calculées auto</div>
                             {autoSegments.map((seg: any, idx: number) => (
                               <div key={idx} className="text-xs text-neutral-400 flex items-center gap-2">
-                                <span className="text-violet-400">▸</span>
+                                <span className="text-brand-400">▸</span>
                                 {formatSegmentDisplay(seg)}
                               </div>
                             ))}
@@ -1776,7 +1776,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                         className={cn(
                           "px-3 py-2 text-xs font-medium transition-all border-b-2 -mb-px",
                           activeRichTextTab === tab.id
-                            ? "border-violet-500 text-violet-300"
+                            ? "border-brand-500 text-brand-300"
                             : "border-transparent text-neutral-600 hover:text-neutral-300"
                         )}
                       >
@@ -1869,7 +1869,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             <button
               type="button"
               onClick={() => handleSave(onSave)}
-              className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-all shadow-lg shadow-violet-500/20"
+              className="px-4 py-2 text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white rounded-lg transition-all shadow-lg shadow-brand-500/20"
             >
               {isReallyEditing ? 'Enregistrer et quitter' : 'Créer'}
             </button>
@@ -1914,7 +1914,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     segs.push({ start, end, label: editingDateProp.name });
                     setManualSegments(segs);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-violet-400 border border-violet-500/30 rounded-lg hover:bg-violet-500/10 hover:border-violet-500/50 transition-all"
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-brand-400 border border-brand-500/30 rounded-lg hover:bg-brand-500/10 hover:border-brand-500/50 transition-all"
                 >
                   + Ajouter une plage
                 </button>
@@ -1965,7 +1965,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setManualSegments(segsCopy);
                                           }
                                         }}
-                                        className="w-full px-2.5 py-1.5 bg-background border border-border text-foreground text-xs rounded-lg focus:border-violet-500/60 focus:outline-none transition-colors"
+                                        className="w-full px-2.5 py-1.5 bg-background border border-border text-foreground text-xs rounded-lg focus:border-brand-500/60 focus:outline-none transition-colors"
                                       />
                                     </div>
                                     <div>
@@ -1984,7 +1984,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setManualSegments(segsCopy);
                                           }
                                         }}
-                                        className="w-full px-2.5 py-1.5 bg-background border border-border text-foreground text-xs rounded-lg focus:border-violet-500/60 focus:outline-none transition-colors"
+                                        className="w-full px-2.5 py-1.5 bg-background border border-border text-foreground text-xs rounded-lg focus:border-brand-500/60 focus:outline-none transition-colors"
                                       >
                                         {timeOptions.map(opt => (
                                           <option key={opt} value={opt} className="bg-[#111113]">
@@ -2008,7 +2008,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                                             setManualSegments(segsCopy);
                                           }
                                         }}
-                                        className="w-full px-2.5 py-1.5 bg-background border border-border text-foreground text-xs rounded-lg focus:border-violet-500/60 focus:outline-none transition-colors"
+                                        className="w-full px-2.5 py-1.5 bg-background border border-border text-foreground text-xs rounded-lg focus:border-brand-500/60 focus:outline-none transition-colors"
                                       >
                                         {durationOptions.map(dur => {
                                           const hours = Math.floor(dur);
@@ -2052,7 +2052,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             <div className="px-6 py-4 border-t border-border flex justify-end shrink-0">
               <button
                 onClick={closeDateEditor}
-                className="px-4 py-2 text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white rounded-lg transition-colors"
               >
                 Fermer
               </button>

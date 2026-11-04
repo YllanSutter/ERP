@@ -14,7 +14,7 @@ const ToolbarButton = React.forwardRef<HTMLButtonElement, ToolbarButtonProps>(
       size={size}
       className={cn(
         'gap-[var(--view-control-gap)] rounded-[var(--view-control-radius)] text-xs lg:text-sm',
-        active && 'bg-accent text-accent-foreground',
+        active && 'bg-brand-500/15 text-brand-700 dark:text-brand-300',
         className,
       )}
       {...props}

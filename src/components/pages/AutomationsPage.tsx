@@ -1167,7 +1167,7 @@ const AutomationsPage: React.FC<AutomationsPageProps> = ({ collections }) => {
         </div>
         <button
           onClick={handleCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium rounded-lg transition-colors"
         >
           <Plus size={14} />
           Nouvelle automation
@@ -1199,7 +1199,7 @@ const AutomationsPage: React.FC<AutomationsPageProps> = ({ collections }) => {
             </div>
             <button
               onClick={handleCreate}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
               <Plus size={14} />
               Créer une automation

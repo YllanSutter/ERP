@@ -106,7 +106,7 @@ const CheckboxInput = ({ value, onChange, readOnly }: { value: any; onChange: (v
         disabled={readOnly}
         className="sr-only peer"
       />
-      <span className="h-4 w-4 rounded-md border border-black/20 dark:border-white/20 bg-white/80 dark:bg-neutral-800 shadow-sm transition-colors peer-checked:bg-violet-500 peer-checked:border-violet-500 flex items-center justify-center disabled:opacity-50">
+      <span className="h-4 w-4 rounded-md border border-black/20 dark:border-white/20 bg-white/80 dark:bg-neutral-800 shadow-sm transition-colors peer-checked:bg-brand-500 peer-checked:border-brand-500 flex items-center justify-center disabled:opacity-50">
         {checked ? <Icons.Check size={12} className="text-white" /> : null}
       </span>
     </label>
@@ -178,7 +178,7 @@ const UrlInput = ({
           onChange(inputVal ? `${nextProtocol}${inputVal.replace(/^https?:\/\//, '')}` : '');
         }}
         className={cn(
-          "flex-1 bg-transparent  text-neutral-700 dark:text-white px-0 py-0.5 focus:border-violet-500 focus:outline-none",
+          "flex-1 bg-transparent  text-neutral-700 dark:text-white px-0 py-0.5 focus:border-brand-500 focus:outline-none",
           sizeClasses
         )}
         style={{ width: `${urlLength}ch` }}
@@ -706,7 +706,7 @@ const RelationEditor = ({
       <div className="flex gap-2 pt-2 border-t border-white/10">
         <button
           onClick={() => handleCreateNew()}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-violet-600 hover:bg-violet-700 rounded text-sm text-white font-medium"
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-brand-600 hover:bg-brand-700 rounded text-sm text-white font-medium"
         >
           <Icons.Check size={14} />
           Créer et lier
@@ -887,7 +887,7 @@ const RelationEditor = ({
                     placeholder="Rechercher..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-2 py-1.5 bg-gray-100 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white placeholder-neutral-500 focus:border-violet-500 focus:outline-none"
+                    className="w-full pl-8 pr-2 py-1.5 bg-gray-100 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white placeholder-neutral-500 focus:border-brand-500 focus:outline-none"
                   />
                 </div>
               )}
@@ -915,7 +915,7 @@ const RelationEditor = ({
                           setNewItemData(templateData);
                           setIsCreating(true);
                         }}
-                        className="w-full px-3 py-2 bg-gray-100 dark:bg-neutral-800 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white focus:border-violet-500 focus:outline-none"
+                        className="w-full px-3 py-2 bg-gray-100 dark:bg-neutral-800 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white focus:border-brand-500 focus:outline-none"
                       >
                         <option value="" disabled>Choisir un template…</option>
                         {availableTemplates.map((tpl: any, index: number) => {
@@ -933,7 +933,7 @@ const RelationEditor = ({
                             setNewItemData(initialData);
                             setIsCreating(true);
                           }}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 rounded text-sm text-neutral-700 dark:text-white"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/30 rounded text-sm text-neutral-700 dark:text-white"
                         >
                           <Icons.Plus size={14} />
                           Créer sans template
@@ -947,7 +947,7 @@ const RelationEditor = ({
                         setNewItemData(initialData);
                         setIsCreating(true);
                       }}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 rounded text-sm text-neutral-700 dark:text-white"
+                      className="w-full flex items-center gap-2 px-2 py-1.5 bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/30 rounded text-sm text-neutral-700 dark:text-white"
                     >
                       <Icons.Plus size={14} />
                       Créer nouveau
@@ -1191,7 +1191,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                 <select
                   value={currentDuration}
                   onChange={e => handleEventUpdate(durationKey, parseFloat(e.target.value) || 1)}
-                  className="w-full h-50 text-center bg-background dark:bg-neutral-900 border-r border-white/10 text-black dark:text-white text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
+                  className="w-full h-50 text-center bg-background dark:bg-neutral-900 border-r border-white/10 text-black dark:text-white text-lg focus:border-brand-500 focus:outline-none overflow-y-scroll"
                   size={9}
                   style={{ WebkitAppearance: 'none', appearance: 'none' }}
                 >
@@ -1314,7 +1314,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                       if (!isValidDate(d)) return;
                       handleEventUpdate(property.id, d.toISOString());
                     }}
-                    className="w-full h-50 text-center bg-background text-black dark:bg-neutral-900 dark:text-white border-l border-white/10 text-lg focus:border-violet-500 focus:outline-none overflow-y-scroll"
+                    className="w-full h-50 text-center bg-background text-black dark:bg-neutral-900 dark:text-white border-l border-white/10 text-lg focus:border-brand-500 focus:outline-none overflow-y-scroll"
                     size={9}
                     style={{ WebkitAppearance: 'none', appearance: 'none' }}
                   >
@@ -1363,7 +1363,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                   if (typeof onRelationChange === 'function') onRelationChange(property, merged, merged[property.id]);
                   setSegmentApplyDialog(null);
                 }}
-                className="px-3 py-2 text-sm rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors"
+                className="px-3 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-500 text-white transition-colors"
               >
                 Appliquer les plages auto
               </button>

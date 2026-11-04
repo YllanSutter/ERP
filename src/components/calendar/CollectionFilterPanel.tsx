@@ -139,7 +139,7 @@ const getDateFieldKey = (collectionId: string, viewId?: string | null) => viewId
                   <select
                     value={typeof value === 'string' ? value : ''}
                     onChange={e => handleFilterChange(field.id, e.target.value)}
-                    className="w-full px-4 py-2 bg-white dark:bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-violet-500 focus:outline-none"
+                    className="w-full px-4 py-2 bg-white dark:bg-neutral-800/50 border border-white/10 rounded-lg text-white focus:border-brand-500 focus:outline-none"
                   >
                     <option value="">Sélectionner...</option>
                     {targetItems.map((ti: any) => {

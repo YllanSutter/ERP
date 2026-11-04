@@ -568,7 +568,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                   className="absolute left-0 right-0 z-30 pointer-events-none"
                   style={{ top: `${rangeStyle.top}px`, height: `${rangeStyle.height}px` }}
                 >
-                  <div className="h-full rounded bg-violet-500/20 border border-violet-500/40" />
+                  <div className="h-full rounded bg-brand-500/20 border border-brand-500/40" />
                 </div>
               )}
               {isToday && hoursSinceStart >= 0 && hoursSinceStart <= totalHours && (
@@ -830,7 +830,7 @@ const WeekView: React.FC<WeekViewProps> = ({
           >
             <div className="mb-1 flex items-start gap-2">
               {primaryCollection && onShowNewItemModalForCollection && (
-                <div className="flex-1 rounded-lg border border-violet-400/30 bg-violet-500/10 p-1.5">
+                <div className="flex-1 rounded-lg border border-brand-400/30 bg-brand-500/10 p-1.5">
                   <TooltipProvider>
                     <div className="grid grid-cols-3 gap-1.5">
                       <Tooltip>
@@ -859,7 +859,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
-                            className="h-8 rounded-md border flex items-center justify-center transition-colors bg-violet-500/20 border-violet-500/30 hover:bg-violet-500/30 text-violet-100"
+                            className="h-8 rounded-md border flex items-center justify-center transition-colors bg-brand-500/20 border-brand-500/30 hover:bg-brand-500/30 text-brand-100"
                             onClick={handleQuickCreatePrimary}
                             aria-label="Créer un nouvel élément"
                           >
@@ -933,7 +933,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                         className={cn(
                           'w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors border min-h-[48px]',
                           isDefault
-                            ? 'bg-violet-500/20 text-violet-200 border-violet-500/30'
+                            ? 'bg-brand-500/20 text-brand-200 border-brand-500/30'
                             : 'hover:bg-white/5 text-neutral-200 border-transparent'
                         )}
                         onClick={() => finalizeSecondarySelection(it.id)}
@@ -946,7 +946,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                                 semaine
                               </span>
                             )}
-                            {isDefault && <span className="text-[10px] text-violet-300">par défaut</span>}
+                            {isDefault && <span className="text-[10px] text-brand-300">par défaut</span>}
                           </div>
                         </div>
                       </button>

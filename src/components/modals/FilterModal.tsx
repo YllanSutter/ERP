@@ -241,7 +241,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ properties, collections, onCl
         value={typeof inputDisplayValue === 'string' ? inputDisplayValue : ''}
         onChange={(e) => setValue(e.target.value)}
         placeholder={multiValue ? 'Valeurs séparées par des virgules' : 'Valeur'}
-        className="w-full rounded-xl border border-black/10 bg-gray-300 px-4 py-2 text-neutral-700 focus:border-violet-500 focus:outline-none dark:border-white/10 dark:bg-neutral-800/50 dark:text-white"
+        className="w-full rounded-xl border border-black/10 bg-gray-300 px-4 py-2 text-neutral-700 focus:border-brand-500 focus:outline-none dark:border-white/10 dark:bg-neutral-800/50 dark:text-white"
       />
     );
   };

@@ -34,10 +34,10 @@ const TOTAL_META: Record<string, TotalMeta> = {
   sum: {
     Icon: Sigma,
     label: 'Somme',
-    iconColorClass: 'text-violet-500 dark:text-violet-400',
-    bgClass: 'bg-violet-50 dark:bg-violet-950/30',
-    borderClass: 'border-violet-200 dark:border-violet-800/60',
-    valueColorClass: 'text-violet-700 dark:text-violet-300',
+    iconColorClass: 'text-brand-500 dark:text-brand-400',
+    bgClass: 'bg-brand-50 dark:bg-brand-950/30',
+    borderClass: 'border-brand-200 dark:border-brand-800/60',
+    valueColorClass: 'text-brand-700 dark:text-brand-300',
   },
   avg: {
     Icon: BarChart2,
@@ -108,10 +108,10 @@ const TOTAL_META: Record<string, TotalMeta> = {
 const LINKED_PROGRESS_META: TotalMeta = {
   Icon: PieChart,
   label: 'Payé / Reste',
-  iconColorClass: 'text-violet-500 dark:text-violet-400',
-  bgClass: 'bg-violet-50 dark:bg-violet-950/30',
-  borderClass: 'border-violet-200 dark:border-violet-800/60',
-  valueColorClass: 'text-violet-700 dark:text-violet-300',
+  iconColorClass: 'text-brand-500 dark:text-brand-400',
+  bgClass: 'bg-brand-50 dark:bg-brand-950/30',
+  borderClass: 'border-brand-200 dark:border-brand-800/60',
+  valueColorClass: 'text-brand-700 dark:text-brand-300',
 };
 
 const DEFAULT_META: TotalMeta = {
@@ -377,7 +377,7 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
           <button
             type="button"
             onClick={() => setIsSectionExpanded((v) => !v)}
-            className="ml-auto inline-flex items-center justify-center h-6 w-6 rounded-md border border-black/10 dark:border-white/10 bg-white/70 dark:bg-neutral-900/70 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+            className="ml-auto inline-flex items-center justify-center h-6 w-6 rounded-md border border-black/10 dark:border-white/10 bg-white/70 dark:bg-neutral-900/70 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors"
             aria-label={isSectionExpanded ? 'Masquer les totaux' : 'Afficher les totaux'}
             title={isSectionExpanded ? 'Masquer les totaux' : 'Afficher les totaux'}
           >
@@ -390,7 +390,7 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
             <button
               type="button"
               onClick={() => setShowGroupSelectors((v) => !v)}
-              className="inline-flex items-center ml-2 px-2 h-6 rounded-md border border-black/10 dark:border-white/10 bg-white/70 dark:bg-neutral-900/70 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors text-[10px] font-semibold text-neutral-600 dark:text-neutral-300"
+              className="inline-flex items-center ml-2 px-2 h-6 rounded-md border border-black/10 dark:border-white/10 bg-white/70 dark:bg-neutral-900/70 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors text-[10px] font-semibold text-neutral-600 dark:text-neutral-300"
               aria-label={showGroupSelectors ? 'Masquer les onglets des groupes en haut' : 'Afficher les onglets des groupes en haut'}
               title={showGroupSelectors ? 'Masquer les onglets des groupes en haut' : 'Afficher les onglets des groupes en haut'}
             >

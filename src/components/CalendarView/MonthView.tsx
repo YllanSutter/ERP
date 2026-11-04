@@ -135,7 +135,7 @@ const MonthView: React.FC<MonthViewProps> = ({
                             canEdit={canEditCollection(item.__collectionId)}
                           >
                             <button
-                              className="text-[10px] text-violet-600 dark:text-violet-300 font-medium text-left truncate hover:underline lg:opacity-100 hover:opacity-100 opacity-0"
+                              className="text-[10px] text-brand-600 dark:text-brand-300 font-medium text-left truncate hover:underline lg:opacity-100 hover:opacity-100 opacity-0"
                               title={getNameValue(item)}
                               onClick={e => {
                                 e.stopPropagation();
@@ -155,7 +155,7 @@ const MonthView: React.FC<MonthViewProps> = ({
                               <div className="space-y-1">
                                 {segments.map((segment: any, segIdx: number) => (
                                   <div key={segIdx} className="flex items-center gap-1">
-                                    <span className="text-violet-300">▸</span>
+                                    <span className="text-brand-300">▸</span>
                                     {new Date(segment.start || segment.__eventStart).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                                     {' → '}
                                     {new Date(segment.end || segment.__eventEnd).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}

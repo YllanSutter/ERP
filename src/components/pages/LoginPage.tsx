@@ -44,7 +44,7 @@ const LoginPage = ({ onLogin, onRegister, loading }: LoginPageProps) => {
         className="max-w-md w-full bg-gray-300 dark:bg-neutral-900/70 border border-black/10 dark:border-white/10 rounded-2xl p-8 shadow-2xl backdrop-blur"
       >
         <div className="flex items-center gap-3 mb-6">
-          <div className="h-4 w-4 rounded-full bg-gradient-to-tr from-violet-500 to-cyan-400 animate-pulse" />
+          <div className="h-4 w-4 rounded-full bg-gradient-to-tr from-brand-500 to-cyan-400 animate-pulse" />
           <h1 className="text-2xl font-bold">{mode === 'login' ? 'Connexion' : 'Créer un compte'}</h1>
         </div>
         <p className="text-neutral-400 mb-6">

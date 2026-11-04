@@ -405,7 +405,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
                         type="checkbox"
                         checked={/^(true|1|oui|yes|on|x)$/i.test(finalValue)}
                         onChange={(e) => handleFieldChange(field.name, e.target.checked ? 'true' : 'false')}
-                        className="accent-violet-500 w-4 h-4"
+                        className="accent-brand-500 w-4 h-4"
                       />
                     ) : (
                       <input
@@ -416,7 +416,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
                         className={cn(
                           'w-full px-2 py-1.5 rounded-md bg-black/20 border text-sm text-neutral-100 outline-none transition-colors',
                           isManual
-                            ? 'border-violet-500/50 focus:border-violet-400'
+                            ? 'border-brand-500/50 focus:border-brand-400'
                             : 'border-white/10 focus:border-white/25'
                         )}
                       />
@@ -425,7 +425,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
 
                   <div className="w-[120px] shrink-0 text-right space-y-0.5">
                     {isManual && (
-                      <div className="text-[10px] text-violet-400">
+                      <div className="text-[10px] text-brand-400">
                         {overridden ? 'manuel (prioritaire)' : 'manuel'}
                       </div>
                     )}
@@ -470,7 +470,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
               type="button"
               onClick={handleSave}
               disabled={saving || !itemId}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-xs font-medium text-white transition"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-xs font-medium text-white transition"
               title={!itemId ? "Enregistrez d'abord l'objet" : "Enregistrer ce PDF pour cet objet"}
             >
               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
@@ -479,7 +479,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
             <button
               type="button"
               onClick={handleDownload}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-medium text-white transition"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-xs font-medium text-white transition"
             >
               <Download className="w-3.5 h-3.5" />
               Télécharger
