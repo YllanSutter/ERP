@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button';
+import { prepareSteamItem } from './itemImages';
 import { SettingsSection, SettingsSelect, SettingsLabel, SettingsHint } from '@/components/ui/settings-panel';
 import { useAuth } from '@/auth/AuthProvider';
 import { pluginManager } from '@/lib/plugins';
@@ -40,6 +42,26 @@ export function SteamCollectionSettings({
               }),
             ]} />
         </label>
+        {(collection.properties || []).some((property: any) => property.type === 'steam') && (
+          <label className="grid gap-1">
+            <SettingsLabel>Champ image alimenté par Steam</SettingsLabel>
+            <SettingsSelect value={settings.imagePropertyId || ''}
+              onChange={(imagePropertyId) => update({ imagePropertyId })}
+              options={[
+                { value: '', label: 'Automatique : premier champ Image' },
+                { value: 'none', label: 'Ne pas remplir les images' },
+                ...(collection.properties || []).filter((property: any) => property.type === 'image').map((property: any) => ({ value: property.id, label: property.name })),
+              ]} />
+            {!(collection.properties || []).some((property: any) => property.type === 'image') && (
+              <Button type="button" variant="outline" size="sm" onClick={() => {
+                const id = crypto.randomUUID();
+                const next = { ...collection, properties: [...(collection.properties || []), { id, name: 'Images', type: 'image', icon: 'Image' }], plugins: { ...collection.plugins, steam: { ...settings, imagePropertyId: id } } };
+                onChange({ properties: next.properties, plugins: next.plugins, items: (collection.items || []).map((item: any) => prepareSteamItem(next, item)) });
+              }}>Créer le champ Image Steam</Button>
+            )}
+            <SettingsHint>Steam ajoute sa bannière à partir de l’App ID et conserve les images manuelles.</SettingsHint>
+          </label>
+        )}
         {settings.role === 'games' && (
           <>
             <label className="grid gap-1">

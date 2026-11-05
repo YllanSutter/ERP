@@ -7,7 +7,7 @@ import ColorPicker from '@/components/inputs/ColorPicker';
 import { cn } from '@/lib/utils';
 import { Input } from './input';
 import { SettingsDialog, SettingsBody, SettingsFooter, SettingsSection, SettingsSectionTitle, SettingsLabel, SettingsHint, SettingsSelect, type SettingsSelectOption, type SettingsSelectProps } from './settings-panel';
-import { Type, Hash, ChevronDown, ListChecks, Calendar, CalendarRange, ToggleLeft, Link, Mail, Phone, GitMerge, AlignLeft } from 'lucide-react';
+import { Type, Hash, ChevronDown, ListChecks, Calendar, CalendarRange, ToggleLeft, Link, Mail, Phone, GitMerge, AlignLeft, Image } from 'lucide-react';
 
 // ─── Modal shell ──────────────────────────────────────────────────────────────
 
@@ -77,6 +77,7 @@ export default ModalWrapper;
 // ─── Form primitives ──────────────────────────────────────────────────────────
 
 export const BUILTIN_PROPERTY_TYPES = [
+  { value: 'image',        label: 'Image',       icon: Image },
   { value: 'text',         label: 'Texte',       icon: Type },
   { value: 'number',       label: 'Nombre',      icon: Hash },
   { value: 'select',       label: 'Sélection',   icon: ChevronDown },

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
 import { Star, Trash2, Clock, Edit2, History, ChevronLeft, FileText, ChevronDown, Sparkles, Link2, LayoutGrid } from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { ItemBanner } from '@/components/fields/ItemBanner';
 import { InteractiveBackdrop } from '@/components/ui/InteractiveBackdrop';
 import { Button } from '@/components/ui/button';
 import { FieldRow } from '@/components/ui/field-row';
@@ -66,6 +67,7 @@ function FieldLabelIcon({ property }: { property: any }) {
 
 interface NewItemModalProps {
   collection: any;
+  preparePluginItem?: (collection: any, item: any) => any;
   renderPluginBanner?: (collection: any, item: any) => React.ReactNode;
   renderPluginActions?: (collection: any, item: any) => React.ReactNode;
   onClose: () => void;
@@ -115,6 +117,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   fieldGroupsLayout = 'stacked',
   renderPluginActions,
   renderPluginBanner,
+  preparePluginItem,
 }) => {
   const { user, isAdmin, isEditor, permissions, activeOrganizationId } = useAuth();
 
@@ -765,6 +768,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     };
   }, [formData, templateAutoFilled, selectedCollectionId, draftKey, isDraftDirty]);
 
+  React.useEffect(() => {
+    if (!preparePluginItem) return;
+    const writable = { ...selectedCollection, properties: (selectedCollection.properties || []).filter((prop: any) => canWriteField(selectedCollection.id, prop.id)) };
+    const next = preparePluginItem(writable, formData);
+    if (next !== formData) setFormDataRaw(next);
+  }, [preparePluginItem, selectedCollection, formData, canWriteField]);
+
   // Garder formDataRef synchronisé avec formData
   React.useEffect(() => {
     formDataRef.current = formData;
@@ -1034,7 +1044,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const dateProps = propsList.filter((p: any) => p.type === 'date');
   const titleProperty = classicPropsSansRichText.find(
     (prop: any) => prop.isNameField || prop.id === 'name' || prop.name === 'Nom'
-  ) || classicPropsSansRichText[0];
+  ) || classicPropsSansRichText.find((prop: any) => prop.type !== 'image');
 
   // Le titre est identifié par sa propriété, pas par sa position dans la vue.
   // Cela évite de masquer un nouveau champ quand une vue réordonne les propriétés.
@@ -1375,7 +1385,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 </span>
               )}
             </div>
-            {classicPropsSansRichText.length > 0 && (
+            {titleProperty && (
               <div className="flex-1 min-w-0 [&_input]:text-lg [&_input]:font-semibold [&_input]:tracking-tight [&_input]:text-foreground [&_input]:placeholder:text-muted-foreground [&_input]:bg-transparent [&_input]:border-0 [&_input]:outline-none [&_input]:w-full [&_input]:p-0 [&_textarea]:text-lg [&_textarea]:font-semibold [&_textarea]:text-foreground">
                 <EditableProperty
                   property={titleProperty}
@@ -1539,10 +1549,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             ]}
           >
             <SettingsTabContent value={activeItemTab} scrollable forceMount className={activeItemTab.startsWith('text:') ? 'item-rich-tab' : undefined}>
-              {renderPluginBanner?.({
+              <ItemBanner collection={{
                 ...selectedCollection,
                 properties: (selectedCollection.properties || []).filter((prop: any) => canReadField(selectedCollection.id, prop.id)),
-              }, formData)}
+              }} item={formData} fallback={renderPluginBanner?.({
+                ...selectedCollection,
+                properties: (selectedCollection.properties || []).filter((prop: any) => canReadField(selectedCollection.id, prop.id)),
+              }, formData)} />
               <div className={cn('w-full', activeItemTab === 'general' ? 'item-general grid max-w-6xl grid-cols-1 items-start gap-6 xl:grid-cols-12' : activeItemTab.startsWith('text:') ? 'flex min-h-0 flex-1 flex-col' : 'max-w-4xl space-y-6')}>
 
             <div hidden={activeItemTab !== 'general' && activeItemTab !== 'details' && !activeItemTab.startsWith('group:')} className={activeItemTab === 'general' ? (datePropsForDisplay.length ? 'min-w-0 xl:col-span-8' : 'min-w-0 xl:col-span-12') : undefined}>

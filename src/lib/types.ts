@@ -43,7 +43,8 @@ export type PropertyType =
   | 'url' 
   | 'email' 
   | 'phone'
-  | 'steam';
+  | 'steam'
+  | 'image';
 
 export interface RelationConfig {
   targetCollectionId: string;

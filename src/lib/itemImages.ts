@@ -1,0 +1,32 @@
+export interface ItemImage {
+  id: string;
+  src: string;
+  name?: string;
+  source?: string;
+  steamAppId?: number;
+}
+export interface ImageFieldValue { images: ItemImage[]; defaultImageId: string | null; autoSources?: Record<string, number> }
+
+export function validImageSource(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  if (/^data:image\/(png|jpeg|webp|gif|avif);base64,/i.test(value)) return true;
+  try { return ['https:', 'http:'].includes(new URL(value).protocol); } catch { return false; }
+}
+
+export function normalizeImageField(value: unknown): ImageFieldValue {
+  const raw = typeof value === 'string' ? [value] : Array.isArray(value) ? value : (value as any)?.images;
+  const images: ItemImage[] = [];
+  for (const [index, entry] of (Array.isArray(raw) ? raw : []).entries()) {
+    const image = typeof entry === 'string' ? { src: entry } : entry;
+    if (!image || !validImageSource(image.src)) continue;
+    const id = typeof image.id === 'string' ? image.id : `image-${index}`;
+    if (!images.some(existing => existing.id === id)) images.push({ ...image, id });
+  }
+  const preferred = (value as any)?.defaultImageId;
+  return { images, defaultImageId: images.some(image => image.id === preferred) ? preferred : images[0]?.id || null, ...((value as any)?.autoSources ? { autoSources: { ...(value as any).autoSources } } : {}) };
+}
+
+export function primaryImage(value: unknown): ItemImage | null {
+  const normalized = normalizeImageField(value);
+  return normalized.images.find(image => image.id === normalized.defaultImageId) || null;
+}

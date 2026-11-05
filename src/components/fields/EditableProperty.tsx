@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { getSelectionLimit, toggleLimitedSelection } from '@/lib/utils/selectionLimit';
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 import * as Icons from 'lucide-react';
+import { ImageField } from './ImageField';
 import SteamPropertyField from '@/components/fields/SteamPropertyField';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -1042,6 +1043,10 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   // Name field link
   if (isNameField && onViewDetail && !disableNameLink) {
     return <NameLink value={value} onViewDetail={onViewDetail} />;
+  }
+
+  if (property.type === 'image') {
+    return <ImageField value={value} defaultValue={property.defaultImage} onChange={onChange} readOnly={readOnly} name={property.name} />;
   }
 
   // Select

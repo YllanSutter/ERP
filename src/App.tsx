@@ -1,3 +1,6 @@
+import { ItemImageRendererProvider } from '@/components/fields/ItemImageView';
+import { prepareSteamItem } from '@/lib/plugins/steam/itemImages';
+import { SteamImage } from '@/lib/plugins/steam/SteamImage';
 import { SteamItemBanner } from '@/lib/plugins/steam/SteamItemBanner';
 import { SteamBundlePublishButton } from '@/lib/plugins/steam/BundlePublishingDialog';
 import { SteamCollectionSettings } from '@/lib/plugins/steam/SteamCollectionSettings';
@@ -228,7 +231,10 @@ const App = () => {
     activeCollection
   );
 
-  const itemHooks = useItems(collections, setCollections, activeCollection);
+  const preparePluginItem = React.useCallback((collection: any, item: any) =>
+    activeOrganizationId && pluginManager.isPluginActive(activeOrganizationId, 'steam')
+      ? prepareSteamItem(collection, item) : item, [activeOrganizationId]);
+  const itemHooks = useItems(collections, setCollections, activeCollection, preparePluginItem);
 
   const itadOrganizationRef = useRef(activeOrganizationId);
   itadOrganizationRef.current = activeOrganizationId;
@@ -650,6 +656,8 @@ const App = () => {
   }
 
   return (
+    <ItemImageRendererProvider value={(image, props) => image.source === 'steam' && activeOrganizationId && pluginManager.isPluginActive(activeOrganizationId, 'steam')
+      ? <SteamImage appid={image.steamAppId} variant="header" className={props.className} alt={props.alt} style={props.style} /> : undefined}>
     <div className={`relative isolate h-screen flex flex-col ${theme === 'dark' ? 'bg-neutral-950 text-black dark:text-white' : 'bg-white text-neutral-900'}`}> 
       <InteractiveBackdrop className="-z-10" />
 
@@ -1297,6 +1305,7 @@ const App = () => {
       )}
       {showNewItemModal && (
         <NewItemModal
+          preparePluginItem={preparePluginItem}
           renderPluginBanner={(collection, item) => <SteamItemBanner collection={collection} item={item} />}
           renderPluginActions={(collection, item) => <SteamBundlePublishButton collection={collection} item={item} collections={collections} />}
           collection={modalCollection || currentCollection!}
@@ -1504,6 +1513,7 @@ const App = () => {
             </Suspense>
       )}
     </div>
+    </ItemImageRendererProvider>
   );
 };
 

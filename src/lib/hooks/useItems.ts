@@ -100,7 +100,8 @@ const applyRelationChangeInternal = (
 export const useItems = (
   collections: any[],
   setCollections: (collections: any[] | ((prevCollections: any[]) => any[])) => void,
-  activeCollection: string | null
+  activeCollection: string | null,
+  prepareItem?: (collection: any, item: any) => any
 ) => {
   const generateItemId = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -116,6 +117,7 @@ export const useItems = (
     // Détermination de la collection cible
     const targetCollectionId = collectionId || item.__collectionId || activeCollection;
     const targetCollection = collections.find((col) => col.id === targetCollectionId);
+    if (prepareItem && targetCollection) newItem = prepareItem(targetCollection, newItem);
     const targetItems = targetCollection?.items || [];
     const isEdition = Boolean(editingItem && editingItem.id);
     console.log('[saveItem] targetCollectionId:', targetCollectionId, '| found:', !!targetCollection, '| isEdition:', isEdition, '| collections available:', collections.map(c => c.id));
@@ -196,7 +198,7 @@ export const useItems = (
     setCollections((prevCollections: any[]) => {
       const sourceCollection = prevCollections.find((c: any) => c.id === targetCollectionId);
       if (!sourceCollection) return prevCollections;
-      const sanitizedItem = stripCalculatedNumberFieldsFromItem(item, sourceCollection);
+      const sanitizedItem = stripCalculatedNumberFieldsFromItem(prepareItem ? prepareItem(sourceCollection, item) : item, sourceCollection);
       const prevItem = sourceCollection.items.find((i: any) => i.id === sanitizedItem.id) || {};
 
       let updatedCollections = prevCollections.map((col: any) => {

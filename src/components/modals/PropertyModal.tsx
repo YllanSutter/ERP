@@ -1,3 +1,5 @@
+import { ImageField } from '@/components/fields/ImageField';
+import { normalizeImageField } from '@/lib/itemImages';
 import React, { useEffect, useState } from 'react';
 import { FormField, FormInput, FormSelect, FormHint, FormCheckbox, FormNameInput, BUILTIN_PROPERTY_TYPES } from '@/components/ui/ModalWrapper';
 import OptionListEditor from '@/components/inputs/OptionListEditor';
@@ -25,6 +27,7 @@ interface PropertyModalProps {
 
 // Types qui ont un onglet de configuration dédié
 const TYPE_CONFIG_LABEL: Record<string, string> = {
+  image: 'Image',
   select: 'Options',
   multi_select: 'Options',
   multiselect: 'Options',
@@ -45,6 +48,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const { activeOrganizationId } = useAuth();
   const isEditing = !!property;
 
+  const [defaultImage, setDefaultImage] = useState(property?.defaultImage || null);
   const [name, setName] = useState(property?.name || '');
   const [type, setType] = useState(property?.type || 'text');
   const [icon, setIcon] = useState(property?.icon || 'Tag');
@@ -124,6 +128,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   // Si on change de type et que l'onglet 'config' disparaît, revenir sur 'infos'
   const handleTypeChange = (newType: string) => {
     setType(newType);
+    if (newType === 'image' && icon === 'Tag') setIcon('Image');
     if (activeTab === 'config' && !TYPE_CONFIG_LABEL[newType]) {
       setActiveTab('infos');
     }
@@ -156,6 +161,8 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
     savedProperty.type = type;
     savedProperty.icon = icon;
     savedProperty.color = color;
+    if (type === 'image' && normalizeImageField(defaultImage).images.length) savedProperty.defaultImage = defaultImage;
+    else delete savedProperty.defaultImage;
     savedProperty.showContextMenu = showContextMenu;
     savedProperty.defaultTemplates = defaultTemplates;
     if (supportsValueLimit && selectionLimit !== undefined) savedProperty.maxValues = selectionLimit;
@@ -252,6 +259,12 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
               ]} />
           </FormField>
         </div>
+      )}
+
+      {activeTab === 'config' && type === 'image' && (
+        <FormField label="Image par défaut" hint="Affichée dans le champ et en bannière quand l’objet n’a aucune image. L’étoile choisit l’image principale.">
+          <ImageField value={defaultImage} onChange={setDefaultImage} name="Image par défaut" />
+        </FormField>
       )}
 
       {/* ── Onglet Config (Select / Multi-select) ──────────────────────────── */}
