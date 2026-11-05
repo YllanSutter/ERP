@@ -6,8 +6,8 @@ import { OptionTags } from '@/components/inputs/OptionTags';
 import EditableProperty from '@/components/fields/EditableProperty';
 import { ArrowUpRight, Clock, Ellipsis, FileText, GripHorizontal, Info, Link2, Trash2, Type, X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover, PopoverTrigger } from '@/components/ui/popover';
+import { SettingsPopoverContent, SettingsTabs, SettingsTabContent, SettingsFooter, SettingsLabel } from '@/components/ui/settings-panel';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -335,48 +335,28 @@ const EventItem: React.FC<EventItemProps> = ({
                   <Ellipsis size={14} />
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="start" className="w-[23rem] max-w-[calc(100vw-1rem)] p-0">
-                <div className="flex items-start justify-between gap-2 border-b px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="break-words text-sm font-semibold">{title}</div>
-                    <div className="text-xs tabular-nums text-muted-foreground">{timeLabel}</div>
-                  </div>
-                  <PopoverClose
-                    type="button"
-                    aria-label="Fermer"
-                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline"
-                  >
-                    <X size={16} aria-hidden="true" />
-                  </PopoverClose>
-                </div>
+              <SettingsPopoverContent align="start" title={title} description={timeLabel}>
                 {fieldTabs.length > 0 && (
-                  <Tabs key={fieldTabs.map((tab) => tab.id).join(':')} defaultValue={fieldTabs[0].id} className="px-2 pt-2">
-                    <TabsList aria-label="Champs de l’événement" className="flex h-auto w-full flex-wrap rounded-lg border border-border bg-muted/50 p-0.5">
-                      {fieldTabs.map(({ id, label, Icon }) => (
-                        <TabsTrigger key={id} value={id} className="flex-1 gap-1 px-1.5 py-1 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                          <Icon size={12} aria-hidden="true" />
-                          {label}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
+                  <SettingsTabs key={fieldTabs.map((tab) => tab.id).join(':')} defaultValue={fieldTabs[0].id}
+                    label="Champs de l’événement" items={fieldTabs.map(({ id, label, Icon }) => ({ id, label, icon: Icon }))}>
                     {fieldTabs.map(({ id, fields }) => (
-                      <TabsContent key={id} value={id} className="mt-1 max-h-[min(50vh,20rem)] divide-y divide-border overflow-y-auto rounded-none border-0 p-0">
+                      <SettingsTabContent scrollable key={id} value={id} className="max-h-[min(50vh,20rem)] divide-y divide-border">
                         {fields.map((prop) => (
-                          <div key={prop.id} className="min-w-0 px-1 py-2">
-                            <div className="mb-0.5 text-xs font-medium text-muted-foreground">{prop.name}</div>
+                          <div key={prop.id} className="settings-field-row min-w-0">
+                            <SettingsLabel>{prop.name}</SettingsLabel>
                             {renderField(prop)}
                           </div>
                         ))}
-                      </TabsContent>
+                      </SettingsTabContent>
                     ))}
-                  </Tabs>
+                  </SettingsTabs>
                 )}
-                <div className="border-t px-3 py-2">
+                <SettingsFooter>
                   <button type="button" onClick={() => onViewDetail(item)} className="text-xs font-medium text-primary hover:underline">
                     Ouvrir la fiche
                   </button>
-                </div>
-              </PopoverContent>
+                </SettingsFooter>
+              </SettingsPopoverContent>
             </Popover>
             {canEdit && (
               <button

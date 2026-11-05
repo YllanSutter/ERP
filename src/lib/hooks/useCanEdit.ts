@@ -69,8 +69,9 @@ export const useCanView = (collectionId?: string | null) => {
 /**
  * Hook simplifié pour vérifier si l'utilisateur peut éditer un champ spécifique
  */
-export const useCanEditField = (fieldId: string, collectionId?: string | null) => {
+export const useCanEditFields = (collectionId?: string | null) => {
   const { isAdmin, isEditor, permissions } = useAuth();
+  return (fieldId: string) => {
   
   // Si admin ou editor, on peut toujours éditer
   if (isAdmin || isEditor) return true;
@@ -109,7 +110,11 @@ export const useCanEditField = (fieldId: string, collectionId?: string | null) =
   if (globalPerm) return Boolean(globalPerm.can_write);
 
   return false;
+  };
 };
+
+export const useCanEditField = (fieldId: string, collectionId?: string | null) =>
+  useCanEditFields(collectionId)(fieldId);
 
 /**
  * Hook simplifié pour vérifier si l'utilisateur peut voir un champ spécifique

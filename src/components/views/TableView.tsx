@@ -521,7 +521,7 @@ const TableView: React.FC<TableViewProps> = ({
     const rootGroupMode: 'accordion' | 'columns' | 'tabs' | 'select' =
       (groups[0] && (groupDisplayModes as any)?.[groups[0]]) || groupDisplayMode || 'accordion';
     if (rootGroupMode !== 'select') {
-      setActiveGroupSelectByDepth({});
+      setActiveGroupSelectByDepth((prev) => Object.keys(prev).length === 0 ? prev : {});
       return;
     }
     if (typeof window === 'undefined') return;
@@ -942,13 +942,13 @@ const TableView: React.FC<TableViewProps> = ({
       prev.forEach((id) => {
         if (currentIds.has(id)) next.add(id);
       });
-      return next;
+      return next.size === prev.size ? prev : next;
     });
   }, [items]);
 
   useEffect(() => {
     if (showSelectionColumn) return;
-    setSelectedItemIds(new Set());
+    setSelectedItemIds((prev) => prev.size === 0 ? prev : new Set());
   }, [showSelectionColumn]);
 
   const canReorderRows = canEdit && !sortState.column;

@@ -177,21 +177,3 @@ body {
     scrollbar-width: thin;
   }
 }
-
-
-/* Compact controls inside the property settings sidebar. */
-.property-settings input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
-.property-settings select,
-.property-settings [role="combobox"] {
-  min-height: 2.25rem;
-  border-color: hsl(var(--border));
-  border-radius: 0.5rem;
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
-  font-size: 0.8125rem;
-}
-.property-settings textarea {
-  border-color: hsl(var(--border));
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
-}

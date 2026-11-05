@@ -1,10 +1,10 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { SettingsDialog, SettingsBody, SettingsFooter } from '@/components/ui/settings-panel';
 import { invalidateSteamGamesList } from './steamUtils';
 import { refreshSteamImages } from './steamImages';
 import { bundleRequest } from './bundleApi';
 import React, { useState, useEffect } from 'react';
-import { X, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { pluginManager } from '@/lib/plugins';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -114,19 +114,14 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
   };
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
-      <DialogContent className="flex max-h-[90dvh] w-[calc(100%_-_1rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-md">
-        <div className="shrink-0 border-b border-border px-6 py-4 pr-12">
-          <DialogTitle>Configuration Steam</DialogTitle>
-          <DialogDescription className="mt-1">Catalogue, images, bundles et prix ITAD.</DialogDescription>
-        </div>
+    <SettingsDialog open title="Configuration Steam" description="Catalogue, images, bundles et prix ITAD." onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
 
-        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+        <SettingsBody className="space-y-4">
           <p className="text-sm text-neutral-500">
             Définissez les rôles Jeux et Bundles dans les paramètres de chaque collection existante.
           </p>
           <fieldset className="space-y-2 border-b border-black/10 dark:border-white/10 pb-4">
-            <legend className="text-sm font-semibold">Catalogue et images Steam</legend>
+            <legend className="settings-section-title">Catalogue et images Steam</legend>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -164,7 +159,7 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
             )}
           </fieldset>
           <fieldset className="space-y-2 border-b border-black/10 dark:border-white/10 pb-4">
-            <legend className="text-sm font-semibold">Visibilité des bundles</legend>
+            <legend className="settings-section-title">Visibilité des bundles</legend>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -291,9 +286,9 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
             />
             <p className="text-xs text-neutral-500 mt-1">Nombre de résultats à retourner par jeu</p>
           </div>
-        </div>
+        </SettingsBody>
 
-        <div className="flex gap-2 px-6 py-4 border-t border-white/10">
+        <SettingsFooter>
           <button
             onClick={onClose}
             className="flex-1 px-4 py-2 rounded bg-white/10 hover:bg-white/20 text-sm font-medium transition"
@@ -308,9 +303,8 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
             <Save size={16} />
             Enregistrer
           </button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </SettingsFooter>
+    </SettingsDialog>
   );
 };
 

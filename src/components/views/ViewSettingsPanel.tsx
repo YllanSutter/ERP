@@ -3,7 +3,7 @@ import type { Collection, Property } from '@/lib/types';
 import { getViewRegistration } from '@/lib/views';
 import type { ViewDefinition } from '@/lib/views';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SettingsSelect, SettingsLabel } from '@/components/ui/settings-panel';
 import { getViewRegistrations } from '@/lib/views';
 
 interface ViewSettingsPanelProps {
@@ -29,18 +29,16 @@ const ViewSettingsPanel: React.FC<ViewSettingsPanelProps> = ({
     <div className="pb-3">
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="grid gap-1 text-xs">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Type</span>
-          <Select value={view.type} onValueChange={(type) => onUpdate({ type })}>
-            <SelectTrigger className="h-8 min-w-0 bg-white/70 px-2.5 text-xs dark:bg-white/5"><SelectValue /></SelectTrigger>
-            <SelectContent>{viewTypes.map((entry) => <SelectItem key={entry.type} value={entry.type}>{entry.label}</SelectItem>)}</SelectContent>
-          </Select>
+          <SettingsLabel>Type</SettingsLabel>
+          <SettingsSelect value={view.type} onChange={(type) => onUpdate({ type })}
+            options={viewTypes.map((entry) => ({ value: entry.type, label: entry.label }))} />
         </label>
         <label className="grid gap-1 text-xs">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Nom</span>
+          <SettingsLabel>Nom</SettingsLabel>
           <Input
             value={view.name}
             onChange={(event) => onUpdate({ name: event.target.value })}
-            className="h-8 min-w-0 bg-white/70 px-2.5 text-xs dark:bg-white/5"
+            className="settings-control"
           />
         </label>
       </div>

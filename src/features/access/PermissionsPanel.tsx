@@ -4,7 +4,7 @@ import React from 'react';
 import { ChevronDown, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SettingsTabs, SettingsTabContent } from '@/components/ui/settings-panel';
 import type { AccessContext } from './panelTypes';
 
 type Scope = Parameters<AccessContext['findPermission']>[1];
@@ -69,17 +69,12 @@ export const PermissionsPanel = ({ context }: { context: AccessContext }) => {
         </form>
       )}
       {roleId ? (
-        <Tabs value={context.permissionsTab} onValueChange={(value) => context.setPermissionsTab(value as AccessContext['permissionsTab'])}>
-          <TabsList aria-label="Portée des permissions" className="h-auto max-w-full justify-start gap-1 overflow-x-auto rounded-lg bg-muted p-1">
-            <TabsTrigger value="global">Globales</TabsTrigger>
-            <TabsTrigger value="collections">Collections</TabsTrigger>
-            <TabsTrigger value="dashboards">Tableaux de bord</TabsTrigger>
-          </TabsList>
-          <TabsContent value="global" className="mt-2 rounded-lg border-border p-2">
+        <SettingsTabs value={context.permissionsTab} onValueChange={(value) => context.setPermissionsTab(value as AccessContext['permissionsTab'])} inline label="Portée des permissions" items={[{id:'global',label:'Globales'},{id:'collections',label:'Collections'},{id:'dashboards',label:'Tableaux de bord'}]}>
+          <SettingsTabContent value="global">
             <p className="mb-1.5 text-xs text-muted-foreground">S’applique à toutes les collections et à leurs champs.</p>
             <PermissionFlags context={context} roleId={roleId} scope={{ type: 'global', collectionId: null, fieldId: null }} />
-          </TabsContent>
-          <TabsContent value="collections" className="mt-2 space-y-1.5 border-0 p-0">
+          </SettingsTabContent>
+          <SettingsTabContent value="collections">
             {context.collectionsWithProps.length === 0 && <p className="text-sm text-muted-foreground">Aucune collection.</p>}
             {context.collectionsWithProps.map((collection) => (
               <details key={collection.id} className="group rounded-xl border border-border">
@@ -106,8 +101,8 @@ export const PermissionsPanel = ({ context }: { context: AccessContext }) => {
                 )}
               </details>
             ))}
-          </TabsContent>
-          <TabsContent value="dashboards" className="mt-2 rounded-lg border-border p-0">
+          </SettingsTabContent>
+          <SettingsTabContent value="dashboards">
             {context.dashboards.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">Aucun tableau de bord.</p>
             ) : (
@@ -129,8 +124,8 @@ export const PermissionsPanel = ({ context }: { context: AccessContext }) => {
                 ))}
               </ul>
             )}
-          </TabsContent>
-        </Tabs>
+          </SettingsTabContent>
+        </SettingsTabs>
       ) : <p className="text-sm text-muted-foreground">Sélectionnez un rôle pour définir ses accès.</p>}
     </div>
   );

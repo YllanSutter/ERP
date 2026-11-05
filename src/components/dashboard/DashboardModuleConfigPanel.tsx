@@ -32,6 +32,7 @@ import {
 import { getDashboardModuleOptions, getDashboardViewConfig, getDashboardViewRegistration } from './dashboardModuleTypes';
 import { getLayoutSizeOptions, getLayoutTileHeight, LAYOUT_HEIGHT_OPTIONS, LAYOUT_WIDTH_OPTIONS } from '@/lib/layoutDimensions';
 import ModulePeriodSelect from './ModulePeriodSelect';
+import { SettingsFrame, SettingsHeader, SettingsTabs, SettingsTabContent, SettingsSectionTitle, SettingsSelect } from '@/components/ui/settings-panel';
 import { Switch } from '@/components/ui/switch';
 import type { ViewDefinition } from '@/lib/views';
 import { getPropOptions } from '@/lib/utils/recapColumnUtils';
@@ -111,34 +112,9 @@ const OPERATOR_LABELS: Record<string, string> = {
 };
 
 // Petit composant Select réutilisable
-const Sel: React.FC<{
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  placeholder?: string;
-  className?: string;
-}> = ({ value, onChange, options, placeholder, className }) => (
-  <div className={`relative ${className ?? ''}`}>
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full appearance-none bg-background border border-border rounded-md px-2 py-1.5 text-sm pr-7 focus:outline-none focus:ring-1 focus:ring-ring"
-    >
-      {placeholder && <option value="">{placeholder}</option>}
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-    <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground" />
-  </div>
-);
+const Sel = SettingsSelect;
+const SectionLabel = SettingsSectionTitle;
 
-// Label de section
-const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-5 mb-2 first:mt-0">
-    {children}
-  </div>
-);
 
 // ---------------------------------------------------------------------------
 // Éditeur de colonnes Recap – version récursive avec sous-colonnes
@@ -862,56 +838,20 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, view
   };
 
   return (
-    <motion.div
-      initial={embedded ? false : { x: '100%', opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      exit={{ x: '100%', opacity: 0 }}
-      transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-      className={embedded
-        ? 'flex min-w-0 flex-col rounded-lg border border-border bg-background'
-        : `fixed top-0 right-0 flex h-full w-80 max-w-full flex-col border-l border-border bg-background shadow-2xl ${raised ? 'z-[310]' : 'z-50'}`}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <span className="font-semibold text-sm text-foreground">Configurer le module</span>
-        <button
-          onClick={onClose}
-          className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
-        >
-          <X size={16} />
-        </button>
-      </div>
-
-      {/* Contenu scrollable */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-
-        <div className="flex rounded-lg border border-border overflow-hidden text-xs mb-1">
-          <button
-            onClick={() => setActiveTab('type')}
-            className={`flex-1 py-1.5 transition-colors ${
-              activeTab === 'type' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'
-            }`}
-          >
-            Type
-          </button>
-          <button
-            onClick={() => setActiveTab('infos')}
-            className={`flex-1 py-1.5 transition-colors ${
-              activeTab === 'infos' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'
-            }`}
-          >
-            Paramètres
-          </button>
-          <button
-            onClick={() => setActiveTab('columns')}
-            className={`flex-1 py-1.5 transition-colors ${
-              activeTab === 'columns' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent text-muted-foreground'
-            }`}
-          >
-            Colonnes
-          </button>
-        </div>
-
+    <SettingsFrame asChild embedded={embedded} raised={raised}>
+      <motion.div
+        initial={embedded ? false : { x: '100%', opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: '100%', opacity: 0 }}
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}>
+        <SettingsHeader title="Configurer le module" onClose={onClose} />
+        <SettingsTabs value={activeTab} onValueChange={(value) => setActiveTab(value as ConfigTab)}
+          items={[
+            { id: 'type', label: 'Type', icon: LayoutGrid },
+            { id: 'infos', label: 'Paramètres', icon: GitBranch },
+            { id: 'columns', label: 'Colonnes', icon: Table2 },
+          ]}>
+          <SettingsTabContent value={activeTab}>
         {/* Type de module */}
         {activeTab === 'type' && (
           <>
@@ -1687,8 +1627,10 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, view
             </div>
           </>
         )}
-      </div>
-    </motion.div>
+          </SettingsTabContent>
+        </SettingsTabs>
+      </motion.div>
+    </SettingsFrame>
   );
 };
 

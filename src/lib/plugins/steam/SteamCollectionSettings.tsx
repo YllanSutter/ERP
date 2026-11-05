@@ -1,3 +1,4 @@
+import { SettingsSection, SettingsSelect, SettingsLabel, SettingsHint } from '@/components/ui/settings-panel';
 import { useAuth } from '@/auth/AuthProvider';
 import { pluginManager } from '@/lib/plugins';
 
@@ -24,72 +25,40 @@ export function SteamCollectionSettings({
       p.type === 'relation' &&
       (!bundleCollection || p.relation?.targetCollectionId === bundleCollection.id),
   );
-  const selectClass =
-    'w-full rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 px-3 py-2 text-sm';
   return (
-    <fieldset className="space-y-3 border-t border-black/10 dark:border-white/10 pt-4">
-      <legend className="font-medium">Steam</legend>
-      <label className="block text-sm space-y-1">
-        <span>Rôle de cette collection</span>
-        <select
-          className={selectClass}
-          value={settings.role || ''}
-          onChange={(e) => update({ role: e.target.value, bundleRelationPropertyId: '' })}
-        >
-          <option value="">Aucun rôle Steam</option>
-          {[
-            ['games', 'Jeux'],
-            ['bundles', 'Bundles'],
-          ].map(([role, label]) => {
-            const other = collections.find(
-              (c) => c.id !== collection.id && c.plugins?.steam?.role === role,
-            );
-            return (
-              <option key={role} value={role} disabled={!!other}>
-                {label}
-                {other ? ` (déjà attribué à ${other.name})` : ''}
-              </option>
-            );
-          })}
-        </select>
-      </label>
-      {settings.role === 'games' && (
-        <>
-          <label className="block text-sm space-y-1">
-            <span>Relation vers les bundles</span>
-            <select
-              className={selectClass}
-              value={settings.bundleRelationPropertyId || ''}
-              onChange={(e) => update({ bundleRelationPropertyId: e.target.value })}
-            >
-              <option value="">
-                {relations.length === 1
-                  ? `Automatique : ${relations[0].name}`
-                  : 'Sélectionner une relation existante'}
-              </option>
-              {relations.map((p: any) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          {!collection.properties?.some((p: any) => p.type === 'steam') && (
-            <p className="text-xs text-amber-600">
-              Ajoutez un champ Steam pour identifier les jeux lors du partage et de l’import.
-            </p>
-          )}
-          {!relations.length && (
-            <p className="text-xs text-neutral-500">
-              Ajoutez une propriété de relation vers votre collection de bundles.
-            </p>
-          )}
-        </>
-      )}
-      <p className="text-xs text-neutral-500">
-        Choisissez seulement la relation parent Bundle. Ses champs liés (mois, année…) sont reconnus
-        automatiquement pour préremplir la création et grouper les bundles.
-      </p>
-    </fieldset>
+    <SettingsSection title="Steam">
+      <div className="space-y-3">
+        <label className="grid gap-1">
+          <SettingsLabel>Rôle de cette collection</SettingsLabel>
+          <SettingsSelect value={settings.role || ''}
+            onChange={(role) => update({ role, bundleRelationPropertyId: '' })}
+            options={[
+              { value: '', label: 'Aucun rôle Steam' },
+              ...[['games', 'Jeux'], ['bundles', 'Bundles']].map(([value, label]) => {
+                const other = collections.find((candidate) => candidate.id !== collection.id && candidate.plugins?.steam?.role === value);
+                return { value, label: other ? `${label} (déjà attribué à ${other.name})` : label, disabled: Boolean(other) };
+              }),
+            ]} />
+        </label>
+        {settings.role === 'games' && (
+          <>
+            <label className="grid gap-1">
+              <SettingsLabel>Relation vers les bundles</SettingsLabel>
+              <SettingsSelect value={settings.bundleRelationPropertyId || ''}
+                onChange={(bundleRelationPropertyId) => update({ bundleRelationPropertyId })}
+                options={[
+                  { value: '', label: relations.length === 1 ? `Automatique : ${relations[0].name}` : 'Sélectionner une relation existante' },
+                  ...relations.map((property: any) => ({ value: property.id, label: property.name })),
+                ]} />
+            </label>
+            {!collection.properties?.some((property: any) => property.type === 'steam') && (
+              <SettingsHint className="text-amber-600">Ajoutez un champ Steam pour identifier les jeux lors du partage et de l’import.</SettingsHint>
+            )}
+            {!relations.length && <SettingsHint>Ajoutez une propriété de relation vers votre collection de bundles.</SettingsHint>}
+          </>
+        )}
+        <SettingsHint>Choisissez la relation parent Bundle. Ses champs liés (mois, année…) servent à préremplir la création et grouper les bundles.</SettingsHint>
+      </div>
+    </SettingsSection>
   );
 }

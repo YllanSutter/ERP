@@ -17,8 +17,7 @@ import {
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getViewRegistrations } from '@/lib/views';
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SettingsSheet, SettingsTabs, SettingsTabContent } from '@/components/ui/settings-panel';
 import ViewSettingsPanel from '@/components/views/ViewSettingsPanel';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import ShinyButton from '@/components/ui/ShinyButton';
@@ -302,6 +301,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
     >
 
       <div className="flex min-w-0 items-center gap-2 flex-wrap">
+        <div className="flex shrink-0 items-center gap-0.5">
         <ToolbarButton
           type="button"
           onClick={() => openSettingsTab('settings')}
@@ -313,11 +313,18 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
         >
           <Settings size={14} />
         </ToolbarButton>
-        {isLayout && canEdit && (
-          <ToolbarButton type="button" onClick={() => openSettingsTab('filters')} title="Filtres du layout">
-            <Filter size={14} /> Filtres
-          </ToolbarButton>
-        )}
+        <ToolbarButton
+          type="button"
+          size="icon"
+          onClick={() => openSettingsTab('filters')}
+          active={(showViewSettings || Boolean(viewSettingsSection)) && activeSettingsTab === 'filters'}
+          title="Filtres de la vue"
+          aria-label="Filtres de la vue"
+          disabled={!currentViewConfig}
+        >
+          <Filter size={14} />
+        </ToolbarButton>
+        </div>
           {relationFilter.collectionId === activeCollection && relationFilter.ids.length > 0 && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -586,27 +593,17 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       </div>
 
       {currentViewConfig && (
-                <Sheet open={showViewSettings || Boolean(viewSettingsSection)} onOpenChange={(open) => { if (!open) onSetShowViewSettings(false); }}>
-                  <SheetContent side="right" overlayClassName="z-[299] bg-transparent" className="z-[300] flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-                    <div className="border-b px-4 py-3 pr-10">
-                      <SheetTitle className="text-sm">Réglages de la vue</SheetTitle>
-                      <SheetDescription className="mt-1 truncate text-xs">{currentViewConfig?.name}</SheetDescription>
-                    </div>
-                    <Tabs value={activeSettingsTab} onValueChange={openSettingsTab} className="flex min-h-0 flex-1 flex-col px-3 pt-2">
-                      <TabsList aria-label="Réglages de la vue" className="flex h-auto shrink-0 flex-wrap rounded-lg border border-border bg-muted/50 p-0.5">
-                        {[
-                          { id: 'filters', label: 'Filtres', Icon: Filter },
-                          { id: 'groups', label: 'Groupage', Icon: Layers },
-                          { id: 'settings', label: 'Paramètres', Icon: Settings },
-                          { id: 'columns', label: 'Colonnes', Icon: Icons.Columns3 },
-                        ].map(({ id, label, Icon }) => (
-                          <TabsTrigger key={id} value={id} className="flex-1 gap-1.5 px-2 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                            <Icon size={13} aria-hidden="true" />
-                            {label}
-                          </TabsTrigger>
-                        ))}
-                      </TabsList>
-                      <TabsContent value="filters" className="mt-1 min-h-0 overflow-y-auto rounded-none border-0 p-0">
+                <SettingsSheet open={showViewSettings || Boolean(viewSettingsSection)}
+                  onOpenChange={(open) => { if (!open) onSetShowViewSettings(false); }}
+                  title="Réglages de la vue" description={currentViewConfig?.name}>
+                    <SettingsTabs value={activeSettingsTab} onValueChange={openSettingsTab} label="Réglages de la vue"
+                      items={[
+                        { id: 'filters', label: 'Filtres', icon: Filter },
+                        { id: 'groups', label: 'Groupage', icon: Layers },
+                        { id: 'settings', label: 'Paramètres', icon: Settings },
+                        { id: 'columns', label: 'Colonnes', icon: Icons.Columns3 },
+                      ]}>
+                      <SettingsTabContent value="filters">
                         <p className="px-1 py-2 text-xs text-muted-foreground">Les règles ci-dessous se combinent. Les filtres globaux restent accessibles à côté du titre de la collection.</p>
                         {((currentViewConfig.filters?.length ?? 0) > 0 ||
                           (relationFilter.collectionId === activeCollection && relationFilter.ids.length > 0)) && (
@@ -706,11 +703,11 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                           </button>
                         )}
                         {filterEditor}
-                      </TabsContent>
-                      <TabsContent value="groups" className="mt-1 min-h-0 overflow-y-auto rounded-none border-0 p-0">
+                      </SettingsTabContent>
+                      <SettingsTabContent value="groups">
                         {groupEditor}
-                      </TabsContent>
-                      <TabsContent value="settings" className="mt-1 min-h-0 overflow-y-auto rounded-none border-0 p-1 pt-2">
+                      </SettingsTabContent>
+                      <SettingsTabContent value="settings">
                   <ViewSettingsPanel
                     view={currentViewConfig}
                     collection={currentCollection}
@@ -719,8 +716,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     views={allViews}
                     onUpdate={onUpdateViewConfig}
                   />
-                      </TabsContent>
-                      <TabsContent value="columns" className="mt-1 min-h-0 overflow-y-auto rounded-none border-0 p-1 pt-2">
+                      </SettingsTabContent>
+                      <SettingsTabContent value="columns">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold text-black dark:text-white">Colonnes visibles</h4>
                     <div className="flex items-center gap-2">
@@ -1095,10 +1092,9 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                       </div>
                     </div>
                   )}
-                      </TabsContent>
-                    </Tabs>
-                  </SheetContent>
-                </Sheet>
+                      </SettingsTabContent>
+                    </SettingsTabs>
+                </SettingsSheet>
       )}
 
     </motion.div>

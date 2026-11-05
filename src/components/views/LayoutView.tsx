@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { getLayoutTileHeight, LAYOUT_HEIGHT_OPTIONS, LAYOUT_TILE_GAP } from '@/lib/layoutDimensions';
 import { createPortal } from 'react-dom';
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
+import { SettingsSheet, SettingsBody } from '@/components/ui/settings-panel';
 import LayoutPanelSettings from './LayoutPanelSettings';
 import { getLayoutPanelHeight, type LayoutPanelConfig } from './LayoutPanelsEditor';
 import { computeDateRange } from '@/lib/utils/dashboardUtils';
@@ -239,16 +239,13 @@ const LayoutView: React.FC<ViewRendererProps> = ({
         })}
       </div>
       {canConfigureLayout && configuredPanel && (
-        <Sheet open onOpenChange={(open) => { if (!open) setPanelId(null); }}>
-          <SheetContent side="right" overlayClassName="z-[309] bg-transparent" className="z-[310] flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-            <SheetTitle className="border-b px-4 py-3 text-sm">Configurer la vue</SheetTitle>
-            <SheetDescription className="sr-only">Réglages du panneau dans ce layout.</SheetDescription>
-            <div className="min-h-0 overflow-y-auto p-3">
+        <SettingsSheet nested open onOpenChange={(open) => { if (!open) setPanelId(null); }}
+          title="Configurer la vue" description="Réglages du panneau dans ce layout.">
+            <SettingsBody>
               <LayoutPanelSettings panel={configuredPanel} collection={collection} collections={collections} views={views}
                 onChange={(updated) => savePanel(configuredPanel.id, updated)} />
-            </div>
-          </SheetContent>
-        </Sheet>
+            </SettingsBody>
+        </SettingsSheet>
       )}
       {canConfigureLayout && addingModule && createPortal(
         <DashboardAddModule

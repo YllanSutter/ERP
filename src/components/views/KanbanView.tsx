@@ -4,7 +4,7 @@ import { GripHorizontal, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import EditableProperty from '@/components/fields/EditableProperty';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
-import { useCanEdit, useCanEditField, useCanViewField } from '@/lib/hooks/useCanEdit';
+import { useCanEdit, useCanEditFields, useCanViewFields } from '@/lib/hooks/useCanEdit';
 import { getNameValue } from '@/lib/calendarUtils';
 import { compareValues } from '@/lib/utils/sortUtils';
 import { shouldShowColumn } from '@/lib/utils/columnFilterUtils';
@@ -73,8 +73,8 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   const [draggedItem, setDraggedItem] = useState<any>(null);
   // Hooks de permissions
   const canEdit = useCanEdit(collection?.id);
-  const canEditFieldFn = (fieldId: string) => useCanEditField(fieldId, collection?.id);
-  const canViewFieldFn = (fieldId: string) => useCanViewField(fieldId, collection?.id);
+  const canEditFieldFn = useCanEditFields(collection?.id);
+  const canViewFieldFn = useCanViewFields(collection?.id);
   const sharedGrouping = useViewGrouping(
     items,
     groupBy ? [groupBy] : [],

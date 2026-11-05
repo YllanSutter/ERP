@@ -2,31 +2,19 @@ import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Download, FileUp, RefreshCw, RotateCcw, Trash2, Database, Zap, Plus, UserPlus } from 'lucide-react';
 import ShinyButton from '@/components/ui/ShinyButton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SettingsTabs, SettingsTabContent, SettingsSectionTitle } from '@/components/ui/settings-panel';
 import type { AccessContext } from './panelTypes';
 export type DataTransferPanelProps = { context: AccessContext };
 export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
   <div className="min-w-0">
-              <Tabs
+              <SettingsTabs
                 value={context.dataTransferTab}
                 onValueChange={(value) => context.setDataTransferTab(value as 'import-new' | 'import-replace' | 'export')}
-                className="space-y-2"
-              >
-                <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-lg bg-muted p-1">
-                  <TabsTrigger value="import-new" >
-                    Nouvelle organisation
-                  </TabsTrigger>
-                  <TabsTrigger value="import-replace" >
-                    Remplacer des données
-                  </TabsTrigger>
-                  <TabsTrigger value="export" >
-                    Exporter
-                  </TabsTrigger>
-                </TabsList>
+               inline label="Import et export" items={[{id:'import-new',label:'Nouvelle organisation'},{id:'import-replace',label:'Remplacer des données'},{id:'export',label:'Exporter'}]}>
 
-                <TabsContent value="import-new" className="mt-3 rounded-lg border-border p-2">
+                <SettingsTabContent value="import-new">
                   <div className="space-y-2">
-                    <div className="text-sm font-semibold">Créer des organisations depuis un fichier</div>
+                    <SettingsSectionTitle>Créer des organisations depuis un fichier</SettingsSectionTitle>
                     <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-2">
                       Ajoute une ou plusieurs organisations à partir de fichiers JSON/CSV, avec prévisualisation et remapping avant validation.
                     </p>
@@ -59,9 +47,9 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                       </label>
                     </div>
                   </div>
-                </TabsContent>
+                </SettingsTabContent>
 
-                <TabsContent value="import-replace" className="mt-3 rounded-lg border-border p-2">
+                <SettingsTabContent value="import-replace">
                   <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2">
                     <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">Remplacer les données existantes</div>
                     <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-2">
@@ -126,9 +114,9 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                       </label>
                     </div>
                   </div>
-                </TabsContent>
+                </SettingsTabContent>
 
-                <TabsContent value="export" className="mt-3 rounded-lg border-border p-2">
+                <SettingsTabContent value="export">
                   <div className="rounded-lg border border-brand-500/30 bg-brand-500/10 p-2">
                     <div className="text-[11px] font-semibold text-brand-800 dark:text-brand-200 mb-2">EXPORT</div>
                     <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-2">
@@ -248,12 +236,12 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                       </button>
                     </div>
                   </div>
-                </TabsContent>
+                </SettingsTabContent>
 
                 <div className="text-[11px] text-neutral-600 dark:text-neutral-300 text-center max-w-2xl mx-auto mt-3">
                   <span className="font-semibold">Aide rapide :</span> <strong>Importer JSON/CSV</strong> crée de nouvelles organisations (avec remapping),
                   <strong> Import Appstate</strong> remplace des données, <strong>Exports</strong> sert à sauvegarder l'orga active ou tout le global.
                 </div>
-              </Tabs>
+              </SettingsTabs>
             </div>
 );

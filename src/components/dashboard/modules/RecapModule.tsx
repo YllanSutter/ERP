@@ -23,7 +23,7 @@ import {
   isWeekend,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { SettingsDialog, SettingsBody } from '@/components/ui/settings-panel';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CalendarRange } from 'lucide-react';
 import { DashboardModuleConfig, RecapAssignments } from '@/lib/dashboardTypes';
@@ -1509,15 +1509,10 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
         </table>
       </div>
 
-      <Dialog open={!!assignmentCell} onOpenChange={(open) => { if (!open) setAssignmentCell(null); }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Période de rattachement</DialogTitle>
-            <DialogDescription>
-              Choisis la semaine et le mois où l’objet sera compté. Ses dates restent inchangées.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="max-h-[55vh] space-y-3 overflow-auto">
+      <SettingsDialog open={!!assignmentCell} title="Période de rattachement"
+        description="Choisis la semaine et le mois où l’objet sera compté. Ses dates restent inchangées."
+        onOpenChange={(open) => { if (!open) setAssignmentCell(null); }} className="sm:max-w-lg">
+          <SettingsBody className="max-h-[55vh] space-y-3">
             {assignmentCell?.items.map((item) => {
               const { leaf } = assignmentCell;
               const key = getLeafAssignmentKey(leaf, item);
@@ -1544,9 +1539,8 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
                 </div>
               );
             })}
-          </div>
-        </DialogContent>
-      </Dialog>
+          </SettingsBody>
+      </SettingsDialog>
 
       {/* Menu contextuel au clic droit */}
       {contextMenu && (

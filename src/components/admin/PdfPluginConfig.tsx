@@ -1,5 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { SettingsDialog, SettingsBody, SettingsFooter } from '@/components/ui/settings-panel';
 /**
  * Plugin PDF - Écran de configuration (Paramètres → Plugins)
  *
@@ -189,14 +189,10 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
   const currentMapping = config.mappings?.[activeCollectionId] || {};
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
-      <DialogContent className="flex max-h-[90dvh] w-[calc(100%_-_1rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-2xl">
-        <div className="shrink-0 border-b border-border px-6 py-4 pr-12">
-          <DialogTitle>Configuration du plugin PDF</DialogTitle>
-          <DialogDescription className="mt-1">Modèles et correspondance des champs par collection.</DialogDescription>
-        </div>
+    <SettingsDialog open title="Configuration du plugin PDF" description="Modèles et correspondance des champs par collection."
+      onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
 
-        <div className="p-6 space-y-5 overflow-y-auto">
+        <SettingsBody className="space-y-4">
           {/* Modèle PDF */}
           <div>
             <label className="text-sm font-medium mb-2 block">Modèle PDF lié</label>
@@ -373,9 +369,9 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
               <span>{error}</span>
             </div>
           )}
-        </div>
+        </SettingsBody>
 
-        <div className="flex gap-2 px-6 py-4 border-t border-white/10 shrink-0">
+        <SettingsFooter>
           <button
             onClick={onClose}
             className="flex-1 px-4 py-2 rounded bg-white/10 hover:bg-white/20 text-sm font-medium transition"
@@ -390,9 +386,8 @@ export const PdfPluginConfigUI: React.FC<PdfPluginConfigProps> = ({
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             Enregistrer
           </button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </SettingsFooter>
+    </SettingsDialog>
   );
 };
 

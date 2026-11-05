@@ -3,8 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import { X, BarChart2, Table2, Columns, CalendarDays, List, Gauge, LayoutGrid } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { BarChart2, Table2, Columns, CalendarDays, List, Gauge, LayoutGrid } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import {
   DashboardModuleConfig,
@@ -12,6 +11,8 @@ import {
 } from '@/lib/dashboardTypes';
 import { getDashboardModuleOptions } from './dashboardModuleTypes';
 
+import { SettingsDialog, SettingsTabs, SettingsTabContent, SettingsFooter, SettingsSectionTitle } from '@/components/ui/settings-panel';
+import { Button } from '@/components/ui/button';
 import type { ViewDefinition } from '@/lib/views';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -114,37 +115,14 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="font-semibold text-base text-foreground">Ajouter un module</h2>
-          <button onClick={onClose} className="p-1.5 rounded hover:bg-accent text-muted-foreground">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="p-6 space-y-5">
-          {existingViews && (
-            <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
-              <button type="button" aria-pressed={mode === 'module'} onClick={() => setMode('module')}
-                className={`flex-1 rounded-md px-3 py-2 text-sm ${mode === 'module' ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground'}`}>
-                Nouveau module
-              </button>
-              <button type="button" aria-pressed={mode === 'view'} onClick={() => setMode('view')}
-                className={`flex-1 rounded-md px-3 py-2 text-sm ${mode === 'view' ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground'}`}>
-                Vues existantes
-              </button>
-            </div>
-          )}
+    <SettingsDialog open title="Ajouter un module" description="Créer un module ou intégrer une vue existante."
+      onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SettingsTabs value={mode} onValueChange={(value) => setMode(value as 'module' | 'view')}
+        items={existingViews
+          ? [{ id: 'module', label: 'Nouveau module' }, { id: 'view', label: 'Vues existantes' }]
+          : [{ id: 'module', label: 'Nouveau module' }]}>
+        <SettingsTabContent value={mode}>
+          <div className="space-y-4">
           {mode === 'view' ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <Select value={selectedCollection} onValueChange={selectCollection}>
@@ -164,7 +142,7 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
             </div>
           ) : (
             <div>
-              <div className="text-sm font-medium text-foreground mb-3">Type de module</div>
+              <SettingsSectionTitle>Type de module</SettingsSectionTitle>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {getDashboardModuleOptions().filter(([type]) => !excludeLayout || type !== 'layout').map(([type, label]) => (
                   <button
@@ -198,7 +176,7 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
           {/* Collection source */}
           {mode === 'module' && selectedType && collections.length > 0 && (
             <div>
-              <div className="text-sm font-medium text-foreground mb-2">Collection source</div>
+              <SettingsSectionTitle>Collection source</SettingsSectionTitle>
               <div className="grid grid-cols-2 gap-2">
                 {collections.map((col) => (
                   <button
@@ -219,25 +197,16 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
             </div>
           )}
 
-          {/* Bouton ajouter */}
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:bg-accent"
-            >
-              Annuler
-            </button>
-            <button
-              onClick={handleAdd}
-              disabled={mode === 'view' ? !selectedView : !selectedType}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {mode === 'view' ? 'Ajouter la vue' : 'Ajouter le module'}
-            </button>
           </div>
-        </div>
-      </motion.div>
-    </div>
+        </SettingsTabContent>
+      </SettingsTabs>
+      <SettingsFooter>
+        <Button type="button" variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
+        <Button type="button" size="sm" onClick={handleAdd} disabled={mode === 'view' ? !selectedView : !selectedType}>
+          {mode === 'view' ? 'Ajouter la vue' : 'Ajouter le module'}
+        </Button>
+      </SettingsFooter>
+    </SettingsDialog>
   );
 };
 

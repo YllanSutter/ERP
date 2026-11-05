@@ -3,7 +3,7 @@ import type { ViewDefinition } from '@/lib/views';
 import { getViewRegistration } from '@/lib/views';
 import { getOrderedProperties } from '@/lib/filterUtils';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SettingsSelect, SettingsLabel } from '@/components/ui/settings-panel';
 import ModulePeriodSelect from '@/components/dashboard/ModulePeriodSelect';
 import LayoutPanelsEditor, { type LayoutPanelConfig } from './LayoutPanelsEditor';
 
@@ -30,25 +30,21 @@ export default function LayoutPanelSettings({ panel, collection, collections, vi
           ? { ...next, dateField: undefined, viewSettings: undefined }
           : next))} />
       <label className="grid gap-1 text-xs font-medium">
-        Titre du panneau
+        <SettingsLabel>Titre du panneau</SettingsLabel>
         <Input className="h-8" placeholder={view?.name ?? 'Nom de la vue'} value={panel.title ?? ''}
           onChange={(event) => onChange({ ...panel, title: event.target.value })} />
       </label>
       <div className="space-y-1">
-        <p className="text-xs font-medium">Période du panneau</p>
+        <SettingsLabel>Période du panneau</SettingsLabel>
         <ModulePeriodSelect inherit value={panel.period} onChange={(period) => onChange({ ...panel, period })} />
       </div>
       {dateFields.length > 0 && (
         <div className="space-y-1">
-          <p className="text-xs font-medium">Champ date de la période</p>
-          <Select value={panel.dateField || '__auto__'} onValueChange={(value) =>
-            onChange({ ...panel, dateField: value === '__auto__' ? undefined : value })}>
-            <SelectTrigger aria-label="Champ date de la période" className="h-8"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__auto__">Champ date de la vue</SelectItem>
-              {dateFields.map(({ id, name }) => <SelectItem key={id} value={id}>{name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <SettingsLabel>Champ date de la période</SettingsLabel>
+          <SettingsSelect value={panel.dateField ?? ''} aria-label="Champ date de la période"
+            onChange={(value) => onChange({ ...panel, dateField: value || undefined })}
+            options={[{ value: '', label: 'Champ date de la vue' }, ...dateFields.map(({ id, name }) => ({ value: id, label: name }))]} />
+
         </div>
       )}
       {Settings && source && view && (

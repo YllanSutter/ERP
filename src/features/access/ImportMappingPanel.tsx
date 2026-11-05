@@ -2,7 +2,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import React from 'react';
 import { ArrowLeft, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SettingsTabs, SettingsTabContent } from '@/components/ui/settings-panel';
 import type { AccessContext } from './panelTypes';
 export type ImportMappingPanelProps = { context: AccessContext };
 export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
@@ -15,21 +15,15 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
       <h3 className="font-semibold">Préparer l’import</h3>
       <p className="mt-1 text-sm text-muted-foreground">Vérifiez les collections et les champs avant de créer les organisations.</p>
     </div>
-                  <Tabs
-                    value={context.importMapperTab}
+                  <SettingsTabs inline value={context.importMapperTab}
                     onValueChange={(value) => context.setImportMapperTab(value as 'mapping' | 'diagnostics')}
-                    className="space-y-2"
-                  >
-                    <TabsList className="grid w-full grid-cols-2 h-auto gap-2 bg-transparent p-0">
-                      <TabsTrigger value="mapping" className="border border-brand-500/30 data-[state=active]:bg-brand-600 data-[state=active]:text-white">
-                        Champs et relations
-                      </TabsTrigger>
-                      <TabsTrigger value="diagnostics" className="border border-amber-500/30 data-[state=active]:bg-amber-600 data-[state=active]:text-white">
-                        Diagnostics ({context.importMappingDiagnostics.errors.length} / {context.importMappingDiagnostics.warnings.length})
-                      </TabsTrigger>
-                    </TabsList>
+                    items={[
+                      { id: 'mapping', label: 'Champs et relations' },
+                      { id: 'diagnostics', label: `Diagnostics (${context.importMappingDiagnostics.errors.length} / ${context.importMappingDiagnostics.warnings.length})` },
+                    ]}>
 
-                    <TabsContent value="diagnostics" className="mt-0 space-y-2 p-2">
+
+                    <SettingsTabContent value="diagnostics">
                       <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2">
                         <div className="text-xs text-neutral-700 dark:text-neutral-300 mb-2">
                           Corrigez d’abord les erreurs bloquantes, puis utilisez l’import final.
@@ -156,9 +150,9 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                           </div>
                         </div>
                       )}
-                    </TabsContent>
+                    </SettingsTabContent>
 
-                    <TabsContent value="mapping" className="mt-0 space-y-2 p-2">
+                    <SettingsTabContent value="mapping">
                       {context.importPreviewOrganizations.map((org: any, orgIdx: number) => {
                         const orgCollections = Array.isArray(org?.state?.collections) ? org.state.collections : [];
                         return (
@@ -192,24 +186,17 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                                   Aucune collection détectée pour cette organisation.
                                 </div>
                               ) : (
-                                <Tabs defaultValue={`col-${orgIdx}-0`} className="space-y-2">
-                                  <TabsList className="w-full justify-start overflow-x-auto flex-nowrap bg-transparent p-0 gap-2">
-                                    {orgCollections.map((col: any, colIdx: number) => (
-                                      <TabsTrigger
-                                        key={`org-${orgIdx}-tab-${colIdx}`}
-                                        value={`col-${orgIdx}-${colIdx}`}
-                                        className="border border-brand-500/30 data-[state=active]:bg-brand-600 data-[state=active]:text-white whitespace-nowrap"
-                                      >
-                                        {col?.name || `Collection ${colIdx + 1}`}
-                                      </TabsTrigger>
-                                    ))}
-                                  </TabsList>
+                                <SettingsTabs inline defaultValue={`col-${orgIdx}-0`}
+                                  items={orgCollections.map((collection: any, index: number) => ({
+                                    id: `col-${orgIdx}-${index}`, label: collection?.name || `Collection ${index + 1}`,
+                                  }))}>
+
 
                                   {orgCollections.map((col: any, colIdx: number) => {
                                     const properties = Array.isArray(col?.properties) ? col.properties : [];
                                     const targetCollections = orgCollections.map((c: any) => ({ id: c.id, name: c.name || c.id }));
                                     return (
-                                      <TabsContent key={`org-${orgIdx}-content-${colIdx}`} value={`col-${orgIdx}-${colIdx}`} className="mt-0">
+                                      <SettingsTabContent key={`org-${orgIdx}-content-${colIdx}`} value={`col-${orgIdx}-${colIdx}`}>
                                         <div className="rounded-lg border border-black/10 dark:border-white/10 p-2 space-y-2">
                                           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-1">
                                             <div>
@@ -474,17 +461,17 @@ export const ImportMappingPanel = ({ context }: ImportMappingPanelProps) => (
                                             </div>
                                           </div>
                                         </div>
-                                      </TabsContent>
+                                      </SettingsTabContent>
                                     );
                                   })}
-                                </Tabs>
+                                </SettingsTabs>
                               )}
                             </div>
                           </div>
                         );
                       })}
-                    </TabsContent>
-                  </Tabs>
+                    </SettingsTabContent>
+                  </SettingsTabs>
 
                 <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border py-2">
                   <button

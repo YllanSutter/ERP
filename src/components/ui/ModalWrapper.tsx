@@ -1,20 +1,20 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
 import { Trash2 } from 'lucide-react';
-import ShinyButton from '@/components/ui/ShinyButton';
+import { Button } from './button';
 import IconPicker from '@/components/inputs/IconPicker';
 import ColorPicker from '@/components/inputs/ColorPicker';
 import { cn } from '@/lib/utils';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Input } from './input';
+import { SettingsDialog, SettingsBody, SettingsFooter, SettingsSection, SettingsSectionTitle, SettingsLabel, SettingsHint, SettingsSelect, type SettingsSelectOption, type SettingsSelectProps } from './settings-panel';
 import { Type, Hash, ChevronDown, ListChecks, Calendar, CalendarRange, ToggleLeft, Link, Mail, Phone, GitMerge, AlignLeft } from 'lucide-react';
 
 // ─── Modal shell ──────────────────────────────────────────────────────────────
 
 const SIZE_CLS = {
-  sm: 'w-full max-w-sm',
-  md: 'w-full max-w-lg',
-  lg: 'w-full max-w-2xl',
+  sm: 'sm:max-w-sm',
+  md: 'sm:max-w-lg',
+  lg: 'sm:max-w-2xl',
 };
 
 interface ModalWrapperProps {
@@ -46,76 +46,30 @@ const ModalWrapper: React.FC<ModalWrapperProps> = ({
   zIndex = 200,
   embedded = false,
 }) => {
-  const titleEl = typeof title === 'string'
-    ? <h3 className="text-lg font-semibold">{title}</h3>
-    : title;
-
+  const actions = onSave && (
+    <SettingsFooter className={embedded ? 'settings-footer-inset sticky bottom-0' : undefined}>
+      <Button type="button" variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
+      {extraActions}
+      <Button type="button" size="sm" onClick={onSave} disabled={!canSave}>{saveLabel}</Button>
+    </SettingsFooter>
+  );
   if (embedded) {
     return (
-      <>
-        <div className="px-1 py-2">
-          {titleEl}
-          {children}
-        </div>
-        {onSave && (
-          <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-border bg-background py-2">
-            <button type="button" onClick={onClose} className="rounded px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent">
-              Annuler
-            </button>
-            {extraActions}
-            <button type="button" onClick={onSave} disabled={!canSave} className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50">
-              {saveLabel}
-            </button>
-          </div>
-        )}
-      </>
+      <div className="settings-surface">
+        {typeof title === 'string' ? <SettingsSectionTitle>{title}</SettingsSectionTitle> : title}
+        {children}
+        {actions}
+      </div>
     );
   }
-
   return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center px-4"
-      style={{ zIndex }}
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className={cn(
-          'bg-gray-200 dark:bg-neutral-900/90 border border-black/10 dark:border-white/10 rounded-2xl max-h-[85vh] overflow-y-auto backdrop-blur',
-          SIZE_CLS[size],
-          className
-        )}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="px-6 pt-6 pb-4 border-b border-black/10 dark:border-white/10">
-          {titleEl}
-        </div>
-        <div className="px-6 pt-5 pb-2">
-          {children}
-        </div>
-        {onSave && (
-          <div className="flex items-center gap-3 px-6 py-4 border-t border-black/10 dark:border-white/10">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
-            >
-              Annuler
-            </button>
-            {extraActions}
-            <div className="flex-1" />
-            <ShinyButton
-              onClick={onSave}
-              disabled={!canSave}
-              className={cn('px-6', !canSave && 'opacity-60 pointer-events-none')}
-            >
-              {saveLabel}
-            </ShinyButton>
-          </div>
-        )}
-      </motion.div>
-    </div>
+    <SettingsDialog open title={title} layer={zIndex}
+      onOpenChange={(open) => { if (!open) onClose(); }} className={cn(SIZE_CLS[size], className)}>
+      <SettingsBody>{children}</SettingsBody>
+      {actions}
+    </SettingsDialog>
   );
+
 };
 
 export default ModalWrapper;
@@ -137,15 +91,6 @@ export const BUILTIN_PROPERTY_TYPES = [
   { value: 'rich_text',    label: 'Texte riche', icon: AlignLeft },
 ];
 
-export interface FormSelectOption {
-  value: string;
-  label: string;
-  icon?: React.ComponentType<{ size?: number; className?: string }>;
-}
-
-const INPUT_CLS = 'w-full px-4 py-2 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white focus:border-brand-500 focus:outline-none';
-const LABEL_CLS = 'block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2';
-
 interface FormFieldProps {
   label: string;
   hint?: string;
@@ -156,7 +101,7 @@ interface FormFieldProps {
 /** Bloc label + contenu + hint optionnel */
 export const FormField: React.FC<FormFieldProps> = ({ label, hint, children, className }) => (
   <div className={className}>
-    <label className={LABEL_CLS}>{label}</label>
+    <label className="mb-1"><SettingsLabel>{label}</SettingsLabel></label>
     {children}
     {hint && <FormHint>{hint}</FormHint>}
   </div>
@@ -164,58 +109,23 @@ export const FormField: React.FC<FormFieldProps> = ({ label, hint, children, cla
 
 /** Input texte stylisé */
 export const FormInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = ({ className, ...props }) => (
-  <input {...props} className={cn(INPUT_CLS, className)} />
+  <Input {...props} className={cn('settings-control', className)} />
 );
 
-const SELECT_TRIGGER_CLS = 'w-full h-9 px-3 py-2 bg-gray-200 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white text-sm shadow-none focus:ring-1 focus:ring-brand-500';
+export type FormSelectOption = SettingsSelectOption;
+type FormSelectProps = SettingsSelectProps;
 
-const EMPTY_SENTINEL = '__FORM_SELECT_EMPTY__';
-
-interface FormSelectProps {
-  value: string | number;
-  onChange: (value: string) => void;
-  options: FormSelectOption[];
-  className?: string;
-  disabled?: boolean;
-}
-
-/** Select Radix UI stylisé — remplace le select natif dans toutes les modales */
-export const FormSelect: React.FC<FormSelectProps> = ({ value, onChange, options, className, disabled }) => {
-  const strVal = String(value ?? '');
-  const radixVal = strVal === '' ? EMPTY_SENTINEL : strVal;
-  const currentOpt = options.find(o => o.value === strVal);
-  const Icon = currentOpt?.icon;
-
-  return (
-    <Select value={radixVal} onValueChange={(v) => onChange(v === EMPTY_SENTINEL ? '' : v)} disabled={disabled}>
-      <SelectTrigger className={cn(SELECT_TRIGGER_CLS, className)}>
-        <span className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-          {Icon && <Icon size={13} className="shrink-0 opacity-70" />}
-          <SelectValue className="min-w-0 truncate">{currentOpt?.label}</SelectValue>
-        </span>
-      </SelectTrigger>
-      <SelectContent>
-        {options.map(({ value: v, label, icon: OptIcon }) => (
-          <SelectItem key={v === '' ? EMPTY_SENTINEL : v} value={v === '' ? EMPTY_SENTINEL : v}>
-            <span className="flex min-w-0 items-center gap-2">
-              {OptIcon && <OptIcon size={13} className="shrink-0 opacity-70" />}
-              <span className="min-w-0 truncate">{label}</span>
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-};
+/** Compatibility entry point; all settings select styling lives in SettingsSelect. */
+export const FormSelect: React.FC<FormSelectProps> = (props) => <SettingsSelect {...props} />;
 
 /** Texte d'aide sous un champ */
 export const FormHint: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
-  <p className={cn('text-xs text-neutral-500 mt-1', className)}>{children}</p>
+  <SettingsHint className={className}>{children}</SettingsHint>
 );
 
 /** Input date stylisé */
 export const FormDateInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = ({ className, ...props }) => (
-  <input type="date" {...props} className={cn(INPUT_CLS, className)} />
+  <Input type="date" {...props} className={cn('settings-control', className)} />
 );
 
 /** Bloc de section avec titre */
@@ -226,14 +136,9 @@ interface FormSectionProps {
   action?: React.ReactNode;
 }
 export const FormSection: React.FC<FormSectionProps> = ({ title, children, className, action }) => (
-  <div className={cn('bg-black/5 dark:bg-white/5 rounded-xl p-4', className)}>
-    <div className="flex items-center justify-between mb-3">
-      <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">{title}</p>
-      {action}
-    </div>
-    {children}
-  </div>
+  <SettingsSection title={title} className={className} action={action}>{children}</SettingsSection>
 );
+
 
 interface FormCheckboxProps {
   label: React.ReactNode;
@@ -325,7 +230,7 @@ export const FormNameInput: React.FC<FormNameInputProps> = ({
   return (
     <div className="relative">
       {label && (
-        <label className={LABEL_CLS}>{label}{required && ' *'}</label>
+        <label className="settings-label mb-1">{label}{required && ' *'}</label>
       )}
       <div className="flex items-stretch rounded-lg border border-black/10 dark:border-white/10 focus-within:border-brand-500 bg-gray-300 dark:bg-neutral-800/50 transition-colors">
         <button
@@ -413,18 +318,14 @@ interface FormTabsProps {
 
 /** Barre d'onglets pour les modales multi-sections */
 export const FormTabs: React.FC<FormTabsProps> = ({ tabs, active, onChange, className }) => (
-  <div className={cn('flex gap-0.5 border-b border-black/10 dark:border-white/10 -mx-6 px-6 mb-5', className)}>
+  <div className={cn('settings-tabs-list', className)}>
     {tabs.map(tab => (
       <button
         key={tab.id}
         type="button"
         onClick={() => onChange(tab.id)}
-        className={cn(
-          'px-3 py-1.5 text-sm font-medium border-b-2 -mb-px transition-colors',
-          active === tab.id
-            ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-            : 'border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
-        )}
+        data-state={active === tab.id ? 'active' : 'inactive'}
+        className="settings-tab-trigger"
       >
         {tab.label}
       </button>

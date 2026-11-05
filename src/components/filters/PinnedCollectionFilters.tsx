@@ -1,7 +1,7 @@
 import { Globe, PinOff, Plus, Settings2 } from 'lucide-react';
 import { useState } from 'react';
 import FilterModal from '@/components/modals/FilterModal';
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
+import { SettingsSheet, SettingsBody } from '@/components/ui/settings-panel';
 import type { Collection, CollectionFilter } from '@/lib/types';
 import { COMPACT_OPERATOR_LABELS } from '@/components/modals/modalLib';
 import { getOrderedProperties } from '@/lib/filterUtils';
@@ -80,12 +80,10 @@ export default function PinnedCollectionFilters({ collection, collections, canEd
           <IconButton label="Ajouter un filtre global à la collection" className="h-7 w-7" onClick={() => setEditor('new')}>
             <Plus size={15} />
           </IconButton>
-          <Sheet open={editor !== null} onOpenChange={(open) => { if (!open) setEditor(null); }}>
-            <SheetContent side="right" overlayClassName="z-[309] bg-transparent" className="z-[310] flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-              <SheetTitle className="border-b px-4 py-3 pr-10 text-sm">Filtre global · {collection.name}</SheetTitle>
-              <SheetDescription className="sr-only">Ce filtre s’applique à toutes les vues de la collection.</SheetDescription>
+          <SettingsSheet nested open={editor !== null} onOpenChange={(open) => { if (!open) setEditor(null); }}
+            title={`Filtre global · ${collection.name}`} description="Ce filtre s’applique à toutes les vues de la collection.">
               {editor !== null && (
-                <div className="min-h-0 overflow-y-auto p-3">
+                <SettingsBody>
                   <FilterModal key={editor} embedded globalFilter scopeCollectionName={collection.name} properties={collection.properties} collections={collections}
                     initialFilter={editor === 'new' ? null : filters[editor]}
                     onClose={() => setEditor(null)}
@@ -93,10 +91,9 @@ export default function PinnedCollectionFilters({ collection, collections, canEd
                       onSave(editor === 'new' ? null : editor, { property, operator, value, sourceCollectionId, ...meta });
                       setEditor(null);
                     }} />
-                </div>
+                </SettingsBody>
               )}
-            </SheetContent>
-          </Sheet>
+          </SettingsSheet>
         </>
       )}
     </div>

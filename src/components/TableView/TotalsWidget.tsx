@@ -1,4 +1,5 @@
 import React from 'react';
+import { SettingsBody, SettingsSectionTitle, SettingsHint } from '@/components/ui/settings-panel';
 import {
   LineChart, Line, CartesianGrid, XAxis, YAxis, Cell, ResponsiveContainer,
   PieChart, Pie, Tooltip as RechartsTooltip,
@@ -1051,15 +1052,13 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
       </div>
 
       {expanded && settingsPanelOpen && (
-        <div className="border-b border-slate-200 dark:border-white/[0.05] bg-slate-50/80 dark:bg-white/[0.02] px-4 py-3">
+        <SettingsBody className="settings-surface border-b border-border">
           <div className="flex items-center justify-between gap-3 mb-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-neutral-500">
-                Champs visibles
-              </p>
-              <p className="text-[11px] text-slate-500 dark:text-neutral-600 mt-0.5">
+              <SettingsSectionTitle>Champs visibles</SettingsSectionTitle>
+              <SettingsHint>
                 Affiche, masque et réorganise les totaux sans toucher aux données.
-              </p>
+              </SettingsHint>
             </div>
             <button
               type="button"
@@ -1121,7 +1120,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
               );
             })}
           </div>
-        </div>
+        </SettingsBody>
       )}
 
       {/* ── Onglet niveau (Vue d'ensemble / Année / Mois / Bundle…) ─────── */}

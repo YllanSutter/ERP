@@ -3,7 +3,8 @@ import { Calendar } from 'lucide-react';
 import MonthView from '../CalendarView/MonthView';
 import WeekView from '../CalendarView/WeekView';
 import { MONTH_NAMES, getCalendarEventColors, getMonday, getPreviousPeriod, getNextPeriod } from '@/lib/calendarUtils';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { SettingsPopoverContent, SettingsBody } from '@/components/ui/settings-panel';
+import { Popover, PopoverTrigger } from '@/components/ui/popover';
 import { 
   moveAllSegmentsOfItem, 
   updateSegmentInItem,
@@ -383,19 +384,12 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
                       <Calendar size={18} />
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent
-                    align="start"
-                    sideOffset={8}
-                    className="w-[min(90vw,26rem)] rounded-xl border border-black/10 dark:border-white/10 bg-background dark:bg-neutral-950/95 p-4 shadow-xl backdrop-blur"
-                  >
-                    <div className="space-y-3">
-                      <div>
-                        <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-100">Options du calendrier</div>
-                        <div className="text-xs text-neutral-500 dark:text-neutral-400">Choisis l’affichage et le mode de déplacement.</div>
-                      </div>
+                  <SettingsPopoverContent align="start" sideOffset={8} title="Options du calendrier"
+                    description="Choisis l’affichage et le mode de déplacement.">
+                    <SettingsBody>
                       {calendarOptions}
-                    </div>
-                  </PopoverContent>
+                    </SettingsBody>
+                  </SettingsPopoverContent>
                 </Popover>
               ) : (
                 calendarOptions

@@ -1,14 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Settings2, Trash2 } from 'lucide-react';
 import type { ViewSettingsProps } from '@/lib/views';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
+import { SettingsSelect as SharedSettingsSelect, SettingsLabel, SettingsToggle } from '@/components/ui/settings-panel';
 import LayoutPanelsEditor from './LayoutPanelsEditor';
 import LayoutPanelSettings from './LayoutPanelSettings';
 import { getLayoutEntries, moveLayoutEntry } from './layoutOrder';
@@ -17,9 +10,6 @@ import { MODULE_TYPE_LABELS } from '@/lib/dashboardTypes';
 import { getViewRegistration } from '@/lib/views';
 import { IconButton } from '@/components/ui/icon-button';
 
-const fieldClassName =
-  'h-8 min-w-0 rounded-md border border-black/10 bg-white/70 px-2.5 text-xs text-neutral-800 outline-none transition-colors hover:border-brand-400/60 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200';
-const labelClassName = 'text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400';
 const fieldOptions = (properties: ViewSettingsProps['properties'], types: string[]) =>
   properties.filter((property) => types.includes(property.type));
 
@@ -30,34 +20,11 @@ const SettingsSelect: React.FC<{
   onChange: (value: string) => void;
 }> = ({ label, value, options, onChange }) => (
   <label className="grid gap-1 text-xs">
-    <span className={labelClassName}>{label}</span>
-    <Select
-      value={value || '__none__'}
-      onValueChange={(nextValue) => onChange(nextValue === '__none__' ? '' : nextValue)}
-    >
-      <SelectTrigger className={fieldClassName}>
-        <SelectValue placeholder="Aucun" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="__none__">Aucun</SelectItem>
-        {options.filter((option) => option.value).map((option) => (
-          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <SettingsLabel>{label}</SettingsLabel>
+    <SharedSettingsSelect value={value} onChange={onChange} options={options.filter((option) => option.value)} placeholder="Aucun" aria-label={label} />
   </label>
 );
 
-const SettingsToggle: React.FC<{
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}> = ({ label, checked, onChange }) => (
-  <label className="flex min-h-8 cursor-pointer items-center justify-between gap-3 rounded-md border border-black/10 bg-white/40 px-2.5 text-xs dark:border-white/10 dark:bg-white/[0.03]">
-    <span className="text-neutral-700 dark:text-neutral-300">{label}</span>
-    <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
-  </label>
-);
 
 export const TableViewSettings: React.FC<ViewSettingsProps> = ({ view, onUpdate }) => (
   <div className="grid gap-2 sm:grid-cols-2">

@@ -9,8 +9,7 @@ import { cn } from '@/lib/utils';
 import { DATE_GRANULARITIES, getPluginPropertyTypeOptions } from '@/components/modals/modalLib';
 import { useAuth } from '@/auth/AuthProvider';
 import { getSelectionLimit } from '@/lib/utils/selectionLimit';
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SettingsSheet, SettingsTabs, SettingsTabContent, SettingsFooter, SettingsLabel } from '@/components/ui/settings-panel';
 import { Button } from '@/components/ui/button';
 
 const LazyRichTextEditor = React.lazy(() => import('@/components/fields/RichTextEditor'));
@@ -217,27 +216,15 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
     onSave(savedProperty);
   };
 
-  const TinyLabel = ({ children }: { children: React.ReactNode }) => (
-    <label className="block text-xs text-neutral-500 mb-1">{children}</label>
-  );
+  const TinyLabel = SettingsLabel;
 
   return (
-    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <SheetContent side="right" overlayClassName="z-[299] bg-transparent"
-        className="z-[300] flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        <div className="border-b border-border px-4 py-3 pr-10">
-          <SheetTitle className="text-sm">{isEditing ? 'Modifier la propriété' : 'Nouvelle propriété'}</SheetTitle>
-          <SheetDescription className="mt-1 truncate text-xs">{name.trim() || 'Configure le champ et ses valeurs.'}</SheetDescription>
-        </div>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
-          <TabsList className="mx-3 mt-2 flex h-auto shrink-0 flex-wrap rounded-lg border border-border bg-muted/50 p-0.5">
-            {tabs.map(({ id, label, Icon }) => (
-              <TabsTrigger key={id} value={id} className="flex-1 gap-1.5 px-2 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                <Icon size={13} aria-hidden="true" />{label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          <TabsContent value={activeTab} className="property-settings m-0 min-h-0 flex-1 overflow-y-auto border-0 p-4">
+    <SettingsSheet open wide onOpenChange={(open) => { if (!open) onClose(); }}
+      title={isEditing ? 'Modifier la propriété' : 'Nouvelle propriété'}
+      description={name.trim() || 'Configure le champ et ses valeurs.'}>
+        <SettingsTabs value={activeTab} onValueChange={setActiveTab}
+          items={tabs.map(({ id, label, Icon }) => ({ id, label, icon: Icon }))}>
+          <SettingsTabContent value={activeTab}>
       {/* ── Onglet Infos ───────────────────────────────────────────────────── */}
       {activeTab === 'infos' && (
         <div className="space-y-4">
@@ -660,16 +647,15 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
           <FormHint className="ml-6">Au clic droit sur les objets</FormHint>
         </div>
       )}
-          </TabsContent>
-        </Tabs>
-        <div className="flex shrink-0 justify-end gap-2 border-t border-border bg-background px-4 py-3">
+          </SettingsTabContent>
+        </SettingsTabs>
+        <SettingsFooter>
           <Button type="button" variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
           <Button type="button" size="sm" disabled={!name.trim() || !validSelectionLimit} onClick={handleSave}>
             {isEditing ? 'Enregistrer' : 'Créer la propriété'}
           </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+        </SettingsFooter>
+    </SettingsSheet>
   );
 };
 

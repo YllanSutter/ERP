@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { SettingsLabel } from './settings-panel';
 import { cn } from '@/lib/utils';
 
 interface SettingsFieldProps {
@@ -11,7 +12,7 @@ interface SettingsFieldProps {
 function SettingsField({ label, children, className, labelClassName }: SettingsFieldProps) {
   return (
     <label className={cn('block space-y-1', className)}>
-      <span className={cn('block text-[10px] font-medium uppercase tracking-wide text-muted-foreground', labelClassName)}>{label}</span>
+      <SettingsLabel className={labelClassName}>{label}</SettingsLabel>
       {children}
     </label>
   );

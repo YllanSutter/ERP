@@ -4,12 +4,11 @@ import { Clock3, KeyRound, Palette, Search, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SettingsSection } from '@/components/ui/settings-panel';
 import type { AccessContext } from './panelTypes';
 
 const selectClass = 'h-8 min-w-0 bg-background';
-const fieldClass = 'grid min-w-0 gap-1 text-sm font-medium text-foreground';
-const panelClass = 'min-w-0 overflow-hidden rounded-lg border border-border bg-card';
-const headingClass = 'flex items-center gap-2 border-b border-border bg-muted/60 px-3 py-1.5 text-sm font-semibold [&_svg]:text-brand-700 dark:[&_svg]:text-brand-300';
+const fieldClass = 'settings-label grid min-w-0 gap-1';
 const timeFields = [
   ['workStart', 'Début de journée'],
   ['workEnd', 'Fin de journée'],
@@ -54,9 +53,8 @@ export const UsersPanel = ({ context }: { context: AccessContext }) => {
             </div>
           </section>
 
-          <section className={panelClass}>
-            <h3 className={headingClass} title={`Connexion : ${selected.provider || 'locale'}`}><KeyRound size={15} aria-hidden="true" /> Sécurité du compte</h3>
-            <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+          <SettingsSection title="Sécurité du compte" icon={KeyRound}>
+            <div className="flex flex-wrap items-center gap-2">
               {context.isLocal && (
                 <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:min-w-64 sm:flex-1">
                   <label className="min-w-36 flex-1 sm:max-w-sm">
@@ -68,15 +66,14 @@ export const UsersPanel = ({ context }: { context: AccessContext }) => {
               )}
               <Button type="button" variant="ghost" size="sm" className="text-red-600 hover:text-red-700 dark:text-red-400" disabled={context.busy || context.isSelf} onClick={() => context.deleteUser(selected.id, selected.email)}>Supprimer le compte</Button>
             </div>
-          </section>
+          </SettingsSection>
 
           <div>
             {!isMember && <p className="mb-2 text-sm text-muted-foreground">Ajoutez cet utilisateur à l’organisation pour modifier ses préférences.</p>}
             <fieldset disabled={!isMember} className="grid min-w-0 gap-2 lg:grid-cols-2">
               <legend className="sr-only">Préférences et horaires</legend>
-              <section className={panelClass}>
-                <h3 className={headingClass}><Palette size={15} aria-hidden="true" /> Préférences d’interface</h3>
-                <div className="grid gap-2 px-3 py-2 sm:grid-cols-2">
+              <SettingsSection title="Préférences d’interface" icon={Palette}>
+                <div className="grid gap-2 sm:grid-cols-2">
                   <label className={fieldClass}>
                     Densité
                     <Select disabled={!isMember} value={preferences.density} onValueChange={(value) => context.updateUserPreferencesDraft(selected.id, { density: value })}>
@@ -106,17 +103,16 @@ export const UsersPanel = ({ context }: { context: AccessContext }) => {
                     Notifications par défaut
                   </label>
                 </div>
-              </section>
-              <section className={panelClass}>
-                <h3 className={headingClass}><Clock3 size={15} aria-hidden="true" /> Horaires de travail</h3>
-                <div className="grid grid-cols-2 gap-2 px-3 py-2">
+              </SettingsSection>
+              <SettingsSection title="Horaires de travail" icon={Clock3}>
+                <div className="grid grid-cols-2 gap-2">
                   {timeFields.map(([key, label]) => (
                     <label key={key} className={fieldClass}>{label}
                       <Input className="h-8 min-w-0" type="time" value={preferences[key]} onChange={(event) => context.updateUserPreferencesDraft(selected.id, { [key]: event.target.value })} />
                     </label>
                   ))}
                 </div>
-              </section>
+              </SettingsSection>
             </fieldset>
           </div>
         </div>
