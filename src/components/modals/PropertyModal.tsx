@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import ModalWrapper, { FormField, FormInput, FormSelect, FormHint, FormCheckbox, FormNameInput, FormTabs, BUILTIN_PROPERTY_TYPES } from '@/components/ui/ModalWrapper';
+import { FormField, FormInput, FormSelect, FormHint, FormCheckbox, FormNameInput, BUILTIN_PROPERTY_TYPES } from '@/components/ui/ModalWrapper';
 import OptionListEditor from '@/components/inputs/OptionListEditor';
 import * as Icons from 'lucide-react';
 import { OptionType } from '@/components/inputs/LightSelect';
 import EditableProperty from '@/components/fields/EditableProperty';
-import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
+import FilterOptionPicker from '@/components/filters/FilterOptionPicker';
+import { cn } from '@/lib/utils';
 import { DATE_GRANULARITIES, getPluginPropertyTypeOptions } from '@/components/modals/modalLib';
 import { useAuth } from '@/auth/AuthProvider';
-import { cn } from '@/lib/utils';
+import { getSelectionLimit } from '@/lib/utils/selectionLimit';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 
 const LazyRichTextEditor = React.lazy(() => import('@/components/fields/RichTextEditor'));
 
@@ -23,6 +27,7 @@ interface PropertyModalProps {
 const TYPE_CONFIG_LABEL: Record<string, string> = {
   select: 'Options',
   multi_select: 'Options',
+  multiselect: 'Options',
   date: 'Date',
   date_range: 'Date',
   relation: 'Relation',
@@ -43,9 +48,10 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const [type, setType] = useState(property?.type || 'text');
   const [icon, setIcon] = useState(property?.icon || 'Tag');
   const [color, setColor] = useState(property?.color || '#8b5cf6');
+  const [maxValues, setMaxValues] = useState(property?.maxValues != null ? String(property.maxValues) : '');
   const [options, setOptions] = useState<OptionType[]>(property?.options || []);
   const [relationTarget, setRelationTarget] = useState(property?.relation?.targetCollectionId || '');
-  const [relationType, setRelationType] = useState(property?.relation?.type || 'many_to_many');
+  const [relationType, setRelationType] = useState((property?.relation?.type || 'many_to_many').replace(/-/g, '_'));
   const [relationMaxVisible, setRelationMaxVisible] = useState(
     property?.relation?.maxVisible != null ? String(property.relation.maxVisible) : ''
   );
@@ -77,7 +83,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const [pluginPropertyTypeLabels, setPluginPropertyTypeLabels] = useState<Record<string, string>>({});
 
   // Onglet actif
-  const [activeTab, setActiveTab] = useState<string>('infos');
+  const [activeTab, setActiveTab] = useState<string>(isEditing && TYPE_CONFIG_LABEL[property?.type] ? 'config' : 'infos');
 
   useEffect(() => {
     let cancelled = false;
@@ -108,10 +114,10 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const configLabel = TYPE_CONFIG_LABEL[type];
 
   const tabs = [
-    { id: 'infos', label: 'Infos' },
-    ...(configLabel ? [{ id: 'config', label: configLabel }] : []),
-    { id: 'templates', label: 'Templates' },
-    { id: 'avance', label: 'Avancé' },
+    { id: 'infos', label: 'Général', Icon: Icons.SlidersHorizontal },
+    ...(configLabel ? [{ id: 'config', label: configLabel, Icon: Icons.ListChecks }] : []),
+    { id: 'templates', label: 'Valeurs par défaut', Icon: Icons.WandSparkles },
+    { id: 'avance', label: 'Avancé', Icon: Icons.Settings2 },
   ];
 
   // Si on change de type et que l'onglet 'config' disparaît, revenir sur 'infos'
@@ -122,7 +128,23 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
     }
   };
 
+  const supportsValueLimit = ['multi_select', 'multiselect', 'relation'].includes(type);
+  const singleRelation = type === 'relation' && !['one_to_many', 'many_to_many'].includes(relationType);
+  const effectiveMaxValues = singleRelation ? '1' : maxValues;
+  const selectionLimit = getSelectionLimit(effectiveMaxValues);
+  const validSelectionLimit = !supportsValueLimit || effectiveMaxValues === '' || selectionLimit !== undefined;
+  const valueLimitField = supportsValueLimit && (
+    <FormField label={type === 'relation' ? 'Nombre maximum de liens' : 'Nombre maximum de valeurs'}
+      hint={singleRelation ? 'Une relation simple permet un seul lien.' : 'Vide pour illimité. Avec 1, un nouveau choix remplace le précédent.'}>
+      <FormInput type="number" aria-label={type === 'relation' ? 'Nombre maximum de liens' : 'Nombre maximum de valeurs'}
+        min={1} step={1} value={effectiveMaxValues} disabled={singleRelation}
+        placeholder="Illimité" onChange={(event) => setMaxValues(event.target.value)} />
+      {!validSelectionLimit && <FormHint>Choisis un nombre entier supérieur ou égal à 1.</FormHint>}
+    </FormField>
+  );
+
   const handleSave = () => {
+    if (!validSelectionLimit) return;
     if (!name.trim()) {
       alert('Le nom de la propriété est requis');
       return;
@@ -135,6 +157,8 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
     savedProperty.color = color;
     savedProperty.showContextMenu = showContextMenu;
     savedProperty.defaultTemplates = defaultTemplates;
+    if (supportsValueLimit && selectionLimit !== undefined) savedProperty.maxValues = selectionLimit;
+    else delete savedProperty.maxValues;
 
     if (type === 'date' || type === 'date_range') {
       savedProperty.dateGranularity = dateGranularity;
@@ -144,7 +168,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
       delete savedProperty.includeDuration;
     }
 
-    if (type === 'select' || type === 'multi_select') {
+    if (type === 'select' || type === 'multi_select' || type === 'multiselect') {
       savedProperty.options = options;
     } else {
       delete savedProperty.options;
@@ -198,18 +222,25 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   );
 
   return (
-    <ModalWrapper
-      title={isEditing ? 'Modifier la propriété' : 'Nouvelle propriété'}
-      onClose={onClose}
-      onSave={handleSave}
-      saveLabel={isEditing ? 'Enregistrer' : 'Créer'}
-      size="lg"
-    >
-      <FormTabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
-
+    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent side="right" overlayClassName="z-[299] bg-transparent"
+        className="z-[300] flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <div className="border-b border-border px-4 py-3 pr-10">
+          <SheetTitle className="text-sm">{isEditing ? 'Modifier la propriété' : 'Nouvelle propriété'}</SheetTitle>
+          <SheetDescription className="mt-1 truncate text-xs">{name.trim() || 'Configure le champ et ses valeurs.'}</SheetDescription>
+        </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
+          <TabsList className="mx-3 mt-2 flex h-auto shrink-0 flex-wrap rounded-lg border border-border bg-muted/50 p-0.5">
+            {tabs.map(({ id, label, Icon }) => (
+              <TabsTrigger key={id} value={id} className="flex-1 gap-1.5 px-2 py-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Icon size={13} aria-hidden="true" />{label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <TabsContent value={activeTab} className="property-settings m-0 min-h-0 flex-1 overflow-y-auto border-0 p-4">
       {/* ── Onglet Infos ───────────────────────────────────────────────────── */}
       {activeTab === 'infos' && (
-        <div className="space-y-5">
+        <div className="space-y-4">
           <FormNameInput
             label="Nom"
             required
@@ -223,44 +254,23 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
             autoFocus
           />
 
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Type</label>
-            <div className="grid grid-cols-4 gap-1.5">
-              {BUILTIN_PROPERTY_TYPES.map(({ value: v, label: l, icon: Icon }) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => handleTypeChange(v)}
-                  className={cn(
-                    'flex flex-col items-center gap-1.5 px-2 py-3 rounded-lg border text-xs transition-all',
-                    type === v
-                      ? 'border-brand-500 bg-brand-500/15 text-brand-600 dark:text-brand-400'
-                      : 'border-black/10 hover:border-black/20 dark:border-white/10 dark:hover:border-white/20 text-neutral-500 dark:text-neutral-400'
-                  )}
-                >
-                  <Icon size={16} />
-                  <span className="text-neutral-700 dark:text-white leading-tight text-center">{l}</span>
-                </button>
-              ))}
-            </div>
-            {Object.keys(pluginPropertyTypeLabels).length > 0 && (
-              <FormSelect
-                value={type}
-                onChange={handleTypeChange}
-                className="mt-2"
-                options={[
-                  { value: '', label: 'Types plugins…' },
-                  ...Object.entries(pluginPropertyTypeLabels).map(([key, label]) => ({ value: key, label: label as string })),
-                ]}
-              />
-            )}
-          </div>
+          <FormField label="Type de champ">
+            <FormSelect value={type} onChange={handleTypeChange}
+              options={[
+                ...BUILTIN_PROPERTY_TYPES.map(({ value, label, icon }) => ({ value, label, icon })),
+                ...(type === 'multiselect' ? [{ value: 'multiselect', label: 'Multisélection', icon: Icons.ListChecks }] : []),
+                ...Object.entries(pluginPropertyTypeLabels).map(([value, label]) => ({ value, label })),
+              ]} />
+          </FormField>
         </div>
       )}
 
       {/* ── Onglet Config (Select / Multi-select) ──────────────────────────── */}
-      {activeTab === 'config' && (type === 'select' || type === 'multi_select') && (
-        <OptionListEditor options={options} onChange={setOptions} />
+      {activeTab === 'config' && (type === 'select' || type === 'multi_select' || type === 'multiselect') && (
+        <div className="space-y-4">
+          {valueLimitField}
+          <OptionListEditor options={options} onChange={setOptions} />
+        </div>
       )}
 
       {/* ── Onglet Config (Date) ───────────────────────────────────────────── */}
@@ -282,61 +292,44 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
       {/* ── Onglet Config (Relation) ───────────────────────────────────────── */}
       {activeTab === 'config' && type === 'relation' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-start">
+          <section className="grid gap-3 sm:grid-cols-2" aria-label="Relation">
             <FormField label="Collection liée">
-              <FormSelect
-                value={relationTarget}
-                onChange={(v) => { setRelationTarget(v); setRelationDisplayFieldIds([]); setRelationAutoHideSource(true); setRelationFilterField(''); setRelationFilterValue(''); setShowRelationFilter(false); }}
+              <FormSelect value={relationTarget}
+                onChange={(value) => { setRelationTarget(value); setRelationDisplayFieldIds([]); setRelationAutoHideSource(true); setRelationFilterField(''); setRelationFilterValue(''); setShowRelationFilter(false); }}
                 options={[
-                  { value: '', label: 'Sélectionner...' },
-                  ...(collections || []).map((c: any) => ({ value: c.id, label: c.id === currentCollectionId ? `${c.name} (ici)` : c.name })),
-                ]}
-              />
+                  { value: '', label: 'Choisir une collection' },
+                  ...collections.map((collection: any) => ({ value: collection.id, label: collection.id === currentCollectionId ? `${collection.name} (ici)` : collection.name })),
+                ]} />
             </FormField>
-
-            <FormField label="Type">
-              <FormSelect
-                value={relationType}
-                onChange={setRelationType}
+            <FormField label="Type de relation">
+              <FormSelect value={relationType} onChange={setRelationType}
                 options={[
-                  { value: 'one_to_one',   label: '1 : 1', icon: Icons.ArrowRight as any },
-                  { value: 'one_to_many',  label: '1 : N', icon: Icons.GitBranch  as any },
-                  { value: 'many_to_many', label: 'N : N', icon: Icons.GitMerge   as any },
-                ]}
-                className="w-24 text-xs"
-              />
+                  { value: 'one_to_one', label: 'Un seul élément (1 : 1)', icon: Icons.ArrowRight as any },
+                  { value: 'many_to_one', label: 'Un seul élément (N : 1)', icon: Icons.ArrowRight as any },
+                  { value: 'one_to_many', label: 'Plusieurs éléments (1 : N)', icon: Icons.GitBranch as any },
+                  { value: 'many_to_many', label: 'Plusieurs éléments (N : N)', icon: Icons.GitMerge as any },
+                ]} />
             </FormField>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Champs affichés</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-neutral-500">Max</span>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={relationMaxVisible}
-                    onChange={(e) => setRelationMaxVisible(e.target.value)}
-                    className="w-12 px-2 py-0.5 text-xs rounded-md border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  />
-                </div>
-              </div>
+          </section>
+          <section className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2" aria-label="Sélection et affichage">
+            {valueLimitField}
+            <FormField label="Nombre de liens visibles" hint="Limite l’affichage des liens dans les vues.">
+              <FormInput type="number" aria-label="Nombre de liens visibles" min={1} step={1}
+                value={relationMaxVisible} placeholder="Tous"
+                onChange={(event) => setRelationMaxVisible(event.target.value)} />
+            </FormField>
+          </section>
+          <section className="space-y-3 border-t border-border pt-4" aria-label="Champs des éléments liés">
+            <FormField label="Champs affichés sur les éléments liés">
               {relationTarget ? (
-                <LightMultiSelect
-                  options={(collections.find((c: any) => c.id === relationTarget)?.properties || [])
-                    .filter((p: any) => p.type !== 'relation')
-                    .map((p: any) => ({ value: p.id, label: p.name }))}
-                  values={relationDisplayFieldIds}
-                  onChange={setRelationDisplayFieldIds}
-                  placeholder="Nom de l'élément lié"
-                  maxVisible={3}
-                />
-              ) : (
-                <p className="text-xs text-neutral-400 italic">Choisir une collection d'abord</p>
-              )}
-            </div>
-          </div>
+                <FilterOptionPicker multiple label="Champs affichés sur les éléments liés" options={(targetCollection?.properties ?? [])
+                  .filter((field: any) => field.type !== 'relation')
+                  .map((field: any) => ({ value: field.id, label: field.name }))}
+                  values={relationDisplayFieldIds} onChange={setRelationDisplayFieldIds}
+                  placeholder="Nom de l’élément" />
+              ) : <p className="text-xs text-muted-foreground">Choisis d’abord une collection liée.</p>}
+            </FormField>
+          </section>
 
           {relationTarget && relationDisplayFieldIds.length > 0 && (
             <FormCheckbox
@@ -444,12 +437,11 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                 />
               </FormField>
               <FormField label="Colonnes sources">
-                <LightMultiSelect
+                <FilterOptionPicker multiple label="Colonnes sources"
                   options={availableNumberFields.map((p: any) => ({ value: p.id, label: p.name }))}
                   values={calculationFieldIds}
                   onChange={setCalculationFieldIds}
                   placeholder="Sélectionner les colonnes nombres"
-                  maxVisible={3}
                 />
                 {availableNumberFields.length === 0 && (
                   <FormHint>Aucune autre colonne nombre disponible dans cette collection.</FormHint>
@@ -626,7 +618,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                             />
                           )}
                         </div>
-                      ) : type === 'select' || type === 'multi_select' ? (
+                      ) : type === 'select' || type === 'multi_select' || type === 'multiselect' ? (
                         <FormSelect
                           value={tpl.value ?? ''}
                           onChange={(v) => updateTemplate({ value: v })}
@@ -668,7 +660,16 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
           <FormHint className="ml-6">Au clic droit sur les objets</FormHint>
         </div>
       )}
-    </ModalWrapper>
+          </TabsContent>
+        </Tabs>
+        <div className="flex shrink-0 justify-end gap-2 border-t border-border bg-background px-4 py-3">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
+          <Button type="button" size="sm" disabled={!name.trim() || !validSelectionLimit} onClick={handleSave}>
+            {isEditing ? 'Enregistrer' : 'Créer la propriété'}
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 };
 

@@ -28,6 +28,7 @@ export interface Property {
   color?: string;
   relation?: RelationConfig;
   options?: string[];
+  maxValues?: number;
   [key: string]: any;
 }
 

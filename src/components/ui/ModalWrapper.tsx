@@ -106,6 +106,7 @@ const ModalWrapper: React.FC<ModalWrapperProps> = ({
             <div className="flex-1" />
             <ShinyButton
               onClick={onSave}
+              disabled={!canSave}
               className={cn('px-6', !canSave && 'opacity-60 pointer-events-none')}
             >
               {saveLabel}
@@ -190,15 +191,15 @@ export const FormSelect: React.FC<FormSelectProps> = ({ value, onChange, options
       <SelectTrigger className={cn(SELECT_TRIGGER_CLS, className)}>
         <span className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
           {Icon && <Icon size={13} className="shrink-0 opacity-70" />}
-          <SelectValue />
+          <SelectValue className="min-w-0 truncate">{currentOpt?.label}</SelectValue>
         </span>
       </SelectTrigger>
       <SelectContent>
         {options.map(({ value: v, label, icon: OptIcon }) => (
           <SelectItem key={v === '' ? EMPTY_SENTINEL : v} value={v === '' ? EMPTY_SENTINEL : v}>
-            <span className="flex items-center gap-2">
-              {OptIcon && <OptIcon size={13} className="opacity-70" />}
-              {label}
+            <span className="flex min-w-0 items-center gap-2">
+              {OptIcon && <OptIcon size={13} className="shrink-0 opacity-70" />}
+              <span className="min-w-0 truncate">{label}</span>
             </span>
           </SelectItem>
         ))}

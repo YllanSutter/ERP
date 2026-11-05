@@ -1,6 +1,7 @@
 import React from 'react';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getSelectionLimit, toggleLimitedSelection } from '@/lib/utils/selectionLimit';
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/tiptap-ui-primitive/tooltip';
 import { PopoverButton } from './PopoverButton';
@@ -35,6 +36,7 @@ interface LightSelectMultiProps extends LightSelectBaseProps {
   onChange: (vals: string[]) => void;
   value?: never;
   maxVisible?: number;
+  maxValues?: number;
 }
 
 export type LightSelectProps = LightSelectSingleProps | LightSelectMultiProps;
@@ -46,13 +48,13 @@ export const LightSelect: React.FC<LightSelectProps> = (props) => {
 
   if (props.multiple) {
     const { values, onChange, maxVisible } = props;
+    const selectionLimit = getSelectionLimit(props.maxValues);
     const selectedValues = normalizeRelationIds(values);
     const MAX_VISIBLE = typeof maxVisible === 'number' ? maxVisible : 2;
 
     const removeValue = (val: string) => onChange(selectedValues.filter(v => v !== val));
     const toggleValue = (val: string) => {
-      if (selectedValues.includes(val)) removeValue(val);
-      else onChange([...selectedValues, val]);
+      onChange(toggleLimitedSelection(selectedValues, val, selectionLimit));
     };
 
     return (
@@ -111,7 +113,7 @@ export const LightSelect: React.FC<LightSelectProps> = (props) => {
         </div>
         {!disabled && (
           <PopoverButton icon="Plus" title="Ajouter / gérer" isAbsolute size={14} contentClassName="w-64 z-[401]">
-            <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
+            <div role={selectionLimit === 1 ? 'radiogroup' : undefined} aria-label="Valeurs" className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
               {options.map((opt) => {
                 const optValue = getOptionValue(opt);
                 const optColor = getOptionColor(opt);
@@ -123,8 +125,12 @@ export const LightSelect: React.FC<LightSelectProps> = (props) => {
                   <button
                     key={optValue}
                     type="button"
+                    role={selectionLimit === 1 ? 'radio' : undefined}
+                    aria-checked={selectionLimit === 1 ? checked : undefined}
+                    aria-pressed={selectionLimit === 1 ? undefined : checked}
+                    disabled={!checked && selectionLimit !== undefined && selectionLimit > 1 && selectedValues.length >= selectionLimit}
                     className={cn(
-                      'px-2 py-1 rounded-full text-xs border transition flex items-center gap-1',
+                      'px-2 py-1 rounded-full text-xs border transition flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed',
                       checked ? 'font-semibold' : 'hover:bg-black/10 dark:hover:bg-white/10'
                     )}
                     style={checked ? { backgroundColor: `${optColor}22`, borderColor: `${optColor}55`, color: optColor } : {}}
@@ -137,6 +143,11 @@ export const LightSelect: React.FC<LightSelectProps> = (props) => {
               })}
               {options.length === 0 && (
                 <div className="text-xs text-neutral-500 px-2 py-1">Aucune option</div>
+              )}
+              {selectionLimit !== undefined && (
+                <p className="w-full border-t border-border pt-2 text-xs text-muted-foreground">
+                  {selectedValues.length} / {selectionLimit} valeur(s)
+                </p>
               )}
             </div>
           </PopoverButton>

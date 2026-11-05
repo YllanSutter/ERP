@@ -22,7 +22,7 @@ export default function FilterValueDisplay({ filter, property, collections, canE
   const relation = property?.type === 'relation';
   const multi = ['equals', 'not_equals'].includes(filter.operator) ||
     ['multiselect', 'multi_select'].includes(property?.type) ||
-    (relation && ['one_to_many', 'many_to_many'].includes(property?.relation?.type));
+    (relation && ['one_to_many', 'many_to_many'].includes(property?.relation?.type?.replace(/-/g, '_')));
   const options = (() => {
     if (relation) {
       const target = collections.find(({ id }) => id === property.relation?.targetCollectionId);
@@ -50,7 +50,7 @@ export default function FilterValueDisplay({ filter, property, collections, canE
   // A value with choices opens its checklist directly, including from the collection header.
   if (options) return (
     <FilterOptionPicker options={options} values={normalizeRelationIds(filter.value)} multiple={multi && !date}
-      compact={compact} label={`Valeur du filtre · ${property?.name ?? 'Champ'}`}
+      maxValues={property?.maxValues ?? (relation && !['one_to_many', 'many_to_many'].includes((property?.relation?.type ?? 'many_to_many').replace(/-/g, '_')) ? 1 : undefined)} compact={compact} label={`Valeur du filtre · ${property?.name ?? 'Champ'}`}
       onChange={(values) => onUpdateValue(multi && !date ? values : values[0] ?? '')} />
   );
 

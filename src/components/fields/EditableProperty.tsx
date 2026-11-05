@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { getSelectionLimit, toggleLimitedSelection } from '@/lib/utils/selectionLimit';
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 import * as Icons from 'lucide-react';
 import SteamPropertyField from '@/components/fields/SteamPropertyField';
@@ -429,6 +430,8 @@ const RelationEditor = ({
   isSourceMany: boolean;
 }) => {
   const selectedIds = normalizeRelationIds(value);
+  const selectionLimit = getSelectionLimit(property.maxValues);
+  const atSelectionLimit = isSourceMany && selectionLimit !== undefined && selectionLimit > 1 && selectedIds.length >= selectionLimit;
   const relationMaxVisibleRaw = property?.relation?.maxVisible;
   const relationMaxVisible = Number.isFinite(Number(relationMaxVisibleRaw)) && Number(relationMaxVisibleRaw) > 0
     ? Number(relationMaxVisibleRaw)
@@ -495,6 +498,7 @@ const RelationEditor = ({
   }, [targetCollection]);
 
   const handleCreateNew = useCallback((templateData?: any) => {
+    if (atSelectionLimit) return;
     try {
       const dataToUse = templateData || newItemData;
       
@@ -552,7 +556,7 @@ const RelationEditor = ({
       
       targetCollection.items.push(newItem);
       
-      const nextValue = isSourceMany ? [...selectedIds, newItem.id] : newItem.id;
+      const nextValue = isSourceMany ? toggleLimitedSelection(selectedIds, newItem.id, selectionLimit) : newItem.id;
       
       // Mettre à jour currentItem avec la nouvelle relation ET ajouter les nouvelles données au targetCollection
       const updatedCurrentItem = { ...currentItem, [property.id]: nextValue };
@@ -572,14 +576,12 @@ const RelationEditor = ({
       console.error('Erreur lors de la création:', error);
       alert('Erreur lors de la création de l\'élément. Vérifiez la console pour plus de détails.');
     }
-  }, [newItemData, targetCollection, isSourceMany, selectedIds, onRelationChange, property, currentItem]);
+  }, [newItemData, targetCollection, isSourceMany, selectedIds, onRelationChange, property, currentItem, selectionLimit, atSelectionLimit]);
 
-  const toggleItem = useCallback((itemId: string, checked: boolean) => {
-    const next = checked 
-      ? [...selectedIds, itemId]
-      : selectedIds.filter((id: string) => id !== itemId);
+  const toggleItem = useCallback((itemId: string) => {
+    const next = toggleLimitedSelection(selectedIds, itemId, selectionLimit);
     onRelationChange(property, currentItem, next);
-  }, [selectedIds, onRelationChange, property, currentItem]);
+  }, [selectedIds, onRelationChange, property, currentItem, selectionLimit]);
 
   // Fonction utilitaire pour évaluer une valeur de template
   const evaluateTemplateValue = useCallback((value: any, propType: string) => {
@@ -708,7 +710,8 @@ const RelationEditor = ({
       <div className="flex gap-2 pt-2 border-t border-white/10">
         <button
           onClick={() => handleCreateNew()}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-brand-600 hover:bg-brand-700 rounded text-sm text-white font-medium"
+          disabled={atSelectionLimit}
+          className="disabled:opacity-40 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-brand-600 hover:bg-brand-700 rounded text-sm text-white font-medium"
         >
           <Icons.Check size={14} />
           Créer et lier
@@ -725,7 +728,7 @@ const RelationEditor = ({
 
   const renderSearchList = (close: () => void) =>
     isSourceMany ? (
-      <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
+      <div role={selectionLimit === 1 ? 'radiogroup' : undefined} aria-label="Relations" className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
         {filteredItems.map((ti: any) => {
           const checked = selectedIds.includes(ti.id);
           const label = getItemLabel(ti);
@@ -733,13 +736,16 @@ const RelationEditor = ({
             <button
               key={ti.id}
               type="button"
+              role={selectionLimit === 1 ? 'radio' : undefined}
+              aria-checked={selectionLimit === 1 ? checked : undefined}
+              disabled={!checked && selectionLimit !== undefined && selectionLimit > 1 && selectedIds.length >= selectionLimit}
               className={cn(
-                'px-2 py-1 rounded-full text-xs border border-black/10 dark:border-white/10 transition',
+                'px-2 py-1 rounded-full text-xs border border-black/10 dark:border-white/10 transition disabled:opacity-40 disabled:cursor-not-allowed',
                 checked ? 'font-semibold' : 'hover:bg-black/10 dark:hover:bg-white/10'
               )}
               style={checked ? { backgroundColor: 'rgba(139,92,246,0.16)', color: '#a78bfa' } : {  }}
               onClick={() => {
-                toggleItem(ti.id, !checked);
+                toggleItem(ti.id);
                 close();
               }}
             >
@@ -894,6 +900,7 @@ const RelationEditor = ({
                 </div>
               )}
               
+              {atSelectionLimit && <p className="text-xs text-muted-foreground">Limite de {selectionLimit} valeurs atteinte. Retire une valeur pour en ajouter une autre.</p>}
               {isCreating ? createForm : (
                 <>
                   {availableTemplates.length > 0 ? (
@@ -903,6 +910,7 @@ const RelationEditor = ({
                       </div>
                       <select
                         aria-label="Créer depuis un template"
+                        disabled={atSelectionLimit}
                         value=""
                         onChange={(e) => {
                           if (e.target.value === '') return;
@@ -930,6 +938,7 @@ const RelationEditor = ({
                       </select>
                       <div className="pt-2 border-t border-black/10 dark:border-white/10">
                         <button
+                          disabled={atSelectionLimit}
                           onClick={() => {
                             const initialData = initializeWithTemplates();
                             setNewItemData(initialData);
@@ -944,6 +953,7 @@ const RelationEditor = ({
                     </>
                   ) : (
                     <button
+                      disabled={atSelectionLimit}
                       onClick={() => {
                         const initialData = initializeWithTemplates();
                         setNewItemData(initialData);
@@ -1049,7 +1059,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   }
 
   // Multi-select
-  if (property.type === 'multi_select') {
+  if (property.type === 'multi_select' || property.type === 'multiselect') {
     const selectedValues: string[] = normalizeRelationIds(value);
     return (
       <LightMultiSelect
@@ -1060,6 +1070,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
         sizeClass={sizeClasses}
         disabled={readOnly}
         maxVisible={maxVisible}
+        maxValues={property.maxValues}
       />
     );
   }
@@ -1385,7 +1396,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   if (property.type === 'relation') {
     const relation = property.relation || {};
     const targetCollectionId = relation.targetCollectionId;
-    const relationType = relation.type || 'many_to_many';
+    const relationType = (relation.type || 'many_to_many').replace(/-/g, '_');
     const targetCollection = collections?.find((c: any) => c.id === targetCollectionId);
     const targetItemsRaw = targetCollection?.items || [];
     const filterCfg = relation.filter;
