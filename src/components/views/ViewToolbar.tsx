@@ -601,9 +601,8 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                         { id: 'filters', label: 'Filtres', icon: Filter },
                         { id: 'groups', label: 'Groupage', icon: Layers },
                         { id: 'settings', label: 'Paramètres', icon: Settings },
-                        { id: 'columns', label: 'Colonnes', icon: Icons.Columns3 },
                       ]}>
-                      <SettingsTabContent value="filters">
+                      <SettingsTabContent value="filters" scrollable>
                         <p className="px-1 py-2 text-xs text-muted-foreground">Les règles ci-dessous se combinent. Les filtres globaux restent accessibles à côté du titre de la collection.</p>
                         {((currentViewConfig.filters?.length ?? 0) > 0 ||
                           (relationFilter.collectionId === activeCollection && relationFilter.ids.length > 0)) && (
@@ -704,10 +703,10 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                         )}
                         {filterEditor}
                       </SettingsTabContent>
-                      <SettingsTabContent value="groups">
+                      <SettingsTabContent value="groups" scrollable>
                         {groupEditor}
                       </SettingsTabContent>
-                      <SettingsTabContent value="settings">
+                      <SettingsTabContent value="settings" scrollable>
                   <ViewSettingsPanel
                     view={currentViewConfig}
                     collection={currentCollection}
@@ -716,8 +715,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     views={allViews}
                     onUpdate={onUpdateViewConfig}
                   />
-                      </SettingsTabContent>
-                      <SettingsTabContent value="columns">
+                  <div className="my-5 border-t border-border" />
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold text-black dark:text-white">Colonnes visibles</h4>
                     <div className="flex items-center gap-2">

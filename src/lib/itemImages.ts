@@ -30,3 +30,13 @@ export function primaryImage(value: unknown): ItemImage | null {
   const normalized = normalizeImageField(value);
   return normalized.images.find(image => image.id === normalized.defaultImageId) || null;
 }
+
+export function imageDisplayStyle(display: any = {}) {
+  const fits = ['contain', 'cover', 'fill', 'none', 'scale-down'] as const;
+  const fit = fits.includes(display.fit) ? display.fit as typeof fits[number] : 'contain';
+  const positiveSize = (value: unknown) => {
+    const size = Number(value);
+    return Number.isFinite(size) && size > 0 ? size : undefined;
+  };
+  return { objectFit: fit, maxWidth: positiveSize(display.maxWidth), maxHeight: positiveSize(display.maxHeight) };
+}

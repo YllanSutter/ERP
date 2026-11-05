@@ -27,7 +27,6 @@ interface PropertyModalProps {
 
 // Types qui ont un onglet de configuration dédié
 const TYPE_CONFIG_LABEL: Record<string, string> = {
-  image: 'Image',
   select: 'Options',
   multi_select: 'Options',
   multiselect: 'Options',
@@ -48,6 +47,9 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const { activeOrganizationId } = useAuth();
   const isEditing = !!property;
 
+  const [imageMaxWidth, setImageMaxWidth] = useState(String(property?.imageDisplay?.maxWidth || ''));
+  const [imageMaxHeight, setImageMaxHeight] = useState(String(property?.imageDisplay?.maxHeight || ''));
+  const [imageFit, setImageFit] = useState(property?.imageDisplay?.fit || 'contain');
   const [defaultImage, setDefaultImage] = useState(property?.defaultImage || null);
   const [name, setName] = useState(property?.name || '');
   const [type, setType] = useState(property?.type || 'text');
@@ -121,15 +123,14 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const tabs = [
     { id: 'infos', label: 'Général', Icon: Icons.SlidersHorizontal },
     ...(configLabel ? [{ id: 'config', label: configLabel, Icon: Icons.ListChecks }] : []),
-    { id: 'templates', label: 'Valeurs par défaut', Icon: Icons.WandSparkles },
-    { id: 'avance', label: 'Avancé', Icon: Icons.Settings2 },
+    ...(type !== 'image' ? [{ id: 'templates', label: 'Valeurs par défaut', Icon: Icons.WandSparkles }] : []),
   ];
 
   // Si on change de type et que l'onglet 'config' disparaît, revenir sur 'infos'
   const handleTypeChange = (newType: string) => {
     setType(newType);
     if (newType === 'image' && icon === 'Tag') setIcon('Image');
-    if (activeTab === 'config' && !TYPE_CONFIG_LABEL[newType]) {
+    if ((activeTab === 'config' && !TYPE_CONFIG_LABEL[newType]) || (activeTab === 'templates' && newType === 'image')) {
       setActiveTab('infos');
     }
   };
@@ -161,6 +162,12 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
     savedProperty.type = type;
     savedProperty.icon = icon;
     savedProperty.color = color;
+    if (type === 'image') {
+      savedProperty.imageDisplay = { fit: imageFit,
+        ...(Number(imageMaxWidth) > 0 ? { maxWidth: Number(imageMaxWidth) } : {}),
+        ...(Number(imageMaxHeight) > 0 ? { maxHeight: Number(imageMaxHeight) } : {}),
+      };
+    } else delete savedProperty.imageDisplay;
     if (type === 'image' && normalizeImageField(defaultImage).images.length) savedProperty.defaultImage = defaultImage;
     else delete savedProperty.defaultImage;
     savedProperty.showContextMenu = showContextMenu;
@@ -233,7 +240,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
       description={name.trim() || 'Configure le champ et ses valeurs.'}>
         <SettingsTabs value={activeTab} onValueChange={setActiveTab}
           items={tabs.map(({ id, label, Icon }) => ({ id, label, icon: Icon }))}>
-          <SettingsTabContent value={activeTab}>
+          <SettingsTabContent value={activeTab} scrollable>
       {/* ── Onglet Infos ───────────────────────────────────────────────────── */}
       {activeTab === 'infos' && (
         <div className="space-y-4">
@@ -261,10 +268,29 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
         </div>
       )}
 
-      {activeTab === 'config' && type === 'image' && (
-        <FormField label="Image par défaut" hint="Affichée dans le champ et en bannière quand l’objet n’a aucune image. L’étoile choisit l’image principale.">
-          <ImageField value={defaultImage} onChange={setDefaultImage} name="Image par défaut" />
-        </FormField>
+      {activeTab === 'infos' && type === 'image' && (
+        <div className="space-y-4 border-t border-border pt-4 mt-4">
+          <FormField label="Image par défaut" hint="Affichée quand l’objet n’a aucune image. L’étoile choisit l’image principale.">
+            <ImageField value={defaultImage} onChange={setDefaultImage} name="Image par défaut" />
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Largeur maximale (px)" hint="Vide : toute la largeur disponible.">
+              <FormInput type="number" min={1} step={1} value={imageMaxWidth} placeholder="Automatique" onChange={event => setImageMaxWidth(event.target.value)} />
+            </FormField>
+            <FormField label="Hauteur maximale (px)" hint="Vide : hauteur naturelle.">
+              <FormInput type="number" min={1} step={1} value={imageMaxHeight} placeholder="Automatique" onChange={event => setImageMaxHeight(event.target.value)} />
+            </FormField>
+          </div>
+          <FormField label="Cadrage de la bannière">
+            <FormSelect value={imageFit} onChange={setImageFit} options={[
+              { value: 'contain', label: 'Contenir : image entière' },
+              { value: 'cover', label: 'Couvrir : remplir et recadrer' },
+              { value: 'fill', label: 'Étirer' },
+              { value: 'none', label: 'Taille originale' },
+              { value: 'scale-down', label: 'Réduire seulement' },
+            ]} />
+          </FormField>
+        </div>
       )}
 
       {/* ── Onglet Config (Select / Multi-select) ──────────────────────────── */}
@@ -464,7 +490,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
       )}
 
       {/* ── Onglet Templates ───────────────────────────────────────────────── */}
-      {activeTab === 'templates' && (
+      {(activeTab === 'templates' || (type === 'image' && activeTab === 'infos')) && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm text-neutral-500">
@@ -656,8 +682,8 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
       )}
 
       {/* ── Onglet Avancé ─────────────────────────────────────────────────── */}
-      {activeTab === 'avance' && (
-        <div className="space-y-3">
+      {activeTab === 'infos' && (
+        <div className="mt-4 space-y-3 border-t border-border pt-4">
           <FormCheckbox label="Afficher dans le menu contextuel" checked={showContextMenu} onChange={setShowContextMenu} />
           <FormHint className="ml-6">Au clic droit sur les objets</FormHint>
         </div>
