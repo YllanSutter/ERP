@@ -17,7 +17,7 @@ interface Props {
   onUnpin: (index: number) => void;
 }
 
-export default function PinnedCollectionFilters({ collection, collections, canEdit, onUpdateValue, onUnpin }: Props) {
+export default function PinnedCollectionFilters({ collection, collections, canEdit, onUpdateValue, onUnpin, onSave }: Props) {
   const [editor, setEditor] = useState<number | 'new' | null>(null);
   const filters = collection.pinnedFilters ?? [];
   if (!filters.length && !canEdit) return null;
@@ -33,11 +33,19 @@ export default function PinnedCollectionFilters({ collection, collections, canEd
     <div className="flex min-w-0 flex-wrap items-center gap-1.5" aria-label="Filtres épinglés de la collection">
       {filters.map((filter, index) => {
         const property = getProperty(filter);
+        const mappedNames = Object.entries(filter.collectionFields ?? {}).flatMap(([collectionId, ids]) => {
+          const source = collections.find(({ id }) => id === collectionId);
+          const names = getOrderedProperties(source, null, collections).filter(({ id }) => ids.includes(id)).map(({ name }) => name);
+          return names.length ? [`${source?.name} · ${names.join(' ou ')}`] : [];
+        });
+        const target = property?.type === 'relation' && collections.find(({ id }) => id === property.relation?.targetCollectionId);
+        const label = mappedNames.length > 1 && target ? target.name : property?.name ?? 'Champ';
+        const details = mappedNames.length ? mappedNames.join('\n') : label;
         const hasValue = filter.operator !== 'is_empty' && filter.operator !== 'is_not_empty';
         return (
           <div key={index} className="flex min-w-0 items-center gap-1.5 rounded-md border border-primary/25 bg-primary/5 px-2 py-0.5 text-xs">
             <Globe size={12} className="shrink-0 text-primary" aria-hidden="true" />
-            <span className="max-w-28 truncate font-medium">{property?.name ?? 'Champ'}</span>
+            <span className="max-w-44 truncate font-medium" title={details}>{label}</span>
             <span className="text-muted-foreground">{COMPACT_OPERATOR_LABELS[filter.operator] ?? filter.operator}</span>
             {hasValue && property && (
               <FilterValueDisplay
@@ -78,7 +86,7 @@ export default function PinnedCollectionFilters({ collection, collections, canEd
               <SheetDescription className="sr-only">Ce filtre s’applique à toutes les vues de la collection.</SheetDescription>
               {editor !== null && (
                 <div className="min-h-0 overflow-y-auto p-3">
-                  <FilterModal key={editor} embedded properties={collection.properties} collections={collections}
+                  <FilterModal key={editor} embedded globalFilter scopeCollectionName={collection.name} properties={collection.properties} collections={collections}
                     initialFilter={editor === 'new' ? null : filters[editor]}
                     onClose={() => setEditor(null)}
                     onAdd={(property, operator, value, sourceCollectionId, meta) => {

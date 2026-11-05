@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useConfigSync } from '@/lib/hooks/useConfigSync';
 import { getNameValue as getNameValueLib, MONTH_NAMES, parseTimeToDecimalHour, getMonday, getPreviousPeriod, getNextPeriod } from '@/lib/calendarUtils';
 import { motion } from 'framer-motion';
-import { getFilteredItems } from '@/lib/filterUtils';
+import { getFilteredItems, filterTargetsCollection } from '@/lib/filterUtils';
 import CalendarCollectionsManager from '../calendar/CalendarCollectionsManager';
 import { useAuth } from '@/auth/AuthProvider';
 
@@ -214,8 +214,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         return { ...col, items };
       }
       const cfg = getViewConfigForCollection(col.id);
-      const inheritedFilters = (collection?.pinnedFilters ?? []).filter((filter: any) =>
-        filter.sourceCollectionId === col.id && col.id !== collection?.id
+      const inheritedFilters = [...(collection?.pinnedFilters ?? []), ...(viewConfig?.filters ?? [])].filter((filter: any) =>
+        col.id !== collection?.id && filterTargetsCollection(filter, col.id, collection?.id)
       );
       if (!cfg && !col.pinnedFilters?.length && !inheritedFilters.length) return col;
       const rel = col.id === activeCollectionId ? relationFilter : { collectionId: null, ids: [] };

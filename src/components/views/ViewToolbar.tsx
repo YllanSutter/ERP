@@ -607,10 +607,11 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                         ))}
                       </TabsList>
                       <TabsContent value="filters" className="mt-1 min-h-0 overflow-y-auto rounded-none border-0 p-0">
+                        <p className="px-1 py-2 text-xs text-muted-foreground">Les règles ci-dessous se combinent. Les filtres globaux restent accessibles à côté du titre de la collection.</p>
                         {((currentViewConfig.filters?.length ?? 0) > 0 ||
                           (relationFilter.collectionId === activeCollection && relationFilter.ids.length > 0)) && (
                           <section className="my-2 rounded-lg border border-border bg-muted/25" aria-label="Filtres actifs">
-                            <h3 className="border-b border-border px-2.5 py-2 text-xs font-semibold">Filtres actifs</h3>
+                            <h3 className="border-b border-border px-2.5 py-2 text-xs font-semibold">Filtres de cette vue</h3>
                             <div className="divide-y divide-border">
                               {currentViewConfig?.filters?.map((filter: any, idx: number) => {
                                 const { sourceCollection, sourceProp } = getFilterSource(filter);

@@ -849,6 +849,7 @@ const App = () => {
                     key={editingFilterIndex ?? 'new'}
                     embedded
                     allowCollectionScope
+                    scopeCollectionName={currentCollection.name}
                     properties={currentCollection?.properties || []}
                     collections={collections}
                     initialFilter={

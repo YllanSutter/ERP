@@ -7,6 +7,7 @@ export interface CollectionFilter {
   operator: string;
   value: unknown;
   sourceCollectionId?: string;
+  collectionFields?: Record<string, string[]>;
   [key: string]: unknown;
 }
 

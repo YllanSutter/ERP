@@ -71,3 +71,61 @@ it.each(['pinned', 'layout'])('routes a %s rule to the agenda’s secondary coll
   expect(getFilteredItems(routed[1], {}, noRelation, 'sites', routed).map(({ id }) => id))
     .toEqual(['t2']);
 });
+
+describe('a global rule with fields per collection', () => {
+  const owner = {
+    id: 'sites', name: 'Sites',
+    properties: [
+      { id: 'dev', name: 'Dev', type: 'relation', relation: { targetCollectionId: 'employees' } },
+      { id: 'redac', name: 'Rédac', type: 'relation', relation: { targetCollectionId: 'employees' } },
+    ],
+    items: [
+      { id: 'dev-site', dev: ['yllan'], redac: ['other'] },
+      { id: 'redac-site', dev: ['other'], redac: ['yllan'] },
+      { id: 'other-site', dev: ['other'], redac: [] },
+    ],
+  } as Collection;
+  const tasks = {
+    id: 'tasks', name: 'Tâches',
+    properties: [{ id: 'employee', name: 'Employé', type: 'relation', relation: { targetCollectionId: 'employees' } }],
+    items: [{ id: 'my-task', employee: ['yllan'] }, { id: 'other-task', employee: ['other'] }],
+  } as Collection;
+  const notes = { id: 'notes', name: 'Notes', properties: [], items: [{ id: 'note' }] } as Collection;
+  const rule = {
+    property: 'dev', sourceCollectionId: 'sites', operator: 'equals', value: ['yllan'],
+    collectionFields: { sites: ['dev', 'redac'], tasks: ['employee'] },
+  };
+
+  it('accepts Dev OR Rédac and matches Employé separately without filtering Notes', () => {
+    const globalOwner = { ...owner, pinnedFilters: [rule] };
+    const collections = routeLayoutFilters(globalOwner, [globalOwner, tasks, notes]);
+    expect(collections.map((collection) => getFilteredItems(collection, {}, noRelation, 'sites', collections).map(({ id }) => id)))
+      .toEqual([['dev-site', 'redac-site'], ['my-task'], ['note']]);
+  });
+
+  it('excludes Yllan if any of the mapped fields contains that employee', () => {
+    const collection = { ...owner, pinnedFilters: [{ ...rule, operator: 'not_equals' }] };
+    expect(getFilteredItems(collection, {}, noRelation, 'sites', [collection]).map(({ id }) => id))
+      .toEqual(['other-site']);
+  });
+
+  it('does not apply a legacy foreign global filter to the base table', () => {
+    const collection = { ...owner, pinnedFilters: [{ property: 'employee', sourceCollectionId: 'tasks', operator: 'equals', value: ['yllan'] }] };
+    expect(getFilteredItems(collection, { type: 'table' }, noRelation, 'sites', [collection, tasks]))
+      .toEqual(owner.items);
+  });
+
+  it('resolves select options by label when their IDs differ across collections', () => {
+    const primary = {
+      id: 'sites', name: 'Sites', properties: [{ id: 'dev', name: 'Dev', type: 'select', options: [{ value: 'a', label: 'Yllan' }] }],
+      items: [{ id: 'site', dev: 'a' }],
+      pinnedFilters: [{ ...rule, value: ['a'], collectionFields: { sites: ['dev'], tasks: ['employee'] } }],
+    } as unknown as Collection;
+    const secondary = {
+      id: 'tasks', name: 'Tâches', properties: [{ id: 'employee', name: 'Employé', type: 'select', options: [{ value: 'b', label: 'Yllan' }] }],
+      items: [{ id: 'task', employee: 'b' }, { id: 'other', employee: 'c' }],
+    } as unknown as Collection;
+    const collections = routeLayoutFilters(primary, [primary, secondary]);
+    expect(getFilteredItems(collections[1], {}, noRelation, 'sites', collections).map(({ id }) => id)).toEqual(['task']);
+  });
+});

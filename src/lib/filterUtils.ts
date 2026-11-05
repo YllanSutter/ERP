@@ -143,83 +143,122 @@ export const getFilteredItems = (
       .filter((v: any) => v !== undefined && v !== null && v !== '');
   };
   
-  const calendarSources = currentViewConfig.type === 'calendar' && Array.isArray(currentViewConfig.calendarCollectionIds)
-    ? currentViewConfig.calendarCollectionIds
-    : [];
-  const pinnedFilters = (currentCollection.pinnedFilters ?? []).filter((filter: any) => {
-    const sourceId = filter.sourceCollectionId;
-    if (!sourceId || sourceId === currentCollection.id) return true;
-    return currentViewConfig.type !== 'layout' && !calendarSources.includes(sourceId);
-  });
+  const pinnedFilters = (currentCollection.pinnedFilters ?? []).filter((filter: CollectionFilter) =>
+    filter.collectionFields || !filter.sourceCollectionId || filter.sourceCollectionId === currentCollection.id
+  );
   const viewFilters = (currentViewConfig.filters ?? []).filter((filter: CollectionFilter) =>
-    currentViewConfig.type !== 'layout' || !filter.sourceCollectionId || filter.sourceCollectionId === currentCollection.id
+    filter.collectionFields || currentViewConfig.type !== 'layout' || !filter.sourceCollectionId || filter.sourceCollectionId === currentCollection.id
   );
   const filters = [...pinnedFilters, ...viewFilters];
-  filters.forEach((filter: any) => {
-    filtered = filtered.filter((item) => {
-      const sourceCollectionId = filter?.sourceCollectionId || currentCollection?.id;
+  const matchesRule = (item: any, filter: any): boolean => {
+    const sourceCollectionId = filter?.sourceCollectionId || currentCollection?.id;
 
-      if (sourceCollectionId === currentCollection?.id) {
-        const prop = (currentCollection.properties || []).find((p: any) => p.id === filter.property);
-        if (prop) {
-          return matchesFilterValue(item[filter.property], filter, prop);
-        }
-
-        const linkedConfig = getLinkedColumnConfig(filter);
-        if (!linkedConfig) return true;
-
-        const sourceRelationProp = (currentCollection?.properties || []).find((p: any) => p.id === linkedConfig.sourceRelationPropertyId);
-        const targetCollection = collections.find((c: any) => c.id === linkedConfig.sourceTargetCollectionId)
-          || collections.find((c: any) => c.id === sourceRelationProp?.relation?.targetCollectionId);
-        const targetProp = (targetCollection?.properties || []).find((p: any) => p.id === linkedConfig.sourceDisplayFieldId);
-        const projectedValues = getProjectedLinkedValues(item, linkedConfig);
-
-        if (filter.operator === 'is_empty') {
-          return projectedValues.length === 0;
-        }
-        if (filter.operator === 'is_not_empty') {
-          return projectedValues.length > 0;
-        }
-        if (filter.operator === 'not_equals') {
-          if (!projectedValues.length) return true;
-          return projectedValues.every((val: any) => matchesFilterValue(val, filter, targetProp));
-        }
-
-        return projectedValues.some((val: any) => matchesFilterValue(val, filter, targetProp));
+    if (sourceCollectionId === currentCollection?.id) {
+      const prop = (currentCollection.properties || []).find((p: any) => p.id === filter.property);
+      if (prop) {
+        return matchesFilterValue(item[filter.property], filter, prop);
       }
 
-      const sourceCollection = collections.find((c: any) => c.id === sourceCollectionId);
-      if (!sourceCollection) return true;
-      const sourceProp = (sourceCollection.properties || []).find((p: any) => p.id === filter.property);
-      if (!sourceProp) return true;
+      const linkedConfig = getLinkedColumnConfig(filter);
+      if (!linkedConfig) return true;
 
-      const relationProps = (currentCollection.properties || []).filter(
-        (p: any) => p.type === 'relation' && p?.relation?.targetCollectionId === sourceCollectionId
-      );
-      if (!relationProps.length) return false;
-
-      const relatedItems = relationProps.flatMap((relProp: any) => {
-        const relationValue = item?.[relProp.id];
-        const ids = normalizeRelationIds(relationValue);
-        return ids
-          .map((id: string) => (sourceCollection.items || []).find((it: any) => it.id === id))
-          .filter(Boolean);
-      });
+      const sourceRelationProp = (currentCollection?.properties || []).find((p: any) => p.id === linkedConfig.sourceRelationPropertyId);
+      const targetCollection = collections.find((c: any) => c.id === linkedConfig.sourceTargetCollectionId)
+        || collections.find((c: any) => c.id === sourceRelationProp?.relation?.targetCollectionId);
+      const targetProp = (targetCollection?.properties || []).find((p: any) => p.id === linkedConfig.sourceDisplayFieldId);
+      const projectedValues = getProjectedLinkedValues(item, linkedConfig);
 
       if (filter.operator === 'is_empty') {
-        if (!relatedItems.length) return true;
-        return relatedItems.every((relItem: any) => matchesFilterValue(relItem?.[filter.property], filter, sourceProp));
+        return projectedValues.length === 0;
       }
       if (filter.operator === 'is_not_empty') {
-        return relatedItems.some((relItem: any) => matchesFilterValue(relItem?.[filter.property], filter, sourceProp));
+        return projectedValues.length > 0;
       }
-      if (filter.operator === 'not_equals') {
-        if (!relatedItems.length) return true;
-        return relatedItems.every((relItem: any) => matchesFilterValue(relItem?.[filter.property], filter, sourceProp));
+      if (filter.operator === 'not_equals' || filter.operator === 'not_contains') {
+        if (!projectedValues.length) return true;
+        return projectedValues.every((val: any) => matchesFilterValue(val, filter, targetProp));
       }
 
-      return relatedItems.some((relItem: any) => matchesFilterValue(relItem?.[filter.property], filter, sourceProp));
+      return projectedValues.some((val: any) => matchesFilterValue(val, filter, targetProp));
+    }
+
+    const sourceCollection = collections.find((c: any) => c.id === sourceCollectionId);
+    if (!sourceCollection) return true;
+    const sourceProp = (sourceCollection.properties || []).find((p: any) => p.id === filter.property);
+    if (!sourceProp) return true;
+
+    const relationProps = (currentCollection.properties || []).filter(
+      (p: any) => p.type === 'relation' && p?.relation?.targetCollectionId === sourceCollectionId
+    );
+    if (!relationProps.length) return false;
+
+    const relatedItems = relationProps.flatMap((relProp: any) => {
+      const relationValue = item?.[relProp.id];
+      const ids = normalizeRelationIds(relationValue);
+      return ids
+        .map((id: string) => (sourceCollection.items || []).find((it: any) => it.id === id))
+        .filter(Boolean);
     });
+
+    if (filter.operator === 'is_empty') {
+      if (!relatedItems.length) return true;
+      return relatedItems.every((relItem: any) => matchesFilterValue(relItem?.[filter.property], filter, sourceProp));
+    }
+    if (filter.operator === 'is_not_empty') {
+      return relatedItems.some((relItem: any) => matchesFilterValue(relItem?.[filter.property], filter, sourceProp));
+    }
+    if (filter.operator === 'not_equals' || filter.operator === 'not_contains') {
+      if (!relatedItems.length) return true;
+      return relatedItems.every((relItem: any) => matchesFilterValue(relItem?.[filter.property], filter, sourceProp));
+    }
+    return relatedItems.some((relItem: any) => matchesFilterValue(relItem?.[filter.property], filter, sourceProp));
+  };
+
+  const mappedProperties = filters.some((filter: CollectionFilter) => filter.collectionFields)
+    ? getOrderedProperties(currentCollection, null, collections)
+    : [];
+  filters.forEach((filter: CollectionFilter) => {
+    if (!filter.collectionFields) {
+      filtered = filtered.filter((item) => matchesRule(item, filter));
+      return;
+    }
+    const fields = (filter.collectionFields[currentCollection.id] ?? [])
+      .map((id) => mappedProperties.find((property) => property.id === id))
+      .filter(Boolean);
+    if (!fields.length) return;
+    const source = collections.find((collection) => collection.id === filter.sourceCollectionId) ?? currentCollection;
+    const sourceProperty = getOrderedProperties(source, null, collections).find((property) => property.id === filter.property);
+    const selectTypes = ['select', 'multiselect', 'multi_select'];
+    const translateValue = (targetProperty: any) => {
+      if (!selectTypes.includes(sourceProperty?.type) || !selectTypes.includes(targetProperty.type)) return filter.value;
+      const normalizeOption = (option: any) => typeof option === 'string'
+        ? { value: option, label: option }
+        : { value: option.value, label: option.label ?? option.value };
+      const sourceOptions = (sourceProperty.options ?? []).map(normalizeOption);
+      const targetOptions = (targetProperty.options ?? []).map(normalizeOption);
+      const translate = (value: unknown) => {
+        const label = sourceOptions.find((option: any) => option.value === value)?.label;
+        return targetOptions.find((option: any) => option.value === value)?.value
+          ?? targetOptions.find((option: any) => label !== undefined && option.label === label)?.value
+          ?? value;
+      };
+      return Array.isArray(filter.value) ? filter.value.map(translate) : translate(filter.value);
+    };
+    const rules = fields.map((property) => ({
+      ...filter,
+      value: translateValue(property),
+      property: property.id,
+      sourceCollectionId: currentCollection.id,
+      isRelationLinkedColumn: Boolean(property.isRelationLinkedColumn),
+      sourceRelationPropertyId: property.sourceRelationPropertyId,
+      sourceDisplayFieldId: property.sourceDisplayFieldId,
+      sourceTargetCollectionId: property.sourceTargetCollectionId,
+    }));
+    // Exclusion applies to every mapped field. Positive rules accept any field.
+    const exclude = ['not_equals', 'not_contains', 'is_empty'].includes(filter.operator);
+    filtered = filtered.filter((item) => exclude
+      ? rules.every((rule) => matchesRule(item, rule))
+      : rules.some((rule) => matchesRule(item, rule)));
   });
 
   if (relationFilter.collectionId === activeCollection && currentCollection.id === activeCollection && relationFilter.ids?.length) {
@@ -294,17 +333,20 @@ export const getOrderedProperties = (
 };
 
 
-/** A layout can display several collections, each with its own pinned rules. */
+export function filterTargetsCollection(filter: CollectionFilter, collectionId: string, ownerId: string): boolean {
+  return filter.collectionFields
+    ? (filter.collectionFields[collectionId]?.length ?? 0) > 0
+    : (filter.sourceCollectionId || ownerId) === collectionId;
+}
+
+/** A layout can display several collections, each with its own global rules. */
 export function routeLayoutFilters(owner: Collection, collections: Collection[], layoutFilters: CollectionFilter[] = []): Collection[] {
   const pinned = owner.pinnedFilters ?? [];
   const filters = [...pinned, ...layoutFilters];
-  if (!filters.some(({ sourceCollectionId }) => sourceCollectionId && sourceCollectionId !== owner.id)) return collections;
 
   return collections.map((target) => {
-    if (target.id === owner.id) {
-      return { ...target, pinnedFilters: pinned.filter(({ sourceCollectionId }) => !sourceCollectionId || sourceCollectionId === owner.id) };
-    }
-    const inherited = filters.filter(({ sourceCollectionId }) => sourceCollectionId === target.id);
+    if (target.id === owner.id) return target;
+    const inherited = filters.filter((filter) => filterTargetsCollection(filter, target.id, owner.id));
     return inherited.length ? { ...target, pinnedFilters: [...(target.pinnedFilters ?? []), ...inherited] } : target;
   });
 }

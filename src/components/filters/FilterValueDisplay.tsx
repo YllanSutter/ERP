@@ -1,9 +1,9 @@
-import React from 'react';
-import { LightSelect } from '@/components/inputs/LightSelect';
-import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Input } from '@/components/ui/input';
+import { getRelationItemLabel, getValueLabels } from '@/components/modals/modalLib';
 import { MONTH_NAMES } from '@/lib/calendarUtils';
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
+import FilterOptionPicker from './FilterOptionPicker';
 
 interface FilterValueDisplayProps {
   filter: { property: string; operator: string; value: any };
@@ -15,257 +15,63 @@ interface FilterValueDisplayProps {
   compact?: boolean;
 }
 
-const FilterValueDisplay: React.FC<FilterValueDisplayProps> = ({
-  filter,
-  property,
-  collections,
-  currentCollection: _currentCollection,
-  canEdit = true,
-  onUpdateValue,
-  compact = false
-}) => {
-  const isMultiValueOperator = ['equals', 'not_equals'].includes(filter.operator);
-
-  const getValueLabels = (): string[] => {
-    if (property?.type === 'relation') {
-      const targetCol = collections.find((c: any) => c.id === property.relation?.targetCollectionId);
-      if (!targetCol) {
-        return Array.isArray(filter.value)
-          ? filter.value.filter(Boolean).map(String)
-          : filter.value
-          ? [String(filter.value)]
-          : [];
-      }
-      const nameField = targetCol.properties?.find((p: any) => p.name === 'Nom' || p.id === 'name') || targetCol.properties?.[0] || ({ id: 'name' } as any);
-      const values = normalizeRelationIds(filter.value);
-      return values.map((id: string) => {
-        const item = targetCol.items.find((i: any) => i.id === id);
-        return item ? item[nameField.id] || item.name || id : id;
-      });
+export default function FilterValueDisplay({ filter, property, collections, canEdit = true, onUpdateValue, compact = false }: FilterValueDisplayProps) {
+  const date = property?.type === 'date' || property?.type === 'date_range';
+  const granularity = property?.dateGranularity ?? 'full';
+  const select = ['select', 'multiselect', 'multi_select'].includes(property?.type);
+  const relation = property?.type === 'relation';
+  const multi = ['equals', 'not_equals'].includes(filter.operator) ||
+    ['multiselect', 'multi_select'].includes(property?.type) ||
+    (relation && ['one_to_many', 'many_to_many'].includes(property?.relation?.type));
+  const options = (() => {
+    if (relation) {
+      const target = collections.find(({ id }) => id === property.relation?.targetCollectionId);
+      return (target?.items ?? []).map((item: any) => ({
+        value: item.id,
+        label: getRelationItemLabel(item, property.relation, target),
+      }));
     }
+    if (select) return (property.options ?? []).map((option: any) => typeof option === 'string'
+      ? { value: option, label: option }
+      : { value: option.value, label: option.label ?? option.value });
+    if (date && granularity === 'month') return MONTH_NAMES.map((month) => ({ value: month, label: month }));
+    const years = Array.from({ length: 21 }, (_, index) => 2020 + index);
+    if (date && granularity === 'year') return years.map((year) => ({ value: String(year), label: String(year) }));
+    if (date && granularity === 'month-year') return years.flatMap((year) =>
+      MONTH_NAMES.map((month) => ({ value: `${month} ${year}`, label: `${month} ${year}` })));
+    return null;
+  })();
 
-    if (property?.type === 'select' || property?.type === 'multiselect') {
-      const opts = (property.options || []).map((opt: any) =>
-        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value }
-      );
-      const values = normalizeRelationIds(filter.value);
-      return values.map((v: any) => {
-        const opt = opts.find((o: any) => o.value === v);
-        return opt ? opt.label : v;
-      });
-    }
+  const labels = getValueLabels(property, filter.value, collections, normalizeRelationIds).map(String);
+  const fullLabel = labels.join(', ');
+  const summary = labels.length > 2 ? `${labels[0]} +${labels.length - 1}` : fullLabel;
+  if (!canEdit) return <span className="max-w-48 truncate text-xs" title={fullLabel}>{summary || 'Aucune valeur'}</span>;
 
-    if (Array.isArray(filter.value)) {
-      return filter.value.filter(Boolean).map(String);
-    }
+  // A value with choices opens its checklist directly, including from the collection header.
+  if (options) return (
+    <FilterOptionPicker options={options} values={normalizeRelationIds(filter.value)} multiple={multi && !date}
+      compact={compact} label={`Valeur du filtre · ${property?.name ?? 'Champ'}`}
+      onChange={(values) => onUpdateValue(multi && !date ? values : values[0] ?? '')} />
+  );
 
-    if (filter.value === null || filter.value === undefined || filter.value === '') {
-      return [];
-    }
-
-    return [String(filter.value)];
-  };
-
-  const getCompactSummary = () => {
-    const labels = getValueLabels();
-    if (labels.length === 0) return 'Aucune valeur';
-    if (labels.length === 1) return labels[0];
-    if (labels.length === 2) return `${labels[0]} + ${labels[1]}`;
-    return `${labels[0]} +${labels.length - 1}`;
-  };
-
-  const fullValueLabel = getValueLabels().join(', ');
-
-  const renderValue = () => {
-    return fullValueLabel;
-  };
-
-  const renderEditor = () => {
-    if (property?.type === 'relation') {
-      const targetCol = collections.find((c: any) => c.id === property.relation?.targetCollectionId);
-      if (!targetCol) return null;
-      const targetItems = targetCol.items || [];
-      const nameField = targetCol.properties?.find((p: any) => p.id === 'name' || p.name === 'Nom');
-
-      if (isMultiValueOperator) {
-        const currentValues = normalizeRelationIds(filter.value);
-        return (
-          <LightMultiSelect
-            options={targetItems.map((ti: any) => ({
-              value: ti.id,
-              label: nameField ? ti[nameField.id] || 'Sans titre' : ti.name || 'Sans titre'
-            }))}
-            values={currentValues}
-            onChange={(vals) => onUpdateValue(vals)}
-            placeholder="Aucun"
-          />
-        );
-      } else {
-        return (
-          <select
-            value={typeof filter.value === 'string' ? filter.value : ''}
-            onChange={(e) => onUpdateValue(e.target.value)}
-            className="w-full px-2 py-1 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-neutral-700 dark:text-white text-sm"
-          >
-            <option value="">Sélectionner...</option>
-            {targetItems.map((ti: any) => {
-              const label = nameField ? ti[nameField.id] || 'Sans titre' : ti.name || 'Sans titre';
-              return <option key={ti.id} value={ti.id}>{label}</option>;
-            })}
-          </select>
-        );
-      }
-    }
-
-    if (property?.type === 'select') {
-      const opts = (property.options || []).map((opt: any) =>
-        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
-      );
-      if (isMultiValueOperator) {
-        const currentValues = normalizeRelationIds(filter.value);
-        return (
-          <LightMultiSelect
-            options={opts}
-            values={currentValues}
-            onChange={(vals) => onUpdateValue(vals)}
-          />
-        );
-      } else {
-        return (
-          <LightSelect
-            options={opts}
-            value={filter.value}
-            onChange={(val) => onUpdateValue(val)}
-          />
-        );
-      }
-    }
-
-    if (property?.type === 'multiselect') {
-      const opts = (property.options || []).map((opt: any) =>
-        typeof opt === 'string' ? { value: opt, label: opt } : { value: opt.value, label: opt.label || opt.value, color: opt.color, icon: opt.icon }
-      );
-      const currentValues = Array.isArray(filter.value) ? filter.value : [];
-      return (
-        <LightMultiSelect
-          options={opts}
-          values={currentValues}
-          onChange={(vals) => onUpdateValue(vals)}
-        />
-      );
-    }
-
-    if (property?.type === 'date' || property?.type === 'date_range') {
-      const granularity = property.dateGranularity || 'full';
-
-      if (granularity === 'month') {
-        return (
-          <select
-            value={typeof filter.value === 'string' ? filter.value : ''}
-            onChange={(e) => onUpdateValue(e.target.value)}
-            className="w-full px-2 py-1 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-neutral-700 dark:text-white text-sm"
-          >
-            <option value="">Sélectionner...</option>
-            {MONTH_NAMES.map((month, idx) => (
-              <option key={idx} value={month}>{month}</option>
-            ))}
-          </select>
-        );
-      }
-
-      if (granularity === 'month-year') {
-        const years = Array.from({ length: 21 }, (_, i) => 2020 + i);
-        const options = [];
-        for (const year of years) {
-          for (const month of MONTH_NAMES) {
-            options.push(`${month} ${year}`);
-          }
-        }
-        return (
-          <select
-            value={typeof filter.value === 'string' ? filter.value : ''}
-            onChange={(e) => onUpdateValue(e.target.value)}
-            className="w-full px-2 py-1 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-neutral-700 dark:text-white text-sm max-h-64 overflow-y-auto"
-          >
-            <option value="">Sélectionner...</option>
-            {options.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-        );
-      }
-
-      if (granularity === 'year') {
-        const years = Array.from({ length: 21 }, (_, i) => 2020 + i);
-        return (
-          <select
-            value={typeof filter.value === 'string' ? filter.value : ''}
-            onChange={(e) => onUpdateValue(e.target.value)}
-            className="w-full px-2 py-1 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-neutral-700 dark:text-white text-sm"
-          >
-            <option value="">Sélectionner...</option>
-            {years.map((year) => (
-              <option key={year} value={String(year)}>{year}</option>
-            ))}
-          </select>
-        );
-      }
-
-      // full: date complète
-      return (
-        <input
-          type="date"
-          value={typeof filter.value === 'string' ? filter.value : ''}
-          onChange={(e) => onUpdateValue(e.target.value)}
-          className="w-full px-2 py-1 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-neutral-700 dark:text-white text-sm"
-        />
-      );
-    }
-
-    // Default text input
-    return (
-      <input
-        type="text"
-        value={typeof filter.value === 'string' ? filter.value : ''}
-        onChange={(e) => onUpdateValue(e.target.value)}
-        className="w-full px-2 py-1 bg-gray-300 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-neutral-700 dark:text-white text-sm"
-      />
-    );
-  };
-
-  if (!canEdit) {
-    return compact ? (
-      <span className="inline-flex max-w-[180px] truncate rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-medium text-neutral-700 dark:bg-white/10 dark:text-neutral-200" title={fullValueLabel || 'Aucune valeur'}>
-        {getCompactSummary()}
-      </span>
-    ) : (
-      <span className="truncate">{renderValue()}</span>
-    );
-  }
-
-  if (compact) {
-    return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="inline-flex max-w-[180px] items-center rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-medium text-neutral-700 transition hover:bg-black/10 dark:bg-white/10 dark:text-neutral-100 dark:hover:bg-white/15"
-            title={fullValueLabel || 'Aucune valeur'}
-          >
-            <span className="truncate">{getCompactSummary()}</span>
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-[min(24rem,80vw)]">
-          <div className="space-y-2">
-            <div className="text-xs font-medium text-neutral-600 dark:text-neutral-300">Valeur du filtre</div>
-            {renderEditor()}
-          </div>
-        </PopoverContent>
-      </Popover>
-    );
-  }
-
-  return <div className={compact ? 'min-w-[140px]' : 'min-w-[180px]'}>{renderEditor()}</div>;
-};
-
-export default FilterValueDisplay;
+  const inputValue = date
+    ? Array.isArray(filter.value) ? filter.value[0] ?? '' : filter.value ?? ''
+    : Array.isArray(filter.value) ? filter.value.join(', ') : filter.value ?? '';
+  const input = (
+    <Input aria-label={`Valeur du filtre · ${property?.name ?? 'Champ'}`} type={date ? 'date' : 'text'}
+      value={String(inputValue)} placeholder={multi ? 'Une ou plusieurs valeurs séparées par des virgules' : 'Valeur'}
+      onChange={(event) => onUpdateValue(event.target.value)}
+      className="h-9" />
+  );
+  if (!compact) return input;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" className="h-7 max-w-48 truncate rounded-md px-1 text-xs hover:bg-accent" title={fullLabel}>
+          {summary || 'Choisir une valeur'}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[min(20rem,calc(100vw-2rem))] p-3">{input}</PopoverContent>
+    </Popover>
+  );
+}
