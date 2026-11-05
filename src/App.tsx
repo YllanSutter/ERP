@@ -1,3 +1,4 @@
+import { SteamItemBanner } from '@/lib/plugins/steam/SteamItemBanner';
 import { SteamBundlePublishButton } from '@/lib/plugins/steam/BundlePublishingDialog';
 import { SteamCollectionSettings } from '@/lib/plugins/steam/SteamCollectionSettings';
 import { SteamBundles } from '@/lib/plugins/steam/SteamBundles';
@@ -1273,6 +1274,7 @@ const App = () => {
       )}
       {showPropertyModal && activeCollection && (
         <PropertyModal
+          nested={showViewSettings || showFilterModal || showGroupModal}
           onClose={() => {
             setShowPropertyModal(false);
             setEditingProperty(null);
@@ -1295,6 +1297,7 @@ const App = () => {
       )}
       {showNewItemModal && (
         <NewItemModal
+          renderPluginBanner={(collection, item) => <SteamItemBanner collection={collection} item={item} />}
           renderPluginActions={(collection, item) => <SteamBundlePublishButton collection={collection} item={item} collections={collections} />}
           collection={modalCollection || currentCollection!}
           collections={collections}

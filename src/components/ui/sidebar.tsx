@@ -55,6 +55,8 @@ const SidebarProvider = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
     defaultOpen?: boolean
+    persistState?: boolean
+    shortcutEnabled?: boolean
     open?: boolean
     onOpenChange?: (open: boolean) => void
   }
@@ -62,6 +64,8 @@ const SidebarProvider = React.forwardRef<
   (
     {
       defaultOpen = true,
+      persistState = true,
+      shortcutEnabled = true,
       open: openProp,
       onOpenChange: setOpenProp,
       className,
@@ -88,9 +92,9 @@ const SidebarProvider = React.forwardRef<
         }
 
         // This sets the cookie to keep the sidebar state.
-        document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+        if (persistState) document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
       },
-      [setOpenProp, open]
+      [setOpenProp, open, persistState]
     )
 
     // Helper to toggle the sidebar.
@@ -102,6 +106,7 @@ const SidebarProvider = React.forwardRef<
 
     // Adds a keyboard shortcut to toggle the sidebar.
     React.useEffect(() => {
+      if (!shortcutEnabled) return;
       const handleKeyDown = (event: KeyboardEvent) => {
         if (
           event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
@@ -114,7 +119,7 @@ const SidebarProvider = React.forwardRef<
 
       window.addEventListener("keydown", handleKeyDown)
       return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [toggleSidebar])
+    }, [toggleSidebar, shortcutEnabled])
 
     // We add a state so that we can do data-state="expanded" or "collapsed".
     // This makes it easier to style the sidebar with Tailwind classes.

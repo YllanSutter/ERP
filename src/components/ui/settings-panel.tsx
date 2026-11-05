@@ -11,6 +11,7 @@ import { IconButton } from './icon-button';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import './settings-panel.css';
+import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger, SidebarRail } from './sidebar';
 
 interface HeaderProps {
   title: React.ReactNode;
@@ -99,21 +100,50 @@ export interface SettingsTab {
   icon?: React.ElementType;
 }
 
-export function SettingsTabs({ items, value, onValueChange, children, navigation = 'top', label = 'Sections des paramètres', inline = false, defaultValue }: {
+export function SettingsTabs({ items, value, onValueChange, children, navigation = 'top', label = 'Sections des paramètres', inline = false, defaultValue, appearance = 'default' }: {
+  appearance?: 'default' | 'underline';
   items: readonly SettingsTab[];
   value?: string;
   defaultValue?: string;
   onValueChange?: (value: string) => void;
   children: React.ReactNode;
   inline?: boolean;
-  navigation?: 'top' | 'side';
+  navigation?: 'top' | 'side' | 'sidebar';
   label?: string;
 }) {
   const mobile = useIsMobile();
   const side = navigation === 'side';
+  if (navigation === 'sidebar' && !mobile) {
+    return (
+      <Tabs value={value} defaultValue={defaultValue} onValueChange={onValueChange} orientation="vertical" className="settings-tabs settings-tabs-app-sidebar">
+        <SidebarProvider persistState={false} shortcutEnabled={false} className="relative !min-h-0 min-w-0 flex-1 overflow-hidden" style={{ '--sidebar-width': '11rem' } as React.CSSProperties}>
+          <Sidebar collapsible="icon" className="!absolute !h-full">
+            <SidebarHeader><SidebarTrigger title="Réduire ou déployer les onglets" aria-label="Réduire ou déployer les onglets" /></SidebarHeader>
+            <SidebarContent>
+              <TabsList asChild>
+                <SidebarMenu aria-label={label} className="!h-auto !items-stretch !justify-start !rounded-none !border-0 !bg-transparent !p-2">
+                  {items.map(({ id, label: title, icon: Icon }) => (
+                    <SidebarMenuItem key={id}>
+                      <TabsTrigger value={id} asChild>
+                        <SidebarMenuButton tooltip={{ children: title, className: 'z-[450]' }} isActive={value === id} className="!justify-start data-[state=active]:bg-sidebar-accent data-[state=active]:text-sidebar-accent-foreground">
+                          {Icon && <Icon size={14} aria-hidden="true" />}<span>{title}</span>
+                        </SidebarMenuButton>
+                      </TabsTrigger>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </TabsList>
+            </SidebarContent>
+            <SidebarRail />
+          </Sidebar>
+          <div className="settings-tab-panels">{children}</div>
+        </SidebarProvider>
+      </Tabs>
+    );
+  }
   return (
     <Tabs value={value} defaultValue={defaultValue} onValueChange={onValueChange} orientation={side && !mobile ? 'vertical' : 'horizontal'}
-      className={cn('settings-tabs', side && 'settings-tabs-side', inline && 'settings-tabs-inline')}>
+      className={cn('settings-tabs', side && 'settings-tabs-side', inline && 'settings-tabs-inline', appearance === 'underline' && 'settings-tabs-underline')}>
       <nav className="settings-navigation">
         <TabsList aria-label={label} className="settings-tabs-list">
           {items.map(({ id, label: title, icon: Icon }) => (
@@ -132,14 +162,14 @@ export function SettingsTabContent({ className, scrollable = false, ...props }: 
   return <TabsContent data-scrollable={scrollable} className={cn('settings-body settings-tab-content', className)} {...props} />;
 }
 
-export function SettingsSectionTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cn('settings-section-title', className)} {...props} />;
+export function SettingsSectionTitle({ className, ruled = false, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { ruled?: boolean }) {
+  return <h3 className={cn('settings-section-title', ruled && 'settings-section-title-ruled', className)} {...props} />;
 }
 
-export function SettingsSection({ title, icon: Icon, children, className, action }: { title: React.ReactNode; icon?: LucideIcon; children: React.ReactNode; className?: string; action?: React.ReactNode }) {
+export function SettingsSection({ title, icon: Icon, children, className, action, hideHeader = false, appearance = 'default', ruled = false }: { title: React.ReactNode; icon?: LucideIcon; children: React.ReactNode; className?: string; action?: React.ReactNode; hideHeader?: boolean; appearance?: 'default' | 'plain'; ruled?: boolean }) {
   return (
-    <section className={cn('settings-section', className)}>
-      <SettingsSectionTitle className="settings-section-header">{Icon && <Icon size={15} aria-hidden="true" />}<span className="min-w-0 flex-1">{title}</span>{action}</SettingsSectionTitle>
+    <section data-appearance={appearance} className={cn('settings-section', className)}>
+      {!hideHeader && <SettingsSectionTitle ruled={ruled} className="settings-section-header">{Icon && <Icon size={15} aria-hidden="true" />}<span className="min-w-0 flex-1">{title}</span>{action}</SettingsSectionTitle>}
       <div className="settings-section-body">{children}</div>
     </section>
   );

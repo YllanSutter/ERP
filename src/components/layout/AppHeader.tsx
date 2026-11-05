@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Moon, Sun, LogOut, Shield, Search, Command, Pencil } from 'lucide-react';
+import { Moon, Sun, LogOut, Shield, Search, Command, Pencil, Sparkles } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Select,
@@ -14,6 +14,7 @@ import { useCanManagePermissions } from '@/lib/hooks/useCanEdit';
 import { io } from 'socket.io-client';
 import type { SaveStatus } from '@/lib/saveQueue';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { useAnimatedBackdrop } from '@/lib/hooks/useAnimatedBackdrop';
 
 interface AppHeaderProps {
   impersonatedRoleId: string | null;
@@ -45,6 +46,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   onOpenCommandMenu,
 }) => {
   const { user, logout, isAdminBase } = useAuth();
+  const { enabled: backdropEnabled, toggle: toggleBackdrop } = useAnimatedBackdrop();
   // Hook de permissions
   const canManagePermissions = useCanManagePermissions();
 
@@ -220,6 +222,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
         >
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+        <button
+          className="h-8 w-8 rounded-full flex items-center justify-center bg-black/5 dark:bg-white/5 text-neutral-700 dark:text-neutral-300 hover:bg-black/10 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 transition-all duration-300"
+          onClick={toggleBackdrop}
+          aria-pressed={backdropEnabled}
+          aria-label={backdropEnabled ? 'Désactiver le fond animé' : 'Activer le fond animé'}
+          title={backdropEnabled ? 'Désactiver le fond animé' : 'Activer le fond animé'}
+        >
+          <Sparkles size={16} className={backdropEnabled ? '' : 'opacity-40'} />
         </button>
         <button
           onClick={logout}

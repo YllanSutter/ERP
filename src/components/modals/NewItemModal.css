@@ -1,0 +1,67 @@
+/* Keep PV fields quiet; the row separator and focus indicator provide structure. */
+.item-fields-plain input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.item-fields-plain textarea {
+  border: 0 !important;
+  box-shadow: none;
+  background: transparent;
+}
+.item-fields-plain input:focus-visible,
+.item-fields-plain textarea:focus-visible {
+  outline: 2px solid rgb(var(--brand-500) / 0.5);
+  outline-offset: 2px;
+}
+.item-fields-plain .group\/row > div:last-child {
+  border-left: 0;
+}
+
+/* Compact only the fiche navigation; nested field-group tabs keep their spacing. */
+.item-modal-content > div > .settings-tabs > .settings-navigation {
+  padding-top: 0;
+}
+.item-modal-content > div > .settings-tabs > .settings-navigation > .settings-tabs-list > .settings-tab-trigger {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.item-modal .field-row-value input:not([type="checkbox"]):not([type="radio"]),
+.item-modal .field-row-value textarea {
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+}
+.item-modal-content > div > .settings-tabs > .settings-navigation > .settings-tabs-list > .settings-tab-trigger:not([data-state="active"]) {
+  color: hsl(var(--muted-foreground));
+}
+
+.item-modal .item-rich-tab { display: flex; flex-direction: column; overflow: hidden; }
+.item-modal .item-rich-editor { flex: 1; min-height: 0; width: 100%; }
+.item-modal .item-rich-editor .simple-editor-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 0 3vh;
+}
+.item-modal .item-rich-editor .simple-editor-content { flex: 1; display: flex; flex-direction: column; }
+.item-modal .item-rich-editor .simple-editor-content > .tiptap { flex: 1; }
+
+.item-general .settings-section[data-appearance="plain"] > .settings-section-header {
+  border-bottom: 0;
+  padding-bottom: 0.375rem;
+}
+.item-modal .rte-container .tiptap.ProseMirror.simple-editor {
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+@media (min-width: 768px) {
+  .item-modal-content > div > .settings-tabs-side > .settings-navigation {
+    padding: 0.625rem;
+    width: 10rem;
+  }
+  .item-modal-content > div > .settings-tabs-side > .settings-navigation > .settings-tabs-list > .settings-tab-trigger {
+    flex: none;
+    min-height: 2.25rem;
+  }
+}

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { useAnimatedBackdrop } from '@/lib/hooks/useAnimatedBackdrop';
 
 // Fond animé : étoiles qui dérivent et grille qui s'allume au survol.
 // Remplit son parent positionné ; couleurs surchargeables par className via les variables --bd-*.
@@ -12,7 +13,14 @@ const FRAME_MS = 1000 / 30;
 
 type Star = { x: number; y: number; r: number; vx: number; vy: number; phase: number; accent: boolean };
 
-export function InteractiveBackdrop({ className, cellSize = 18 }: { className?: string; cellSize?: number }) {
+type BackdropProps = { className?: string; cellSize?: number };
+
+export function InteractiveBackdrop(props: BackdropProps) {
+  const { enabled } = useAnimatedBackdrop();
+  return enabled ? <BackdropCanvas {...props} /> : null;
+}
+
+function BackdropCanvas({ className, cellSize = 18 }: BackdropProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {

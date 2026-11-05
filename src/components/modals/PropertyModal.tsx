@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 const LazyRichTextEditor = React.lazy(() => import('@/components/fields/RichTextEditor'));
 
 interface PropertyModalProps {
+  nested?: boolean;
   onClose: () => void;
   onSave: (property: any) => void;
   property?: any;
@@ -38,7 +39,8 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   onSave,
   property,
   collections,
-  currentCollectionId
+  currentCollectionId,
+  nested = false
 }) => {
   const { activeOrganizationId } = useAuth();
   const isEditing = !!property;
@@ -219,7 +221,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const TinyLabel = SettingsLabel;
 
   return (
-    <SettingsSheet open wide onOpenChange={(open) => { if (!open) onClose(); }}
+    <SettingsSheet open wide nested={nested} onOpenChange={(open) => { if (!open) onClose(); }}
       title={isEditing ? 'Modifier la propriété' : 'Nouvelle propriété'}
       description={name.trim() || 'Configure le champ et ses valeurs.'}>
         <SettingsTabs value={activeTab} onValueChange={setActiveTab}

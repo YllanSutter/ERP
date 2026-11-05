@@ -723,7 +723,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     <div className="flex items-center gap-2">
                       {canEdit && (
                         <ToolbarButton
-                          onClick={() => { onSetShowViewSettings(false); onShowNewPropertyModal(); }}
+                          onClick={onShowNewPropertyModal}
                           className="h-auto px-2 py-1 text-neutral-500 dark:text-neutral-400 hover:text-black dark:hover:text-white"
                           title="Ajouter une propriété"
                         >
@@ -762,7 +762,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                                       </div>
                                       <div className="flex items-center gap-1 shrink-0">
                                         <IconButton
-                                          onClick={(e) => { e.preventDefault(); if (!canEdit) return; onSetShowViewSettings(false); onEditProperty(prop); }}
+                                          onClick={(e) => { e.preventDefault(); if (!canEdit) return; onEditProperty(prop); }}
                                           label="Modifier la propriété"
                                           className="h-5 w-5 opacity-0 text-neutral-500 transition-opacity hover:text-brand-400 group-hover:opacity-100"
                                         >
@@ -835,7 +835,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                               <span className="flex-1 truncate">{prop.name}</span>
                               {!isSystemOption && (
                                 <IconButton
-                                  onClick={(e) => { e.stopPropagation(); if (!canEdit) return; onSetShowViewSettings(false); onEditProperty(prop); }}
+                                  onClick={(e) => { e.stopPropagation(); if (!canEdit) return; onEditProperty(prop); }}
                                   label="Modifier la propriété"
                                   className="h-5 w-5 shrink-0 opacity-0 text-neutral-500 transition-opacity hover:text-brand-400 group-hover:opacity-100"
                                 >

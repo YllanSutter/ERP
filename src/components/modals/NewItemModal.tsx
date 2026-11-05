@@ -1,8 +1,12 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Star, Trash2, Clock, Edit2, History, ChevronLeft, FileText, ChevronDown, Sparkles } from 'lucide-react';
+import * as Icons from 'lucide-react';
+import { Star, Trash2, Clock, Edit2, History, ChevronLeft, FileText, ChevronDown, Sparkles, Link2, LayoutGrid } from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { InteractiveBackdrop } from '@/components/ui/InteractiveBackdrop';
 import { Button } from '@/components/ui/button';
+import { FieldRow } from '@/components/ui/field-row';
+import { SettingsFooter, SettingsSection, SettingsSectionTitle, SettingsSelect, SettingsTabs, SettingsTabContent } from '@/components/ui/settings-panel';
 import {
   Dialog,
   DialogContent,
@@ -23,6 +27,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import './NewItemModal.css';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/auth/AuthProvider';
 import { ItemPdfBlock } from '@/components/fields/ItemPdfBlock';
@@ -39,8 +44,29 @@ import {
 } from '@/components/modals/modalLib';
 
 
+const fieldTypeIcons: Record<string, Icons.LucideIcon> = {
+  text: Icons.Type, rich_text: Icons.FileText, richtext: Icons.FileText,
+  number: Icons.Hash, currency: Icons.Euro, price: Icons.Euro,
+  date: Icons.CalendarDays, date_range: Icons.CalendarRange, time: Icons.Clock,
+  relation: Icons.Link2, select: Icons.Tag, multiselect: Icons.Tags, multi_select: Icons.Tags,
+  checkbox: Icons.CheckSquare, boolean: Icons.CheckSquare, url: Icons.Globe,
+  email: Icons.Mail, phone: Icons.Phone, password: Icons.KeyRound,
+  file: Icons.Paperclip, image: Icons.Image, formula: Icons.Sigma,
+};
+
+function getFieldIcon(property: any): Icons.LucideIcon {
+  const configured = property?.icon && (Icons as unknown as Record<string, Icons.LucideIcon>)[property.icon];
+  return configured || fieldTypeIcons[property?.type] || Icons.Text;
+}
+
+function FieldLabelIcon({ property }: { property: any }) {
+  const Icon = getFieldIcon(property);
+  return <Icon size={12} className="shrink-0 text-current" aria-hidden="true" />;
+}
+
 interface NewItemModalProps {
   collection: any;
+  renderPluginBanner?: (collection: any, item: any) => React.ReactNode;
   renderPluginActions?: (collection: any, item: any) => React.ReactNode;
   onClose: () => void;
   onSave: (item: any) => void;
@@ -88,6 +114,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   fieldGroups = [],
   fieldGroupsLayout = 'stacked',
   renderPluginActions,
+  renderPluginBanner,
 }) => {
   const { user, isAdmin, isEditor, permissions, activeOrganizationId } = useAuth();
 
@@ -198,6 +225,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     setSelectedCollectionId(collection.id);
   }, [collection?.id]);
 
+  const [itemTab, setItemTab] = useState('general');
+  const [activeFieldGroupId, setActiveFieldGroupId] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyData, setHistoryData] = useState<{ base: any; versions: any[] } | null>(null);
   const [historySelectedIndex, setHistorySelectedIndex] = useState<number | null>(null);
@@ -857,8 +886,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   // State temporaire pour propager la valeur du champ date
   const [pendingDateValue, setPendingDateValue] = useState<string | undefined>(undefined);
 
-  const handleCollectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newCollectionId = e.target.value;
+  const handleCollectionChange = (newCollectionId: string) => {
     if (!editingItem) {
       // Cherche la première valeur trouvée dans formData parmi tous les champs date de la collection courante
       let previousDateValue = undefined;
@@ -1061,7 +1089,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     [richTextPropsForDisplay]
   );
   const [activeRichTextTab, setActiveRichTextTab] = useState<string>('');
-  const [activeFieldGroupId, setActiveFieldGroupId] = useState<string>('');
   React.useEffect(() => {
     if (!richTextTabs.length) {
       if (activeRichTextTab !== '') setActiveRichTextTab('');
@@ -1070,15 +1097,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     const exists = richTextTabs.some((tab: { id: string; label: string }) => tab.id === activeRichTextTab);
     if (!exists) setActiveRichTextTab(richTextTabs[0].id);
   }, [richTextTabs, activeRichTextTab]);
-
-  React.useEffect(() => {
-    if (fieldGroupsLayout !== 'tabs' || fieldGroups.length === 0) {
-      if (activeFieldGroupId !== '') setActiveFieldGroupId('');
-      return;
-    }
-    const exists = fieldGroups.some((group) => group.id === activeFieldGroupId);
-    if (!exists) setActiveFieldGroupId(fieldGroups[0].id);
-  }, [fieldGroups, fieldGroupsLayout, activeFieldGroupId]);
 
   // État pour gérer l'ouverture du modal d'édition des plages
   const [editingDateProp, setEditingDateProp] = useState<any>(null);
@@ -1311,6 +1329,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     saveFn(dataToSave);
   };
 
+  const activeItemTab = ['general', 'details', ...(relationPropsForDisplay.length ? ['relations'] : []), ...(datePropsForDisplay.length ? ['hours'] : []), ...richTextTabs.map((tab: { id: string; label: string }) => `text:${tab.id}`), ...fieldGroups.map(group => `group:${group.id}`)].includes(itemTab) ? itemTab : 'general';
+
   return (
     <>
       <div
@@ -1329,38 +1349,34 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         }
       `}</style>
       <motion.div
-        initial={{ scale: 0.97, opacity: 0, y: 12 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="bg-background text-foreground border border-border rounded-2xl w-screen h-screen max-w-[1600px] max-h-[93vh] overflow-hidden flex flex-col shadow-[0_32px_80px_-8px_rgba(0,0,0,0.22)] dark:shadow-[0_32px_80px_-8px_rgba(0,0,0,0.8)]"
+        className="item-modal settings-surface w-full h-[100dvh] sm:w-[calc(100%_-_2rem)] sm:h-[90dvh] sm:max-w-6xl sm:rounded-2xl border border-border shadow-2xl overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className="group/template flex items-start gap-4 px-8 py-5 border-b border-border bg-card/70 shrink-0">
+        <div className="group/template flex flex-wrap items-center gap-2 px-[var(--settings-padding)] py-2 border-b border-border shrink-0">
           {/* Titre + badge collection */}
-          <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+          <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
             <div className="flex items-center gap-3">
               {!isReallyEditing ? (
                 <>
-                  <span className="text-[10px] tracking-widest uppercase text-muted-foreground font-medium shrink-0">Collection</span>
-                  <select
-                    className="text-[11px] px-2 py-0.5 rounded-md bg-background text-foreground border border-border focus:border-brand-500 focus:outline-none transition-colors"
+                  <SettingsSelect
+                    aria-label="Collection"
+                    className="w-auto min-w-40 max-w-full"
                     value={selectedCollectionId}
                     onChange={handleCollectionChange}
-                  >
-                    {writableCollections.map((col: any) => (
-                      <option key={col.id} value={col.id} className="bg-background text-foreground">{col.name}</option>
-                    ))}
-                  </select>
+                    options={writableCollections.map((col: any) => ({ value: col.id, label: col.name }))}
+                  />
                 </>
               ) : (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] tracking-widest uppercase font-semibold bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">
                   {selectedCollection?.name || 'Collection'}
                 </span>
               )}
             </div>
-            {titleProperty && <div className="flex justify-end">{renderTemplatePicker(titleProperty)}</div>}
             {classicPropsSansRichText.length > 0 && (
-              <div className="[&_input]:text-[22px] [&_input]:font-semibold [&_input]:tracking-tight [&_input]:text-foreground [&_input]:placeholder:text-muted-foreground [&_input]:bg-transparent [&_input]:border-0 [&_input]:outline-none [&_input]:w-full [&_input]:p-0 [&_textarea]:text-[22px] [&_textarea]:font-semibold [&_textarea]:text-foreground">
+              <div className="flex-1 min-w-0 [&_input]:text-lg [&_input]:font-semibold [&_input]:tracking-tight [&_input]:text-foreground [&_input]:placeholder:text-muted-foreground [&_input]:bg-transparent [&_input]:border-0 [&_input]:outline-none [&_input]:w-full [&_input]:p-0 [&_textarea]:text-lg [&_textarea]:font-semibold [&_textarea]:text-foreground">
                 <EditableProperty
                   property={titleProperty}
                   value={formData[titleProperty.id]}
@@ -1384,10 +1400,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             )}
           </div>
           {/* Actions droite */}
-          <div className="flex items-center gap-2 pt-1 shrink-0">
+          <div className="flex flex-wrap items-center gap-1 shrink-0">
+            {titleProperty && renderTemplatePicker(titleProperty)}
             {renderPluginActions?.(selectedCollection, formData)}
             {hasLocalDraft && (
-              <div className="px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wide bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <div className="px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wide bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
                 Brouillon
               </div>
             )}
@@ -1426,8 +1443,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     className={cn(
                       'inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all',
                       pdfPopoverOpen
-                        ? 'text-brand-300 bg-brand-500/10'
-                        : 'text-muted-foreground hover:text-brand-300 hover:bg-brand-500/10'
+                        ? 'text-brand-600 dark:text-brand-300 bg-brand-500/10'
+                        : 'text-muted-foreground hover:text-brand-600 dark:hover:text-brand-300 hover:bg-brand-500/10'
                     )}
                     title="Ouvrir les options PDF"
                   >
@@ -1465,15 +1482,16 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             </button>
           </div>
         </div>
-        <div className="flex-1 px-8 py-7 z-10 relative overflow-y-auto">
-          <div className="space-y-8">
+        <div className="item-modal-content z-10 relative isolate flex min-h-0 flex-1 flex-col">
+          <InteractiveBackdrop className="opacity-50 [--bd-bg:transparent] dark:[--bd-bg:transparent] [--bd-accent:rgb(var(--brand-500))] dark:[--bd-accent:rgb(var(--brand-500))]" />
+          <div className="relative z-10 flex min-h-0 flex-1 flex-col">
 
           {relationTrail.length > 1 && (
-            <div className="flex flex-wrap items-center gap-2 text-sm -mb-2">
+            <div className="flex flex-wrap items-center gap-2 border-b border-border p-3 text-sm">
               <button
                 type="button"
                 onClick={() => navigateTrailToIndex(relationTrail.length - 2)}
-                className="inline-flex items-center gap-1.5 text-brand-400 hover:text-brand-300 transition-colors font-medium"
+                className="inline-flex items-center gap-1.5 text-brand-400 hover:text-brand-600 dark:hover:text-brand-300 transition-colors font-medium"
               >
                 <ChevronLeft size={16} />
                 Retour
@@ -1484,18 +1502,18 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   <React.Fragment key={`${entry.collection?.id || 'col'}-${entry.item?.id || index}-${index}`}>
                     {index > 0 && (
                       <>
-                        <span className="text-neutral-600">/</span>
-                        <span className="text-neutral-500">{entry.relationName || 'Relation'}</span>
-                        <span className="text-neutral-600">/</span>
+                        <span className="text-muted-foreground">/</span>
+                        <span className="text-muted-foreground">{entry.relationName || 'Relation'}</span>
+                        <span className="text-muted-foreground">/</span>
                       </>
                     )}
                     {isLast ? (
-                      <span className="font-medium text-neutral-200 truncate max-w-[220px]">{entry.label}</span>
+                      <span className="font-medium text-foreground truncate max-w-[220px]">{entry.label}</span>
                     ) : (
                       <button
                         type="button"
                         onClick={() => navigateTrailToIndex(index)}
-                        className="text-neutral-400 hover:text-neutral-200 hover:underline transition-colors truncate max-w-[220px]"
+                        className="text-muted-foreground hover:text-foreground hover:underline transition-colors truncate max-w-[220px]"
                       >
                         {entry.label}
                       </button>
@@ -1506,74 +1524,39 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             </div>
           )}
 
-          {/* Relations en haut sur toute la largeur */}
-          {relationPropsForDisplay.length > 0 && (
-            <div className="pb-8 mb-2">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-[10px] tracking-widest uppercase font-medium text-neutral-600 shrink-0">Relations</span>
-                <div className="flex-1 h-px bg-white/[0.06]" />
-              </div>
-              <div className="flex gap-x-8 gap-y-3 items-center flex-wrap pl-2">
-                {relationPropsForDisplay.map((prop: any) => (
-                  <div className="group/template flex items-center gap-3" key={prop.id}>
-                    <label className="text-[10px] font-mono tracking-widest uppercase text-neutral-500 whitespace-nowrap">
-                      {prop.name}{prop.required && <span className="text-red-400 ml-0.5">*</span>}
-                    </label>
-                    {renderTemplatePicker(prop)}
-                    <EditableProperty
-                      property={prop}
-                      value={formData[prop.id]}
-                      onChange={(val) => handleChange(prop.id, val)}
-                      size="md"
-                      collections={readableCollections}
-                      collection={selectedCollection}
-                      currentItem={formData}
-                      onRelationChange={(property, _item, value) => {
-                        if (!canWriteField(selectedCollection?.id, property.id)) return;
-                        setFormData({ ...formData, [property.id]: value });
-                      }}
-                      readOnly={!canWriteField(selectedCollection?.id, prop.id)}
-                      onNavigateToRelatedItem={(item, targetCol) => navigateToRelatedItemClassic(item, targetCol, prop.name)}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <SettingsTabs
+            value={activeItemTab}
+            onValueChange={setItemTab}
+            label="Sections de la fiche"
+            navigation="sidebar"
+            items={[
+              { id: 'general', label: 'Général', icon: LayoutGrid },
+              { id: 'details', label: 'Détails', icon: Edit2 },
+              ...(relationPropsForDisplay.length ? [{ id: 'relations', label: 'Relations', icon: Link2 }] : []),
+              ...(datePropsForDisplay.length ? [{ id: 'hours', label: 'Horaires', icon: Clock }] : []),
+              ...fieldGroups.filter(group => group.fieldIds.some(id => detailsPropsForDisplay.some((prop: any) => prop.id === id))).map(group => ({ id: `group:${group.id}`, label: group.label, icon: getFieldIcon(detailsPropsForDisplay.find((prop: any) => group.fieldIds.includes(prop.id))) })),
+              ...richTextTabs.map((tab: { id: string; label: string }) => ({ id: `text:${tab.id}`, label: tab.label, icon: getFieldIcon(richTextPropsForDisplay.find((prop: any) => prop.id === tab.id)) })),
+            ]}
+          >
+            <SettingsTabContent value={activeItemTab} scrollable forceMount className={activeItemTab.startsWith('text:') ? 'item-rich-tab' : undefined}>
+              {renderPluginBanner?.({
+                ...selectedCollection,
+                properties: (selectedCollection.properties || []).filter((prop: any) => canReadField(selectedCollection.id, prop.id)),
+              }, formData)}
+              <div className={cn('w-full', activeItemTab === 'general' ? 'item-general grid max-w-6xl grid-cols-1 items-start gap-6 xl:grid-cols-12' : activeItemTab.startsWith('text:') ? 'flex min-h-0 flex-1 flex-col' : 'max-w-4xl space-y-6')}>
 
-          {/* Grid à 2 colonnes : champs classiques à gauche, horaires à droite */}
-          <div className={`grid grid-cols-1 ${datePropsForDisplay.length > 0 ? 'xl:grid-cols-[1.6fr_0.55fr]' : ''} gap-8 relative`}>
-          
+            <div hidden={activeItemTab !== 'general' && activeItemTab !== 'details' && !activeItemTab.startsWith('group:')} className={activeItemTab === 'general' ? (datePropsForDisplay.length ? 'min-w-0 xl:col-span-8' : 'min-w-0 xl:col-span-12') : undefined}>
           {/* Partie gauche : champs classiques */}
-          {(detailsPropsForDisplay.length > 0 || !isReallyEditing) && (
           <div className="min-w-[0]">
-            {detailsPropsForDisplay.length > 0 && (
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-[10px] tracking-widest uppercase font-medium text-neutral-600 shrink-0">Détails</span>
-                <div className="flex-1 h-px bg-white/[0.06]" />
-              </div>
-            )}
-            {detailsPropsForDisplay.length === 0 && !isReallyEditing && (
-              <div className="text-neutral-600 text-sm">Aucun champ supplémentaire</div>
+            {detailsPropsForDisplay.length === 0 && (
+              <div className="text-muted-foreground text-sm">Aucun champ supplémentaire</div>
             )}
             {/* Rendu d'une ligne de champ — factorisé pour usage dans les groupes et hors-groupe */}
             {(() => {
               const renderFieldRow = (prop: any) => (
-                <div
-                  key={prop.id}
-                  className="group/template group/row flex items-stretch rounded-lg hover:bg-white/[0.025] focus-within:bg-white/[0.03] transition-colors duration-100"
-                >
-                  <div className="flex items-center w-[150px] shrink-0 overflow-hidden">
-                    <label
-                      id={`label-${prop.id}`}
-                      className="block text-[10px] font-mono tracking-widest uppercase text-neutral-600 group-hover/row:text-neutral-500 whitespace-nowrap w-full px-3 py-2.5 transition-colors duration-100 truncate"
-                      htmlFor={`field-${prop.id}`}
-                    >
-                      {prop.name}
-                    </label>
-                    {renderTemplatePicker(prop)}
-                  </div>
-                  <div className="flex-1 min-w-0 border-l border-white/[0.06] group-focus-within/row:border-brand-500/50 transition-colors duration-150 pl-3 pr-1 flex items-center">
+                <FieldRow key={prop.id} label={prop.name} required={prop.required}
+                  icon={<FieldLabelIcon property={prop} />} actions={renderTemplatePicker(prop)}
+                  labelId={`label-${prop.id}`} htmlFor={`field-${prop.id}`} className="item-fields-plain">
                     <EditableProperty
                       property={prop}
                       value={formData[prop.id]}
@@ -1593,8 +1576,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       readOnly={!canWriteField(selectedCollection?.id, prop.id)}
                       forceRichEditor={true}
                     />
-                  </div>
-                </div>
+                </FieldRow>
               );
 
               // IDs de tous les champs affectés à au moins un groupe
@@ -1608,63 +1590,83 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     .filter(Boolean),
                 }))
                 .filter(({ props }) => props.length > 0);
-              const visibleGroups = fieldGroupsLayout === 'tabs'
-                ? groupsWithProps.filter(({ group }) => group.id === activeFieldGroupId)
-                : groupsWithProps;
+              const selectedGroupId = groupsWithProps.some(({ group }) => group.id === activeFieldGroupId)
+                ? activeFieldGroupId : groupsWithProps[0]?.group.id;
+              const useGroupTabs = activeItemTab === 'general' && fieldGroupsLayout === 'tabs';
+              const visibleGroups = activeItemTab.startsWith('group:')
+                ? groupsWithProps.filter(({ group }) => `group:${group.id}` === activeItemTab)
+                : useGroupTabs
+                  ? groupsWithProps.filter(({ group }) => group.id === selectedGroupId)
+                  : groupsWithProps;
 
               return (
-                <div className="flex flex-col space-y-0.5">
+                <div className="grid grid-cols-1 items-start gap-6">
                   {/* Champs non-groupés */}
-                  {ungroupedProps.map(renderFieldRow)}
+                  {ungroupedProps.length > 0 && !activeItemTab.startsWith('group:') && (
+                    <SettingsSection ruled appearance="plain" icon={Icons.List} title={activeItemTab === 'details' ? 'Général' : 'Informations'}>
+                      <div className="overflow-hidden rounded-lg border border-border/70 bg-background/60">{ungroupedProps.map(renderFieldRow)}</div>
+                    </SettingsSection>
+                  )}
 
-                  {fieldGroupsLayout === 'tabs' && groupsWithProps.length > 0 && (
-                    <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06] mb-2">
-                      {groupsWithProps.map(({ group }) => (
-                        <button
-                          key={group.id}
-                          type="button"
-                          onClick={() => setActiveFieldGroupId(group.id)}
-                          className={cn(
-                            'shrink-0 px-3 py-2 text-[10px] tracking-wide transition-colors border-b-2',
-                            group.id === activeFieldGroupId
-                              ? 'text-brand-300 border-brand-400'
-                              : 'text-neutral-600 border-transparent hover:text-neutral-300'
-                          )}
-                        >
-                          {group.label}
-                        </button>
-                      ))}
+                  {useGroupTabs && groupsWithProps.length > 0 && (
+                    <div className="col-span-full">
+                      <SettingsTabs inline appearance="underline" label="Groupes de champs"
+                        value={selectedGroupId} onValueChange={setActiveFieldGroupId}
+                        items={groupsWithProps.map(({ group }) => ({ id: group.id, label: group.label, icon: getFieldIcon(detailsPropsForDisplay.find((prop: any) => group.fieldIds.includes(prop.id))) }))}>
+                        {null}
+                      </SettingsTabs>
                     </div>
                   )}
 
                   {/* Groupes de champs */}
                   {visibleGroups.map(({ group, props: groupProps }) => {
                     return (
-                      <div key={group.id} className="pt-2">
-                        <div className="flex items-center gap-2 mb-1 px-1">
-                          <span className="text-[9px] tracking-widest uppercase font-semibold text-neutral-700 shrink-0">{group.label}</span>
-                          <div className="flex-1 h-px bg-white/[0.04]" />
-                        </div>
-                        <div className="flex flex-col space-y-0.5">
-                          {groupProps.map(renderFieldRow)}
-                        </div>
-                      </div>
+                      <SettingsSection ruled appearance="plain" key={group.id} icon={getFieldIcon(detailsPropsForDisplay.find((prop: any) => group.fieldIds.includes(prop.id)))} title={group.label} hideHeader={useGroupTabs} className={cn(group.label.trim().toLowerCase() === 'pv' && "item-fields-plain", activeItemTab.startsWith('group:') && "w-full max-w-4xl", activeItemTab.startsWith('group:') && "!border-0 [&>.settings-section-body]:!p-0")}>
+                        <div className="overflow-hidden rounded-lg border border-border/70 bg-background/60">{groupProps.map(renderFieldRow)}</div>
+                      </SettingsSection>
                     );
                   })}
                 </div>
               );
             })()}
           </div>
+
+            </div>
+            <div hidden={activeItemTab !== 'general' && activeItemTab !== 'relations'} className={cn(activeItemTab === 'general' && 'order-[-1] min-w-0 xl:col-span-12', !relationPropsForDisplay.length && 'hidden')}>
+          {/* Relations en haut sur toute la largeur */}
+          {relationPropsForDisplay.length > 0 && (
+            <SettingsSection ruled appearance="plain" title="Relations" icon={Link2} className={activeItemTab === 'relations' ? '!border-0 [&>.settings-section-body]:!p-0' : undefined}>
+              <div className={activeItemTab === 'general' ? "flex flex-wrap items-start gap-x-5 gap-y-1" : "overflow-hidden rounded-lg border border-border/70 bg-background/60"}>
+                {relationPropsForDisplay.map((prop: any) => (
+                  <FieldRow key={prop.id} inline={activeItemTab === 'general'} label={prop.name} required={prop.required}
+                    icon={<FieldLabelIcon property={prop} />} actions={renderTemplatePicker(prop)}>
+                    <EditableProperty
+                      property={prop}
+                      value={formData[prop.id]}
+                      onChange={(val) => handleChange(prop.id, val)}
+                      size="md"
+                      collections={readableCollections}
+                      collection={selectedCollection}
+                      currentItem={formData}
+                      onRelationChange={(property, _item, value) => {
+                        if (!canWriteField(selectedCollection?.id, property.id)) return;
+                        setFormData({ ...formData, [property.id]: value });
+                      }}
+                      readOnly={!canWriteField(selectedCollection?.id, prop.id)}
+                      onNavigateToRelatedItem={(item, targetCol) => navigateToRelatedItemClassic(item, targetCol, prop.name)}
+                    />
+                  </FieldRow>
+                ))}
+              </div>
+            </SettingsSection>
           )}
 
+            </div>
+            <div hidden={activeItemTab !== 'general' && activeItemTab !== 'hours'} className={cn(activeItemTab === 'general' && 'min-w-0 xl:col-span-4', !datePropsForDisplay.length && 'hidden')}>
           {/* Colonne droite : Plages horaires */}
           {datePropsForDisplay.length > 0 && (
-          <div className="min-w-[0]">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-[10px] tracking-widest uppercase font-medium text-neutral-600 shrink-0">Horaires</span>
-              <div className="flex-1 h-px bg-white/[0.06]" />
-            </div>
-            <div className="space-y-4">
+          <SettingsSection ruled appearance="plain" title="Horaires" icon={Clock} className={activeItemTab === 'hours' ? '!border-0 [&>.settings-section-body]:!p-0' : undefined}>
+            <div className={cn("grid grid-cols-1 items-start gap-3", activeItemTab !== 'general' && "md:grid-cols-2")}>
               {datePropsForDisplay.map((dateProp: any) => {
                 const canWriteDateProp = canWriteField(selectedCollection?.id, dateProp.id);
                 const segments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === dateProp.name);
@@ -1687,10 +1689,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 const totalDuration = segments.reduce((acc: number, seg: any) => acc + getSegmentHours(seg), 0);
 
                 return (
-                  <div key={`_eventSegments_${dateProp.id}`} className="group/template rounded-xl border border-border bg-card/70 p-4">
+                  <div key={`_eventSegments_${dateProp.id}`} className={cn("group/template", "rounded-lg border border-border/70 bg-background/60 p-3")}>
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-neutral-300">{dateProp.name}</span>
+                        <span className="inline-flex items-center gap-2 text-xs font-semibold text-foreground"><FieldLabelIcon property={dateProp} />{dateProp.name}</span>
                         {renderTemplatePicker(dateProp)}
                       </div>
                       <button
@@ -1699,17 +1701,17 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                           setEditingDateProp(dateProp);
                         }}
                         disabled={!canWriteDateProp}
-                        className="flex items-center gap-1 px-2 py-1 text-[11px] text-neutral-500 hover:text-brand-400 hover:bg-brand-500/10 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground hover:text-brand-400 hover:bg-brand-500/10 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Edit2 size={11} />
                         Modifier
                       </button>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-neutral-500">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <div className="relative group/seg">
                         <div className="flex items-center gap-1.5">
                           <Clock size={12} className="text-brand-400" />
-                          <span className="text-neutral-400">{segments.length || 0} plage{segments.length > 1 ? 's' : ''}</span>
+                          <span className="text-muted-foreground">{segments.length || 0} plage{segments.length > 1 ? 's' : ''}</span>
                         </div>
                         {segments.length > 0 && (
                           <div className="absolute left-0 top-full mt-2 w-72 rounded-xl border border-border bg-popover p-3 text-xs text-popover-foreground opacity-0 group-hover/seg:opacity-100 transition-opacity z-20 pointer-events-none group-hover/seg:pointer-events-auto shadow-xl">
@@ -1727,15 +1729,15 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       </div>
                       {segments.length > 0 && (
                         <>
-                          <span className="text-neutral-700">·</span>
-                          <span className="text-neutral-400">{totalDuration.toFixed(1)}h</span>
+                          <span className="text-muted-foreground">·</span>
+                          <span className="text-muted-foreground">{totalDuration.toFixed(1)}h</span>
                         </>
                       )}
                     </div>
                     {autoSegments.length > 0 && (
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className="mt-3 flex items-center gap-1.5 text-[11px] text-brand-400 hover:text-brand-300 transition-colors">
+                          <button className="mt-3 flex items-center gap-1.5 text-[11px] text-brand-400 hover:text-brand-600 dark:hover:text-brand-300 transition-colors">
                             <span>Plages auto ({autoSegments.length})</span>
                             {autoSegmentsDiffer && isReallyEditing && (
                               <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-300 rounded text-[10px]">Modifié</span>
@@ -1746,7 +1748,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                           <div className="space-y-2">
                             <div className="text-[10px] tracking-widest uppercase text-brand-400 mb-3">Plages calculées auto</div>
                             {autoSegments.map((seg: any, idx: number) => (
-                              <div key={idx} className="text-xs text-neutral-400 flex items-center gap-2">
+                              <div key={idx} className="text-xs text-muted-foreground flex items-center gap-2">
                                 <span className="text-brand-400">▸</span>
                                 {formatSegmentDisplay(seg)}
                               </div>
@@ -1759,45 +1761,56 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 );
               })}
             </div>
-          </div>
+          </SettingsSection>
           )}
-          </div>
-
+                      </div>
+            <div hidden={activeItemTab !== 'general' && !activeItemTab.startsWith('text:')} className={cn(activeItemTab === 'general' && 'min-w-0 xl:col-span-12', activeItemTab.startsWith('text:') && 'flex min-h-0 flex-1 flex-col', !richTextPropsForDisplay.length && 'hidden')}>
           {/* Rich text en pleine largeur sur les deux colonnes */}
           {richTextPropsForDisplay.length > 0 && (
-            <div className="pt-2">
-              <div className="relative space-y-4">
-                {richTextTabs.length > 1 ? (
-                  <div className="flex items-center gap-0 border-b border-border mb-1">
+            <div className={activeItemTab.startsWith('text:') ? "flex min-h-0 flex-1 flex-col" : "pt-0"}>
+              <div className={activeItemTab.startsWith('text:') ? "relative flex min-h-0 flex-1 flex-col" : "relative space-y-2"}>
+                {activeItemTab === 'general' && richTextTabs.length > 1 ? (
+                  <div className="group/template flex items-center gap-0 border-b border-border">
                     {richTextTabs.map((tab: { id: string; label: string }) => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveRichTextTab(tab.id)}
                         className={cn(
-                          "px-3 py-2 text-xs font-medium transition-all border-b-2 -mb-px",
+                          "inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-all border-b-2 -mb-px",
                           activeRichTextTab === tab.id
-                            ? "border-brand-500 text-brand-300"
-                            : "border-transparent text-neutral-600 hover:text-neutral-300"
+                            ? "border-brand-500 text-brand-600 dark:text-brand-300"
+                            : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                       >
-                        {tab.label}
+                        <FileText size={14} />{tab.label}
                       </button>
                     ))}
+                    <div className="ml-auto shrink-0">
+                      {(() => {
+                        const prop = richTextPropsForDisplay.find((prop: any) => prop.id === activeRichTextTab) || richTextPropsForDisplay[0];
+                        return prop ? renderTemplatePicker(prop) : null;
+                      })()}
+                    </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-[10px] tracking-widest uppercase font-medium text-neutral-600 shrink-0">{richTextTabs[0]?.label || 'Notes'}</span>
-                    <div className="flex-1 h-px bg-white/[0.06]" />
+                  <div className={cn("group/template flex shrink-0 items-center gap-2", activeItemTab.startsWith('text:') && "pb-2")}>
+                    <SettingsSectionTitle ruled className="!m-0 min-w-0 flex-1"><FileText size={14} aria-hidden="true" />{(activeItemTab.startsWith('text:') ? richTextTabs.find((tab: { id: string; label: string }) => `text:${tab.id}` === activeItemTab)?.label : richTextTabs[0]?.label) || 'Notes'}</SettingsSectionTitle>
+                    {(() => {
+                      const prop = activeItemTab.startsWith('text:')
+                        ? richTextPropsForDisplay.find((prop: any) => `text:${prop.id}` === activeItemTab)
+                        : richTextPropsForDisplay[0];
+                      return prop ? renderTemplatePicker(prop) : null;
+                    })()}
                   </div>
                 )}
-                <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 min-h-[180px]">
+                <div className={activeItemTab.startsWith('text:') ? "flex min-h-0 flex-1 flex-col" : "min-w-0 min-h-[180px]"}>
                   {richTextPropsForDisplay
-                    .filter((prop: any) => !activeRichTextTab || prop.id === activeRichTextTab)
+                    .filter((prop: any) => activeItemTab.startsWith('text:') ? `text:${prop.id}` === activeItemTab : !activeRichTextTab || prop.id === activeRichTextTab)
                     .map((prop: any) => (
-                      <div key={prop.id} className="group/template pb-6 last:pb-0">
-                        <div className="flex justify-end">{renderTemplatePicker(prop)}</div>
+                      <div key={prop.id} className={cn("group/template pb-6 last:pb-0", activeItemTab.startsWith('text:') && "flex min-h-0 flex-1 flex-col", prop.name?.trim().toLowerCase() === 'pv' && "item-fields-plain")}>
                         <EditableProperty
                           property={prop}
+                          className={activeItemTab.startsWith('text:') ? 'item-rich-editor' : undefined}
                           value={formData[prop.id]}
                           onChange={(val) => handleChange(prop.id, val)}
                           size="md"
@@ -1813,10 +1826,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               </div>
             </div>
           )}
-
+            </div>
+              </div>
+            </SettingsTabContent>
+          </SettingsTabs>
           </div>
         </div>
-        <div className="flex items-center justify-between gap-3 px-8 py-4 border-t border-border shrink-0">
+        <SettingsFooter spread className="flex-wrap">
           <div className="flex items-center gap-3">
             {isReallyEditing && onDelete && editingItem?.id && (
               <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -1850,7 +1866,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               </AlertDialog>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-all"
@@ -1858,23 +1874,15 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               Annuler
             </button>
             {isReallyEditing && (
-              <button
-                type="button"
-                onClick={() => handleSave(onSaveAndStay || onSave)}
-                className="px-4 py-2 text-sm font-medium text-foreground border border-border rounded-lg hover:bg-muted hover:border-border transition-all"
-              >
+              <Button type="button" onClick={() => handleSave(onSaveAndStay || onSave)}>
                 Enregistrer
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              onClick={() => handleSave(onSave)}
-              className="px-4 py-2 text-sm font-medium bg-brand-600 hover:bg-brand-500 text-white rounded-lg transition-all shadow-lg shadow-brand-500/20"
-            >
+            <Button type="button" variant={isReallyEditing ? 'outline' : 'default'} onClick={() => handleSave(onSave)}>
               {isReallyEditing ? 'Enregistrer et quitter' : 'Créer'}
-            </button>
+            </Button>
           </div>
-        </div>
+        </SettingsFooter>
       </motion.div>
 
       {/* Modal d'édition des plages horaires */}
@@ -1923,7 +1931,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               {(() => {
                 const segments = (formData._eventSegments || []).filter((seg: { label: any; }) => seg.label === editingDateProp.name);
                 if (!segments || segments.length === 0) {
-                  return <div className="text-neutral-500 text-sm">Aucune plage personnalisée</div>;
+                  return <div className="text-muted-foreground text-sm">Aucune plage personnalisée</div>;
                 }
                 const segmentsByDay: Record<string, any[]> = {};
                 segments.forEach((seg: any) => {
@@ -2179,11 +2187,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           </DialogHeader>
           <div className="space-y-4 max-h-[60vh]">
             {(!historyData || historyData.versions.length === 0) && (
-              <div className="text-xs text-neutral-500">Aucune version disponible.</div>
+              <div className="text-xs text-muted-foreground">Aucune version disponible.</div>
             )}
             {historyData && historyData.versions.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-[11px] text-neutral-500">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>
                     {new Date(historyData.versions[0].ts).toLocaleString('fr-FR')}
                   </span>
@@ -2205,7 +2213,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   className="w-full"
                 />
                 {historySelectedIndex !== null && (
-                  <div className="text-xs text-neutral-500">
+                  <div className="text-xs text-muted-foreground">
                     Version {historySelectedIndex + 1} / {historyData.versions.length}
                   </div>
                 )}
@@ -2213,13 +2221,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             )}
             <div className="border border-border rounded-lg p-3 overflow-y-auto max-h-[45vh] bg-background">
               {historySelectedIndex === null || !historyData || !historyPreview ? (
-                <div className="text-sm text-neutral-500">Sélectionne une version pour voir le détail.</div>
+                <div className="text-sm text-muted-foreground">Sélectionne une version pour voir le détail.</div>
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm font-semibold text-foreground">Changements</div>
-                      <div className="text-xs text-neutral-500">
+                      <div className="text-xs text-muted-foreground">
                         {new Date(historyData.versions[historySelectedIndex].ts).toLocaleString('fr-FR')} · {historyData.versions[historySelectedIndex].userName || 'Utilisateur'}
                       </div>
                     </div>
@@ -2253,12 +2261,12 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       .filter(({ before, after }) => !areValuesEqual(before, after));
 
                     if (changes.length === 0) {
-                      return <div className="text-xs text-neutral-500">Aucun changement enregistré.</div>;
+                      return <div className="text-xs text-muted-foreground">Aucun changement enregistré.</div>;
                     }
 
                     return (
                       <div className="space-y-3 text-xs">
-                        <div className="text-[11px] text-neutral-500">
+                        <div className="text-[11px] text-muted-foreground">
                           {ver.action === 'create' ? 'Diff initial' : 'Diff vs version précédente'}
                         </div>
                         {changes.map(({ key, before, after }) => {
@@ -2283,7 +2291,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                               <div key={key} className="rounded-md border border-border p-2 bg-muted/20">
                                 <div className="font-semibold text-foreground mb-1">{key}</div>
                                 {lineDiff.length === 0 ? (
-                                  <div className="text-xs text-neutral-500">Aucun changement de lignes.</div>
+                                  <div className="text-xs text-muted-foreground">Aucun changement de lignes.</div>
                                 ) : (
                                   <div className="space-y-1">
                                     {lineDiff.map((entry, idx) => (
