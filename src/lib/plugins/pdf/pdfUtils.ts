@@ -411,7 +411,9 @@ export function formatPdfFilename(rawName: string, year = new Date().getFullYear
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .replace(/-{2,}/g, '-');
+    .replace(/-{2,}/g, '-')
+    .replace(new RegExp(`[-_]?${year}$`), '')
+    .replace(/[-_]?20\d{2}$/, '');
   const base = slug || 'document';
   return `${base}_${year}.pdf`;
 }
