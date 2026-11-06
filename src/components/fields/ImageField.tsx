@@ -5,7 +5,7 @@ import { ItemImageView } from './ItemImageView';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverTrigger } from '@/components/ui/popover';
 import { SettingsPopoverContent, SettingsBody, SettingsHint } from '@/components/ui/settings-panel';
-import { normalizeImageField, primaryImage, validImageSource, type ItemImage } from '@/lib/itemImages';
+import { generateImageId, normalizeImageField, primaryImage, validImageSource, type ItemImage } from '@/lib/itemImages';
 
 async function readImage(file: File): Promise<string> {
   if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'].includes(file.type)) throw new Error('Choisissez une image PNG, JPEG, WebP, GIF ou AVIF.');
@@ -56,7 +56,7 @@ export function ImageField({ value, defaultValue, onChange, readOnly = false, na
             event.target.value = '';
             setBusy(true); setError('');
             try {
-              const images = await Promise.all(files.map(async file => ({ id: crypto.randomUUID(), name: file.name, src: await readImage(file) })));
+              const images = await Promise.all(files.map(async file => ({ id: generateImageId(), name: file.name, src: await readImage(file) })));
               append(images);
             } catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible de lire ces images.'); }
             finally { setBusy(false); }
@@ -65,10 +65,10 @@ export function ImageField({ value, defaultValue, onChange, readOnly = false, na
           <form className="flex gap-2" onSubmit={event => {
             event.preventDefault(); const src = url.trim();
             if (!validImageSource(src)) { setError('Saisissez un lien HTTP ou HTTPS valide vers une image.'); return; }
-            append([{ id: crypto.randomUUID(), src }]); setUrl(''); setError('');
+            append([{ id: generateImageId(), src }]); setUrl(''); setError('');
           }}>
-            <Input aria-label="Lien de l’image" placeholder="https://cdn…/image.jpg" value={url} disabled={busy} onChange={event => setUrl(event.target.value)} />
-            <Button type="submit" variant="outline" size="icon" disabled={busy || !url.trim()} aria-label="Ajouter le lien"><Link size={14} /></Button>
+            <Input aria-label="Lien de l’image" placeholder="https://cdn…/image.jpg" value={url} disabled={busy} onChange={event => { setUrl(event.target.value); setError(''); }} />
+            <Button type="submit" variant="outline" size="sm" disabled={busy || !url.trim()} aria-label="Ajouter le lien">Ajouter</Button>
           </form>
           <SettingsHint>L’étoile choisit l’image principale affichée en bannière.</SettingsHint>
         </>}
