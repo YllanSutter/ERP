@@ -33,6 +33,7 @@ import {
   saveItemPdf,
   getSavedItemPdf,
   downloadBlob,
+  formatPdfFilename,
   type PdfFieldInfo,
 } from '@/lib/plugins/pdf/pdfUtils';
 
@@ -265,8 +266,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
     const rawName = nameProp
       ? String(formData?.[nameProp.id] ?? '').slice(0, 60)
       : String(item?.name ?? '').slice(0, 60);
-    const safe = (rawName.trim() || `item-${itemId || 'nouveau'}`).replace(/[\\/:*?"<>|]+/g, '_');
-    return `${safe}.pdf`;
+    return rawName.trim() || `item-${itemId || 'nouveau'}`;
   };
 
   const handleSave = async () => {
@@ -321,7 +321,7 @@ export const ItemPdfBlock: React.FC<ItemPdfBlockProps> = ({
       const templateBytes = await loadPdfBytes('template', config.templateId);
       const exportValues = await getExportValues();
       const filled = await fillPdfBytes(templateBytes, exportValues);
-      downloadBlob(filled, buildFilename());
+      downloadBlob(filled, formatPdfFilename(buildFilename()));
     } catch (err: any) {
       setError(err?.message || 'Téléchargement impossible.');
     }

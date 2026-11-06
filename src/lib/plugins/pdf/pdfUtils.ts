@@ -402,12 +402,26 @@ export async function fillPdfBytes(
   return doc.save();
 }
 
+export function formatPdfFilename(rawName: string, year = new Date().getFullYear()): string {
+  const withoutExt = String(rawName || '')
+    .replace(/\.pdf$/i, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  const slug = withoutExt
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
+  const base = slug || 'document';
+  return `${base}_${year}.pdf`;
+}
+
 export function downloadBlob(bytes: Uint8Array, filename: string) {
   const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`;
+  a.download = formatPdfFilename(filename);
   document.body.appendChild(a);
   a.click();
   a.remove();
