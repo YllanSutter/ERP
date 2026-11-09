@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { buildItemChanges, applyItemChanges } from '../../shared/itemChanges.js';
+import { buildItemChanges, applyItemChanges, isSyncableItemField } from '../../shared/itemChanges.js';
 import { useEffect, useRef, useState } from 'react';
 import { SaveQueue, SaveConflictError, SaveTooLargeError, type SaveStatus } from './saveQueue';
 import { mergeSavedCollections } from './mergeSavedCollections';
@@ -13,8 +13,6 @@ type ViewMap = Record<string, any[]>;
 type DashboardSort = 'created' | 'name-asc' | 'name-desc';
 type Dashboard = any;
 type Favorites = { views: string[]; items: string[] };
-
-const SYNCABLE_INTERNAL_ITEM_FIELDS = new Set(['_eventSegments', '_preserveEventSegments']);
 
 interface UseErpSyncParams {
   collections: Collection[];
@@ -58,7 +56,7 @@ function diffCollectionsItems(
       if (!prevItem) continue; // nouvel item -> POST complet
       const changedFields: Record<string, any> = {};
       for (const key of Object.keys(item)) {
-        if (key.startsWith('_') && !SYNCABLE_INTERNAL_ITEM_FIELDS.has(key)) continue;
+        if (!isSyncableItemField(key)) continue;
         if (JSON.stringify(item[key]) !== JSON.stringify(prevItem[key])) {
           changedFields[key] = item[key];
         }

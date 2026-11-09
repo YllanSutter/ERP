@@ -1,3 +1,4 @@
+import { validateSteamExchanges } from '../plugins/steam/exchanges.js';
 import { organizationRoom } from '../services/socketPresence.js';
 import { isDeepStrictEqual } from 'node:util';
 import { notifyServerPluginsStateSaved } from '../plugins/registry.js';
@@ -423,6 +424,12 @@ export const registerStateRoutes = ({ app, appContext }) => {
       const collections = stateData.collections || [];
       const prevCollections = Array.isArray(prevState.collections) ? prevState.collections : [];
       const prevCollectionsById = new Map(prevCollections.map((col) => [col.id, col]));
+
+      for (const collection of collections) {
+        if (isItemDelta && !touchedIds.has(collection.id)) continue;
+        const error = validateSteamExchanges(collection, prevCollectionsById.get(collection.id));
+        if (error) return res.status(400).json({ error });
+      }
 
       const processedCollections = collections.map((col) => {
         if (!col.items || (isItemDelta && !touchedIds.has(col.id))) return col;

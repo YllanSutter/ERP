@@ -1,3 +1,4 @@
+import type { SteamExchangeLabelSettings } from '@/lib/plugins/steam/exchanges';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/auth/AuthProvider';
 import { initializePluginRegistry } from '@/lib/plugins';
@@ -110,12 +111,14 @@ export const useAccessManagerController = ({
   onClose,
   onImportCollections,
   onUpdateDashboards,
+  onSaveSteamExchangeLabels,
 }: {
   collections: any[];
   dashboards: any[];
   onClose: () => void;
   onImportCollections?: (collections: any[]) => void;
   onUpdateDashboards?: (dashboards: any[]) => void;
+  onSaveSteamExchangeLabels?: (collectionId: string, labels: SteamExchangeLabelSettings) => void;
 }) => {
   const { isAdminBase: isAdmin, refresh: refreshAuth, user, organizations, activeOrganizationId } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -1350,7 +1353,7 @@ export const useAccessManagerController = ({
   };
 
 
-  const panelContext = { API_URL, collections, dashboards, dataTransferTab, setDataTransferTab, importOrganizationName, setImportOrganizationName, importBusy, importOrganizationsFromFiles, loadAll, activeOrganizationId, organizations, organizationNameEdits, organizationColorEdits, updateOrganizationDraft, pendingSettingsCount, savingSettings, settingsNotice, saveAllSettings, busy, deleteOrganization, backups, backupLabel, setBackupLabel, reloadBackups, createBackup, backupBusy, visibleBackups, formatBytes, restoreBackup, downloadBackup, deleteBackup, sortedBackups, loading, roles, creatingRole, setCreatingRole, selectedRoleId, setSelectedRoleId, newRoleName, setNewRoleName, newRoleDesc, setNewRoleDesc, createRole, permissionsTab, setPermissionsTab, findPermission, toggleFlag, permissions, collectionsWithProps, flags, toggleDashboardVisibilityForRole, isDashboardVisibleForRole, importRelationSummary, patchImportPreviewOrganizations, IMPORT_PROPERTY_TYPE_OPTIONS, selectableUsers, filteredUsers, userQuery, setUserQuery, selectedPreferencesUserId, setSelectedPreferencesUserId, members, user, parseRoleIds, selectedPreferencesDraft, selectedPreferencesUser, memberIds, updateUserPreferencesDraft, passwordInputs, setPasswordInputs, updateUserPassword, deleteUser, isLocal, isSelf, relationChoiceFieldByKey, setRelationChoiceFieldByKey, updateImportOrganizationName, removeImportOrganization, updateImportCollectionName, removeImportCollection, updateImportProperty, removeImportProperty, convertRelationToChoiceField, pickDefaultChoiceFieldId, hydrateChoiceFieldOptions, deletedImportProperties, setDeletedImportProperties, importMapperTab, setImportMapperTab, importMappingDiagnostics, importPreviewOrganizations, importCommitBusy, autoFixImportMapping, importOrganizationsWithManualMapping, showImportMapper, setShowImportMapper };
+  const panelContext = { API_URL, collections, onSaveSteamExchangeLabels, dashboards, dataTransferTab, setDataTransferTab, importOrganizationName, setImportOrganizationName, importBusy, importOrganizationsFromFiles, loadAll, activeOrganizationId, organizations, organizationNameEdits, organizationColorEdits, updateOrganizationDraft, pendingSettingsCount, savingSettings, settingsNotice, saveAllSettings, busy, deleteOrganization, backups, backupLabel, setBackupLabel, reloadBackups, createBackup, backupBusy, visibleBackups, formatBytes, restoreBackup, downloadBackup, deleteBackup, sortedBackups, loading, roles, creatingRole, setCreatingRole, selectedRoleId, setSelectedRoleId, newRoleName, setNewRoleName, newRoleDesc, setNewRoleDesc, createRole, permissionsTab, setPermissionsTab, findPermission, toggleFlag, permissions, collectionsWithProps, flags, toggleDashboardVisibilityForRole, isDashboardVisibleForRole, importRelationSummary, patchImportPreviewOrganizations, IMPORT_PROPERTY_TYPE_OPTIONS, selectableUsers, filteredUsers, userQuery, setUserQuery, selectedPreferencesUserId, setSelectedPreferencesUserId, members, user, parseRoleIds, selectedPreferencesDraft, selectedPreferencesUser, memberIds, updateUserPreferencesDraft, passwordInputs, setPasswordInputs, updateUserPassword, deleteUser, isLocal, isSelf, relationChoiceFieldByKey, setRelationChoiceFieldByKey, updateImportOrganizationName, removeImportOrganization, updateImportCollectionName, removeImportCollection, updateImportProperty, removeImportProperty, convertRelationToChoiceField, pickDefaultChoiceFieldId, hydrateChoiceFieldOptions, deletedImportProperties, setDeletedImportProperties, importMapperTab, setImportMapperTab, importMappingDiagnostics, importPreviewOrganizations, importCommitBusy, autoFixImportMapping, importOrganizationsWithManualMapping, showImportMapper, setShowImportMapper };
 
 
   return { isAdmin, panelContext };

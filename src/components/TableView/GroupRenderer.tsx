@@ -32,7 +32,7 @@ interface GroupRendererProps {
   onEdit: (item: Item) => void;
   onDelete: (id: string) => void;
   onToggleFavoriteItem?: (itemId: string) => void;
-  onViewDetail: (item: Item) => void;
+  onViewDetail: (item: Item, section?: 'steam-exchange' | 'cancel-steam-exchange') => void;
   onRelationChange: (prop: Property, item: Item, value: any) => void;
   onNavigateToCollection: (collectionId: string, linkedIds?: string[]) => void;
   onEditProperty: (prop: Property) => void;

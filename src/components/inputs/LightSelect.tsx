@@ -77,7 +77,7 @@ export const LightSelect: React.FC<LightSelectProps> = (props) => {
               >
                 {OptIcon && <OptIcon size={13} className="opacity-80" />}
                 <span className="text-xs">{label}</span>
-                <button
+                {!disabled && <button
                   type="button"
                   className="ml-1 text-neutral-700 hover:text-red-800 dark:text-white dark:hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
                   onClick={() => removeValue(val)}
@@ -85,7 +85,7 @@ export const LightSelect: React.FC<LightSelectProps> = (props) => {
                   aria-label={`Retirer ${label}`}
                 >
                   <Icons.X size={12} />
-                </button>
+                </button>}
               </span>
             );
           })}
@@ -174,7 +174,7 @@ export const LightSelect: React.FC<LightSelectProps> = (props) => {
           >
             {SelectedIcon && <SelectedIcon size={13} className="opacity-80" />}
             <span>{selectedLabel}</span>
-            <button
+            {!disabled && <button
               type="button"
               className="ml-1 text-neutral-700 hover:text-red-800 dark:text-white dark:hover:text-red-400 rounded-full p-0.5 -mr-1 group-hover:opacity-100 opacity-60 transition"
               onClick={() => onChange('')}
@@ -182,7 +182,7 @@ export const LightSelect: React.FC<LightSelectProps> = (props) => {
               aria-label={`Retirer ${selectedLabel}`}
             >
               <Icons.X size={12} />
-            </button>
+            </button>}
           </span>
         ) : (
           <span className="text-xs text-neutral-500">{placeholder}</span>

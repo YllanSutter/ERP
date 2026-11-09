@@ -1,3 +1,4 @@
+import { orderSteamExchanges } from '@/lib/plugins/steam/exchanges';
 import { buildGroupPrefill } from '@/lib/utils/groupPrefillUtils';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Zap } from 'lucide-react';
@@ -184,8 +185,8 @@ const CardsView: React.FC<CardsViewProps> = ({
   });
   const paginateItems = useCallback((groupItems: typeof items) => {
     const start = (page - 1) * rowsPerPage;
-    return groupItems.slice(start, start + rowsPerPage);
-  }, [page, rowsPerPage]);
+    return orderSteamExchanges(groupItems, collection).slice(start, start + rowsPerPage);
+  }, [page, rowsPerPage, collection]);
   const renderCards = useCallback((groupItems: typeof items) => (
     <CardsGrid
       items={groupItems}

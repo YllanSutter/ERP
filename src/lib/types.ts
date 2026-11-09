@@ -111,7 +111,7 @@ export interface TableViewProps {
   onDeleteProperty: (propId: string) => void;
   onDuplicateProperty?: (propId: string, options?: { copyValues?: boolean }) => void;
   onEditProperty: (prop: Property) => void;
-  onViewDetail: (item: Item) => void;
+  onViewDetail: (item: Item, section?: 'steam-exchange' | 'cancel-steam-exchange') => void;
   collections: Collection[];
   onRelationChange: (prop: Property, item: Item, value: any) => void;
   onNavigateToCollection: (collectionId: string, linkedIds?: string[]) => void;

@@ -1,3 +1,6 @@
+import { SteamExchangeDialog } from '@/lib/plugins/steam/SteamExchangeDialog';
+import { getSteamBundleConfig } from '@/lib/plugins/steam/collectionRoles';
+import { STEAM_EXCHANGE_FIELD, steamExchanges } from '@/lib/plugins/steam/exchanges';
 import { ItemImageRendererProvider } from '@/components/fields/ItemImageView';
 import { prepareSteamItem } from '@/lib/plugins/steam/itemImages';
 import { SteamImage } from '@/lib/plugins/steam/SteamImage';
@@ -26,7 +29,7 @@ import Sidebar from '@/components/menus/Sidebar';
 import CommandMenu from '@/components/menus/CommandMenu';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import PinnedCollectionFilters from '@/components/filters/PinnedCollectionFilters';
-import type { CollectionFilter, Property } from '@/lib/types';
+import type { CollectionFilter, Item, Property } from '@/lib/types';
 import ViewToolbar from '@/components/views/ViewToolbar';
 import ViewShell from '@/components/views/ViewShell';
 import { useAuth } from '@/auth/AuthProvider';
@@ -197,6 +200,7 @@ const App = () => {
   const [showEditViewModal, setShowEditViewModal] = useState(false);
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [steamExchangeTarget, setSteamExchangeTarget] = useState<{ collectionId: string; itemId: string; cancelOnly: boolean; receivedId?: string } | null>(null);
   const [editingProperty, setEditingProperty] = useState<any>(null);
   const [editingCollection, setEditingCollection] = useState<any>(null);
   const [showEditCollectionModal, setShowEditCollectionModal] = useState(false);
@@ -1117,8 +1121,19 @@ const App = () => {
                       }));
                     }}
                     onBulkDelete={itemHooks.bulkDeleteItems}
-                    onViewDetail={(item: any) => {
+                    onViewDetail={(item: any, section?: 'steam-exchange' | 'cancel-steam-exchange') => {
                       const itemCollection = collectionsWithCalculatedFields.find((col) => col.id === item.__collectionId || col.items?.some((it: any) => it.id === item.id));
+                      if (section && itemCollection) {
+                        const cancelOnly = section === 'cancel-steam-exchange';
+                        const parent = cancelOnly ? steamExchanges(itemCollection).parents.get(item.id) : undefined;
+                        setSteamExchangeTarget({
+                          collectionId: itemCollection.id,
+                          itemId: parent?.id ?? item.id,
+                          cancelOnly,
+                          receivedId: parent ? item.id : undefined,
+                        });
+                        return;
+                      }
                       setEditingItem(item);
                       setModalCollection(itemCollection || null);
                       setShowNewItemModal(true);
@@ -1346,6 +1361,24 @@ const App = () => {
           currentCollectionId={activeCollection || ''}
         />
       )}
+      {steamExchangeTarget && (() => {
+        const collection = collections.find((entry) => entry.id === steamExchangeTarget.collectionId);
+        const item = collection?.items.find((entry: Item) => entry.id === steamExchangeTarget.itemId);
+        if (!collection || !item) return null;
+        return <SteamExchangeDialog
+          key={item.id}
+          collection={collection}
+          item={item}
+          bundleField={getSteamBundleConfig(collections).bundleRelationPropertyId}
+          cancelOnly={steamExchangeTarget.cancelOnly}
+          receivedId={steamExchangeTarget.receivedId}
+          onClose={() => setSteamExchangeTarget(null)}
+          onSave={(ids, drafts) => {
+            itemHooks.saveItem({ ...item, [STEAM_EXCHANGE_FIELD]: ids }, item, collection.id, drafts);
+            setSteamExchangeTarget(null);
+          }}
+        />;
+      })()}
       {showNewItemModal && (
         <NewItemModal
           preparePluginItem={preparePluginItem}
@@ -1377,8 +1410,8 @@ const App = () => {
             // On mémorise la dernière collection utilisée pour la préselection
             setModalCollection(collections.find(c => c.id === colId) || null);
             // On retire __collectionId de l'objet avant sauvegarde réelle (pour ne pas polluer les données)
-            const { __collectionId, ...itemToSave } = item;
-            itemHooks.saveItem(itemToSave, editingItem, colId);
+            const { __collectionId, __steamExchangeDrafts, ...itemToSave } = item;
+            itemHooks.saveItem(itemToSave, editingItem, colId, __steamExchangeDrafts);
             setShowNewItemModal(false);
             setEditingItem(null);
             // setModalCollection(null); // On ne reset plus pour garder la préselection
@@ -1395,8 +1428,8 @@ const App = () => {
           onSaveAndStay={(item) => {
             const colId = item.__collectionId || (modalCollection && modalCollection.id) || (currentCollection && currentCollection.id);
             setModalCollection(collections.find(c => c.id === colId) || null);
-            const { __collectionId, ...itemToSave } = item;
-            itemHooks.saveItem(itemToSave, editingItem, colId);
+            const { __collectionId, __steamExchangeDrafts, ...itemToSave } = item;
+            itemHooks.saveItem(itemToSave, editingItem, colId, __steamExchangeDrafts);
             setEditingItem({ ...itemToSave, __collectionId: colId });
           }}
           editingItem={editingItem}
@@ -1488,6 +1521,13 @@ const App = () => {
                 dashboards={dashboards}
                 onClose={() => setShowAccessManager(false)}
                 onUpdateDashboards={(nextDashboards) => setDashboards(nextDashboards)}
+                onSaveSteamExchangeLabels={(collectionId, labels) => {
+                  setCollections((current) => current.map((collection) =>
+                    collection.id === collectionId
+                      ? { ...collection, plugins: { ...collection.plugins, steam: { ...collection.plugins?.steam, ...labels } } }
+                      : collection,
+                  ));
+                }}
                 onImportCollections={(importedData) => {
                 // Supporte l'ancien format (array) ou le nouveau (objet)
                 let collectionsToImport = importedData;

@@ -111,7 +111,7 @@ export const useItems = (
   };
 
   // Ajout d'un paramètre optionnel collectionId pour cibler la bonne collection
-  const saveItem = (item: any, editingItem: any, collectionId?: string) => {
+  const saveItem = (item: any, editingItem: any, collectionId?: string, steamExchangeDrafts: any[] = []) => {
     let newItem = { ...item };
 
     // Détermination de la collection cible
@@ -162,7 +162,12 @@ export const useItems = (
         if (isEdition || exists) {
           return {
             ...col,
-            items: colItems.map((i: any) => (i.id === newItem.id ? newItem : i))
+            items: [
+              ...colItems.map((i: any) => (i.id === newItem.id ? newItem : i)),
+              ...(col.plugins?.steam?.role === 'games' ? steamExchangeDrafts.map(({ _steamExchangeDraft, ...draft }) =>
+                prepareItem ? prepareItem(col, draft) : draft
+              ) : []),
+            ]
           };
         }
         return { ...col, items: [...colItems, newItem] };

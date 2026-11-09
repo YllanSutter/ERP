@@ -7,12 +7,14 @@ interface SteamPropertyFieldProps {
   value?: any;
   onChange?: (value: any) => void;
   disabled?: boolean;
+  inlineSuggestions?: boolean;
 }
 
 export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
   value = '',
   onChange,
-  disabled = false
+  disabled = false,
+  inlineSuggestions = false,
 }) => {
   const [searchInput, setSearchInput] = useState(getSteamDisplayName(value));
   const [suggestions, setSuggestions] = useState<SteamGame[]>([]);
@@ -86,11 +88,11 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
     : minLen;
 
   return (
-    <div ref={containerRef} className="relative inline-block max-w-full">
+    <div ref={containerRef} className={inlineSuggestions ? "relative block w-full" : "relative inline-block max-w-full"}>
       <div className="relative flex items-center gap-1.5">
         {(() => {
           const appid = getSteamAppId(value);
-          if (appid && !isOpen) {
+          if (appid) {
             return (
               <SteamImage
                 appid={appid}
@@ -107,6 +109,9 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
           type="text"
           value={searchInput}
           onChange={handleInputChange}
+          onMouseDown={(event) => {
+            if (event.button === 2) event.preventDefault();
+          }}
           onFocus={() => setIsOpen(true)}
           onBlur={() => {
             window.setTimeout(() => {
@@ -116,9 +121,9 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
           }}
           placeholder="Rechercher un jeu Steam..."
           autoComplete="off"
-          disabled={disabled || isLoading}
+          disabled={disabled}
           className="py-1 bg-transparent border border-transparent text-neutral-700 dark:text-white placeholder-neutral-600 focus:border-black/10 dark:focus:border-white/10 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ width: `${inputLength}ch`, maxWidth: '100%' }}
+          style={{ width: inlineSuggestions ? '100%' : `${inputLength}ch`, maxWidth: '100%' }}
         />
         {isLoading && (
           <div className="absolute right-1 top-1/2 -translate-y-1/2">
@@ -131,8 +136,8 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
       </div>
 
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute top-full mt-1 min-w-[26rem] max-w-[38rem] bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded shadow-lg z-50">
-          <ul className="max-h-72 overflow-y-auto">
+        <div className={`mt-1 ${inlineSuggestions ? 'w-full' : 'absolute top-full min-w-[26rem] max-w-[38rem]'} bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded shadow-lg z-50`}>
+          <ul className={inlineSuggestions ? "max-h-40 overflow-y-auto" : "max-h-72 overflow-y-auto"}>
             {suggestions.map((game, index) => (
               <li key={`${game.appid}-${index}`}>
                 <button
@@ -157,13 +162,13 @@ export const SteamPropertyField: React.FC<SteamPropertyFieldProps> = ({
       )}
 
       {isOpen && searchInput && suggestions.length === 0 && !isLoading && gamesLoaded && games.length > 0 && (
-        <div className="absolute top-full mt-1 min-w-[22rem] max-w-[32rem] bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded text-center py-2 text-sm text-gray-500 z-50">
+        <div className={`mt-1 ${inlineSuggestions ? 'w-full' : 'absolute top-full min-w-[22rem] max-w-[32rem]'} bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded text-center py-2 text-sm text-gray-500 z-50`}>
           Aucun jeu trouvé
         </div>
       )}
 
       {isOpen && !isLoading && gamesLoaded && games.length === 0 && (
-        <div className="absolute top-full mt-1 min-w-[22rem] max-w-[32rem] bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded text-center py-2 text-sm text-gray-500 z-50">
+        <div className={`mt-1 ${inlineSuggestions ? 'w-full' : 'absolute top-full min-w-[22rem] max-w-[32rem]'} bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded text-center py-2 text-sm text-gray-500 z-50`}>
           Liste Steam indisponible
         </div>
       )}

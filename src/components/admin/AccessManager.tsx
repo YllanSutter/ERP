@@ -1,3 +1,4 @@
+import type { SteamExchangeLabelSettings } from '@/lib/plugins/steam/exchanges';
 import AccessManagerController from '@/features/access/AccessManager';
 
 export type AccessManagerProps = {
@@ -6,6 +7,7 @@ export type AccessManagerProps = {
   onClose: () => void;
   onImportCollections?: (collections: any[]) => void;
   onUpdateDashboards?: (dashboards: any[]) => void;
+  onSaveSteamExchangeLabels?: (collectionId: string, labels: SteamExchangeLabelSettings) => void;
 };
 
 /** Compatibility entry point for existing imports. */

@@ -1,3 +1,4 @@
+import { steamExchanges } from '@/lib/plugins/steam/exchanges';
 import { Item, Property, Collection } from './types';
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 import { MONTH_NAMES } from '@/lib/utils/dateUtils';
@@ -31,10 +32,14 @@ export function buildGroupStructure(
   const structure: GroupedItems = {};
   const rootGroups = new Set<string>();
 
+  const games = collections.find((collection) => collection.plugins?.steam?.role === 'games');
+  const exchanges = steamExchanges(games);
+
   // Pour chaque item, construire son chemin de groupe
   items.forEach(item => {
     // currentPaths : liste des chemins actifs (multiselect peut en créer plusieurs)
     let currentPaths = [''];
+    const groupItem = exchanges.root(item);
 
     for (let depth = 0; depth < groups.length; depth++) {
       const groupId = groups[depth];
@@ -44,10 +49,10 @@ export function buildGroupStructure(
       const rawValue = (() => {
         const linkedProp: any = prop as any;
         if (!linkedProp?.isRelationLinkedColumn || !linkedProp?.sourceRelationPropertyId || !linkedProp?.sourceDisplayFieldId) {
-          return item[groupId];
+          return groupItem[groupId];
         }
 
-        const relationValue = (item as any)[linkedProp.sourceRelationPropertyId];
+        const relationValue = groupItem[linkedProp.sourceRelationPropertyId];
         const relatedIds = normalizeRelationIds(relationValue);
         if (!relatedIds.length) return null;
 

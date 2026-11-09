@@ -275,3 +275,30 @@ test('conflict details omit values the caller cannot read', async () => {
   assert.equal(reply.statusCode, 409);
   assert.equal(reply.body.conflicts, undefined);
 });
+
+test('a Steam exchange survives the save response when the received game is created in the same save', async () => {
+  const exchangeField = '_steamExchangeReceivedIds';
+  const state = initial();
+  state.collections[0].plugins = { steam: { role: 'games' } };
+  const next = copy(state.collections);
+  next[0].items[0][exchangeField] = ['received'];
+  next[0].items.push({ id: 'received', name: 'Jeu reçu' });
+  const h = harness(state);
+  const save = async (previous, updated, stateVersion) => h.call({
+    stateVersion,
+    mutationId: randomUUID(),
+    itemChanges: buildItemChanges(previous, updated, true),
+  });
+
+  const response = await save(state.collections, next, 1);
+  assert.equal(response.statusCode, 200);
+  const synced = applyItemChanges(state.collections, response.body.itemChanges);
+  assert.deepEqual(synced[0].items[0][exchangeField], ['received']);
+  assert.deepEqual(h.state.collections[0].items[0][exchangeField], ['received']);
+
+  const cancelled = copy(synced);
+  cancelled[0].items[0][exchangeField] = [];
+  const cancellation = await save(synced, cancelled, 2);
+  assert.equal(cancellation.statusCode, 200);
+  assert.deepEqual(h.state.collections[0].items[0][exchangeField], []);
+});

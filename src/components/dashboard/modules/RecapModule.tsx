@@ -1,3 +1,4 @@
+import { steamTotalItems } from '@/lib/plugins/steam/exchanges';
 /**
  * RecapModule – tableau croisé Période × Colonnes hiérarchiques.
  *
@@ -523,6 +524,7 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
         : undefined;
       return {
         ...source,
+        items: steamTotalItems(source.collection, source.items, leaf.aggregationField || '', leaf.displayType),
         dateField: columnDateField ?? source.dateField,
       };
     }
@@ -533,7 +535,7 @@ const RecapModule: React.FC<Props> = ({ module, data, collections, globalFilter,
         ? properties.find((p) => p.id === leaf.dateFieldId) ?? dateField
         : dateField,
       nameField: itemNameField,
-      items: filteredItems,
+      items: collection ? steamTotalItems(collection, filteredItems, leaf.aggregationField || '', leaf.displayType) : filteredItems,
     };
   }, [sourceContexts, module.collectionId, collection, properties, dateField, itemNameField, filteredItems]);
 

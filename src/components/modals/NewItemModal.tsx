@@ -1,3 +1,6 @@
+import { getSteamBundleConfig } from '@/lib/plugins/steam/collectionRoles';
+import { SteamExchangeEditor } from '@/lib/plugins/steam/SteamExchangeEditor';
+import { STEAM_EXCHANGE_FIELD, canReceiveSteamGame, createSteamExchangeDraft, steamExchanges } from '@/lib/plugins/steam/exchanges';
 import React, { useState, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
@@ -1221,10 +1224,24 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     []
   );
 
+  const { bundleRelationPropertyId: exchangeBundleField } = getSteamBundleConfig(collections);
+
   const handleSave = (saveFn: (item: any) => void) => {
     if (!canWriteCollection(selectedCollectionId)) {
       alert('Vous n\'avez pas les droits pour modifier cette collection.');
       return;
+    }
+    if (selectedCollection?.plugins?.steam?.role === 'games' && isReallyEditing) {
+      const ids = formData[STEAM_EXCHANGE_FIELD];
+      const live = collections.find((entry: any) => entry.id === selectedCollectionId) || selectedCollection;
+      const graph = steamExchanges(live);
+      if (Array.isArray(ids) && !areValuesEqual(ids, editingItem?.[STEAM_EXCHANGE_FIELD]) && ids.some((id) => {
+        const candidate = live.items.find((item: any) => item.id === id) || formData.__steamExchangeDrafts?.find((item: any) => item.id === id);
+        return !candidate || !canReceiveSteamGame(formData, candidate, graph);
+      })) {
+        alert('Un des jeux sélectionnés est indisponible. Vérifiez la liste des jeux reçus.');
+        return;
+      }
     }
     disableDraftRef.current = true;
     setHasLocalDraft(false);
@@ -1234,6 +1251,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       // ignore stockage local indisponible
     }
     let dataToSave = { ...formData, __collectionId: selectedCollectionId };
+    if (Array.isArray(dataToSave.__steamExchangeDrafts)) {
+      dataToSave.__steamExchangeDrafts = dataToSave.__steamExchangeDrafts.filter((item: any) => dataToSave[STEAM_EXCHANGE_FIELD]?.includes(item.id));
+    }
 
     // Normalize date-only values (YYYY-MM-DD) to local-midnight ISO so they
     // are interpreted consistently (avoid UTC-midnight -> shift issues).
@@ -1280,7 +1300,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       if (historyItemId) {
         const key = buildHistoryKey(selectedCollectionId, historyItemId);
         const raw = localStorage.getItem(key);
-        const snapshot = sanitizeVersionData(dataToSave);
+        const { __steamExchangeDrafts, ...versionData } = dataToSave;
+        const snapshot = sanitizeVersionData(versionData);
         const userName = user?.name || user?.email || 'Utilisateur';
         const userId = user?.id || null;
         const entryBase = {
@@ -1495,6 +1516,31 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         <div className="item-modal-content z-10 relative isolate flex min-h-0 flex-1 flex-col">
           <InteractiveBackdrop className="opacity-50 [--bd-bg:transparent] dark:[--bd-bg:transparent] [--bd-accent:rgb(var(--brand-500))] dark:[--bd-accent:rgb(var(--brand-500))]" />
           <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+
+          {isReallyEditing && selectedCollection?.plugins?.steam?.role === 'games' && (
+            <SteamExchangeEditor
+              key={formData.id}
+              bundleRelationPropertyId={exchangeBundleField}
+              collection={{
+                ...selectedCollection,
+                items: [...(collections.find((entry: any) => entry.id === selectedCollectionId) || selectedCollection).items, ...(formData.__steamExchangeDrafts || [])],
+              }}
+              item={formData}
+              receivedIds={Array.isArray(formData[STEAM_EXCHANGE_FIELD]) ? formData[STEAM_EXCHANGE_FIELD] : []}
+              onChange={canWriteCollection(selectedCollectionId) ? (ids) => setFormData((previous: any) => ({ ...previous, [STEAM_EXCHANGE_FIELD]: ids })) : undefined}
+              onCreate={canWriteCollection(selectedCollectionId) && selectedCollection.properties.some((property: any) => property.type === 'steam' && canWriteField(selectedCollectionId, property.id)) ? (game) => {
+                const live = collections.find((entry: any) => entry.id === selectedCollectionId) || selectedCollection;
+                const draft = createSteamExchangeDraft(live, formData, game, exchangeBundleField, (id) => canWriteField(selectedCollectionId, id));
+                if (!draft) return;
+                setFormData((previous: any) => ({
+                  ...previous,
+                  [STEAM_EXCHANGE_FIELD]: [...(previous[STEAM_EXCHANGE_FIELD] || []), draft.id],
+                  __steamExchangeDrafts: [...(previous.__steamExchangeDrafts || []), draft],
+                }));
+              } : undefined}
+              onOpenItem={(item) => navigateToRelatedItemClassic(item, selectedCollection, 'Échange Steam')}
+            />
+          )}
 
           {relationTrail.length > 1 && (
             <div className="flex flex-wrap items-center gap-2 border-b border-border p-3 text-sm">

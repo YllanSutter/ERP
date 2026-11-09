@@ -1,3 +1,4 @@
+import { steamTotalItems } from '@/lib/plugins/steam/exchanges';
 import { useCallback } from 'react';
 import type { Collection, Property } from '@/lib/types';
 
@@ -6,6 +7,7 @@ export function useViewTotals(properties: Property[], collection: Collection, co
   const calculateTotal = useCallback((fieldId: string, sourceItems: any[], totalType: string) => {
     const property = properties.find((candidate) => candidate.id === fieldId);
     if (!property) return null;
+    sourceItems = steamTotalItems(collection, sourceItems, fieldId, totalType);
     if (property.type === 'checkbox' && totalType.startsWith('linked-progress:')) {
       const linkedFieldId = totalType.slice('linked-progress:'.length);
       return sourceItems.reduce((result, item) => {
@@ -39,7 +41,7 @@ export function useViewTotals(properties: Property[], collection: Collection, co
     if (resolvedType === 'min') return Math.min(...values);
     if (resolvedType === 'max') return Math.max(...values);
     return values.reduce((sum, value) => sum + value, 0);
-  }, [properties]);
+  }, [properties, collection]);
 
   const formatTotal = useCallback((fieldId: string, total: any, totalType: string) => {
     const property = properties.find((candidate) => candidate.id === fieldId);

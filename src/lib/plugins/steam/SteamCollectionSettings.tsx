@@ -65,6 +65,16 @@ export function SteamCollectionSettings({
         {settings.role === 'games' && (
           <>
             <label className="grid gap-1">
+              <SettingsLabel>Champ du prix payé pour les échanges</SettingsLabel>
+              <SettingsSelect value={settings.exchangePaidPropertyId || ''}
+                onChange={(exchangePaidPropertyId) => update({ exchangePaidPropertyId })}
+                options={[
+                  { value: '', label: 'Automatique si la colonne s’appelle Prix payé' },
+                  ...collection.properties.filter((property: any) => property.type === 'number').map((property: any) => ({ value: property.id, label: property.name })),
+                ]} />
+              <SettingsHint>Le prix payé reste sur l’achat d’origine. Les autres totaux comptent les jeux encore détenus.</SettingsHint>
+            </label>
+            <label className="grid gap-1">
               <SettingsLabel>Relation vers les bundles</SettingsLabel>
               <SettingsSelect value={settings.bundleRelationPropertyId || ''}
                 onChange={(bundleRelationPropertyId) => update({ bundleRelationPropertyId })}

@@ -1,3 +1,4 @@
+import type { SteamExchangeLabelSettings } from '@/lib/plugins/steam/exchanges';
 import React, { useState, useEffect } from 'react';
 import { pluginManager, PluginManifest, PluginContext, getAllAvailablePlugins } from '@/lib/plugins';
 import { useAuth } from '@/auth/AuthProvider';
@@ -13,9 +14,10 @@ interface PluginManagerProps {
   organizationId: string;
   collectionProperties?: any[];
   collections?: any[];
+  onSaveSteamExchangeLabels?: (collectionId: string, labels: SteamExchangeLabelSettings) => void;
 }
 
-export const PluginManagerUI: React.FC<PluginManagerProps> = ({ organizationId, collectionProperties = [], collections = [] }) => {
+export const PluginManagerUI: React.FC<PluginManagerProps> = ({ organizationId, collectionProperties = [], collections = [], onSaveSteamExchangeLabels }) => {
   const { user } = useAuth();
   const [plugins, setPlugins] = useState<PluginManifest[]>([]);
   const [activePlugins, setActivePlugins] = useState<Set<string>>(new Set());
@@ -150,6 +152,8 @@ export const PluginManagerUI: React.FC<PluginManagerProps> = ({ organizationId, 
         <SteamPluginConfig
           organizationId={organizationId}
           properties={collectionProperties}
+          collections={collections}
+          onSaveExchangeLabels={onSaveSteamExchangeLabels}
           onClose={() => setConfigPluginId(null)}
         />
       )}

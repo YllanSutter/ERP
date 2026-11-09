@@ -1,3 +1,4 @@
+import { steamExchanges } from '@/lib/plugins/steam/exchanges';
 import React from 'react';
 import type { Collection, Item, Property } from '@/lib/types';
 import SteamCardFullArt from '@/components/views/SteamCardFullArt';
@@ -66,37 +67,60 @@ const CardsGrid: React.FC<CardsGridProps> = ({
   }[columnCount as 1 | 2 | 3 | 4 | 5 | 6];
   const densityGap = cardDensity === 'compact' ? 'gap-2 p-2' : cardDensity === 'spacious' ? 'gap-6 p-6' : 'gap-4 p-4';
 
+  const { parents, children } = steamExchanges(collection);
+  const visible = new Map(items.map((item) => [item.id, item]));
+  const roots = items.filter((item) => !visible.has(parents.get(item.id)?.id ?? ''));
+  const renderGame = (item: Item): React.ReactNode => {
+    const received = (children.get(item.id) || []).flatMap((game) => {
+      const row = visible.get(game.id);
+      return row ? [row] : [];
+    });
+    const parent = parents.get(item.id);
+    const exchanged = children.has(item.id);
+    const card = (
+      <SteamCardFullArt
+        key={item.id}
+        item={item}
+        steamProperty={steamProperty}
+        styleProperty={colorProperty}
+        iconProperty={iconProperty}
+        fieldPlacements={fieldPlacements}
+        fullArt={cardStyle === 'steamFullArt'}
+        density={cardDensity}
+        properties={properties}
+        onViewDetail={onViewDetail}
+        onEdit={onEdit}
+        canEdit={canEdit}
+        canEditField={canEditField}
+        collections={collections}
+        collection={collection}
+        onRelationChange={onRelationChange}
+        onNavigateToCollection={onNavigateToCollection}
+        selected={selectedItemIds.has(item.id)}
+        onSelectionChange={onSelectionChange}
+        draggable={canReorder}
+        isDragging={dragItemId === item.id}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDropOnItem={onDropOnItem}
+      />
+    );
+    if (!parent && !exchanged) return card;
+    return (
+      <div key={item.id} className="min-w-0 space-y-2">
+        <div className="text-xs font-medium text-brand-600 dark:text-brand-300">
+          {parent && '↳ Reçu en échange'}{parent && exchanged && ' · '}{exchanged && 'Échangé'}
+        </div>
+        {card}
+        {received.length > 0 && <div className="space-y-2 border-l border-brand-500/40 pl-3">{received.map(renderGame)}</div>}
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className={`grid ${densityGap} ${cardColumns === 'auto' ? 'grid-cols-[repeat(auto-fill,minmax(250px,1fr))]' : columnClassName}`}>
-      {items.map((item) => (
-        <SteamCardFullArt
-          key={item.id}
-          item={item}
-          steamProperty={steamProperty}
-          styleProperty={colorProperty}
-          iconProperty={iconProperty}
-          fieldPlacements={fieldPlacements}
-          fullArt={cardStyle === 'steamFullArt'}
-          density={cardDensity}
-          properties={properties}
-          onViewDetail={onViewDetail}
-          onEdit={onEdit}
-          canEdit={canEdit}
-          canEditField={canEditField}
-          collections={collections}
-          collection={collection}
-          onRelationChange={onRelationChange}
-          onNavigateToCollection={onNavigateToCollection}
-          selected={selectedItemIds.has(item.id)}
-          onSelectionChange={onSelectionChange}
-          draggable={canReorder}
-          isDragging={dragItemId === item.id}
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-          onDropOnItem={onDropOnItem}
-        />
-      ))}
+        {roots.map(renderGame)}
       </div>
     </div>
   );

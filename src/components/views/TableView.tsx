@@ -1,3 +1,4 @@
+import { orderSteamExchanges, steamTotalItems } from '@/lib/plugins/steam/exchanges';
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { ChevronRight, Plus, Zap, Sigma } from 'lucide-react';
 import { useViewGrouping } from '@/components/views/ViewGrouping';
@@ -272,10 +273,10 @@ const TableView: React.FC<TableViewProps> = ({
 
   // Fonction de tri générique
   const sortItems = useCallback((arr: any[]) => {
-    if (!sortState.column) return arr;
+    if (!sortState.column) return orderSteamExchanges(arr, collection);
     const col = sortState.column;
     const sortProp = orderedProperties.find((p: any) => p.id === col);
-    return [...arr].sort((a, b) => {
+    const sorted = [...arr].sort((a, b) => {
       const aVal = sortProp ? resolveProjectedValue(a, sortProp) : (a && col in a ? a[col] : undefined);
       const bVal = sortProp ? resolveProjectedValue(b, sortProp) : (b && col in b ? b[col] : undefined);
       if (sortProp?.type === 'steam') {
@@ -283,7 +284,8 @@ const TableView: React.FC<TableViewProps> = ({
       }
       return compareValues(aVal, bVal, sortState.direction);
     });
-  }, [sortState, orderedProperties, resolveProjectedValue]);
+    return orderSteamExchanges(sorted, collection);
+  }, [sortState, orderedProperties, resolveProjectedValue, collection]);
   
   // Hooks de permissions
   const canEdit = useCanEdit(collection?.id);
@@ -620,6 +622,7 @@ const TableView: React.FC<TableViewProps> = ({
   const calculateTotal = useCallback((fieldId: string, itemsToSum: any[], totalType: string) => {
     const property = orderedProperties.find(p => p.id === fieldId);
     if (!property) return null;
+    itemsToSum = steamTotalItems(collection, itemsToSum, fieldId, totalType);
 
     const parseNumberFilteredTotalType = (rawType: string) => {
       if (typeof rawType !== 'string' || !rawType.startsWith('number-filter:')) return null;
@@ -796,7 +799,7 @@ const TableView: React.FC<TableViewProps> = ({
     }
 
     return null;
-  }, [orderedProperties]);
+  }, [orderedProperties, collection]);
 
   // Formater l'affichage du total
   const formatTotal = useCallback((fieldId: string, total: any, totalType: string) => {

@@ -7,3 +7,4 @@ export type ItemChange = {
 };
 export function buildItemChanges(previous: any[], next: any[], includePrevious?: boolean): ItemChange[];
 export function applyItemChanges<T extends { id: string; items?: any[] }>(collections: T[], changes: ItemChange[]): T[];
+export function isSyncableItemField(key: string): boolean;

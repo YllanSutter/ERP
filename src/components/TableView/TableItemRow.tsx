@@ -1,3 +1,4 @@
+import { steamExchanges, steamExchangeLabelValue, steamGameName } from '@/lib/plugins/steam/exchanges';
 import React from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
@@ -20,7 +21,7 @@ export interface TableItemRowProps {
   onEdit: (item: Item) => void;
   onDelete: (id: string) => void;
   onToggleFavoriteItem?: (itemId: string) => void;
-  onViewDetail: (item: Item) => void;
+  onViewDetail: (item: Item, section?: 'steam-exchange' | 'cancel-steam-exchange') => void;
   collections: Collection[];
   onRelationChange: (prop: Property, item: Item, value: any) => void;
   onNavigateToCollection: (collectionId: string, linkedIds?: string[]) => void;
@@ -131,6 +132,14 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
   // Propriétés à afficher dans la vue (excluant celles du menu contextuel)
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
 
+  const exchange = steamExchanges(collection);
+  const exchangeParent = exchange.parents.get(item.id);
+  const exchanged = exchange.children.has(item.id);
+  const gameColumn = displayProperties.find((property) =>
+    !property.isRelationLinkedColumn && (property.id === 'name' || property.name === 'Nom'),
+  ) ?? displayProperties.find((property) => !property.isRelationLinkedColumn && property.type === 'steam') ?? displayProperties[0];
+  const exchangeParentName = exchangeParent && steamGameName(collection, exchangeParent);
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -175,9 +184,13 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
           {displayProperties.map((prop: any) => {
             const isLinkedRelationColumn = Boolean(prop?.isRelationLinkedColumn && prop?.sourceRelationPropertyId);
             const effectiveProperty = prop;
-            const effectiveValue = resolveDisplayValueForLinkedColumn(prop);
+            const rawValue = resolveDisplayValueForLinkedColumn(prop);
+            const exchangeLabel = isLinkedRelationColumn ? undefined : steamExchangeLabelValue(collection, prop, rawValue, exchanged, Boolean(exchangeParent));
+            const effectiveValue = exchangeLabel ?? rawValue;
             const permissionFieldId = isLinkedRelationColumn ? prop.sourceRelationPropertyId : effectiveProperty.id;
             const canEditEffectiveField = canEditField(permissionFieldId);
+            const showExchangeBranch = prop.id === gameColumn?.id && Boolean(exchangeParent);
+            const showExchangeOrigin = prop.id === gameColumn?.id && exchanged && !exchangeParent;
 
             return (
             <td
@@ -185,11 +198,25 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
               className="px-4 py-1 whitespace-nowrap text-xs text-neutral-700 dark:text-neutral-300 relative user-select-auto"
               onMouseDown={(e) => e.stopPropagation()}
             >
+              {showExchangeOrigin && (
+                <span className="pointer-events-none absolute bottom-0 left-1.5 top-1/2 w-px bg-brand-500/60" aria-hidden="true">
+                  <span className="absolute -left-0.5 -top-0.5 size-1.5 rounded-full bg-brand-500" />
+                </span>
+              )}
+              {showExchangeBranch && (
+                <span
+                  className="absolute left-1.5 top-0 h-1/2 w-4 rounded-bl-md border-b border-l border-brand-500/60"
+                  role="img"
+                  aria-label={`Reçu en échange de ${exchangeParentName}`}
+                  title={`Reçu en échange de ${exchangeParentName}`}
+                />
+              )}
+              <div className={showExchangeBranch ? 'pl-3' : undefined}>
               <EditableProperty
                 property={effectiveProperty}
                 value={effectiveValue}
                 onChange={(val) => {
-                  if (isLinkedRelationColumn) return;
+                  if (isLinkedRelationColumn || exchangeLabel !== undefined) return;
                   // Pas de recalcul côté client - le serveur le fera
                   const updated = { ...item, [effectiveProperty.id]: val };
                   onEdit(updated);
@@ -202,9 +229,10 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                 currentItem={item}
                 onRelationChange={onRelationChange}
                 onNavigateToCollection={onNavigateToCollection}
-                readOnly={isLinkedRelationColumn || !canEdit || !canEditEffectiveField}
+                readOnly={isLinkedRelationColumn || exchangeLabel !== undefined || !canEdit || !canEditEffectiveField}
                 collection={collection}
               />
+              </div>
             </td>
             );
           })}
@@ -229,6 +257,18 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
             )}
           </div>
         </ContextMenuItem>
+        {canEdit && collection.plugins?.steam?.role === 'games' && (
+          <ContextMenuItem onSelect={() => onViewDetail(item, 'steam-exchange')}>
+            <Icons.ArrowRightLeft size={14} className="mr-2" />
+            <span>{exchanged ? 'Modifier l’échange Steam' : 'Échanger ce jeu'}</span>
+          </ContextMenuItem>
+        )}
+        {canEdit && (exchangeParent || exchanged) && (
+          <ContextMenuItem onSelect={() => onViewDetail(item, 'cancel-steam-exchange')}>
+            <Icons.Undo2 size={14} className="mr-2" />
+            <span>Annuler l’échange</span>
+          </ContextMenuItem>
+        )}
         {onToggleFavoriteItem && (
           <ContextMenuItem onClick={() => onToggleFavoriteItem(item.id)}>
             <Icons.Star size={14} className={`mr-2 ${isFavorite ? 'text-brand-500 fill-current' : ''}`} />
@@ -242,7 +282,8 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
             <ContextMenuSeparator />
             {contextMenuProperties.map((prop: any) => {
               const effectiveProperty = prop;
-              const effectiveValue = item[prop.id];
+              const exchangeLabel = steamExchangeLabelValue(collection, prop, item[prop.id], exchanged, Boolean(exchangeParent));
+              const effectiveValue = exchangeLabel ?? item[prop.id];
 
               return (
                 <ContextMenuItem key={prop.id} className="flex items-center justify-between gap-4 cursor-default" onSelect={(e) => e.preventDefault()}>
@@ -252,6 +293,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                       property={effectiveProperty}
                       value={effectiveValue}
                       onChange={(val) => {
+                        if (exchangeLabel !== undefined) return;
                         // Pas de recalcul côté client - le serveur le fera
                         const updated = { ...item, [effectiveProperty.id]: val };
                         onEdit(updated);
@@ -261,7 +303,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                       currentItem={item}
                       onRelationChange={onRelationChange}
                       onNavigateToCollection={onNavigateToCollection}
-                      readOnly={false}
+                      readOnly={exchangeLabel !== undefined}
                       collection={collection}
                     />
                   </div>

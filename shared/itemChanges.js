@@ -1,5 +1,5 @@
-const internalFields = new Set(['_eventSegments', '_preserveEventSegments']);
-const syncable = (key) => !key.startsWith('_') || internalFields.has(key);
+const internalFields = new Set(['_eventSegments', '_preserveEventSegments', '_steamExchangeReceivedIds']);
+export const isSyncableItemField = (key) => !key.startsWith('_') || internalFields.has(key);
 const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // Les champs métier restent libres : aucun nom de collection/propriété n'est codé ici.
@@ -19,7 +19,7 @@ export function buildItemChanges(previous, next, includePrevious = false) {
       const fields = {}, unset = [];
       const previousFields = {};
       for (const key of new Set([...Object.keys(old), ...Object.keys(item)])) {
-        if (key === 'id' || !syncable(key) || equal(old[key], item[key])) continue;
+        if (key === 'id' || !isSyncableItemField(key) || equal(old[key], item[key])) continue;
         if (includePrevious && !passwordFields.has(key) && Object.hasOwn(old, key)) previousFields[key] = old[key];
         if (Object.hasOwn(item, key)) fields[key] = item[key];
         else unset.push(key);

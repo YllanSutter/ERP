@@ -25,6 +25,7 @@ type AccessManagerWorkspaceProps = {
   onClose: () => void;
   onImportCollections?: (collections: any[]) => void;
   onUpdateDashboards?: (dashboards: any[]) => void;
+  onSaveSteamExchangeLabels?: Parameters<typeof useAccessManagerController>[0]['onSaveSteamExchangeLabels'];
 };
 
 const AccessManagerWorkspace = (props: AccessManagerWorkspaceProps) => {

@@ -1,5 +1,7 @@
+import type { Collection } from '@/lib/types';
+import { isSteamExchangeLabelProperty, steamExchangeLabelOptions, type SteamExchangeLabelSettings } from './exchanges';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { SettingsDialog, SettingsBody, SettingsFooter } from '@/components/ui/settings-panel';
+import { SettingsDialog, SettingsBody, SettingsFooter, SettingsHint, SettingsLabel, SettingsSelect } from '@/components/ui/settings-panel';
 import { invalidateSteamGamesList } from './steamUtils';
 import { refreshSteamImages } from './steamImages';
 import { bundleRequest } from './bundleApi';
@@ -13,6 +15,8 @@ interface SteamPluginConfigProps {
   organizationId: string;
   collectionId?: string;
   properties?: any[];
+  collections?: Collection[];
+  onSaveExchangeLabels?: (collectionId: string, labels: SteamExchangeLabelSettings) => void;
   onClose: () => void;
   onSave?: (config: Record<string, any>) => void;
 }
@@ -21,9 +25,24 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
   organizationId,
   collectionId,
   properties = [],
+  collections = [],
+  onSaveExchangeLabels,
   onClose,
   onSave,
 }) => {
+  const games = collections.find((collection) => collection.plugins?.steam?.role === 'games');
+  const storedLabels = games?.plugins?.steam;
+  const [labelDraft, setLabelDraft] = useState<SteamExchangeLabelSettings | null>(null);
+  const settings = labelDraft ?? {
+    exchangeLabelPropertyId: storedLabels?.exchangeLabelPropertyId || '',
+    exchangeGivenLabel: storedLabels?.exchangeGivenLabel || '',
+    exchangeReceivedLabel: storedLabels?.exchangeReceivedLabel || '',
+  };
+  const update = (patch: Partial<SteamExchangeLabelSettings>) => setLabelDraft({ ...settings, ...patch });
+  const labelProperties = (games?.properties || []).filter(isSteamExchangeLabelProperty);
+  const labelProperty = labelProperties.find((property) => property.id === settings.exchangeLabelPropertyId);
+  const labelOptions = steamExchangeLabelOptions(labelProperty);
+
   const [config, setConfig] = useState({
     bundlesPublicByDefault: false,
     priceSaleColumn: '',
@@ -103,6 +122,7 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
 
       pluginManager.updatePluginConfig(organizationId, 'steam', config);
       window.dispatchEvent(new Event('steam-config-changed'));
+      if (games && labelDraft) onSaveExchangeLabels?.(games.id, labelDraft);
       onSave?.(config);
       onClose();
     } catch (error) {
@@ -114,7 +134,7 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
   };
 
   return (
-    <SettingsDialog open title="Configuration Steam" description="Catalogue, images, bundles et prix ITAD." onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
+    <SettingsDialog open title="Configuration Steam" description="Catalogue, images, bundles, échanges et prix ITAD." onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
 
         <SettingsBody className="space-y-4">
           <p className="text-sm text-neutral-500">
@@ -177,6 +197,48 @@ export const SteamPluginConfig: React.FC<SteamPluginConfigProps> = ({
               App ID valide sont partagés.
             </p>
           </fieldset>
+          {onSaveExchangeLabels && (
+            <fieldset className="space-y-3 border-b border-border pb-4">
+              <legend className="settings-section-title">Labels des échanges</legend>
+              {games ? (
+                <>
+                  <label className="grid gap-1">
+                    <SettingsLabel>Colonne de labels des échanges</SettingsLabel>
+                    <SettingsSelect aria-label="Colonne de labels des échanges"
+                      value={labelProperty?.id || ''}
+                      onChange={(exchangeLabelPropertyId) => update({ exchangeLabelPropertyId, exchangeGivenLabel: '', exchangeReceivedLabel: '' })}
+                      options={[
+                        { value: '', label: 'Aucune colonne' },
+                        ...labelProperties.map((property) => ({ value: property.id, label: property.name })),
+                      ]} />
+                    {!labelProperties.length && <SettingsHint>Ajoute une colonne de sélection simple ou multiple avec tes labels.</SettingsHint>}
+                  </label>
+                  {labelProperty && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {([
+                        ['exchangeGivenLabel', 'Label du jeu échangé', settings.exchangeReceivedLabel],
+                        ['exchangeReceivedLabel', 'Label du jeu reçu en échange', settings.exchangeGivenLabel],
+                      ] as const).map(([key, label, otherValue]) => (
+                        <label key={key} className="grid gap-1">
+                          <SettingsLabel>{label}</SettingsLabel>
+                          <SettingsSelect aria-label={label}
+                            value={labelOptions.some((option) => option.value === settings[key]) ? settings[key] : ''}
+                            onChange={(value) => update({ [key]: value })}
+                            options={[
+                              { value: '', label: 'Aucun label' },
+                              ...labelOptions.map((option) => ({ ...option, disabled: option.value === otherValue })),
+                            ]} />
+                        </label>
+                      ))}
+                      <SettingsHint className="sm:col-span-2">Le tableau affiche ces labels automatiquement tant que l’échange est actif.</SettingsHint>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <SettingsHint>Attribue le rôle Jeux à une collection pour choisir ses labels d’échange.</SettingsHint>
+              )}
+            </fieldset>
+          )}
           <div>
             <label className="text-sm font-medium mb-2 block">Colonne Prix Soldé</label>
             <Select

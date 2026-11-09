@@ -106,5 +106,6 @@ export const PluginsPanel = ({ context }: Props) => (
     organizationId={context.activeOrganizationId || 'default'}
     collectionProperties={context.collections[0]?.properties || []}
     collections={context.collections}
+    onSaveSteamExchangeLabels={context.onSaveSteamExchangeLabels}
   />
 );
