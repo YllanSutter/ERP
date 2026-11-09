@@ -1,53 +1,41 @@
-export const setupSocketPresence = ({ io, pool, jwt, jwtSecret }) => {
-  // Map socket.id -> user info
-  const connectedUsers = new Map();
+export const organizationRoom = (organizationId) => `organization:${organizationId}`;
 
-  const broadcastUsers = () => {
-    const users = Array.from(connectedUsers.values());
-    io.emit('usersConnected', users);
+export const setupSocketPresence = ({ io, parseCookies, requireAuth }) => {
+  io.engine.use(parseCookies);
+  io.use(async (socket, next) => {
+    const organizationId = socket.handshake.auth?.organizationId;
+    if (typeof organizationId !== 'string' || !organizationId) {
+      return next(new Error('Organization required'));
+    }
+
+    const req = {
+      cookies: socket.request.cookies || {},
+      headers: { ...socket.request.headers, 'x-organization-id': organizationId },
+    };
+    const res = {
+      status() { return this; },
+      json() { next(new Error('Unauthorized')); },
+    };
+    await requireAuth(req, res, () => {
+      if (req.auth?.activeOrganization?.id !== organizationId) return next(new Error('Unauthorized'));
+      const { id, name } = req.auth.user;
+      socket.data.organizationId = organizationId;
+      socket.data.user = { id, name };
+      next();
+    });
+  });
+
+  const broadcastUsers = async (room) => {
+    const sockets = await io.in(room).fetchSockets();
+    const users = new Map(sockets.map(({ data }) => [data.user.id, data.user]));
+    io.to(room).emit('usersConnected', [...users.values()]);
   };
 
   io.on('connection', async (socket) => {
-    // Identification par événement 'identify' (plus fiable que le cookie)
-    let user = null;
-
-    socket.on('identify', async (payload) => {
-      if (payload && payload.id && payload.name) {
-        user = { id: payload.id, name: payload.name };
-        connectedUsers.set(socket.id, user);
-        broadcastUsers();
-      }
-    });
-
-    // (Optionnel) fallback cookie pour compatibilité ancienne version
-    try {
-      const cookie = socket.handshake.headers.cookie || '';
-      // Accepte auth_token OU access_token
-      let match = cookie.match(/auth_token=([^;]+)/);
-      if (!match) {
-        match = cookie.match(/access_token=([^;]+)/);
-      }
-      if (match) {
-        const token = match[1];
-        const decoded = jwt.verify(token, jwtSecret);
-        const result = await pool.query('SELECT id, name, email FROM users WHERE id = $1', [decoded.id]);
-        if (result.rowCount) {
-          user = result.rows[0];
-          connectedUsers.set(socket.id, user);
-          broadcastUsers();
-        }
-      }
-    } catch {
-      // ignore cookie parsing/jwt/db fallback failures
-    }
-
-    socket.on('whoIsConnected', () => {
-      broadcastUsers();
-    });
-
-    socket.on('disconnect', () => {
-      connectedUsers.delete(socket.id);
-      broadcastUsers();
-    });
+    const room = organizationRoom(socket.data.organizationId);
+    socket.on('whoIsConnected', () => void broadcastUsers(room));
+    socket.on('disconnect', () => void broadcastUsers(room));
+    await socket.join(room);
+    await broadcastUsers(room);
   });
 };

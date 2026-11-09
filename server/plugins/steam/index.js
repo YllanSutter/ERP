@@ -1,3 +1,4 @@
+import { organizationRoom } from '../../services/socketPresence.js';
 import { registerCatalogueRoutes } from './catalogue.js';
 import { registerSteamImageRoutes } from './images.js';
 import { syncPublicBundlesAfterSave } from './bundleVisibility.js';
@@ -365,7 +366,7 @@ export const steamServerPlugin = {
           }
 
           if (global.io) {
-            global.io.emit('stateUpdated', {
+            global.io.to(organizationRoom(activeOrganizationId)).emit('stateUpdated', {
               userId: req.auth.user.id,
               organizationId: activeOrganizationId,
             });

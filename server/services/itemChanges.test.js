@@ -24,6 +24,7 @@ function harness(state = initial(), options = {}) {
     if (sql.startsWith('UPDATE app_state')) {
       if (options.concurrentState) {
         stored = JSON.stringify(options.concurrentState);
+        if (options.bumpConcurrentVersion) version++;
         delete options.concurrentState;
       }
       if (params[2] !== version || options.race || (sql.includes('AND data = $4') && params[3] !== stored)) return { rowCount: 0 };
@@ -35,7 +36,9 @@ function harness(state = initial(), options = {}) {
   const app = Object.fromEntries(['get', 'post', 'patch'].map((method) => [method, (path, ...handlers) => routes.set(`${method.toUpperCase()} ${path}`, handlers.at(-1))]));
   registerStateRoutes({ app, appContext: {
     pool, logger: { error() {} }, requireAuth() {}, requirePermission: () => () => {},
-    hasPermission: (_auth, scope, action) => action !== 'can_write' || !options.denied?.includes(scope.collection_id),
+    hasPermission: (_auth, scope, action) => action === 'can_write'
+      ? !options.denied?.includes(scope.collection_id)
+      : !options.unreadable?.includes(scope.field_id),
     INITIAL_APP_STATE: initial(), syncAppStateIdSequence: async () => {},
     getCalendarConfigForUser: () => ({}), shouldRecalculateSegments: (_before, after) => Boolean(after.date),
     calculateEventSegments: (item) => ({ ...item, _eventSegments: item.date ? [{ start: item.date }] : [] }),
@@ -189,4 +192,86 @@ test('preserves update and deletion automations on the targeted path', async () 
   assert.equal(deleted.statusCode, 200);
   assert.equal(h.state.collections[0].items.length, 0);
   assert.equal(h.state.collections[1].items.length, 2);
+});
+
+test('rebases independent updates on the same item and rejects competing values', async () => {
+  const state = initial();
+  const h = harness(state);
+  const mutation = (fields) => {
+    const next = copy(state.collections);
+    Object.assign(next[0].items[0], fields);
+    return { stateVersion: 1, mutationId: randomUUID(), itemChanges: buildItemChanges(state.collections, next, true) };
+  };
+
+  assert.equal((await h.call(mutation({ name: 'Alice' }))).statusCode, 200);
+  const independent = mutation({ obsolete: 'Bob' });
+  const merged = await h.call(independent);
+  assert.equal(merged.statusCode, 200);
+  assert.equal(merged.body.stateVersion, 3);
+  assert.deepEqual(merged.body.rebasedCollections[0].items[0], {
+    id: 'a', name: 'Alice', obsolete: 'Bob', _eventSegments: [],
+  });
+  assert.deepEqual((await h.call(independent)).body, merged.body);
+
+  assert.equal((await h.call(mutation({ name: 'Charlie' }))).statusCode, 409);
+  assert.equal(h.writes, 2);
+  assert.equal(h.state.collections[0].items[0].name, 'Alice');
+});
+
+test('retries a compatible item update when another write wins the SQL race', async () => {
+  const state = initial();
+  const concurrentState = copy(state);
+  concurrentState.collections[1].items[0].name = 'Other session';
+  const h = harness(state, { concurrentState, bumpConcurrentVersion: true });
+  const next = copy(state.collections);
+  next[0].items[0].name = 'My edit';
+  const reply = await h.call({
+    stateVersion: 1, mutationId: randomUUID(), itemChanges: buildItemChanges(state.collections, next, true),
+  });
+  assert.equal(reply.statusCode, 200);
+  assert.equal(reply.body.stateVersion, 3);
+  assert.equal(h.state.collections[0].items[0].name, 'My edit');
+  assert.equal(h.state.collections[1].items[0].name, 'Other session');
+});
+
+test('a confirmed replacement checks that the reviewed value is still current', async () => {
+  const state = initial();
+  const h = harness(state);
+  const mutation = (name, stateVersion, previous = state.collections) => {
+    const next = copy(previous);
+    next[0].items[0].name = name;
+    return { stateVersion, mutationId: randomUUID(), itemChanges: buildItemChanges(previous, next, true) };
+  };
+
+  await h.call(mutation('First value', 1));
+  const local = mutation('My value', 1);
+  const firstConflict = await h.call(local);
+  assert.equal(firstConflict.statusCode, 409);
+  assert.deepEqual(firstConflict.body.conflicts, [
+    { collectionId: 'tasks', itemId: 'a', key: 'name', current: 'First value' },
+  ]);
+
+  await h.call(mutation('Newer value', 2, h.state.collections));
+  local.itemChanges[0].updated[0].previous.name = firstConflict.body.conflicts[0].current;
+  const secondConflict = await h.call(local);
+  assert.equal(secondConflict.statusCode, 409);
+  assert.equal(secondConflict.body.conflicts[0].current, 'Newer value');
+
+  local.itemChanges[0].updated[0].previous.name = secondConflict.body.conflicts[0].current;
+  assert.equal((await h.call(local)).statusCode, 200);
+  assert.equal(h.state.collections[0].items[0].name, 'My value');
+});
+
+test('conflict details omit values the caller cannot read', async () => {
+  const state = initial();
+  const h = harness(state, { unreadable: ['name'] });
+  const edit = (name) => {
+    const next = copy(state.collections);
+    next[0].items[0].name = name;
+    return { stateVersion: 1, mutationId: randomUUID(), itemChanges: buildItemChanges(state.collections, next, true) };
+  };
+  await h.call(edit('Private value'));
+  const reply = await h.call(edit('Other value'));
+  assert.equal(reply.statusCode, 409);
+  assert.equal(reply.body.conflicts, undefined);
 });

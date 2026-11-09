@@ -107,6 +107,7 @@ Thumbs.db
 
 # Backup files (will be mounted as volume)
 backups/
+data/pdf-plugin/
 *.sql
 
 # SSL certificates (will be mounted as volume)

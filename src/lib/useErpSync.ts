@@ -7,6 +7,8 @@ import { cleanForSave } from '@/lib/utils/cleanUtils';
 
 // Types minimalistes pour éviter les erreurs TS
 type Collection = { id: string; items?: any[]; [key: string]: any };
+type ItemConflict = { collectionId: string; itemId: string; key: string; current?: unknown };
+type DisplayConflict = ItemConflict & { proposed?: unknown };
 type ViewMap = Record<string, any[]>;
 type DashboardSort = 'created' | 'name-asc' | 'name-desc';
 type Dashboard = any;
@@ -147,6 +149,8 @@ export function useErpSync({
   API_URL,
   socket,
 }: UseErpSyncParams) {
+  const [itemConflicts, setItemConflicts] = useState<DisplayConflict[]>([]);
+  const [conflictOpen, setConflictOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('loading');
   const latestCollectionsRef = useRef(collections);
   latestCollectionsRef.current = collections;
@@ -155,6 +159,8 @@ export function useErpSync({
     const queue = new SaveQueue(setSaveStatus);
     saveQueueRef.current = queue;
     setSaveStatus('loading');
+    setItemConflicts([]);
+    setConflictOpen(false);
     const retry = () => queue.retryNow();
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (!queue.hasPending) return;
@@ -355,16 +361,35 @@ export function useErpSync({
       signal: AbortSignal.timeout(15000),
     });
     if (res.status === 413) throw new SaveTooLargeError('Les données dépassent la limite du serveur.');
-    if (res.status === 409) throw new SaveConflictError('Une autre session a modifié les données.');
+    if (res.status === 409) {
+      const result = await res.json().catch(() => null);
+      if (!isActive()) return;
+      const conflicts: ItemConflict[] = Array.isArray(result?.conflicts) ? result.conflicts : [];
+      setItemConflicts(conflicts.map((conflict) => {
+        const update = pending.payload.itemChanges
+          .find(({ collectionId }) => collectionId === conflict.collectionId)?.updated
+          .find(({ itemId }) => itemId === conflict.itemId);
+        return { ...conflict, proposed: update?.fields[conflict.key] };
+      }));
+      setConflictOpen(conflicts.length > 0);
+      throw new SaveConflictError('Une autre session a modifié les données.');
+    }
     if (!res.ok) throw new Error(`Échec de sauvegarde ciblée (${res.status})`);
     const result = await res.json();
     if (!isActive()) return;
     if (!Array.isArray(result.itemChanges) || !Number.isInteger(result.stateVersion)) throw new Error('Réponse de sauvegarde invalide');
-    const saved = applyItemChanges(pending.previous, result.itemChanges);
+    const rebased = Array.isArray(result.rebasedCollections);
+    const saved = rebased
+      ? pending.previous.map((collection) => ({
+        ...collection,
+        items: result.rebasedCollections.find((remote: Collection) => remote.id === collection.id)?.items || [],
+      }))
+      : applyItemChanges(pending.previous, result.itemChanges);
     latestCollectionsRef.current = mergeSavedCollections(pending.submitted, saved, latestCollectionsRef.current);
     setCollections((local) => mergeSavedCollections(pending.submitted, saved, local));
     lastSavedCollectionsRef.current = saved;
-    stateVersionRef.current = result.stateVersion;
+    // A rebased response refreshes items only. Keep the version of the loaded structure.
+    if (!rebased) stateVersionRef.current = result.stateVersion;
     pendingItemsRef.current = null;
   };
 
@@ -402,7 +427,7 @@ export function useErpSync({
       const structureChanged = currentStructureStr !== lastSavedStructureRef.current;
 
       if (!structureChanged && supportsItemChangesRef.current) {
-        const itemChanges = buildItemChanges(prevCollections, cleanedCollections);
+        const itemChanges = buildItemChanges(prevCollections, cleanedCollections, true);
         if (!itemChanges.length) return;
         pendingItemsRef.current = {
           payload: { stateVersion: stateVersionRef.current, mutationId: uuidv4(), itemChanges },
@@ -435,14 +460,20 @@ export function useErpSync({
                   'X-Organization-Id': organizationId,
                 },
                 credentials: 'include',
-                body: JSON.stringify(patch),
+                body: JSON.stringify({ ...patch, stateVersion: stateVersionRef.current }),
                 signal: AbortSignal.timeout(15000),
               });
-              if (!r.ok) {
+              if (r.status === 409) throw new SaveConflictError('Une autre session a modifié les données.');
+              if (r.ok) {
+                const result = await r.json();
+                if (!isActive()) return;
+                stateVersionRef.current = Number(result?.stateVersion) || stateVersionRef.current;
+              } else {
                 console.warn(`[useErpSync] Patch failed for item ${patch.itemId}:`, r.status);
                 allOk = false;
               }
             } catch (err) {
+              if (err instanceof SaveConflictError) throw err;
               console.error(`[useErpSync] Patch error for item ${patch.itemId}:`, err);
               allOk = false;
             }
@@ -522,8 +553,24 @@ export function useErpSync({
     API_URL,
   ]);
 
+  const replaceConflictingValues = () => {
+    const pending = pendingItemsRef.current;
+    if (!pending || !itemConflicts.length || loadedOrganizationRef.current !== organizationId || !canEdit) return;
+    for (const { collectionId, itemId, key, current } of itemConflicts) {
+      const update = pending.payload.itemChanges.find((change) => change.collectionId === collectionId)
+        ?.updated.find((entry) => entry.itemId === itemId);
+      if (!update?.previous) continue;
+      if (current === undefined) delete update.previous[key];
+      else update.previous[key] = current;
+    }
+    setItemConflicts([]);
+    setConflictOpen(false);
+    saveQueueRef.current?.resumeAfterConflict();
+  };
+
   return {
     saveStatus: !isLoaded ? 'loading' as const : saveStatus,
+    itemConflicts, conflictOpen, setConflictOpen, replaceConflictingValues,
     retrySave: () => saveQueueRef.current?.retryNow(),
   };
 }

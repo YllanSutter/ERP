@@ -410,6 +410,7 @@ let backupInterval;
     const io = new SocketIOServer(serverInstance, {
       cors: { origin: CLIENT_ORIGIN, credentials: true }
     });
+    setupSocketPresence({ io, parseCookies: cookieParser(), requireAuth });
     socketInstance = io;
     global.io = io;
 
@@ -435,13 +436,6 @@ let backupInterval;
       logger.error('[BACKUP] Échec du nettoyage initial', err);
     }
 
-    // --- Gestion utilisateurs connectés ---
-    setupSocketPresence({
-      io,
-      pool,
-      jwt,
-      jwtSecret: JWT_SECRET,
-    });
   } catch (err) {
     logger.error({ err }, 'Failed to bootstrap server');
     process.exit(1);

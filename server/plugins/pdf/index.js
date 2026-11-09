@@ -19,11 +19,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '../../..');
 
-const STORAGE_DIR = path.join(PROJECT_ROOT, 'data', 'pdf-plugin');
-const TEMPLATES_DIR = path.join(STORAGE_DIR, 'templates');
-const SAVED_DIR = path.join(STORAGE_DIR, 'saved');
+export const PDF_STORAGE_DIR = process.env.PDF_PLUGIN_STORAGE_DIR || path.join(PROJECT_ROOT, 'data', 'pdf-plugin');
+const TEMPLATES_DIR = path.join(PDF_STORAGE_DIR, 'templates');
+const SAVED_DIR = path.join(PDF_STORAGE_DIR, 'saved');
 
-const ensureDir = (dir) => {
+const ensureDir = (dir, logger) => {
   try {
     fs.mkdirSync(dir, { recursive: true });
   } catch (err) {
@@ -47,8 +47,8 @@ export const pdfServerPlugin = {
   register: ({ app, appContext }) => {
     const { logger, requireAuth, pool } = appContext;
 
-    ensureDir(TEMPLATES_DIR);
-    ensureDir(SAVED_DIR);
+    ensureDir(TEMPLATES_DIR, logger);
+    ensureDir(SAVED_DIR, logger);
 
     // ------------------------------------------------------------------
     // Templates (modèles liés dans les paramètres du plugin)
@@ -99,12 +99,17 @@ export const pdfServerPlugin = {
 
     app.get('/api/plugins/pdf/templates/:templateId/file', requireAuth, async (req, res) => {
       try {
+        const organizationId = req.auth?.activeOrganization?.id;
+        if (!organizationId) {
+          return res.status(403).json({ error: 'No active organization' });
+        }
+
         const templateId = safeId(req.params.templateId);
         const binPath = path.join(TEMPLATES_DIR, `${templateId}.pdf`);
-        if (!templateId || !fs.existsSync(binPath)) {
+        const meta = readMetaFile(path.join(TEMPLATES_DIR, `${templateId}.meta.json`));
+        if (!templateId || meta?.organizationId !== organizationId || !fs.existsSync(binPath)) {
           return res.status(404).json({ error: 'Template introuvable' });
         }
-        const meta = readMetaFile(path.join(TEMPLATES_DIR, `${templateId}.meta.json`));
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader(
           'Content-Disposition',
@@ -119,12 +124,16 @@ export const pdfServerPlugin = {
 
     app.get('/api/plugins/pdf/templates', requireAuth, async (req, res) => {
       try {
-        const organizationId = safeId(req.query.organizationId || req.auth?.activeOrganization?.id);
+        const organizationId = req.auth?.activeOrganization?.id;
+        if (!organizationId) {
+          return res.status(403).json({ error: 'No active organization' });
+        }
+
         const metas = [];
         for (const file of fs.readdirSync(TEMPLATES_DIR)) {
           if (!file.endsWith('.meta.json')) continue;
           const meta = readMetaFile(path.join(TEMPLATES_DIR, file));
-          if (meta && (!organizationId || meta.organizationId === organizationId)) metas.push(meta);
+          if (meta?.organizationId === organizationId) metas.push(meta);
         }
         metas.sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
         return res.json(metas);

@@ -35,6 +35,12 @@ export class SaveQueue {
     if (!this.disposed && !this.blocked && this.pending) this.schedule(0);
   }
 
+  resumeAfterConflict() {
+    if (this.disposed || !this.blocked || this.tooLarge || !this.pending) return;
+    this.blocked = false;
+    this.schedule(0);
+  }
+
   dispose() {
     this.disposed = true;
     this.pending = null;

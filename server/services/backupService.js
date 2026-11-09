@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { PDF_STORAGE_DIR } from '../plugins/pdf/index.js';
 import fs from 'fs';
 import path from 'path';
 import { execFile } from 'child_process';
@@ -10,7 +12,7 @@ const __dirname = path.dirname(__filename);
 
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, '../../backups');
 const BACKUP_RETENTION_DAYS = Number(process.env.BACKUP_RETENTION_DAYS || 14);
-export const BACKUP_INTERVAL_MINUTES = Number(process.env.BACKUP_INTERVAL_MINUTES) || 1440;
+export const BACKUP_INTERVAL_MINUTES = Number(process.env.BACKUP_INTERVAL_MINUTES ?? 1440);
 
 const ensureBackupDir = async () => {
   await fs.promises.mkdir(BACKUP_DIR, { recursive: true });
@@ -23,7 +25,7 @@ const toSafeLabel = (label) => {
 
 export const resolveBackupPath = (name) => {
   const safeName = path.basename(String(name || ''));
-  if (!safeName || safeName !== name) return null;
+  if (!safeName || safeName !== name || safeName === '.' || safeName === '..') return null;
   const fullPath = path.resolve(BACKUP_DIR, safeName);
   if (!fullPath.startsWith(path.resolve(BACKUP_DIR))) return null;
   return fullPath;
@@ -51,7 +53,7 @@ export const listBackups = async () => {
   const backups = [];
   for (const entry of entries) {
     const fullPath = path.join(BACKUP_DIR, entry);
-    const stat = await fs.promises.stat(fullPath);
+    const stat = await fs.promises.lstat(fullPath);
     if (!stat.isFile()) continue;
     backups.push({
       name: entry,
@@ -92,71 +94,125 @@ export const formatBackupError = (err) => {
   return 'Erreur inconnue lors de la création de la sauvegarde.';
 };
 
-export const createDbBackup = async (label = '') => {
-  await ensureBackupDir();
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const safeLabel = toSafeLabel(label);
-  const filename = `db-backup-${timestamp}${safeLabel ? `-${safeLabel}` : ''}.sql`;
-  const filePath = path.join(BACKUP_DIR, filename);
-
+const connectionOptions = () => {
   const db = getDbConnection();
-  const args = ['-F', 'p', '--no-owner', '--no-privileges', '--file', filePath];
-  let env = { ...process.env };
-  if (db.type === 'url') {
-    args.push('--dbname', db.value);
-  } else {
-    args.push('-h', String(db.value.host));
-    args.push('-p', String(db.value.port));
-    args.push('-U', String(db.value.user));
-    args.push('-d', String(db.value.database));
-    env = { ...env, PGPASSWORD: String(db.value.password || '') };
-  }
-
-  await execFileAsync('pg_dump', args, { env });
-  await pruneBackups();
-
-  const stat = await fs.promises.stat(filePath);
+  if (db.type === 'url') return { args: ['--dbname', db.value], env: process.env };
+  const { host, port, user, database, password } = db.value;
   return {
-    name: filename,
-    size: stat.size,
-    createdAt: stat.mtime,
+    args: ['-h', String(host), '-p', String(port), '-U', String(user), '-d', String(database)],
+    env: { ...process.env, PGPASSWORD: String(password || '') },
   };
 };
 
-export const restoreDbBackup = async (name) => {
-  const filePath = resolveBackupPath(name);
-  if (!filePath) throw new Error('Invalid backup name');
-  const db = getDbConnection();
-  const ext = path.extname(filePath).toLowerCase();
-  let env = { ...process.env };
+const pdfDirectories = ['templates', 'saved'];
+let backupOperation = Promise.resolve();
 
-  if (db.type === 'url') {
-    if (ext === '.sql') {
-      await execFileAsync('psql', ['--dbname', db.value, '-v', 'ON_ERROR_STOP=1', '-c', 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'], { env });
-      await execFileAsync('psql', ['--dbname', db.value, '-v', 'ON_ERROR_STOP=1', '-f', filePath], { env });
-    } else {
-      await execFileAsync('pg_restore', ['--clean', '--if-exists', '--no-owner', '--no-privileges', '--dbname', db.value, filePath], { env });
+const serializeBackupOperation = (operation) => {
+  const result = backupOperation.then(operation);
+  backupOperation = result.catch(() => {});
+  return result;
+};
+
+export const createDbBackup = (label = '') => serializeBackupOperation(async () => {
+  await ensureBackupDir();
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const safeLabel = toSafeLabel(label);
+  const filename = `db-backup-${timestamp}-${randomUUID()}${safeLabel ? `-${safeLabel}` : ''}.tar`;
+  const filePath = path.join(BACKUP_DIR, filename);
+  const staging = await fs.promises.mkdtemp(path.join(BACKUP_DIR, '.backup-'));
+  try {
+    const { args, env } = connectionOptions();
+    await execFileAsync('pg_dump', [
+      ...args, '-F', 'p', '--no-owner', '--no-privileges', '--file', path.join(staging, 'database.sql'),
+    ], { env });
+    for (const directory of pdfDirectories) {
+      const source = path.join(PDF_STORAGE_DIR, directory);
+      const destination = path.join(staging, 'pdf', directory);
+      const existing = await fs.promises.lstat(source).catch((error) => {
+        if (error.code !== 'ENOENT') throw error;
+      });
+      if (existing) await fs.promises.cp(source, destination, { recursive: true });
+      else await fs.promises.mkdir(destination, { recursive: true });
     }
-    return;
+    const archive = path.join(staging, 'backup.tar');
+    await execFileAsync('tar', ['-cf', archive, '-C', staging, 'database.sql', 'pdf']);
+    await fs.promises.chmod(archive, 0o600);
+    await fs.promises.rename(archive, filePath);
+  } finally {
+    await fs.promises.rm(staging, { recursive: true, force: true });
   }
 
-  env = { ...env, PGPASSWORD: String(db.value.password || '') };
-  if (ext === '.sql') {
-    await execFileAsync(
-      'psql',
-      ['-h', String(db.value.host), '-p', String(db.value.port), '-U', String(db.value.user), '-d', String(db.value.database), '-v', 'ON_ERROR_STOP=1', '-c', 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'],
-      { env }
-    );
-    await execFileAsync(
-      'psql',
-      ['-h', String(db.value.host), '-p', String(db.value.port), '-U', String(db.value.user), '-d', String(db.value.database), '-v', 'ON_ERROR_STOP=1', '-f', filePath],
-      { env }
-    );
-  } else {
-    await execFileAsync(
-      'pg_restore',
-      ['--clean', '--if-exists', '--no-owner', '--no-privileges', '-h', String(db.value.host), '-p', String(db.value.port), '-U', String(db.value.user), '-d', String(db.value.database), filePath],
-      { env }
-    );
+  await pruneBackups();
+  const stat = await fs.promises.stat(filePath);
+  return { name: filename, size: stat.size, createdAt: stat.mtime };
+});
+
+const restoreSql = async (filePath) => {
+  const { args, env } = connectionOptions();
+  await execFileAsync('psql', [
+    ...args, '-X', '--single-transaction', '-v', 'ON_ERROR_STOP=1',
+    '-c', 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;', '-f', filePath,
+  ], { env });
+};
+
+const restoreBundle = async (filePath) => {
+  await fs.promises.mkdir(PDF_STORAGE_DIR, { recursive: true });
+  const staging = await fs.promises.mkdtemp(path.join(PDF_STORAGE_DIR, '.restore-'));
+  const moved = [];
+  let preserveStaging = false;
+  try {
+    await execFileAsync('tar', ['-xf', filePath, '-C', staging]);
+    if (!(await fs.promises.lstat(path.join(staging, 'pdf'))).isDirectory()) throw new Error('Invalid backup PDF directory');
+    const database = path.join(staging, 'database.sql');
+    if (!(await fs.promises.lstat(database)).isFile()) throw new Error('Invalid backup database');
+    for (const directory of pdfDirectories) {
+      const source = path.join(staging, 'pdf', directory);
+      if (!(await fs.promises.lstat(source)).isDirectory()) throw new Error('Invalid backup PDF directory');
+      const entries = await fs.promises.readdir(source, { withFileTypes: true });
+      if (entries.some((entry) => !entry.isFile())) throw new Error('Invalid backup PDF file');
+    }
+    for (const directory of pdfDirectories) {
+      const destination = path.join(PDF_STORAGE_DIR, directory);
+      const previous = path.join(staging, `previous-${directory}`);
+      let hadPrevious = true;
+      try {
+        await fs.promises.rename(destination, previous);
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        hadPrevious = false;
+      }
+      const swap = { destination, previous, hadPrevious, installed: false };
+      moved.push(swap);
+      await fs.promises.rename(path.join(staging, 'pdf', directory), destination);
+      swap.installed = true;
+    }
+    await restoreSql(database);
+  } catch (error) {
+    try {
+      for (const { destination, previous, hadPrevious, installed } of moved.reverse()) {
+        if (installed) await fs.promises.rm(destination, { recursive: true });
+        if (hadPrevious) await fs.promises.rename(previous, destination);
+      }
+    } catch (rollbackError) {
+      preserveStaging = true;
+      throw new AggregateError([error, rollbackError], `PDF rollback failed. Recovery files remain in ${staging}`, { cause: rollbackError });
+    }
+    throw error;
+  } finally {
+    if (!preserveStaging) await fs.promises.rm(staging, { recursive: true, force: true });
   }
 };
+
+export const restoreDbBackup = (name) => serializeBackupOperation(async () => {
+  const filePath = resolveBackupPath(name);
+  if (!filePath) throw new Error('Invalid backup name');
+  if (!(await fs.promises.lstat(filePath)).isFile()) throw new Error('Invalid backup file');
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.tar') return restoreBundle(filePath);
+  if (ext === '.sql') return restoreSql(filePath);
+
+  const { args, env } = connectionOptions();
+  await execFileAsync('pg_restore', [
+    ...args, '--single-transaction', '--clean', '--if-exists', '--no-owner', '--no-privileges', filePath,
+  ], { env });
+});

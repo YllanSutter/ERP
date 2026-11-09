@@ -27,7 +27,7 @@ export const itemChangesPayloadSchema = z.object({
   itemChanges: z.array(z.object({
     collectionId: identifier,
     added: z.array(z.record(safeKey, z.unknown()).and(z.object({ id: identifier }))),
-    updated: z.array(z.object({ itemId: identifier, fields: z.record(safeKey, z.unknown()), unset: z.array(safeKey) }).strict()),
+    updated: z.array(z.object({ itemId: identifier, fields: z.record(safeKey, z.unknown()), unset: z.array(safeKey), previous: z.record(safeKey, z.unknown()).optional() }).strict()),
     deleted: z.array(identifier),
     order: z.array(identifier).optional(),
   }).strict()).min(1),

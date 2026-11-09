@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select';
 import { useAuth } from '@/auth/AuthProvider';
 import { useCanManagePermissions } from '@/lib/hooks/useCanEdit';
-import { io } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import type { SaveStatus } from '@/lib/saveQueue';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useAnimatedBackdrop } from '@/lib/hooks/useAnimatedBackdrop';
@@ -24,6 +24,8 @@ interface AppHeaderProps {
   dashboardTitle?: { name: string; onRename: (name: string) => void };
   saveStatus?: SaveStatus;
   onRetrySave?: () => void;
+  socket: Socket | null;
+  onReviewConflict?: () => void;
   theme: 'light' | 'dark';
   setTheme: React.Dispatch<React.SetStateAction<'light' | 'dark'>>;
   onImpersonate: (roleId: string | null) => void;
@@ -39,6 +41,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   dashboardTitle,
   saveStatus,
   onRetrySave,
+  socket,
+  onReviewConflict,
   onImpersonate,
   theme,
   setTheme,
@@ -50,23 +54,19 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   // Hook de permissions
   const canManagePermissions = useCanManagePermissions();
 
-  // Ajout de la liste des utilisateurs connectés
-  const [connectedUsers, setConnectedUsers] = useState<any[]>([]);
+  const [connectedUsers, setConnectedUsers] = useState<{ id: string; name: string }[]>([]);
   useEffect(() => {
-    const socket = io({ transports: ['polling'] });
-    socket.on('usersConnected', (users: any[]) => {
-      // console.log('[SOCKET][CLIENT] usersConnected reçu:', users);
-      setConnectedUsers(users);
-    });
-    if (user && user.id && user.name) {
-      // console.log('[SOCKET][CLIENT] emit identify', user.id, user.name);
-      socket.emit('identify', { id: user.id, name: user.name });
-    }
+    setConnectedUsers([]);
+    if (!socket) return;
+    const clearPresence = () => setConnectedUsers([]);
+    socket.on('usersConnected', setConnectedUsers);
+    socket.on('disconnect', clearPresence);
+    socket.emit('whoIsConnected');
     return () => {
-      socket.disconnect();
+      socket.off('usersConnected', setConnectedUsers);
+      socket.off('disconnect', clearPresence);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [socket]);
 
   // Génère une couleur de fond pseudo-aléatoire à partir de l'id utilisateur
   function getUserColor(id: string) {
@@ -137,6 +137,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           >
             {{ loading: 'Chargement…', pending: 'En attente', saving: 'Enregistrement…', saved: 'Enregistré', retrying: 'En attente · nouvel essai', conflict: 'Conflit · non enregistré', 'too-large': 'Taille dépassée · non enregistré' }[saveStatus]}
           </span>
+        )}
+        {saveStatus === 'conflict' && onReviewConflict && (
+          <button type="button" onClick={onReviewConflict} className="text-xs text-foreground underline underline-offset-2">
+            Voir le conflit
+          </button>
         )}
         {saveStatus === 'too-large' && onRetrySave && (
           <button type="button" onClick={onRetrySave} className="text-xs text-foreground underline underline-offset-2">

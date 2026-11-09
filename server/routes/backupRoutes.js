@@ -75,7 +75,7 @@ export const registerBackupRoutes = ({ app, appContext }) => {
       await restoreDbBackup(req.params.name);
       await logAudit(req.auth?.user?.id, 'db.backup.restore', 'backup', req.params.name, {});
       if (global.io) {
-        global.io.emit('stateUpdated', { userId: req.auth?.user?.id || null, source: 'db.restore' });
+        global.io.emit('stateUpdated', { source: 'db.restore' });
       }
       return res.json({ ok: true });
     } catch (err) {

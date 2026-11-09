@@ -59,6 +59,21 @@ describe('save queue', () => {
     queue.dispose();
   });
 
+  it('resumes a conflicting save after an explicit resolution', async () => {
+    vi.useFakeTimers();
+    const status = vi.fn();
+    const task = vi.fn().mockRejectedValueOnce(new SaveConflictError()).mockResolvedValue(undefined);
+    const queue = new SaveQueue(status);
+    queue.enqueue(task, 0);
+    await vi.runAllTimersAsync();
+    expect(status).toHaveBeenLastCalledWith('conflict');
+    queue.resumeAfterConflict();
+    await vi.runAllTimersAsync();
+    expect(task).toHaveBeenCalledTimes(2);
+    expect(status).toHaveBeenLastCalledWith('saved');
+    queue.dispose();
+  });
+
   it('pauses oversized saves and allows retry after the server limit is increased', async () => {
     vi.useFakeTimers();
     const status = vi.fn();

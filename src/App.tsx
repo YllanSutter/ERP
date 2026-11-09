@@ -9,7 +9,11 @@ import { SteamBundles } from '@/lib/plugins/steam/SteamBundles';
 
 
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { io } from 'socket.io-client';
+import { io, type Socket } from 'socket.io-client';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useErpSync } from '@/lib/useErpSync';
 import { motion } from 'framer-motion';
 import { Plus, Zap } from 'lucide-react';
@@ -22,7 +26,7 @@ import Sidebar from '@/components/menus/Sidebar';
 import CommandMenu from '@/components/menus/CommandMenu';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import PinnedCollectionFilters from '@/components/filters/PinnedCollectionFilters';
-import type { CollectionFilter } from '@/lib/types';
+import type { CollectionFilter, Property } from '@/lib/types';
 import ViewToolbar from '@/components/views/ViewToolbar';
 import ViewShell from '@/components/views/ViewShell';
 import { useAuth } from '@/auth/AuthProvider';
@@ -64,8 +68,7 @@ const AutomationsPage = lazy(() => import('@/components/pages/AutomationsPage'))
 const AccessManager = lazy(() => import('@/components/admin/AccessManager'));
 
 const App = () => {
-  // Connexion socket.io (même logique que AppHeader)
-  const [socket, setSocket] = useState<any>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
     // Gestion du thème clair/sombre
   // Thème persistant (clair/sombre)
@@ -417,15 +420,17 @@ const App = () => {
   ]);
   useEffect(() => {
     // Utilise la même origine que la page (cookies/session OK)
-    const s = io({ transports: ['polling'] });
-    setSocket(s);
-    return () => {
-      s.disconnect();
-    };
-  }, []);
+    if (!user?.id || !activeOrganizationId) {
+      setSocket(null);
+      return;
+    }
+    const connection = io({ transports: ['polling'], auth: { organizationId: activeOrganizationId } });
+    setSocket(connection);
+    return () => { connection.disconnect(); };
+  }, [user?.id, activeOrganizationId]);
 
   // Synchronisation ERP (sauvegarde, socket, hot reload)
-  const { saveStatus, retrySave } = useErpSync({
+  const { saveStatus, retrySave, itemConflicts, conflictOpen, setConflictOpen, replaceConflictingValues } = useErpSync({
     collections,
     views,
     dashboards,
@@ -659,6 +664,42 @@ const App = () => {
     <ItemImageRendererProvider value={(image, props) => image.source === 'steam' && activeOrganizationId && pluginManager.isPluginActive(activeOrganizationId, 'steam')
       ? <SteamImage appid={image.steamAppId} variant="header" className={props.className} alt={props.alt} style={props.style} /> : undefined}>
     <div className={`relative isolate h-screen flex flex-col ${theme === 'dark' ? 'bg-neutral-950 text-black dark:text-white' : 'bg-white text-neutral-900'}`}> 
+      <AlertDialog open={canEdit && conflictOpen && itemConflicts.length > 0} onOpenChange={setConflictOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Conflit de sauvegarde</AlertDialogTitle>
+            <AlertDialogDescription>
+              Une autre session a modifié ces champs. Tu peux remplacer les valeurs enregistrées par les tiennes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="max-h-[45vh] space-y-3 overflow-auto">
+            {itemConflicts.map(({ collectionId, itemId, key, current, proposed }) => {
+              const collection = collections.find(({ id }) => id === collectionId);
+              const field = collection?.properties?.find(({ id }: Property) => id === key);
+              return (
+                <li key={JSON.stringify([collectionId, itemId, key])} className="rounded-md border p-3">
+                  <p className="mb-2 text-sm font-medium">{field?.name || key}</p>
+                  <p className="mb-2 break-all text-xs text-muted-foreground">{collection?.name || collectionId} · {itemId}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[['Valeur enregistrée', current], ['Ta valeur', proposed]].map(([label, value]) => (
+                      <div key={String(label)} className="min-w-0">
+                        <p className="text-xs font-medium">{String(label)}</p>
+                        <p className="whitespace-pre-wrap break-words text-sm">
+                          {value === undefined ? 'Champ absent' : typeof value === 'string' ? value || 'Texte vide' : JSON.stringify(value)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Plus tard</AlertDialogCancel>
+            <AlertDialogAction onClick={replaceConflictingValues}>Remplacer et enregistrer</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <InteractiveBackdrop className="-z-10" />
 
       
@@ -768,6 +809,8 @@ const App = () => {
             } : undefined}
             saveStatus={canEdit ? saveStatus : undefined}
             onRetrySave={retrySave}
+            socket={socket}
+            onReviewConflict={itemConflicts.length ? () => setConflictOpen(true) : undefined}
             onImpersonate={impersonate}
             onShowAccessManager={() => setShowAccessManager(true)}
             onOpenCommandMenu={() => setCommandMenuOpen(true)}

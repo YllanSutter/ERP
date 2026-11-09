@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Install dependencies needed for native modules
 RUN apk add --no-cache python3 make g++
@@ -18,7 +18,7 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 
 # Install runtime dependencies
 RUN apk add --no-cache postgresql-client
@@ -36,9 +36,10 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy built application
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/server ./server
+COPY --from=builder --chown=nodejs:nodejs /app/shared ./shared
 
 # Create necessary directories
-RUN mkdir -p backups && chown nodejs:nodejs backups
+RUN mkdir -p backups data/pdf-plugin && chown -R nodejs:nodejs backups data
 
 # Switch to non-root user
 USER nodejs

@@ -1,3 +1,5 @@
+import { organizationRoom } from '../services/socketPresence.js';
+import { isDeepStrictEqual } from 'node:util';
 import { notifyServerPluginsStateSaved } from '../plugins/registry.js';
 import { buildItemChanges, applyItemChanges } from '../../shared/itemChanges.js';
 import { ZodError } from 'zod';
@@ -56,6 +58,29 @@ const filterStateForUser = (data, ctx, hasPermission) => {
   return { ...data, collections: filteredCollections };
 };
 
+const getItemConflicts = (collections, changes) => {
+  const conflicts = [];
+  for (const change of changes) {
+    if (change.added.length || change.deleted.length || change.order) return null;
+    const collection = collections.find(({ id }) => id === change.collectionId);
+    if (!collection) return null;
+    for (const { itemId, fields, unset, previous } of change.updated) {
+      const item = collection.items?.find(({ id }) => id === itemId);
+      if (!item || !previous) return null;
+      for (const key of [...Object.keys(fields), ...unset]) {
+        if (collection.properties?.some((property) => property.id === key && property.type === 'password')) return null;
+        const current = Object.hasOwn(item, key) ? item[key] : undefined;
+        const before = Object.hasOwn(previous, key) ? previous[key] : undefined;
+        const desired = unset.includes(key) ? undefined : fields[key];
+        if (!isDeepStrictEqual(current, before) && !isDeepStrictEqual(current, desired)) {
+          conflicts.push({ collectionId: collection.id, itemId, key, current });
+        }
+      }
+    }
+  }
+  return conflicts;
+};
+
 export const registerStateRoutes = ({ app, appContext }) => {
   const {
     logger,
@@ -71,10 +96,27 @@ export const registerStateRoutes = ({ app, appContext }) => {
     logAudit,
     defaultCalendarConfig,
   } = appContext;
+  const stateConflict = (res) => res.status(409).json({ error: 'State changed since it was loaded' });
+
+  const writeStatePatch = async (organizationId, previousRow, data) => {
+    if (previousRow) {
+      return pool.query(
+        'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3 AND data = $4 RETURNING version',
+        [data, organizationId, previousRow.version, previousRow.data]
+      );
+    }
+
+    await syncAppStateIdSequence();
+    return pool.query(
+      'INSERT INTO app_state (organization_id, data, version) VALUES ($1, $2, 2) ON CONFLICT (organization_id) DO NOTHING RETURNING version',
+      [organizationId, data]
+    );
+  };
+
   // PATCH /api/state/item
   app.patch('/api/state/item', requireAuth, async (req, res) => {
     try {
-      const { collectionId, itemId, fields } = req.body ?? {};
+      const { collectionId, itemId, fields, stateVersion } = req.body ?? {};
       const userId = req.auth.user.id;
       const organizationId = req.auth.activeOrganization?.id;
       const calendarConfig = getCalendarConfigForUser(req.auth.user);
@@ -88,14 +130,17 @@ export const registerStateRoutes = ({ app, appContext }) => {
       }
 
       const stateResult = await pool.query(
-        'SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1',
+        'SELECT data, version FROM app_state WHERE organization_id = $1 LIMIT 1',
         [organizationId]
       );
       if (stateResult.rows.length === 0) {
         return res.status(404).json({ error: 'State not found' });
       }
 
-      const state = decryptStateSecrets(JSON.parse(stateResult.rows[0].data), { preserveUnreadable: true });
+      const previousRow = stateResult.rows[0];
+      if (stateVersion != null && stateVersion !== Number(previousRow.version)) return stateConflict(res);
+
+      const state = decryptStateSecrets(JSON.parse(previousRow.data), { preserveUnreadable: true });
       const collections = Array.isArray(state.collections) ? state.collections : [];
 
       const colIdx = collections.findIndex((c) => c.id === collectionId);
@@ -144,33 +189,18 @@ export const registerStateRoutes = ({ app, appContext }) => {
 
       const stateStr = JSON.stringify(prepareStateForStorage(newState, state));
 
-      const updateRes = await pool.query(
-        'UPDATE app_state SET data = $1 WHERE organization_id = $2',
-        [stateStr, organizationId]
-      );
-      if (updateRes.rowCount === 0) {
-        await syncAppStateIdSequence();
-        await pool.query(
-          'INSERT INTO app_state (organization_id, data) VALUES ($1, $2)',
-          [organizationId, stateStr]
-        );
-      }
+      const updateRes = await writeStatePatch(organizationId, previousRow, stateStr);
+      if (updateRes.rowCount === 0) return stateConflict(res);
 
       await notifyServerPluginsStateSaved({ appContext, auth: req.auth, previousState: state, state: newState });
 
       if (global.io) {
-        global.io.emit('itemUpdated', {
-          userId,
-          organizationId,
-          collectionId,
-          itemId,
-          fields: Object.keys(fields),
-          item: maskStateSecrets({ collections: [{ ...col, items: [processedItem] }] }).collections[0].items[0],
-        });
+        global.io.to(organizationRoom(organizationId)).emit('stateUpdated', { userId, organizationId });
       }
 
       return res.json({
         ok: true,
+        stateVersion: Number(updateRes.rows[0].version),
         item: maskStateSecrets({ collections: [{ ...col, items: [processedItem] }] }).collections[0].items[0],
       });
     } catch (err) {
@@ -182,7 +212,7 @@ export const registerStateRoutes = ({ app, appContext }) => {
   // PATCH /api/state/structure
   app.patch('/api/state/structure', requireAuth, async (req, res) => {
     try {
-      const { type, payload } = req.body ?? {};
+      const { type, payload, stateVersion } = req.body ?? {};
       const userId = req.auth.user.id;
       const organizationId = req.auth.activeOrganization?.id;
 
@@ -190,11 +220,14 @@ export const registerStateRoutes = ({ app, appContext }) => {
       if (!type || !payload) return res.status(400).json({ error: 'type and payload are required' });
 
       const stateResult = await pool.query(
-        'SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1',
+        'SELECT data, version FROM app_state WHERE organization_id = $1 LIMIT 1',
         [organizationId]
       );
-      const existingState = stateResult.rows.length > 0
-        ? decryptStateSecrets(JSON.parse(stateResult.rows[0].data), { preserveUnreadable: true })
+      const previousRow = stateResult.rows[0];
+      if (stateVersion != null && stateVersion !== Number(previousRow?.version ?? 1)) return stateConflict(res);
+
+      const existingState = previousRow
+        ? decryptStateSecrets(JSON.parse(previousRow.data), { preserveUnreadable: true })
         : { ...INITIAL_APP_STATE };
 
       let newState = { ...existingState };
@@ -227,25 +260,16 @@ export const registerStateRoutes = ({ app, appContext }) => {
       }
 
       const stateStr = JSON.stringify(prepareStateForStorage(newState, existingState));
-      const updateRes = await pool.query(
-        'UPDATE app_state SET data = $1 WHERE organization_id = $2',
-        [stateStr, organizationId]
-      );
-      if (updateRes.rowCount === 0) {
-        await syncAppStateIdSequence();
-        await pool.query(
-          'INSERT INTO app_state (organization_id, data) VALUES ($1, $2)',
-          [organizationId, stateStr]
-        );
-      }
+      const updateRes = await writeStatePatch(organizationId, previousRow, stateStr);
+      if (updateRes.rowCount === 0) return stateConflict(res);
 
       await notifyServerPluginsStateSaved({ appContext, auth: req.auth, previousState: existingState, state: newState });
 
       if (global.io) {
-        global.io.emit('structureUpdated', { userId, organizationId, type });
+        global.io.to(organizationRoom(organizationId)).emit('structureUpdated', { userId, organizationId, type });
       }
 
-      return res.json({ ok: true });
+      return res.json({ ok: true, stateVersion: Number(updateRes.rows[0].version) });
     } catch (err) {
       logger.error('Failed to patch structure', err);
       return res.status(500).json({ error: 'Failed to patch structure' });
@@ -314,8 +338,8 @@ export const registerStateRoutes = ({ app, appContext }) => {
         const migratedState = encryptStateSecrets(storedState);
         if (JSON.stringify(storedState) !== JSON.stringify(migratedState)) {
           await pool.query(
-            'UPDATE app_state SET data = $1 WHERE organization_id = $2',
-            [JSON.stringify(migratedState), organizationId]
+            'UPDATE app_state SET data = $1 WHERE organization_id = $2 AND version = $3 AND data = $4',
+            [JSON.stringify(migratedState), organizationId, userStateResult.rows[0].version, userStateResult.rows[0].data]
           );
         }
         rawState = migratedState;
@@ -334,7 +358,7 @@ export const registerStateRoutes = ({ app, appContext }) => {
     }
   });
 
-  const saveState = async (req, res) => {
+  const saveState = async (req, res, attempt = 0) => {
     try {
       const isItemDelta = req.method === 'PATCH';
       const payload = (isItemDelta ? itemChangesPayloadSchema : statePayloadSchema).parse(req.body ?? {});
@@ -361,12 +385,33 @@ export const registerStateRoutes = ({ app, appContext }) => {
           }
         }
       }
+      const rebased = currentVersion > expectedVersion && isItemDelta;
+      const conflictReply = (stateVersion, conflicts) => {
+        const readable = conflicts?.length && conflicts.every(({ collectionId, itemId, key }) =>
+          hasPermission(req.auth, { collection_id: collectionId, item_id: itemId }, 'can_read') &&
+          hasPermission(req.auth, { collection_id: collectionId, item_id: itemId, field_id: key }, 'can_read')
+        );
+        return res.status(409).json({
+          error: 'State changed since it was loaded',
+          stateVersion,
+          ...(readable ? { conflicts } : {}),
+        });
+      };
+      const itemReply = (state, receipt, stateVersion) => ({
+        ok: true,
+        itemChanges: receipt.itemChanges,
+        stateVersion,
+        ...(receipt.rebased ? {
+          rebasedCollections: maskStateSecrets(filterStateForUser(state, req.auth, hasPermission)).collections,
+        } : {}),
+      });
       // Une réponse perdue peut être redemandée sans rejouer les automations.
       if (isItemDelta && prevState._lastItemMutation?.id === payload.mutationId && prevState._lastItemMutation.userId === userId) {
-        return res.json({ ok: true, itemChanges: prevState._lastItemMutation.itemChanges, stateVersion: currentVersion });
+        return res.json(itemReply(prevState, prevState._lastItemMutation, currentVersion));
       }
       if (currentVersion !== expectedVersion) {
-        return res.status(409).json({ error: 'State changed since it was loaded', stateVersion: currentVersion });
+        const conflicts = rebased ? getItemConflicts(prevState.collections || [], payload.itemChanges) : null;
+        if (conflicts?.length !== 0) return conflictReply(currentVersion, conflicts);
       }
       if (isItemDelta) {
         try {
@@ -529,7 +574,7 @@ export const registerStateRoutes = ({ app, appContext }) => {
         const after = maskStateSecrets(filterStateForUser(stateDataWithSegments, req.auth, hasPermission));
         responseChanges = buildItemChanges(before.collections || [], after.collections || []);
         // Ne stocker que des valeurs déjà masquées dans le reçu de la dernière écriture.
-        stateDataWithSegments._lastItemMutation = { id: payload.mutationId, userId, itemChanges: responseChanges };
+        stateDataWithSegments._lastItemMutation = { id: payload.mutationId, userId, itemChanges: responseChanges, rebased };
       } else {
         delete stateDataWithSegments._lastItemMutation;
       }
@@ -537,20 +582,22 @@ export const registerStateRoutes = ({ app, appContext }) => {
 
       const updateRes = await pool.query(
         'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3 AND data = $4',
-        [stateStr, organizationId, expectedVersion, prevStateResult.rows[0]?.data]
+        [stateStr, organizationId, currentVersion, prevStateResult.rows[0]?.data]
       );
-      const nextVersion = expectedVersion + 1;
+      const nextVersion = currentVersion + 1;
       if (updateRes.rowCount === 0) {
         const latestState = await pool.query('SELECT data, version FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
         if (latestState.rowCount > 0) {
-          const receipt = JSON.parse(latestState.rows[0].data)._lastItemMutation;
+          const latest = JSON.parse(latestState.rows[0].data);
+          const receipt = latest._lastItemMutation;
           if (isItemDelta && receipt?.id === payload.mutationId && receipt.userId === userId) {
-            return res.json({ ok: true, itemChanges: receipt.itemChanges, stateVersion: Number(latestState.rows[0].version) });
+            return res.json(itemReply(latest, receipt, Number(latestState.rows[0].version)));
           }
-          return res.status(409).json({
-            error: 'State changed since it was loaded',
-            stateVersion: Number(latestState.rows[0].version) || expectedVersion,
-          });
+          const conflicts = isItemDelta
+            ? getItemConflicts(decryptStateSecrets(latest, { preserveUnreadable: true }).collections || [], payload.itemChanges)
+            : null;
+          if (conflicts?.length === 0 && attempt < 2) return saveState(req, res, attempt + 1);
+          return conflictReply(Number(latestState.rows[0].version) || expectedVersion, conflicts);
         }
         await syncAppStateIdSequence();
         await pool.query(
@@ -564,14 +611,14 @@ export const registerStateRoutes = ({ app, appContext }) => {
       await logAudit(userId, 'state.save', 'organization', organizationId, { collections: processedCollections.length });
 
       if (global.io) {
-        global.io.emit('stateUpdated', { userId, organizationId });
+        global.io.to(organizationRoom(organizationId)).emit('stateUpdated', { userId, organizationId });
       }
 
       // Si des automations ont créé de nouveaux items, renvoyer les collections
       // modifiées au client pour qu'il puisse les appliquer immédiatement —
       // le client ignore son propre event socket (userId filter), donc sans ça
       // il ne verrait jamais les items créés côté serveur.
-      if (isItemDelta) return res.json({ ok: true, itemChanges: responseChanges, stateVersion: nextVersion });
+      if (isItemDelta) return res.json(itemReply(stateDataWithSegments, stateDataWithSegments._lastItemMutation, nextVersion));
       const hasAutomationChanges = postAutoItemCount > preAutoItemCount;
       const publicCollections = maskStateSecrets(stateDataWithSegments).collections;
       const responsePayload = {
@@ -593,8 +640,8 @@ export const registerStateRoutes = ({ app, appContext }) => {
       return res.status(500).json({ error: 'Failed to save state' });
     }
   };
-  app.post('/api/state', requireAuth, saveState);
-  app.patch('/api/state/items', requireAuth, saveState);
+  app.post('/api/state', requireAuth, (req, res) => saveState(req, res));
+  app.patch('/api/state/items', requireAuth, (req, res) => saveState(req, res));
 
   app.get('/api/audit', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
     const logs = await pool.query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 200');

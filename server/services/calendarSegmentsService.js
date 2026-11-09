@@ -211,7 +211,7 @@ export function calculateEventSegments(item, collection, calendarConfig = DEFAUL
 
       // Normalise les dates sans heure (YYYY-MM-DD) en minuit local du fuseau
       let startDate = item[prop.id];
-      let startDateObj = null;
+      let startDateObj;
       if (typeof startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
         startDateObj = parseDateOnlyToDateInTimeZone(startDate, timeZone);
         startDate = startDateObj.toISOString();

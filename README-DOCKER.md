@@ -1,194 +1,43 @@
-# 🚀 ERP - Installation Docker Automatique
+# Déployer l’ERP avec Docker Compose
 
-**Déploiement en 1 SEULE COMMANDE - Aucune configuration requise !**
-
-## 📋 Prérequis
-
-- Docker et Docker Compose installés
-- Ports 4000 et 5432 disponibles
-
-## ⚡ Installation Instantanée
-
-### Option 1: Clone & Run (recommandé)
-```bash
-git clone <votre-repo> erp
-cd erp
-docker-compose -f docker-compose.simple.yml up -d
-```
-
-### Option 2: Download & Run
-```bash
-# Télécharger le projet
-curl -L https://github.com/votre-repo/archive/main.zip -o erp.zip
-unzip erp.zip
-cd erp-main
-docker-compose -f docker-compose.simple.yml up -d
-```
-
-### Option 3: 1Panel
-1. **Docker Compose** → **Create**
-2. **Nom**: `erp`
-3. **Contenu**: Copiez `docker-compose.simple.yml`
-4. **Start**
-
-## 🎯 Accès Immédiat
-
-- **Application**: http://localhost:4000
-- **API**: http://localhost:4000/api
-- **Base de données**: postgresql://postgres:postgres123@localhost:5432/erp_db
-
-## 📦 Configuration par Défaut
-
-| Service | Valeur par défaut |
-|---------|-------------------|
-| **Utilisateur DB** | postgres |
-| **Mot de passe DB** | postgres123 |
-| **Nom DB** | erp_db |
-| **Port App** | 4000 |
-| **Port DB** | 5432 |
-| **JWT Secret** | change-this-secret-key-in-production-32-chars-min |
-
-## 🔧 Personnalisation (optionnel)
-
-Pour modifier les valeurs par défaut, créez un fichier `.env` :
-```bash
-# Copier les valeurs par défaut
-cat > .env << EOF
-POSTGRES_PASSWORD=votre_mot_de_passe
-JWT_SECRET=votre_clé_secrète_32_caractères_minimum
-FIELD_ENCRYPTION_KEY=une_clé_aléatoire_dédiée_aux_champs_password
-CLIENT_ORIGIN=http://votre-domaine.com
-EOF
-
-# Redémarrer avec les nouvelles valeurs
-docker-compose -f docker-compose.simple.yml down
-docker-compose -f docker-compose.simple.yml up -d
-```
-
-## 🛠️ Commandes Utiles
+Depuis le dossier du projet, avec Docker et Docker Compose installés :
 
 ```bash
-# Vérifier le statut
-docker-compose -f docker-compose.simple.yml ps
-
-# Voir les logs
-docker-compose -f docker-compose.simple.yml logs -f
-
-# Arrêter
-docker-compose -f docker-compose.simple.yml down
-
-# Redémarrer
-docker-compose -f docker-compose.simple.yml restart
-
-# Mise à jour
-git pull
-docker-compose -f docker-compose.simple.yml down
-docker-compose -f docker-compose.simple.yml build --no-cache
-docker-compose -f docker-compose.simple.yml up -d
+cp .env.example .env
+chmod 600 .env
 ```
 
-## 📊 Monitoring
+Pour une installation neuve, générez trois valeurs distinctes avec `openssl rand -hex 32` et renseignez `DB_PASSWORD`, `JWT_SECRET` et `FIELD_ENCRYPTION_KEY` dans `.env`. Définissez `CLIENT_ORIGIN` sur l’URL exacte utilisée dans le navigateur.
 
-### Health Checks
-- **Application**: http://localhost:4000/api
-- **Base de données**: pg_isready
-
-### Volumes persistants
-- **Base de données**: `postgres_data`
-- **Sauvegardes**: `app_backups`
-
-## 🔒 Sécurité (Production)
-
-Pour la production, modifiez les valeurs par défaut :
 ```bash
-# Générer un mot de passe sécurisé
-openssl rand -base64 32
-
-# Générer une clé JWT sécurisée
-openssl rand -hex 32
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
 ```
 
-## 🚨 Dépannage
+En local, ouvrez `http://localhost:4000`. Pour une mise en ligne, configurez un reverse proxy HTTPS vers `127.0.0.1:4000` et renseignez l’URL publique HTTPS dans `CLIENT_ORIGIN`. Le proxy doit transférer toutes les routes, y compris `/api` et `/socket.io/`. En mode production, le navigateur a besoin d’HTTPS pour le cookie de connexion sur un domaine public.
 
-### Port déjà utilisé ?
+Le port de l’application est lié à la boucle locale par défaut. PostgreSQL est accessible uniquement sur le réseau interne de Compose. L’image est construite depuis la copie locale du projet.
+
+## Mettre à jour une installation existante
+
+Avant de recréer les conteneurs, conservez une sauvegarde de PostgreSQL et du volume PDF. Gardez le même nom de projet Compose pour réutiliser les volumes. Reportez dans `.env` les identifiants PostgreSQL en vigueur, ainsi que les clés JWT et de chiffrement existantes. Modifier `DB_PASSWORD` dans `.env` ne modifie pas le mot de passe d’une base déjà initialisée.
+
+Si l’ancienne application écrivait en root, adaptez la propriété des deux volumes applicatifs une fois, pendant la maintenance :
+
 ```bash
-# Vérifier les ports
-netstat -tulpn | grep :4000
-netstat -tulpn | grep :5432
-
-# Arrêter les services existants
-sudo systemctl stop postgresql
+docker compose stop app
+docker compose build app
+docker compose run --rm --no-deps --user 0 --entrypoint chown app -R 1001:1001 /app/backups /app/data/pdf-plugin
+docker compose up -d
 ```
 
-### Container ne démarre pas ?
-```bash
-# Vérifier les logs
-docker-compose -f docker-compose.simple.yml logs app
-docker-compose -f docker-compose.simple.yml logs postgres
+Ces commandes conservent les volumes `postgres_data`, `app_backups` et `pdf_plugin_data`. Pour consulter les journaux, utilisez `docker compose logs -f app`.
 
-# Recréer depuis zéro
-docker-compose -f docker-compose.simple.yml down -v
-docker-compose -f docker-compose.simple.yml up -d
-```
+## Sauvegarder et restaurer
 
-### Accès à la base de données
-```bash
-# Se connecter
-docker-compose -f docker-compose.simple.yml exec postgres psql -U postgres -d erp_db
+Les nouvelles sauvegardes sont des archives `.tar` dans le volume `app_backups`. Elles contiennent PostgreSQL, les modèles PDF, les PDF remplis enregistrés et leurs métadonnées pour l’ensemble des organisations. `BACKUP_INTERVAL_MINUTES=0` désactive les sauvegardes automatiques.
 
-# Sauvegarder
-docker-compose -f docker-compose.simple.yml exec postgres pg_dump -U postgres erp_db > backup.sql
-```
-### Perte du mdp postgre ?
-docker exec -it erp_postgres psql -U postgres
-ALTER USER postgres WITH PASSWORD '5DSUUF4XQN699';
+Restaurez une archive depuis le panneau de sauvegarde de l’ERP. La restauration remplace la base et les fichiers PDF du plugin par leur état dans l’archive. Pour garantir leur cohérence, créez et restaurez les sauvegardes pendant une fenêtre sans écritures concurrentes dans l’ERP.
 
-### VERIFIER Tables
-docker exec -it erp_postgres psql -U postgres -d erp_db
-\dt
-\d users
-SELECT * FROM users;
-
-## 📈 Mise à l'échelle
-
-Pour augmenter les ressources :
-```bash
-# Dans docker-compose.simple.yml, ajouter :
-services:
-  app:
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-```
-
-## 🌐 Domaine personnalisé
-
-Pour utiliser votre domaine :
-1. **Modifiez** `CLIENT_ORIGIN` dans `.env`
-2. **Configurez** votre reverse proxy (Nginx/Apache)
-3. **Activez** SSL avec Let's Encrypt
-
-## 💾 Sauvegardes Automatiques
-
-Les sauvegardes sont créées dans `app_backups` volume :
-```bash
-# Voir les sauvegardes
-docker-compose -f docker-compose.simple.yml exec app ls -la /app/backups
-
-# Restaurer une sauvegarde
-docker-compose -f docker-compose.simple.yml exec postgres psql -U postgres -d erp_db < backup.sql
-```
-
----
-
-## 🎉 C'est tout !
-
-Votre ERP est maintenant opérationnel en **une seule commande** !
-
-**Premier utilisateur créé automatiquement = ADMIN**
-- Email : votre email d'inscription
-- Mot de passe : celui que vous avez choisi
-
-Pour toute question : consultez les logs ou vérifiez le statut des containers.
+Les anciennes sauvegardes SQL ou PostgreSQL restent restaurables depuis ce panneau et conservent les PDF présents sur le serveur. Pour restaurer les fichiers d’une ancienne sauvegarde, il faut aussi disposer d’une copie du volume PDF.

@@ -1,0 +1,37 @@
+name: ERP checks
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run lint:server
+      - name: Report remaining client and repository lint
+        run: npm run lint
+        continue-on-error: true
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --tag erp-ci .
+      - name: Check runtime imports without starting the app
+        run: >-
+          docker run --rm --entrypoint node erp-ci --input-type=module -e
+          'await import("./server/routes/stateRoutes.js");
+          await import("./server/routes/authRoutes.js");
+          await import("./server/services/backupService.js");'

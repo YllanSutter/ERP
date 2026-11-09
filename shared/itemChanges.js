@@ -3,12 +3,13 @@ const syncable = (key) => !key.startsWith('_') || internalFields.has(key);
 const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // Les champs métier restent libres : aucun nom de collection/propriété n'est codé ici.
-export function buildItemChanges(previous, next) {
+export function buildItemChanges(previous, next, includePrevious = false) {
   const before = new Map(previous.map((col) => [col.id, col]));
   const changes = [];
   for (const col of next) {
     const base = before.get(col.id);
     if (!base) throw new Error('Collection not found');
+    const passwordFields = new Set((base.properties || []).filter(({ type }) => type === 'password').map(({ id }) => id));
     const oldItems = new Map((base.items || []).map((item) => [item.id, item]));
     const nextIds = new Set((col.items || []).map((item) => item.id));
     const added = [], updated = [], deleted = [];
@@ -16,12 +17,14 @@ export function buildItemChanges(previous, next) {
       const old = oldItems.get(item.id);
       if (!old) { added.push(item); continue; }
       const fields = {}, unset = [];
+      const previousFields = {};
       for (const key of new Set([...Object.keys(old), ...Object.keys(item)])) {
         if (key === 'id' || !syncable(key) || equal(old[key], item[key])) continue;
+        if (includePrevious && !passwordFields.has(key) && Object.hasOwn(old, key)) previousFields[key] = old[key];
         if (Object.hasOwn(item, key)) fields[key] = item[key];
         else unset.push(key);
       }
-      if (Object.keys(fields).length || unset.length) updated.push({ itemId: item.id, fields, unset });
+      if (Object.keys(fields).length || unset.length) updated.push({ itemId: item.id, fields, unset, ...(includePrevious ? { previous: previousFields } : {}) });
     }
     for (const item of base.items || []) if (!nextIds.has(item.id)) deleted.push(item.id);
     // Ajouts en fin et suppressions conservent déjà l'ordre sans envoyer tous les IDs.

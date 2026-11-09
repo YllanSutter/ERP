@@ -1,69 +1,58 @@
 services:
-  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: erp_postgres
     restart: unless-stopped
     environment:
-      NODE_ENV: production
-      POSTGRES_DB: erp_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 4GSUWF4XQB699
+      POSTGRES_DB: ${DB_NAME:-erp_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Renseignez DB_PASSWORD dans .env}
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
-      DATABASE_PUBLIC_URL: postgresql://postgres:4GSUWF4XQB699@postgres:5432/erp_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:5433:5432"
     networks:
       - erp_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d erp_db"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ERP Application - Clone depuis GitHub
   app:
-    image: node:20-alpine
+    build: .
     container_name: erp_app
-    restart: "no"
+    restart: unless-stopped
     init: true
     stop_grace_period: 2m
-    working_dir: /app
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       PORT: 4000
-      CLIENT_ORIGIN: http://localhost:4000
-      JWT_SECRET: ${JWT_SECRET:?Définissez JWT_SECRET dans le fichier .env}
-      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?Définissez FIELD_ENCRYPTION_KEY dans le fichier .env}
-      DATABASE_PUBLIC_URL: postgresql://postgres:4GSUWF4XQB699@postgres:5432/erp_db
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:4000}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-erp_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?Renseignez DB_PASSWORD dans .env}
+      JWT_SECRET: ${JWT_SECRET:?Renseignez JWT_SECRET dans .env}
+      JWT_EXPIRES: ${JWT_EXPIRES:-7d}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?Renseignez FIELD_ENCRYPTION_KEY dans .env}
       BACKUP_DIR: /app/backups
-      BACKUP_RETENTION_DAYS: 7
+      BACKUP_INTERVAL_MINUTES: ${BACKUP_INTERVAL_MINUTES:-1440}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
       JSON_BODY_LIMIT: ${JSON_BODY_LIMIT:-50mb}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      STEAM_API_KEY: ${STEAM_API_KEY:-}
+      ITAD_API_KEY: ${ITAD_API_KEY:-}
     volumes:
       - app_backups:/app/backups
       - pdf_plugin_data:/app/data/pdf-plugin
     ports:
-      - "4000:4000"
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-4000}:4000"
     networks:
       - erp_network
     depends_on:
       postgres:
         condition: service_healthy
-    command: >
-      sh -c "
-        apk add --no-cache git python3 make g++ postgresql-client &&
-        rm -rf /tmp/erp_clone /app/.git 2>/dev/null || true &&
-        find /app -mindepth 1 -maxdepth 1 ! -name data ! -name backups -exec rm -rf {} + &&
-        git clone https://github.com/YllanSutter/ERP.git /tmp/erp_clone &&
-        cp -r /tmp/erp_clone/* /app/ &&
-        cd /app &&
-        npm install --include=dev &&
-        npm run build && \
-        echo '⏳ Attente du serveur...' && \
-        exec node server/index.js
-      "
 
 volumes:
   postgres_data:

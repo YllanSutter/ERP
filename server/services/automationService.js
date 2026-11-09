@@ -29,13 +29,12 @@ const resolveTemplate = (value, triggerItem) => {
 // Évalue une expression mathématique simple après résolution des templates.
 // Supporte + - * / et parenthèses. Renvoie le résultat numérique ou la valeur
 // brute si l'expression n'est pas évaluable.
-const SAFE_MATH_RE = /^[0-9\s\+\-\*\/\.\(\)]+$/;
+const SAFE_MATH_RE = /^[0-9\s+*/.()-]+$/;
 
 const evalMathExpression = (expr) => {
   const cleaned = String(expr).trim();
   if (!SAFE_MATH_RE.test(cleaned)) return cleaned; // garde la valeur brute si caractères inattendus
   try {
-    // eslint-disable-next-line no-new-func
     const result = new Function(`return (${cleaned})`)();
     if (typeof result === 'number' && Number.isFinite(result)) return String(result);
   } catch (_) { /* ignore */ }

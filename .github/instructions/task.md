@@ -153,3 +153,13 @@
 5. Exécuter les vérifications statiques (`tsc`, `node --check`).
 6. Afficher le `git diff --stat` et cocher la tâche `[x]`.
 7. Attendre la validation de l'utilisateur pour la tâche suivante.
+
+---
+
+## Suivi de l’audit ERP
+
+- [x] **P1 — Cloisonner les modèles PDF**. Déduire l’organisation active de la session pour la liste et le téléchargement. Refuser les accès sans organisation active et masquer les modèles qui appartiennent à une autre organisation ou dont les métadonnées sont absentes ou invalides. Vérifier ces cas et l’accès légitime avec `node --test server/plugins/pdf/templates.test.js`.
+- [x] **P1 — Préserver les enregistrements simultanés**. Étendre aux routes de modification d’un élément et de la structure le contrôle de concurrence utilisé pour la sauvegarde complète. Fusionner automatiquement les modifications ciblées compatibles en comparant les anciennes valeurs des champs. Afficher les valeurs en conflit et permettre un remplacement explicite après vérification de la valeur enregistrée. Tester la fusion et la confirmation du remplacement.
+- [x] **P2 — Cloisonner le temps réel**. Authentifier les connexions Socket.IO à partir de la session, établir l’identité côté serveur et limiter les événements de présence et de modification à l’organisation concernée.
+- [x] **P2 — Vérifier le déploiement et la restauration**. Inclure `shared/` dans l’image finale. Restaurer PostgreSQL et les PDF depuis la même archive, avec compatibilité SQL historique. Restauration complète et retour arrière vérifiés sur PostgreSQL temporaire. Construction Docker et imports de démarrage contrôlés par le workflow CI, à confirmer lors de sa première exécution.
+- [x] **P3 — Étendre les vérifications automatiques**. Toutes les suites client et serveur, dont Steam et calendrier, ainsi que TypeScript et le lint de `server/` et `shared/`, sont bloquants dans GitHub Actions. Le lint complet reste informatif pendant la résorption des erreurs existantes.
