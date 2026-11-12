@@ -6,7 +6,9 @@ import React, { useMemo } from 'react';
 import * as LucideIcons from 'lucide-react';
 import { DashboardModuleConfig } from '@/lib/dashboardTypes';
 import { DashboardItemData } from '@/lib/hooks/useDashboardItemData';
-import { aggregateItems, formatMetricValue } from '@/lib/utils/dashboardUtils';
+import { formatMetricValue } from '@/lib/utils/dashboardUtils';
+
+import { calculateMetric } from '@/lib/utils/metricUtils';
 
 interface Props {
   module: DashboardModuleConfig;
@@ -16,13 +18,13 @@ interface Props {
 const DEFAULT_ICON = 'TrendingUp';
 
 const MetricModule: React.FC<Props> = ({ module, data }) => {
-  const { filteredItems, collection } = data;
+  const { filteredItems, collection, properties } = data;
 
   const value = useMemo(() => {
     const agg = module.metricAggregation ?? 'count';
     const fieldId = module.metricField ?? '';
-    return aggregateItems(filteredItems, fieldId, agg);
-  }, [filteredItems, module.metricAggregation, module.metricField]);
+    return calculateMetric(filteredItems, properties, fieldId, agg);
+  }, [filteredItems, properties, module.metricAggregation, module.metricField]);
 
   const label = module.metricLabel ?? collection?.name ?? 'Métrique';
   const IconComp = (LucideIcons as any)[module.metricIcon ?? DEFAULT_ICON] ?? LucideIcons.TrendingUp;
@@ -32,7 +34,7 @@ const MetricModule: React.FC<Props> = ({ module, data }) => {
 
   // Libellé de l'agrégation pour la légende
   const aggLabel = module.metricAggregation
-    ? { count: 'éléments', sum: 'total', avg: 'moyenne', min: 'minimum', max: 'maximum' }[module.metricAggregation]
+    ? { count: 'éléments', sum: 'total', avg: 'moyenne', min: 'minimum', max: 'maximum', 'options-count': 'options configurées', unique: 'valeurs distinctes', filled: 'éléments renseignés', empty: 'éléments vides' }[module.metricAggregation]
     : 'éléments';
 
   if (!data.collection) {
@@ -59,7 +61,7 @@ const MetricModule: React.FC<Props> = ({ module, data }) => {
           {formatted}
         </div>
         <div className="text-xs text-muted-foreground mt-1 capitalize">
-          {label} · {filteredItems.length} {aggLabel}
+          {label} · {['options-count', 'unique', 'filled', 'empty'].includes(module.metricAggregation ?? '') ? aggLabel : `${filteredItems.length} ${aggLabel}`}
         </div>
       </div>
     </div>

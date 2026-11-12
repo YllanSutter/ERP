@@ -20,6 +20,7 @@ export type DateGrouping = 'day' | 'week' | 'month' | 'quarter' | 'year';
 export type ChartDateDisplayMode = 'date' | 'duration';
 
 export type AggregationType = 'count' | 'sum' | 'avg' | 'min' | 'max';
+export type MetricAggregationType = AggregationType | 'options-count' | 'unique' | 'filled' | 'empty';
 export type ChartYMode = 'aggregation' | 'field';
 
 export type ChartLabelSource = 'aggregation' | 'xField' | 'yField' | 'custom';
@@ -203,7 +204,7 @@ export interface DashboardModuleConfig {
 
   // --- Metric ---
   metricField?: string;
-  metricAggregation?: AggregationType;
+  metricAggregation?: MetricAggregationType;
   metricLabel?: string;
   metricPrefix?: string;
   metricSuffix?: string;
@@ -315,6 +316,14 @@ export const AGGREGATION_LABELS: Record<AggregationType, string> = {
   avg: 'Moyenne',
   min: 'Minimum',
   max: 'Maximum',
+};
+
+export const METRIC_AGGREGATION_LABELS: Record<MetricAggregationType, string> = {
+  ...AGGREGATION_LABELS,
+  'options-count': "Nombre d’options du champ",
+  unique: 'Valeurs distinctes utilisées',
+  filled: 'Éléments avec une valeur',
+  empty: 'Éléments sans valeur',
 };
 
 /** Labels lisibles pour les groupements de dates */

@@ -18,6 +18,8 @@ import {
   ChartDateDisplayMode,
   ChartYMode,
   AggregationType,
+  MetricAggregationType,
+  METRIC_AGGREGATION_LABELS,
   ChartLabelSource,
   ChartPieLabelMode,
   ChartValueFormat,
@@ -31,6 +33,7 @@ import {
 } from '@/lib/dashboardTypes';
 import { getDashboardModuleOptions, getDashboardViewConfig, getDashboardViewRegistration } from './dashboardModuleTypes';
 import { getLayoutSizeOptions, getLayoutTileHeight, LAYOUT_HEIGHT_OPTIONS, LAYOUT_WIDTH_OPTIONS } from '@/lib/layoutDimensions';
+import { getMetricFields } from '@/lib/utils/metricUtils';
 import ModulePeriodSelect from './ModulePeriodSelect';
 import { SettingsFrame, SettingsHeader, SettingsTabs, SettingsTabContent, SettingsSectionTitle, SettingsSelect } from '@/components/ui/settings-panel';
 import { Switch } from '@/components/ui/switch';
@@ -1293,18 +1296,25 @@ const DashboardModuleConfigPanel: React.FC<Props> = ({ module, collections, view
             <div className="grid grid-cols-2 gap-2">
               <Sel
                 value={module.metricAggregation ?? 'count'}
-                onChange={(v) => patch({ metricAggregation: v as AggregationType })}
-                options={Object.entries(AGGREGATION_LABELS).map(([k, l]) => ({ value: k, label: l }))}
+                onChange={(v) => {
+                  const aggregation = v as MetricAggregationType;
+                  const fields = getMetricFields(properties, aggregation);
+                  patch({ metricAggregation: aggregation, metricField: fields.some(({ id }) => id === module.metricField) ? module.metricField : fields[0]?.id ?? '' });
+                }}
+                options={Object.entries(METRIC_AGGREGATION_LABELS).map(([value, label]) => ({ value, label }))}
               />
               {module.metricAggregation && module.metricAggregation !== 'count' && (
                 <Sel
                   value={module.metricField ?? ''}
                   onChange={(v) => patch({ metricField: v })}
-                  options={numericProps.map((p) => ({ value: p.id, label: p.name }))}
-                  placeholder="Champ numérique…"
+                  options={getMetricFields(properties, module.metricAggregation).map((p) => ({ value: p.id, label: p.name }))}
+                  placeholder="Choisir un champ…"
                 />
               )}
             </div>
+            {module.metricAggregation === 'options-count' && (
+              <p className="mt-2 text-xs text-muted-foreground">Compte toutes les options configurées du champ, même inutilisées. Les filtres sur les éléments ne modifient pas ce nombre.</p>
+            )}
             <div className="grid grid-cols-2 gap-2 mt-2">
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Préfixe</div>
