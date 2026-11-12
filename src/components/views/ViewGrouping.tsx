@@ -36,6 +36,7 @@ interface ViewGroupingProps {
   groupTabStyleFieldIds?: Record<string, string>;
   paginateItems?: (items: Item[]) => Item[];
   renderItems: (items: Item[]) => React.ReactNode;
+  renderGroupTotals?: (items: Item[], groupId: string, position: 'top' | 'bottom') => React.ReactNode;
   className?: string;
   onActiveGroupPathChange?: (path: string | undefined) => void;
   /** Reuse the table's grouping selection so renderers stay interchangeable. */
@@ -92,6 +93,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
   groupTabStyleFieldIds,
   paginateItems,
   renderItems,
+  renderGroupTotals,
   className,
   onActiveGroupPathChange,
   collectionId,
@@ -221,7 +223,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
   }, [collections, groupedStructure, groupTabStyleFieldIds]);
 
   const renderGroup = useMemo(() => {
-    const renderRecursive = (path: string): React.ReactNode => {
+    const renderRecursive = (path: string, hideHeader = false): React.ReactNode => {
       if (!groupedStructure) return null;
       const depth = path.split('/').length - 1;
       const value = path.split('/').pop() || path;
@@ -291,7 +293,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
 
       return (
         <section key={path} className="space-y-2 px-3 py-2">
-          <GroupHeader
+          {!hideHeader && <GroupHeader
             onClick={() => collapsible && toggleGroup(path)}
             collapsible={collapsible}
             expanded={expanded}
@@ -299,8 +301,12 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
             label={`${property?.name ? `${property.name}: ` : ''}${property
               ? getGroupLabel(property, value === '(vide)' ? undefined : value, collections)
               : value}`}
-          />
-          {(!collapsible || expanded) && renderChildren}
+          />}
+          {(hideHeader || !collapsible || expanded) && <>
+            {renderGroupTotals?.(groupItems, groups[depth], 'top')}
+            {renderChildren}
+            {renderGroupTotals?.(groupItems, groups[depth], 'bottom')}
+          </>}
         </section>
       );
     };
@@ -319,6 +325,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
     groupedStructure,
     properties,
     renderItems,
+    renderGroupTotals,
     paginateItems,
     toggleGroup,
   ]);
@@ -395,12 +402,7 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
     const children = groupedStructure.structure[selectedPath]?.subGroups || [];
     const nextGroupId = groups[selectLevels.length];
     const nextMode = nextGroupId ? groupDisplayModes[nextGroupId] || 'accordion' : 'accordion';
-    const renderDirectItems = (path: string) => {
-      const directItems = (groupedStructure.structure[path]?.itemIds || [])
-        .map((id) => itemsMap.get(id))
-        .filter((item): item is Item => Boolean(item));
-      return renderItems(paginateItems ? paginateItems(directItems) : directItems);
-    };
+    const renderDirectItems = (path: string) => renderGroup(path, true);
     const tabbedChildren = children.length > 0 && nextMode === 'tabs';
     const activeTab = tabbedChildren
       ? (activeTabs[selectedPath] && children.includes(activeTabs[selectedPath])
@@ -438,8 +440,16 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
       </div>
     );
 
+    const wrapSelectedTotals = (content: React.ReactNode, renderedPath: string) => selectLevels
+      .filter(({ selectedId }) => selectedId !== renderedPath)
+      .reduceRight((body, { selectedId, property }) => <>
+        {renderGroupTotals?.(getItemsForGroup(selectedId), property.id, 'top')}
+        {body}
+        {renderGroupTotals?.(getItemsForGroup(selectedId), property.id, 'bottom')}
+      </>, content);
+
     if (tabbedChildren && activeTab) {
-      return (
+      return wrapSelectedTotals(
         <Tabs
           value={activeTab}
           onValueChange={(next) => {
@@ -458,14 +468,14 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
             />
           </div>
           {children.map((path) => <TabsContent key={path} value={path} className={groupedTabsContentClass}>{renderDirectItems(path)}</TabsContent>)}
-        </Tabs>
+        </Tabs>, activeTab
       );
     }
 
     return (
       <div className={className || ''}>
         {groupSelectors}
-        {renderDirectItems(selectedPath)}
+        {wrapSelectedTotals(renderDirectItems(selectedPath), selectedPath)}
       </div>
     );
   }

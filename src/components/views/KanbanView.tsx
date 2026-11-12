@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { GripHorizontal, Plus } from 'lucide-react';
+import * as Icons from 'lucide-react';
+import { Ellipsis, FileText, Clock, Info, Link2, Trash2, GripHorizontal, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { OptionTags } from '@/components/inputs/OptionTags';
 import EditableProperty from '@/components/fields/EditableProperty';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { useCanEdit, useCanEditFields, useCanViewFields } from '@/lib/hooks/useCanEdit';
@@ -11,6 +13,8 @@ import { shouldShowColumn } from '@/lib/utils/columnFilterUtils';
 import { useViewGrouping } from './ViewGrouping';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverTrigger } from '@/components/ui/popover';
+import { SettingsPopoverContent, SettingsTabs, SettingsTabContent, SettingsLabel, SettingsFooter } from '@/components/ui/settings-panel';
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -299,80 +303,79 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                       transition={{ delay: idx * 0.05 }}
                       whileHover={canEdit ? { scale: 1.02 } : {}}
                       className={cn(
-                        "group rounded-lg border border-black/10 dark:border-white/10 p-4 hover:border-white/20 transition-all space-y-3",
+                        "group relative min-w-0 rounded-lg border border-black/10 dark:border-white/10 p-3 hover:border-white/20 transition-all space-y-2",
                         "bg-gradient-to-br from-white/80 to-neutral-100/80 dark:from-neutral-800/50 dark:to-neutral-900/50",
                         canEdit && "cursor-move",
                         showFieldsOnHover && "space-y-2 p-3 pb-1",
                         draggedItem?.id === item.id ? 'opacity-50 border-brand-500/50' : ''
                       )}
                     >
-                    {/* Title with Grip */}
-                    <div className="flex gap-2 items-center">
-                      {canEdit && <GripHorizontal size={14} className="text-neutral-600 transition-opacity flex-shrink-0" />}
-                      <Button
-                        type="button"
-                        onClick={() => onViewDetail(item)}
-                        variant="ghost"
-                        className="h-auto flex-1 justify-start whitespace-normal p-0 text-left text-sm font-medium dark:text-white hover:text-cyan-300 hover:bg-transparent"
-                      >
-                        {getNameValue(item, collection)}
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      {canEdit && <GripHorizontal size={12} className="shrink-0 text-muted-foreground" />}
+                      <Button type="button" onClick={() => onViewDetail(item)} variant="ghost"
+                        className="h-auto min-w-0 flex-1 justify-start p-0 text-left text-sm font-semibold hover:bg-transparent">
+                        <span className="truncate">{getNameValue(item, collection)}</span>
                       </Button>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button type="button" draggable={false} aria-label={`Champs de ${getNameValue(item, collection)}`}
+                            className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground">
+                            <Ellipsis size={14} />
+                          </button>
+                        </PopoverTrigger>
+                        <SettingsPopoverContent align="start" title={getNameValue(item, collection)}>
+                          {(() => {
+                            const tabs = [
+                              { id: 'infos', label: 'Infos', Icon: Info, accepts: (type: string) => !['relation', 'date', 'date_range', 'rich_text'].includes(type) },
+                              { id: 'relations', label: 'Relations', Icon: Link2, accepts: (type: string) => type === 'relation' },
+                              { id: 'temps', label: 'Temps', Icon: Clock, accepts: (type: string) => ['date', 'date_range'].includes(type) },
+                              { id: 'notes', label: 'Notes', Icon: FileText, accepts: (type: string) => type === 'rich_text' },
+                            ].map((tab) => ({ ...tab, fields: cardProps.filter((prop: any) => tab.accepts(prop.type)) }))
+                              .filter((tab) => tab.fields.length);
+                            return tabs.length > 0 ? <SettingsTabs defaultValue={tabs[0].id} label="Champs de la carte"
+                              items={tabs.map(({ id, label, Icon }) => ({ id, label, icon: Icon }))}>
+                              {tabs.map(({ id, fields }) => <SettingsTabContent scrollable key={id} value={id} className="max-h-[min(50vh,20rem)] divide-y divide-border">
+                                {fields.map((prop: any) => <div key={prop.id} className="settings-field-row min-w-0">
+                                  <SettingsLabel>{prop.name}</SettingsLabel>
+                                  <EditableProperty property={prop} value={item[prop.id]} size="sm"
+                                    onChange={(value) => onEdit({ ...item, [prop.id]: value })}
+                                    collections={collections} currentItem={item} onRelationChange={onRelationChange}
+                                    onNavigateToCollection={onNavigateToCollection} forceRichEditor={prop.type === 'rich_text'}
+                                    readOnly={!canEdit || !canEditFieldFn(prop.id)} />
+                                </div>)}
+                              </SettingsTabContent>)}
+                            </SettingsTabs> : <p className="text-xs text-muted-foreground">Aucun champ visible.</p>;
+                          })()}
+                          <SettingsFooter>
+                            <button type="button" onClick={() => onViewDetail(item)} className="text-xs font-medium text-primary hover:underline">Ouvrir la fiche</button>
+                          </SettingsFooter>
+                        </SettingsPopoverContent>
+                      </Popover>
+                      {canEdit && <button type="button" draggable={false} aria-label="Supprimer l’élément" title="Supprimer l’élément"
+                        onClick={() => onDelete(item.id)}
+                        className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/15 hover:text-destructive">
+                        <Trash2 size={13} />
+                      </button>}
                     </div>
-
-                    {/* Editable Properties */}
-                    <div
-                      className={cn(
-                        "space-y-2",
-                        showFieldsOnHover &&
-                          "max-h-0 opacity-0 overflow-hidden pointer-events-none transition-all duration-200 group-hover:max-h-[420px] group-hover:opacity-100 group-hover:pointer-events-auto"
-                      )}
-                    >
-                      {cardProps.map((prop: any) => (
-                        <div key={prop.id} className="text-xs flex justify-between items-center">
-                          <span className="text-neutral-500 block mb-1 justify-between">{prop.name}:</span>
-                          <div className="text-right">
-                            <EditableProperty
-                              property={prop}
-                              value={item[prop.id]}
-                              onChange={(val) => {
-                                const updated = { ...item, [prop.id]: val };
-                                onEdit(updated);
-                              }}
-                              size="sm"
-                              collections={collections}
-                              currentItem={item}
-                              onRelationChange={onRelationChange}
+                    <div className={cn("min-w-0 divide-y divide-border overflow-hidden",
+                      showFieldsOnHover && "max-h-0 opacity-0 pointer-events-none transition-all duration-200 group-hover:max-h-[420px] group-hover:opacity-100 group-hover:pointer-events-auto focus-within:max-h-[420px] focus-within:opacity-100"
+                    )}>
+                      {cardProps.map((prop: any) => {
+                        const Icon = (Icons as any)[prop.icon] || Icons.Tag;
+                        return <div key={prop.id} title={prop.name} className="flex min-w-0 items-center gap-1.5 py-1 text-xs">
+                          <Icon size={12} aria-hidden="true" className="shrink-0 text-muted-foreground" />
+                          <div className="min-w-0 flex-1 overflow-hidden">
+                            {['select', 'multiselect', 'multi_select'].includes(prop.type) ? (
+                              <OptionTags options={prop.options || []} value={item[prop.id]} compact borderless />
+                            ) : prop.type === 'number' ? (
+                              <span className="block truncate tabular-nums">{item[prop.id] == null || item[prop.id] === '' ? '—' : `${prop.numberPrefix || ''}${Number(item[prop.id]).toLocaleString('fr-FR')}${prop.numberSuffix || ''}`}</span>
+                            ) : <EditableProperty property={prop} value={item[prop.id]} onChange={() => {}} readOnly
+                              size="xs" compactDate richTextPreviewLimit={80} collections={collections} currentItem={item}
                               onNavigateToCollection={onNavigateToCollection}
-                              readOnly={!canEdit || !canEditFieldFn(prop.id)}
-                              maxVisible={prop.type === 'multi_select' ? 1 : undefined}
-                            />
+                              maxVisible={2} />}
                           </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex justify-end gap-2 pt-2 absolute -top-7 left-1">
-                      <Button
-                        type="button"
-                        onClick={() => onViewDetail(item)}
-                        variant="secondary"
-                        size="sm"
-                        className="h-auto bg-blue-800/50 px-2 py-0.5 text-white opacity-0 transition-all duration-300 hover:bg-blue-800 group-hover:opacity-100 dark:text-white"
-                      >
-                        Éditer
-                      </Button>
-                      {canEdit && (
-                        <Button
-                          type="button"
-                          onClick={() => onDelete(item.id)}
-                          variant="destructive"
-                          size="sm"
-                          className="h-auto bg-red-800/50 px-2 py-0.5 opacity-0 transition-all duration-300 hover:bg-red-800 group-hover:opacity-100"
-                        >
-                          Supprimer
-                        </Button>
-                      )}
+                        </div>;
+                      })}
                     </div>
                     </motion.div>
                   </ItemContextMenu>

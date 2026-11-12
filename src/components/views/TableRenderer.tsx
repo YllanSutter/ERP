@@ -43,6 +43,9 @@ const TableRenderer: React.FC<TableRendererProps> = ({
       groupDisplayMode={view.groupDisplayMode as TableViewProps['groupDisplayMode']}
       groupDisplayModes={view.groupDisplayModes as TableViewProps['groupDisplayModes']}
       groupTabStyleFieldIds={view.groupTabStyleFieldIds as TableViewProps['groupTabStyleFieldIds']}
+      groupDisplayColumnCount={view.groupDisplayColumnCount as TableViewProps['groupDisplayColumnCount']}
+      groupDisplayColumnCounts={view.groupDisplayColumnCounts as TableViewProps['groupDisplayColumnCounts']}
+      groupTotalsByGroupId={view.groupTotalsByGroupId as TableViewProps['groupTotalsByGroupId']}
       totalFields={(view.totalFields || {}) as Record<string, string>}
       onSetTotalField={(fieldId, totalType) => {
         const totalFields = { ...(view.totalFields || {}) as Record<string, string> };

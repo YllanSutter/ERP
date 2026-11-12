@@ -1,3 +1,4 @@
+import TableGroupTotals from './TableGroupTotals';
 import { orderSteamExchanges, steamTotalItems } from '@/lib/plugins/steam/exchanges';
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { ChevronRight, Plus, Zap, Sigma } from 'lucide-react';
@@ -1486,6 +1487,11 @@ const TableView: React.FC<TableViewProps> = ({
               groupDisplayColumnCounts={groupDisplayColumnCounts}
               groupTabStyleFieldIds={groupTabStyleFieldIds}
               collectionId={collection.id}
+              renderGroupTotals={(groupItems, groupId, position) => (
+                <TableGroupTotals config={groupTotalsByGroupId[groupId]} position={position}
+                  displayProperties={orderedProperties.filter((prop) => !hiddenTotalFieldIds.includes(prop.id))}
+                  items={groupItems} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} />
+              )}
               renderItems={(groupItems) => renderTableShell(
                 renderFlatRows(sortItems(groupItems)),
                 groupItems,

@@ -49,6 +49,19 @@ describe('view regressions', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('passes each grouping level’s totals and display settings to layout tables', () => {
+    const view = {
+      ...rendererProps.view, groups: ['category', 'status'],
+      groupTotalsByGroupId: { category: { enabled: true, position: 'bottom' }, status: { enabled: true, position: 'top' } },
+      groupDisplayColumnCount: 2, groupDisplayColumnCounts: { status: 3 },
+    };
+    const table = TableRenderer({ ...rendererProps, view }) as React.ReactElement<any>;
+    expect(table.props.groupTotalsByGroupId).toEqual(view.groupTotalsByGroupId);
+    expect(table.props.groups).toEqual(['category', 'status']);
+    expect(table.props.groupDisplayColumnCount).toBe(2);
+    expect(table.props.groupDisplayColumnCounts).toEqual({ status: 3 });
+  });
+
   it('exposes column total actions and preserves other column totals', () => {
     const onUpdateView = vi.fn();
     const table = TableRenderer({ ...rendererProps, onUpdateView }) as React.ReactElement<any>;
