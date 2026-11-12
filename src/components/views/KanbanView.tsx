@@ -282,6 +282,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
               ) : (
                 sortedColumnItems.map((item, idx) => (
                   <ItemContextMenu
+                    key={item.id}
                     item={item}
                     onViewDetail={onViewDetail}
                     onDelete={onDelete}
@@ -294,7 +295,6 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                     canEditField={canEditFieldFn}
                   >
                     <motion.div
-                      key={item.id}
                       draggable={canEdit}
                       onDragStart={canEdit ? () => setDraggedItem(item) : undefined}
                       onDragEnd={canEdit ? () => setDraggedItem(null) : undefined}

@@ -1,7 +1,11 @@
-import React from 'react';
+import React, * as ReactModule from 'react';
+import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import KanbanView from './KanbanView';
+
+vi.mock('react', { spy: true });
+vi.mock('./ViewGrouping', () => ({ useViewGrouping: () => ({ groupedStructure: null }) }));
 
 vi.mock('@/lib/hooks/useCanEdit', () => ({
   useCanEdit: () => true,
@@ -22,6 +26,26 @@ const collection = {
 const item = { id: '1', name: 'Armagnac', status: 'À acheter', price: 35, tags: ['Anniversaire'] };
 
 describe('Kanban card presentation', () => {
+  it('keys the outer menu wrapper by item id for every card in a column', () => {
+    vi.mocked(ReactModule.useState).mockReturnValueOnce([null, vi.fn()]);
+    vi.mocked(ReactModule.useMemo)
+      .mockImplementationOnce((factory) => factory())
+      .mockImplementationOnce((factory) => factory());
+    const secondItem = { ...item, id: '2', name: 'Autre achat' };
+    const element = KanbanView({ collection, items: [item, secondItem], groupBy: 'status',
+      collections: [], onEdit: vi.fn(), onDelete: vi.fn(), onViewDetail: vi.fn() });
+    const menus: React.ReactElement[] = [];
+    const visit = (node: React.ReactNode) => {
+      React.Children.forEach(node, (child) => {
+        if (!React.isValidElement(child)) return;
+        if (child.type === ItemContextMenu) menus.push(child);
+        visit((child.props as any).children);
+      });
+    };
+    visit(element);
+    expect(menus.map((menu) => menu.key)).toEqual(['1', '2']);
+  });
+
   it('keeps actions inside the header and shows compact previews instead of field controls', () => {
     const html = renderToStaticMarkup(<KanbanView collection={collection} items={[item]} groupBy="status"
       collections={[]} onEdit={() => {}} onDelete={() => {}} onViewDetail={() => {}} />);
