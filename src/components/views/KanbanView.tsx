@@ -278,6 +278,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
               ) : (
                 sortedColumnItems.map((item, idx) => (
                   <ItemContextMenu
+                    key={item.id}
                     item={item}
                     onViewDetail={onViewDetail}
                     onDelete={onDelete}
@@ -299,7 +300,8 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                       transition={{ delay: idx * 0.05 }}
                       whileHover={canEdit ? { scale: 1.02 } : {}}
                       className={cn(
-                        "group rounded-lg border border-black/10 dark:border-white/10 p-4 hover:border-white/20 transition-all space-y-3",
+                        "group/kanban-card relative isolate rounded-lg border border-black/10 dark:border-white/10 p-4 transition-colors space-y-3 hover:border-brand-500/30 focus-within:border-brand-500/30",
+                        "after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:rounded-[inherit] after:bg-brand-500/5 after:opacity-0 after:transition-opacity hover:after:opacity-100 focus-within:after:opacity-100 dark:after:bg-white/5",
                         "bg-gradient-to-br from-white/80 to-neutral-100/80 dark:from-neutral-800/50 dark:to-neutral-900/50",
                         canEdit && "cursor-move",
                         showFieldsOnHover && "space-y-2 p-3 pb-1",
@@ -313,7 +315,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                         type="button"
                         onClick={() => onViewDetail(item)}
                         variant="ghost"
-                        className="h-auto flex-1 justify-start whitespace-normal p-0 text-left text-sm font-medium dark:text-white hover:text-cyan-300"
+                        className="h-auto flex-1 justify-start whitespace-normal p-0 text-left text-sm font-medium dark:text-white hover:bg-transparent hover:text-inherit dark:hover:text-white"
                       >
                         {getNameValue(item, collection)}
                       </Button>
@@ -324,7 +326,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                       className={cn(
                         "space-y-2",
                         showFieldsOnHover &&
-                          "max-h-0 opacity-0 overflow-hidden pointer-events-none transition-all duration-200 group-hover:max-h-[420px] group-hover:opacity-100 group-hover:pointer-events-auto"
+                          "max-h-0 opacity-0 overflow-hidden pointer-events-none transition-all duration-200 group-hover/kanban-card:max-h-[420px] group-hover/kanban-card:opacity-100 group-hover/kanban-card:pointer-events-auto"
                       )}
                     >
                       {cardProps.map((prop: any) => (
@@ -352,13 +354,13 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex justify-end gap-2 pt-2 absolute -top-7 left-1">
+                    <div className="flex justify-end gap-2 pt-2 opacity-0 pointer-events-none transition-opacity group-hover/kanban-card:opacity-100 group-hover/kanban-card:pointer-events-auto group-focus-within/kanban-card:opacity-100 group-focus-within/kanban-card:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">
                       <Button
                         type="button"
                         onClick={() => onViewDetail(item)}
                         variant="secondary"
                         size="sm"
-                        className="h-auto bg-blue-800/50 px-2 py-0.5 text-white opacity-0 transition-all duration-300 hover:bg-blue-800 group-hover:opacity-100 dark:text-white"
+                        className="h-auto px-2 py-0.5"
                       >
                         Éditer
                       </Button>
@@ -368,7 +370,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                           onClick={() => onDelete(item.id)}
                           variant="destructive"
                           size="sm"
-                          className="h-auto bg-red-800/50 px-2 py-0.5 opacity-0 transition-all duration-300 hover:bg-red-800 group-hover:opacity-100"
+                          className="h-auto px-2 py-0.5"
                         >
                           Supprimer
                         </Button>
