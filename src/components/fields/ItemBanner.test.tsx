@@ -19,3 +19,9 @@ it('uses the property default only when the item has no image', () => {
   expect(html).toContain('src="https://cdn.test/custom.jpg"');
   expect(html).not.toContain('src="https://cdn.test/default.jpg"');
 });
+
+it('uses the collection image base for filenames and default images', () => {
+  const collection = { properties: [{ id: 'pictures', type: 'image', imageBaseUrl: 'https://example.com/images/', defaultImage: 'home-bg1.jpg' }] };
+  expect(renderToStaticMarkup(<ItemBanner collection={collection} item={{}} />)).toContain('src="https://example.com/images/home-bg1.jpg"');
+  expect(renderToStaticMarkup(<ItemBanner collection={collection} item={{ pictures: 'custom.jpg' }} />)).toContain('src="https://example.com/images/custom.jpg"');
+});

@@ -5,7 +5,7 @@ import { ItemImageView } from './ItemImageView';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverTrigger } from '@/components/ui/popover';
 import { SettingsPopoverContent, SettingsBody, SettingsHint } from '@/components/ui/settings-panel';
-import { generateImageId, normalizeImageField, primaryImage, validImageSource, type ItemImage } from '@/lib/itemImages';
+import { generateImageId, normalizeImageField, primaryImage, resolveImageSource, type ItemImage } from '@/lib/itemImages';
 
 async function readImage(file: File): Promise<string> {
   if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'].includes(file.type)) throw new Error('Choisissez une image PNG, JPEG, WebP, GIF ou AVIF.');
@@ -23,7 +23,7 @@ async function readImage(file: File): Promise<string> {
   } finally { bitmap.close(); }
 }
 
-export function ImageField({ value, defaultValue, onChange, readOnly = false, name = 'Images' }: { value: unknown; defaultValue?: unknown; onChange: (value: any) => void; readOnly?: boolean; name?: string }) {
+export function ImageField({ value, defaultValue, onChange, readOnly = false, name = 'Images', baseUrl = '' }: { value: unknown; defaultValue?: unknown; baseUrl?: string; onChange: (value: any) => void; readOnly?: boolean; name?: string }) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
@@ -31,12 +31,12 @@ export function ImageField({ value, defaultValue, onChange, readOnly = false, na
   const input = useRef<HTMLInputElement>(null);
   const current = useRef(value);
   current.current = value;
-  const stored = normalizeImageField(value);
-  const usingDefault = stored.images.length === 0 && normalizeImageField(defaultValue).images.length > 0;
-  const data = usingDefault ? normalizeImageField(defaultValue) : stored;
+  const stored = normalizeImageField(value, baseUrl);
+  const usingDefault = stored.images.length === 0 && normalizeImageField(defaultValue, baseUrl).images.length > 0;
+  const data = usingDefault ? normalizeImageField(defaultValue, baseUrl) : stored;
   const cover = primaryImage(data);
   const append = (images: ItemImage[]) => {
-    const latest = normalizeImageField(current.current);
+    const latest = normalizeImageField(current.current, baseUrl);
     const next = { ...latest, images: [...latest.images, ...images], defaultImageId: latest.defaultImageId || images[0]?.id || null };
     current.current = next;
     onChange(next);
@@ -63,13 +63,14 @@ export function ImageField({ value, defaultValue, onChange, readOnly = false, na
           }} />
           <Button variant="outline" className="w-full gap-2" disabled={busy} onClick={() => input.current?.click()}><Upload size={14} />{busy ? 'Ajout en cours…' : 'Importer des images'}</Button>
           <form className="flex gap-2" onSubmit={event => {
-            event.preventDefault(); const src = url.trim();
-            if (!validImageSource(src)) { setError('Saisissez un lien HTTP ou HTTPS valide vers une image.'); return; }
+            event.preventDefault(); const src = resolveImageSource(url, baseUrl);
+            if (!src) { setError('Saisissez un lien HTTP ou HTTPS valide vers une image.'); return; }
             append([{ id: generateImageId(), src }]); setUrl(''); setError('');
           }}>
-            <Input aria-label="Lien de l’image" placeholder="https://cdn…/image.jpg" value={url} disabled={busy} onChange={event => { setUrl(event.target.value); setError(''); }} />
+            <Input aria-label="Lien de l’image" placeholder={baseUrl ? "home-bg1.jpg ou https://…/image.jpg" : "https://…/image.jpg"} value={url} disabled={busy} onChange={event => { setUrl(event.target.value); setError(''); }} />
             <Button type="submit" variant="outline" size="sm" disabled={busy || !url.trim()} aria-label="Ajouter le lien">Ajouter</Button>
           </form>
+          <SettingsHint>Les liens externes sont affichés directement, sans importation.{baseUrl && ` URL de base : ${baseUrl}`}</SettingsHint>
           <SettingsHint>L’étoile choisit l’image principale affichée en bannière.</SettingsHint>
         </>}
         {usingDefault && <SettingsHint>Image par défaut de la propriété. Ajouter une image la remplacera pour cet objet.</SettingsHint>}

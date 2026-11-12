@@ -28,21 +28,36 @@ export function validImageSource(value: unknown): value is string {
   try { return ['https:', 'http:'].includes(new URL(value).protocol); } catch { return false; }
 }
 
-export function normalizeImageField(value: unknown): ImageFieldValue {
+export function resolveImageSource(value: string, baseUrl = ''): string | null {
+  const source = value.trim();
+  if (validImageSource(source as unknown)) return source;
+  // Only relative paths may use the collection's base URL.
+  if (!source || /^[a-z][a-z0-9+.-]*:/i.test(source) || source.startsWith('//')) return null;
+  try {
+    const base = baseUrl.trim();
+    if (!/^https?:\/\//i.test(base)) return null;
+    const resolved = new URL(source.replace(/^\/+/, ''), base.endsWith('/') ? base : `${base}/`).href;
+    return validImageSource(resolved) ? resolved : null;
+  } catch { return null; }
+}
+
+export function normalizeImageField(value: unknown, baseUrl = ''): ImageFieldValue {
   const raw = typeof value === 'string' ? [value] : Array.isArray(value) ? value : (value as any)?.images;
   const images: ItemImage[] = [];
   for (const [index, entry] of (Array.isArray(raw) ? raw : []).entries()) {
     const image = typeof entry === 'string' ? { src: entry } : entry;
-    if (!image || !validImageSource(image.src)) continue;
+    if (!image || typeof image.src !== 'string') continue;
+    const src = resolveImageSource(image.src, baseUrl);
+    if (!src) continue;
     const id = typeof image.id === 'string' ? image.id : `image-${index}`;
-    if (!images.some(existing => existing.id === id)) images.push({ ...image, id });
+    if (!images.some(existing => existing.id === id)) images.push({ ...image, id, src });
   }
   const preferred = (value as any)?.defaultImageId;
   return { images, defaultImageId: images.some(image => image.id === preferred) ? preferred : images[0]?.id || null, ...((value as any)?.autoSources ? { autoSources: { ...(value as any).autoSources } } : {}) };
 }
 
-export function primaryImage(value: unknown): ItemImage | null {
-  const normalized = normalizeImageField(value);
+export function primaryImage(value: unknown, baseUrl = ''): ItemImage | null {
+  const normalized = normalizeImageField(value, baseUrl);
   return normalized.images.find(image => image.id === normalized.defaultImageId) || null;
 }
 

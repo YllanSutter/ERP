@@ -1046,7 +1046,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   }
 
   if (property.type === 'image') {
-    return <ImageField value={value} defaultValue={property.defaultImage} onChange={onChange} readOnly={readOnly} name={property.name} />;
+    return <ImageField value={value} defaultValue={property.defaultImage} baseUrl={property.imageBaseUrl} onChange={onChange} readOnly={readOnly} name={property.name} />;
   }
 
   // Select

@@ -1,5 +1,5 @@
 import { ImageField } from '@/components/fields/ImageField';
-import { normalizeImageField } from '@/lib/itemImages';
+import { normalizeImageField, validImageSource } from '@/lib/itemImages';
 import React, { useEffect, useState } from 'react';
 import { FormField, FormInput, FormSelect, FormHint, FormCheckbox, FormNameInput, BUILTIN_PROPERTY_TYPES } from '@/components/ui/ModalWrapper';
 import OptionListEditor from '@/components/inputs/OptionListEditor';
@@ -50,6 +50,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const [imageMaxWidth, setImageMaxWidth] = useState(String(property?.imageDisplay?.maxWidth || ''));
   const [imageMaxHeight, setImageMaxHeight] = useState(String(property?.imageDisplay?.maxHeight || ''));
   const [imageFit, setImageFit] = useState(property?.imageDisplay?.fit || 'contain');
+  const [imageBaseUrl, setImageBaseUrl] = useState(property?.imageBaseUrl || '');
   const [defaultImage, setDefaultImage] = useState(property?.defaultImage || null);
   const [name, setName] = useState(property?.name || '');
   const [type, setType] = useState(property?.type || 'text');
@@ -168,7 +169,13 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
         ...(Number(imageMaxHeight) > 0 ? { maxHeight: Number(imageMaxHeight) } : {}),
       };
     } else delete savedProperty.imageDisplay;
-    if (type === 'image' && normalizeImageField(defaultImage).images.length) savedProperty.defaultImage = defaultImage;
+    if (type === 'image' && imageBaseUrl.trim() && (!/^https?:\/\//i.test(imageBaseUrl.trim()) || !validImageSource(imageBaseUrl.trim()))) {
+      alert('Saisissez une URL de base HTTP ou HTTPS valide.');
+      return;
+    }
+    if (type === 'image' && imageBaseUrl.trim()) savedProperty.imageBaseUrl = imageBaseUrl.trim();
+    else delete savedProperty.imageBaseUrl;
+    if (type === 'image' && normalizeImageField(defaultImage, imageBaseUrl).images.length) savedProperty.defaultImage = defaultImage;
     else delete savedProperty.defaultImage;
     savedProperty.showContextMenu = showContextMenu;
     savedProperty.defaultTemplates = defaultTemplates;
@@ -270,8 +277,11 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
 
       {activeTab === 'infos' && type === 'image' && (
         <div className="space-y-4 border-t border-border pt-4 mt-4">
+          <FormField label="URL de base des images" hint="Commune à cette collection pour ce champ. Exemple : https://www.ba-decoupe.fr/data/themes/ba-decoupe/images/ ; saisissez ensuite home-bg1.jpg. Un lien complet reste prioritaire.">
+            <FormInput type="url" value={imageBaseUrl} placeholder="https://exemple.fr/images/" onChange={event => setImageBaseUrl(event.target.value)} />
+          </FormField>
           <FormField label="Image par défaut" hint="Affichée quand l’objet n’a aucune image. L’étoile choisit l’image principale.">
-            <ImageField value={defaultImage} onChange={setDefaultImage} name="Image par défaut" />
+            <ImageField baseUrl={imageBaseUrl} value={defaultImage} onChange={setDefaultImage} name="Image par défaut" />
           </FormField>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Largeur maximale (px)" hint="Vide : toute la largeur disponible.">
