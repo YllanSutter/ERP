@@ -197,9 +197,11 @@ export function useErpSync({
     pendingItemsRef.current = null;
   }, [organizationId]);
 
+  const userId = user?.id;
+
   // --- Chargement initial -----------------------------------------------
   useEffect(() => {
-    if (!user || !organizationId) return;
+    if (!userId || !organizationId) return;
     let cancelled = false;
     const fetchInitialState = async () => {
       try {
@@ -237,7 +239,7 @@ export function useErpSync({
     };
     fetchInitialState();
     return () => { cancelled = true; };
-  }, [user, organizationId, API_URL]);
+  }, [userId, organizationId, API_URL]);
 
   // --- Reception temps reel : item modifie (patch chirurgical) ----------
   useEffect(() => {

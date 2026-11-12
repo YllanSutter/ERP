@@ -7,9 +7,10 @@ type LoginPageProps = {
   onLogin: (email: string, password: string) => Promise<void>;
   onRegister: (email: string, password: string, name?: string) => Promise<void>;
   loading?: boolean;
+  reconnect?: boolean;
 };
 
-const LoginPage = ({ onLogin, onRegister, loading }: LoginPageProps) => {
+const LoginPage = ({ onLogin, onRegister, loading, reconnect = false }: LoginPageProps) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -99,7 +100,7 @@ const LoginPage = ({ onLogin, onRegister, loading }: LoginPageProps) => {
           </ShinyButton>
         </form>
 
-        <div className="mt-4 text-sm text-neutral-400">
+        {!reconnect && <div className="mt-4 text-sm text-neutral-400">
           {mode === 'login' ? (
             <button className="text-cyan-400" onClick={() => setMode('register')}>
               Pas de compte ? Créez-en un.
@@ -109,7 +110,7 @@ const LoginPage = ({ onLogin, onRegister, loading }: LoginPageProps) => {
               Déjà inscrit ? Connectez-vous.
             </button>
           )}
-        </div>
+        </div>}
       </motion.div>
     </div>
   );
