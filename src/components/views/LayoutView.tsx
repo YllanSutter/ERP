@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import React, { useMemo, useState } from 'react';
 import { getLayoutTileHeight, LAYOUT_HEIGHT_OPTIONS, LAYOUT_TILE_GAP } from '@/lib/layoutDimensions';
 import { createPortal } from 'react-dom';
@@ -8,7 +9,7 @@ import { computeDateRange } from '@/lib/utils/dashboardUtils';
 import { getItemIntervalsForDateField } from '@/lib/utils/recapColumnUtils';
 import { CalendarDays, ChevronDown, ChevronUp, Columns3, LayoutGrid, Plus, Settings2, Table2 } from 'lucide-react';
 import { getFilteredItems, getOrderedProperties, routeLayoutFilters } from '@/lib/filterUtils';
-import { getViewRegistration } from '@/lib/views';
+import { getViewLabel, getViewRegistration } from '@/lib/views';
 import type { CollectionFilter } from '@/lib/types';
 import type { ViewRendererProps } from '@/lib/views';
 import { getLayoutEntries, moveLayoutEntry } from './layoutOrder';
@@ -195,7 +196,7 @@ const LayoutView: React.FC<ViewRendererProps> = ({
             <section key={key} style={style} className={`col-span-12 flex min-w-0 flex-col overflow-hidden rounded-xl border border-border shadow-sm md:[grid-column:var(--layout-panel-column)] ${tileBackground ? 'bg-card' : 'bg-transparent'}`}>
               <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
                 <Icon size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
-                <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{panel.title || panelView?.name || 'Panneau sans vue'}</h2>
+                <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{panel.title || (panelView ? getViewLabel(panelView) : 'Panneau sans vue')}</h2>
                 {target && target.id !== collection.id && (
                   <span className="max-w-[40%] truncate text-xs text-muted-foreground">{target.name}</span>
                 )}
@@ -217,7 +218,7 @@ const LayoutView: React.FC<ViewRendererProps> = ({
                     collections={panelCollections}
                     items={panelItems}
                     properties={properties}
-                    onUpdateView={() => {}}
+                    onUpdateView={(patch) => savePanel(panel.id, { ...panel, viewSettings: { ...panel.viewSettings, ...patch } })}
                     onEdit={onEdit}
                     onDelete={onDelete}
                     onViewDetail={onViewDetail}
@@ -256,7 +257,7 @@ const LayoutView: React.FC<ViewRendererProps> = ({
             byCollection: views,
             onAdd: (collectionId, viewId) => onUpdateView({
               layoutPanels: [...panels, {
-                id: crypto.randomUUID(),
+                id: uuidv4(),
                 collectionId,
                 viewId,
                 colSpan: 6,

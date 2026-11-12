@@ -13,7 +13,7 @@ import { getDashboardModuleOptions } from './dashboardModuleTypes';
 
 import { SettingsDialog, SettingsTabs, SettingsTabContent, SettingsFooter, SettingsSectionTitle } from '@/components/ui/settings-panel';
 import { Button } from '@/components/ui/button';
-import type { ViewDefinition } from '@/lib/views';
+import { getViewLabel, type ViewDefinition } from '@/lib/views';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const MODULE_TYPE_ICONS: Record<ModuleType, React.ReactNode> = {
@@ -136,7 +136,7 @@ const DashboardAddModule: React.FC<Props> = ({ collections, currentOrder, onAdd,
                   <SelectValue placeholder={availableViews.length ? 'Choisir une vue' : 'Aucune vue disponible'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableViews.map(({ id, name }) => <SelectItem key={id} value={id}>{name}</SelectItem>)}
+                  {availableViews.map((view) => <SelectItem key={view.id} value={view.id}>{getViewLabel(view)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

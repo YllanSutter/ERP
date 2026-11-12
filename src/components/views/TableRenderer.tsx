@@ -16,6 +16,7 @@ const TableRenderer: React.FC<TableRendererProps> = ({
   onViewDetail,
   onRelationChange,
   onNavigateToCollection,
+  onUpdateView,
   ...legacyProps
 }) => {
   if (!onEdit || !onDelete || !onViewDetail || !onRelationChange || !onNavigateToCollection) {
@@ -42,6 +43,13 @@ const TableRenderer: React.FC<TableRendererProps> = ({
       groupDisplayMode={view.groupDisplayMode as TableViewProps['groupDisplayMode']}
       groupDisplayModes={view.groupDisplayModes as TableViewProps['groupDisplayModes']}
       groupTabStyleFieldIds={view.groupTabStyleFieldIds as TableViewProps['groupTabStyleFieldIds']}
+      totalFields={(view.totalFields || {}) as Record<string, string>}
+      onSetTotalField={(fieldId, totalType) => {
+        const totalFields = { ...(view.totalFields || {}) as Record<string, string> };
+        if (totalType === null) delete totalFields[fieldId];
+        else totalFields[fieldId] = totalType;
+        onUpdateView({ totalFields });
+      }}
       {...legacyProps}
     />
   );

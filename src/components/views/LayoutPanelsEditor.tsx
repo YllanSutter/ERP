@@ -1,4 +1,6 @@
+import { v4 as uuidv4 } from 'uuid';
 import React from 'react';
+import { getViewLabel } from '@/lib/views';
 import type { ModulePeriod } from '@/lib/dashboardTypes';
 import { getLayoutSizeOptions, getLayoutTileHeight, LAYOUT_HEIGHT_OPTIONS, LAYOUT_WIDTH_OPTIONS } from '@/lib/layoutDimensions';
 import { Plus, Trash2 } from 'lucide-react';
@@ -69,7 +71,7 @@ const LayoutPanelsEditor: React.FC<LayoutPanelsEditorProps> = ({
               <SelectTrigger className="h-8 min-w-0 text-xs"><SelectValue placeholder="Vue" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Choisir une vue…</SelectItem>
-                {selectableViews.filter((entry: any) => entry.type !== 'layout').map((entry: any) => <SelectItem key={entry.id} value={entry.id}>{entry.name}</SelectItem>)}
+                {selectableViews.filter((entry: any) => entry.type !== 'layout').map((entry: any) => <SelectItem key={entry.id} value={entry.id}>{getViewLabel(entry)}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={String(width)} onValueChange={(value) => updatePanel(index, { colSpan: Number(value) })}>
@@ -88,7 +90,7 @@ const LayoutPanelsEditor: React.FC<LayoutPanelsEditorProps> = ({
           </div>
         );
       })}
-      {!hideAdd && <Button type="button" variant="ghost" size="sm" onClick={() => onChange([...panels, { id: crypto.randomUUID(), collectionId: collection?.id || '', viewId: '', colSpan: 6, height: LAYOUT_HEIGHT_OPTIONS[1].value }])}>
+      {!hideAdd && <Button type="button" variant="ghost" size="sm" onClick={() => onChange([...panels, { id: uuidv4(), collectionId: collection?.id || '', viewId: '', colSpan: 6, height: LAYOUT_HEIGHT_OPTIONS[1].value }])}>
         <Plus /> Ajouter un panneau
       </Button>}
     </div>

@@ -90,3 +90,10 @@ export function createDefaultViewConfig(type: ViewType, id: string, collectionId
   }
   return registration.createDefaultConfig(id, collectionId);
 }
+
+/** Unnamed saved views retain the label of their view type. */
+export function getViewLabel(view: { name?: unknown; type?: string }): string {
+  return typeof view.name === 'string' && view.name.trim()
+    ? view.name
+    : getViewRegistration(view.type).label;
+}

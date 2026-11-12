@@ -24,6 +24,7 @@ export const useViews = (
       visibleToRoles: [],
       visibleToUsers: []
     };
+    if (Array.isArray(config?.layoutPanels)) newView.layoutPanels = config.layoutPanels;
     if (config?.groupBy) newView.groupBy = config.groupBy;
     if (config?.kanbanShowFieldsOnHover !== undefined) {
       newView.kanbanShowFieldsOnHover = Boolean(config.kanbanShowFieldsOnHover);
