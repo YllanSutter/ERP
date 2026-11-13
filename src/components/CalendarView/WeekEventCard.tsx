@@ -1,19 +1,13 @@
+import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import React, { useState, useRef, useEffect } from 'react';
 import { ColorSet, calculateEventPosition, formatFieldValue, formatTimeDisplay } from '@/lib/calendarUtils';
-import { useCanEdit, useCanEditField, useCanViewFields } from '@/lib/hooks/useCanEdit';
+import { useCanEdit, useCanEditField, useCanEditFields, useCanViewFields } from '@/lib/hooks/useCanEdit';
 import type { OptionType } from '@/components/inputs/LightSelect';
 import { OptionTags } from '@/components/inputs/OptionTags';
 import EditableProperty from '@/components/fields/EditableProperty';
-import { ArrowUpRight, Clock, Ellipsis, FileText, GripHorizontal, Info, Link2, Trash2, Type, X } from 'lucide-react';
+import { ArrowUpRight, Clock, Ellipsis, FileText, GripHorizontal, Trash2, Type, X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Popover, PopoverTrigger } from '@/components/ui/popover';
-import { SettingsPopoverContent, SettingsTabs, SettingsTabContent, SettingsFooter, SettingsLabel } from '@/components/ui/settings-panel';
-import {
-  ContextMenu,
-  ContextMenuTrigger,
-  ContextMenuContent,
-  ContextMenuItem,
-} from '@/components/ui/context-menu';
+
 import { motion } from 'framer-motion';
 
 type CalendarFieldProps = React.ComponentProps<typeof EditableProperty> & {
@@ -191,21 +185,13 @@ const EventItem: React.FC<EventItemProps> = ({
   // console.log(hiddenFields);
   // Permissions
   const canEdit = useCanEdit(itemCollection?.id);
+  const canEditFieldFn = useCanEditFields(itemCollection?.id);
   const canViewFieldFn = useCanViewFields(itemCollection?.id);
 
   // Détermine la propriété de titre (par convention: type 'title' ou nom 'Titre' ou 'Name')
   const orderedVisibleProps: any[] = collectionProps.filter(
     (prop: any) => visibleIds.includes(prop.id) && !hiddenFields.includes(prop.id) && canViewFieldFn(prop.id)
   );
-  const fieldTabs = [
-    { id: 'infos', label: 'Infos', Icon: Info, accepts: (type: string) => !['relation', 'date', 'date_range', 'rich_text'].includes(type) },
-    { id: 'relations', label: 'Relations', Icon: Link2, accepts: (type: string) => type === 'relation' },
-    { id: 'temps', label: 'Temps', Icon: Clock, accepts: (type: string) => type === 'date' || type === 'date_range' },
-    { id: 'notes', label: 'Notes', Icon: FileText, accepts: (type: string) => type === 'rich_text' },
-  ].map((tab) => ({
-    ...tab,
-    fields: orderedVisibleProps.filter((property) => tab.accepts(property.type)),
-  })).filter((tab) => tab.fields.length > 0);
   const titleProp = orderedVisibleProps.find((prop: any) => prop.id === 'name' || prop.name === 'Nom');
   const bodyProps: any[] = orderedVisibleProps.filter((prop: any) => prop.id !== titleProp?.id);
   const title = titleProp ? getNameValue(item) || 'Sans titre' : 'Événement';
@@ -279,9 +265,14 @@ const EventItem: React.FC<EventItemProps> = ({
     0, Math.max(0, Math.floor((previewHeightPx - 44 - (showBadges ? 18 : 0)) / 24))
   );
 
+  const menuProps = {
+    item, onViewDetail, canEdit, onEdit: onEditField, collections, onRelationChange, onNavigateToCollection,
+    canEditField: canEditFieldFn,
+    quickEditProperties: collectionProps.filter((property: any) => property.showContextMenu && canViewFieldFn(property.id)),
+    extraActions: onReduceDuration ? [{ label: 'Supprimer le segment', onSelect: () => onReduceDuration(item, { type: 'delete', index: multiDayIndex }) }] : [],
+  };
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
+    <ItemContextMenu {...menuProps}>
         <motion.div
           ref={dragRef}
           draggable={!!onEventDrop && !isResizing}
@@ -328,36 +319,12 @@ const EventItem: React.FC<EventItemProps> = ({
                 ))}
               </TooltipProvider>
             )}
-            <Popover>
-              <PopoverTrigger asChild>
-                <button type="button" draggable={false} aria-label={`Champs de ${title}`}
-                  className="flex h-4 w-5 shrink-0 items-center justify-center rounded hover:bg-black/10 focus-visible:outline focus-visible:outline-1 dark:hover:bg-white/15">
-                  <Ellipsis size={14} />
-                </button>
-              </PopoverTrigger>
-              <SettingsPopoverContent align="start" title={title} description={timeLabel}>
-                {fieldTabs.length > 0 && (
-                  <SettingsTabs key={fieldTabs.map((tab) => tab.id).join(':')} defaultValue={fieldTabs[0].id}
-                    label="Champs de l’événement" items={fieldTabs.map(({ id, label, Icon }) => ({ id, label, icon: Icon }))}>
-                    {fieldTabs.map(({ id, fields }) => (
-                      <SettingsTabContent scrollable key={id} value={id} className="max-h-[min(50vh,20rem)] divide-y divide-border">
-                        {fields.map((prop) => (
-                          <div key={prop.id} className="settings-field-row min-w-0">
-                            <SettingsLabel>{prop.name}</SettingsLabel>
-                            {renderField(prop)}
-                          </div>
-                        ))}
-                      </SettingsTabContent>
-                    ))}
-                  </SettingsTabs>
-                )}
-                <SettingsFooter>
-                  <button type="button" onClick={() => onViewDetail(item)} className="text-xs font-medium text-primary hover:underline">
-                    Ouvrir la fiche
-                  </button>
-                </SettingsFooter>
-              </SettingsPopoverContent>
-            </Popover>
+            <ItemContextMenu {...menuProps} triggerMode="button">
+              <button type="button" draggable={false} aria-label={`Menu de ${title}`}
+                className="flex h-4 w-5 shrink-0 items-center justify-center rounded hover:bg-black/10 focus-visible:outline focus-visible:outline-1 dark:hover:bg-white/15">
+                <Ellipsis size={14} />
+              </button>
+            </ItemContextMenu>
             {canEdit && (
               <button
                 type="button"
@@ -432,19 +399,7 @@ const EventItem: React.FC<EventItemProps> = ({
             </div>
           )}
         </motion.div>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onClick={() => onViewDetail(item)}>
-          <span>Détails</span>
-        </ContextMenuItem>
-
-        {canEdit && onReduceDuration && (
-          <ContextMenuItem onClick={() => onReduceDuration(item, { type: 'delete', index: multiDayIndex })}>
-            <span className="text-red-500">Supprimer le segment</span>
-          </ContextMenuItem>
-        )}
-      </ContextMenuContent>
-    </ContextMenu>
+    </ItemContextMenu>
   );
 };
 

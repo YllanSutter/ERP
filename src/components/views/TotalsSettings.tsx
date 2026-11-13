@@ -1,3 +1,5 @@
+import { Eye, EyeOff } from 'lucide-react';
+import { isTotalFieldVisible } from '@/lib/utils/totalVisibility';
 import CustomTotalSettings from './CustomTotalSettings';
 import React from 'react';
 import type { ViewSettingsProps } from '@/lib/views';
@@ -13,9 +15,10 @@ const totalOptionsForProperty = (property: { type: string }) => [
   { value: 'count', label: 'Nombre de lignes' }, { value: 'unique', label: 'Valeurs uniques' },
 ];
 
-export const TotalsSettings = ({ properties, totalFields, position, onChange, items = [], collections = [], showPosition = true, positionLabel = 'Position des totaux' }: {
+export const TotalsSettings = ({ properties, totalFields, position, onChange, items = [], collections = [], hiddenFields = [], fieldVisibility = {}, showPosition = true, positionLabel = 'Position des totaux' }: {
+  hiddenFields?: string[]; fieldVisibility?: Record<string, boolean>;
   items?: any[]; collections?: any[]; properties: ViewSettingsProps['properties']; totalFields: Record<string, string>; position: string; showPosition?: boolean; positionLabel?: string;
-  onChange: (patch: { totalFields?: Record<string, string>; totalsPosition?: string }) => void;
+  onChange: (patch: { totalFields?: Record<string, string>; totalsPosition?: string; totalsFieldVisibility?: Record<string, boolean> }) => void;
 }) => <div className="min-w-0 space-y-2 [--settings-control-height:2rem]">
   {showPosition && <TotalsSelect label={positionLabel} value={position} options={[
     { value: 'none', label: 'Masqués' }, { value: 'top', label: 'En haut' },
@@ -27,7 +30,13 @@ export const TotalsSettings = ({ properties, totalFields, position, onChange, it
       <span className="shrink-0 text-xs text-muted-foreground">{properties.filter((property) => totalFields[property.id]).length} actifs</span>
     </div>
     <div className="divide-y divide-border">
-      {properties.map((property) => <div key={property.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(7rem,9.5rem)_1.75rem] items-center gap-2 px-2 py-1.5">
+      {properties.map((property) => <div key={property.id} className="grid min-w-0 grid-cols-[1.5rem_minmax(0,1fr)_minmax(7rem,9.5rem)_1.75rem] items-center gap-2 px-2 py-1.5">
+        <button type="button" aria-label={`${isTotalFieldVisible(property.id, hiddenFields, fieldVisibility) ? 'Masquer' : 'Afficher'} le total · ${property.name}`}
+          aria-pressed={isTotalFieldVisible(property.id, hiddenFields, fieldVisibility)}
+          title="Visibilité dans les totaux" className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent"
+          onClick={() => onChange({ totalsFieldVisibility: { ...fieldVisibility, [property.id]: !isTotalFieldVisible(property.id, hiddenFields, fieldVisibility) } })}>
+          {isTotalFieldVisible(property.id, hiddenFields, fieldVisibility) ? <Eye size={14} /> : <EyeOff size={14} />}
+        </button>
         <span className="truncate text-xs font-medium" title={property.name}>{property.name}</span>
         <SettingsSelect aria-label={`Total · ${property.name}`} value={totalFields[property.id] || 'none'}
           options={totalFields[property.id] && !totalOptionsForProperty(property).some(({ value }) => value === totalFields[property.id])

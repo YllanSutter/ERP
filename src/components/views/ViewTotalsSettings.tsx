@@ -43,7 +43,7 @@ export default function ViewTotalsSettings({ view, properties, onUpdate, items =
         })}
       </div>
     </section>}
-    <TotalsSettings properties={properties} items={items} collections={collections} totalFields={(view.totalFields || {}) as Record<string, string>}
+    <TotalsSettings hiddenFields={Array.isArray(view.hiddenFields) ? view.hiddenFields : []} fieldVisibility={(view.totalsFieldVisibility || {}) as Record<string, boolean>} properties={properties} items={items} collections={collections} totalFields={(view.totalFields || {}) as Record<string, string>}
       position={String(view.totalsPosition || (view.type === 'kanban' ? 'none' : 'bottom'))}
       showPosition={!groupedTable || scope !== 'groups'}
       positionLabel={view.type === 'table' ? 'Position générale' : 'Position des totaux'}

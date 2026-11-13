@@ -10,7 +10,7 @@ export type CopySelection = Record<CopyCategory, boolean>;
 const defaults: Record<CopyCategory, Record<string, unknown>> = {
   filters: { filters: [] },
   groups: { groups: [], groupBy: null, groupDisplayMode: 'accordion', groupDisplayModes: {}, groupDisplayColumnCount: 3, groupDisplayColumnCounts: {}, groupTabStyleFieldIds: {} },
-  totals: { totalFields: {}, totalsPosition: 'none', totalsScope: null, totalsAlwaysVisible: false, groupTotalsByGroupId: {} },
+  totals: { totalFields: {}, totalsFieldVisibility: {}, totalsPosition: 'none', totalsScope: null, totalsAlwaysVisible: false, groupTotalsByGroupId: {} },
   settings: { hiddenFields: [], fieldOrder: [], fieldGroups: [], fieldGroupsLayout: 'stacked' },
 };
 const typeSettings: Record<string, Record<string, unknown>> = {
@@ -42,7 +42,7 @@ export function copyViewSettings(source: ViewDefinition, target: ViewDefinition,
     const columns = structuredClone(targetColumns);
     const keys = [
       ...(selected.settings ? ['visibleFieldIds', 'sortFieldId', 'sortDirection'] : []),
-      ...(selected.totals ? ['totalFields', 'totalsPosition', 'showTotals'] : []),
+      ...(selected.totals ? ['totalFields', 'totalsPosition', 'showTotals', 'totalsFieldVisibility'] : []),
     ];
     for (const group of new Set([...Object.keys(sourceColumns), ...Object.keys(targetColumns)])) {
       columns[group] ||= {};

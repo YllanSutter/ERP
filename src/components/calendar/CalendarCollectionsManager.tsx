@@ -414,7 +414,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
       </div>
       {/* Affichage de la vue calendrier selon viewMode */}
       {viewMode === 'month' ? (
-        <MonthView
+        <MonthView onEdit={onEdit} onRelationChange={onRelationChange}
           currentDate={currentDate}
           items={activeCollections.flatMap(getFilteredItems)}
           dateField={undefined}

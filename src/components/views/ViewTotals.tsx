@@ -5,7 +5,7 @@ import type { Collection, Item, Property } from '@/lib/types';
 import { useViewGrouping } from './ViewGrouping';
 import { getGroupLabel } from '@/lib/groupingUtils';
 
-interface ViewTotalsProps { collection: Collection; collections: Collection[]; properties: Property[]; items: Item[]; totalFields?: Record<string, string>; groups?: string[]; contextPath?: string; className?: string; }
+interface ViewTotalsProps { collection: Collection; collections: Collection[]; properties: Property[]; items: Item[]; hiddenFields?: string[]; totalFields?: Record<string, string>; groups?: string[]; contextPath?: string; className?: string; }
 
 const getDefaultPreferences = (hasGroups: boolean): TotalsWidgetPreferences => ({
   showTotalsWidget: true,
@@ -33,7 +33,7 @@ const readPreferences = (collectionId: string, hasGroups: boolean): TotalsWidget
 };
 
 /** Reusable compact totals surface for non-table renderers. */
-export const ViewTotals: React.FC<ViewTotalsProps> = ({ collection, collections, properties, items, totalFields = {}, groups = [], contextPath, className }) => {
+export const ViewTotals: React.FC<ViewTotalsProps> = ({ collection, collections, properties, items, hiddenFields = [], totalFields = {}, groups = [], contextPath, className }) => {
   const { calculateTotal, formatTotal } = useViewTotals(properties, collection, collections);
   const { groupedStructure, getItemsForGroup } = useViewGrouping(items, groups, properties, collections);
   const groupedSections = React.useMemo(() => {
@@ -65,5 +65,5 @@ export const ViewTotals: React.FC<ViewTotalsProps> = ({ collection, collections,
     }
   }, [preferencesKey]);
   if (!Object.keys(totalFields).length || !items.length) return null;
-  return <div className={className}><TotalsWidget displayProperties={properties} items={items} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} groupedSections={groupedSections} persistKey={preferencesKey} contextPath={contextPath || groupedStructure?.rootGroups[0]} preferences={preferences} onPreferencesChange={handlePreferencesChange} /></div>;
+  return <div className={className}><TotalsWidget defaultHiddenFields={hiddenFields} onFieldVisibilityChange={(id, visible, fieldIds) => handlePreferencesChange({ ...preferences, fieldVisibility: { ...preferences.fieldVisibility, ...Object.fromEntries((fieldIds || [id]).map((fieldId) => [fieldId, visible])) } })} displayProperties={properties} items={items} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} groupedSections={groupedSections} persistKey={preferencesKey} contextPath={contextPath || groupedStructure?.rootGroups[0]} preferences={preferences} onPreferencesChange={handlePreferencesChange} /></div>;
 };

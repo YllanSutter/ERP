@@ -31,3 +31,12 @@ describe('shared totals surface', () => {
     expect(renderToStaticMarkup(<TotalsSurface {...props} position="top" totalFields={{}} />)).toBe('');
   });
 });
+
+it.each(['top', 'bottom'] as const)('inherits hidden fields and respects explicit total visibility at %s', (position) => {
+  const hidden = renderToStaticMarkup(<TotalsSurface {...props} position={position} defaultHiddenFields={['price']} />);
+  expect(hidden).not.toContain('>Prix<');
+  expect(hidden).toContain('Quantité');
+  const shown = renderToStaticMarkup(<TotalsSurface {...props} position={position} defaultHiddenFields={['price']} fieldVisibility={{ price: true, quantity: false }} />);
+  expect(shown).toContain('Prix');
+  expect(shown).not.toContain('>Quantité<');
+});

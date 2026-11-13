@@ -1,3 +1,4 @@
+import { isTotalFieldVisible } from '@/lib/utils/totalVisibility';
 import TotalsSurface from './TotalsSurface';
 import { resolveTotalsScope } from './totalsScope';
 import TableGroupTotals from './TableGroupTotals';
@@ -125,6 +126,8 @@ const TableView: React.FC<TableViewProps> = ({
   groupDisplayColumnCounts = {},
   groupTabStyleFieldIds = {},
   groupTotalsByGroupId = {},
+  totalsFieldVisibility = {},
+  onSetTotalsFieldVisibility,
   totalsAlwaysVisible = false,
   totalsScope,
   totalsPosition,
@@ -427,7 +430,7 @@ const TableView: React.FC<TableViewProps> = ({
       return normalizedNext;
     });
   }, [groups.length]);
-  const hiddenTotalFieldIds = totalsWidgetPreferences.hiddenFieldIds || [];
+  const hiddenTotalFieldIds = orderedProperties.filter((property) => !isTotalFieldVisible(property.id, [...hiddenFields, ...(totalsWidgetPreferences.hiddenFieldIds || [])], totalsFieldVisibility)).map((property) => property.id);
   const [activeGroupSelectByDepth, setActiveGroupSelectByDepth] = useState<Record<number, string>>({});
   const lastSavedTotalsPreferencesRef = useRef<string>(JSON.stringify(incomingTotalsPreferences));
   const lastHydratedTotalsContextRef = useRef<string>('');
@@ -1171,7 +1174,7 @@ const TableView: React.FC<TableViewProps> = ({
         }
 
         return (
-          <TotalsSurface position="top"
+          <TotalsSurface position="top" defaultHiddenFields={hiddenFields} fieldVisibility={totalsFieldVisibility} onFieldVisibilityChange={onSetTotalsFieldVisibility}
             displayProperties={orderedProperties.filter((property) => canViewFieldFn(property.id))}
             items={items}
             totalFields={totalFields}
@@ -1473,7 +1476,7 @@ const TableView: React.FC<TableViewProps> = ({
       </div>
       {showGeneralTotals && (!totalsPosition || totalsPosition === 'bottom' || totalsPosition === 'both') &&
         <section aria-label="Total général" data-view-total-position="bottom" className="rounded-lg border border-border">
-          <TotalsSurface position="bottom" displayProperties={orderedProperties.filter((property) => canViewFieldFn(property.id) && !hiddenTotalFieldIds.includes(property.id))}
+          <TotalsSurface position="bottom" defaultHiddenFields={hiddenFields} fieldVisibility={totalsFieldVisibility} displayProperties={orderedProperties.filter((property) => canViewFieldFn(property.id) && !hiddenTotalFieldIds.includes(property.id))}
             items={items} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} />
         </section>}
 

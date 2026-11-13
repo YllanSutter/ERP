@@ -1,7 +1,8 @@
 import { getItemColorValue } from '@/lib/utils/colorUtils';
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/auth/AuthProvider';
+import { useCanEdit, useCanEditFields, useCanViewFields } from '@/lib/hooks/useCanEdit';
+import { Ellipsis } from 'lucide-react';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { getCalendarEventColors, MONTH_NAMES } from '@/lib/calendarUtils';
 
@@ -16,6 +17,33 @@ interface MonthViewProps {
   getItemsForDate: (date: Date) => any[];
   onViewDetail: (item: any) => void;
   onDelete: (id: string) => void;
+  onEdit?: (item: any) => void;
+  onRelationChange?: (property: any, item: any, value: any) => void;
+}
+
+function MonthEvent({ item, segments, source, collections, getNameValue, onViewDetail, onDelete, onEdit, onRelationChange }: {
+  item: any; segments: any[]; source: any; collections: any[]; getNameValue: (item: any) => string;
+  onViewDetail: (item: any) => void; onDelete: (id: string) => void; onEdit?: (item: any) => void;
+  onRelationChange?: (property: any, item: any, value: any) => void;
+}) {
+  const canEdit = useCanEdit(source?.id);
+  const canEditField = useCanEditFields(source?.id);
+  const canViewField = useCanViewFields(source?.id);
+  const colors = getCalendarEventColors(item.id, item.__collectionId || '', source?.color, getItemColorValue(item, source?.properties));
+  const menuProps = { item, onViewDetail, onDelete, canEdit, onEdit, collections, onRelationChange, canEditField,
+    quickEditProperties: (source?.properties || []).filter((property: any) => property.showContextMenu && canViewField(property.id)) };
+  return <ItemContextMenu {...menuProps}>
+    <div className="flex min-w-0 items-center rounded border-l-2 text-[10px] text-foreground [--calendar-event-surface:white] dark:[--calendar-event-surface:#171717]"
+      style={{ backgroundColor: colors.bg, borderLeftColor: colors.border }}>
+      <button type="button" className="min-w-0 flex-1 truncate px-1 text-left font-medium hover:underline"
+        title={[getNameValue(item), ...segments.map((segment) => [segment.start || segment.__eventStart, segment.end || segment.__eventEnd]
+          .map((value) => new Date(value).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })).join(' – '))].join('\n')}
+        onClick={(event) => { event.stopPropagation(); (item.onViewDetail || onViewDetail)(item); }}>{getNameValue(item)}</button>
+      <ItemContextMenu {...menuProps} triggerMode="button">
+        <button type="button" aria-label={`Menu de ${getNameValue(item)}`} className="flex size-5 shrink-0 items-center justify-center rounded hover:bg-accent"><Ellipsis size={12} /></button>
+      </ItemContextMenu>
+    </div>
+  </ItemContextMenu>;
 }
 
 const MonthView: React.FC<MonthViewProps> = ({
@@ -29,29 +57,9 @@ const MonthView: React.FC<MonthViewProps> = ({
   getItemsForDate,
   onViewDetail,
   onDelete,
+  onEdit,
+  onRelationChange,
 }) => {
-  const { isAdmin, isEditor, permissions } = useAuth();
-  const canEditCollection = (collectionId?: string | null) => {
-    if (isAdmin || isEditor) return true;
-    const perms = permissions || [];
-    const globalPerm = perms.find(
-      (p: any) =>
-        (p.collection_id || null) === null &&
-        (p.item_id || null) === null &&
-        (p.field_id || null) === null
-    );
-    if (globalPerm && globalPerm.can_write) return true;
-    if (collectionId) {
-      const collectionPerm = perms.find(
-        (p: any) =>
-          (p.collection_id || null) === collectionId &&
-          (p.item_id || null) === null &&
-          (p.field_id || null) === null
-      );
-      if (collectionPerm && collectionPerm.can_write) return true;
-    }
-    return false;
-  };
   const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -125,34 +133,8 @@ const MonthView: React.FC<MonthViewProps> = ({
                   {groupedList.length > 0 && (
                     <div className="flex max-h-32 min-w-0 flex-col gap-1 overflow-y-auto">
                       {groupedList.map(({ item, segments }, i) => (
-                        <div key={item.id + '-' + i} className="relative group">
-                          <ItemContextMenu
-                            item={item}
-                            onViewDetail={onViewDetail}
-                            onDelete={onDelete}
-                            canEdit={canEditCollection(item.__collectionId)}
-                          >
-                            <button
-                              className="block w-full truncate rounded border-l-2 px-1 text-left text-[10px] font-medium text-foreground hover:underline [--calendar-event-surface:white] dark:[--calendar-event-surface:#171717]"
-                              style={(() => {
-                                const source = collections.find((entry) => entry.id === item.__collectionId);
-                                const colors = getCalendarEventColors(item.id, item.__collectionId || '', source?.color, getItemColorValue(item, source?.properties));
-                                return { backgroundColor: colors.bg, borderLeftColor: colors.border };
-                              })()}
-                              title={[getNameValue(item), ...segments.map((segment) =>
-                                [segment.start || segment.__eventStart, segment.end || segment.__eventEnd]
-                                  .map((value) => new Date(value).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }))
-                                  .join(' – ')
-                              )].join('\n')}
-                              onClick={e => {
-                                e.stopPropagation();
-                                (item.onViewDetail || onViewDetail)(item);
-                              }}
-                            >
-                              {getNameValue(item)}
-                            </button>
-                          </ItemContextMenu>
-                        </div>
+                        <MonthEvent key={item.id + '-' + i} item={item} segments={segments} collections={collections} source={collections.find((entry) => entry.id === item.__collectionId) || collection}
+                          getNameValue={getNameValue} onViewDetail={onViewDetail} onDelete={onDelete} onEdit={onEdit} onRelationChange={onRelationChange} />
                       ))}
                     </div>
                   )}

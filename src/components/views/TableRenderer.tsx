@@ -46,6 +46,8 @@ const TableRenderer: React.FC<TableRendererProps> = ({
       groupDisplayColumnCount={view.groupDisplayColumnCount as TableViewProps['groupDisplayColumnCount']}
       groupDisplayColumnCounts={view.groupDisplayColumnCounts as TableViewProps['groupDisplayColumnCounts']}
       groupTotalsByGroupId={view.groupTotalsByGroupId as TableViewProps['groupTotalsByGroupId']}
+      totalsFieldVisibility={(view.totalsFieldVisibility || {}) as Record<string, boolean>}
+      onSetTotalsFieldVisibility={(id, visible, fieldIds) => onUpdateView({ totalsFieldVisibility: { ...(view.totalsFieldVisibility || {}) as Record<string, boolean>, ...Object.fromEntries((fieldIds || [id]).map((fieldId) => [fieldId, visible])) } })}
       totalsAlwaysVisible={Boolean(view.totalsAlwaysVisible)}
       totalsScope={view.totalsScope as TableViewProps['totalsScope']}
       totalsPosition={view.totalsPosition as string | undefined}

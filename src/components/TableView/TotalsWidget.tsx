@@ -1,3 +1,4 @@
+import { isTotalFieldVisible } from '@/lib/utils/totalVisibility';
 import React from 'react';
 import { SettingsBody, SettingsSectionTitle, SettingsHint } from '@/components/ui/settings-panel';
 import {
@@ -5,6 +6,7 @@ import {
   PieChart, Pie, Tooltip as RechartsTooltip,
 } from 'recharts';
 import {
+  Eye, EyeOff,
   Sigma,
   Hash,
   BarChart2,
@@ -74,6 +76,9 @@ const DEFAULT_META: TotalMeta = {
 // Props (rétrocompatibles)
 // ─────────────────────────────────────────────────────────────────────────────
 export interface TotalsWidgetProps {
+  defaultHiddenFields?: string[];
+  fieldVisibility?: Record<string, boolean>;
+  onFieldVisibilityChange?: (id: string, visible: boolean, fieldIds?: string[]) => void;
   displayProperties: Property[];
   items: any[];
   totalFields: Record<string, string>;
@@ -295,6 +300,7 @@ type ModuleKey = 'stats' | 'bar' | 'donut' | 'table';
 interface DepthLevel { depth: number; propertyName: string }
 
 export interface TotalsWidgetPreferences {
+  fieldVisibility?: Record<string, boolean>;
   showTotalsWidget?: boolean;
   widgetExpanded?: boolean;
   widgetModules?: Record<ModuleKey, boolean>;
@@ -392,6 +398,9 @@ const normalizeTotalsWidgetPreferences = (
 // Composant principal
 // ─────────────────────────────────────────────────────────────────────────────
 const TotalsWidget: React.FC<TotalsWidgetProps> = ({
+  defaultHiddenFields = [],
+  fieldVisibility,
+  onFieldVisibilityChange,
   displayProperties,
   items,
   totalFields,
@@ -450,8 +459,8 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     });
   }, [availableTotals, totalFieldOrderIds]);
   const visibleTotals = React.useMemo(
-    () => orderedTotals.filter((prop: any) => !(normalizedPreferences.hiddenFieldIds || []).includes(prop.id)),
-    [orderedTotals, normalizedPreferences.hiddenFieldIds]
+    () => orderedTotals.filter((prop: any) => isTotalFieldVisible(prop.id, [...defaultHiddenFields, ...(normalizedPreferences.hiddenFieldIds || [])], fieldVisibility || normalizedPreferences.fieldVisibility)),
+    [orderedTotals, normalizedPreferences.hiddenFieldIds, normalizedPreferences.fieldVisibility, defaultHiddenFields, fieldVisibility]
   );
 
   // ── Relations parent/enfant dans la table ─────────────────────────────────
@@ -649,6 +658,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
       widgetExpanded: expanded,
       widgetModules: modules,
       hiddenFieldIds: hiddenTotalFieldIds,
+      fieldVisibility: normalizedPreferences.fieldVisibility,
       fieldOrderIds: totalFieldOrderIds,
     };
     const serialized = JSON.stringify(snapshot);
@@ -665,6 +675,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   }, [
     onPreferencesChange,
     normalizedPreferences.showTotalsWidget,
+    normalizedPreferences.fieldVisibility,
     expanded,
     modules,
     hiddenTotalFieldIds,
@@ -954,7 +965,9 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     setModules((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const isFieldVisible = (id: string) => isTotalFieldVisible(id, [...defaultHiddenFields, ...hiddenTotalFieldIds], fieldVisibility || normalizedPreferences.fieldVisibility);
   const toggleHiddenField = (fieldId: string) => {
+    if (onFieldVisibilityChange) { onFieldVisibilityChange(fieldId, !isFieldVisible(fieldId)); return; }
     setHiddenTotalFieldIds((prev) => {
       if (prev.includes(fieldId)) return prev.filter((id) => id !== fieldId);
       return [...prev, fieldId];
@@ -962,6 +975,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
   };
 
   const resetHiddenFields = () => {
+    if (onFieldVisibilityChange && orderedTotals.length) onFieldVisibilityChange(orderedTotals[0].id, true, orderedTotals.map((property) => property.id));
     setHiddenTotalFieldIds([]);
   };
 
@@ -1064,14 +1078,14 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
               type="button"
               onClick={resetHiddenFields}
               className="px-2 py-1 rounded-md border border-slate-300 text-[11px] text-slate-600 hover:border-brand-300 hover:text-brand-700 dark:border-white/[0.08] dark:text-neutral-400 dark:hover:border-brand-500/30 dark:hover:text-brand-300 transition-colors"
-              disabled={hiddenTotalFieldIds.length === 0}
+              disabled={orderedTotals.every((property) => isFieldVisible(property.id))}
             >
               Tout afficher
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
             {orderedTotals.map((prop: any, index: number) => {
-              const isHidden = hiddenTotalFieldIds.includes(prop.id);
+              const isHidden = !isFieldVisible(prop.id);
               return (
                 <div
                   key={prop.id}
@@ -1111,6 +1125,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
                         : 'bg-white border-brand-200 text-slate-700 dark:bg-white/[0.04] dark:border-brand-500/30 dark:text-white'
                     )}
                   >
+                    {isHidden ? <EyeOff size={12} /> : <Eye size={12} />}
                     <span className="font-semibold">{prop.name}</span>
                     <span className="text-[10px] uppercase tracking-wider opacity-60">
                       {isHidden ? 'Masqué' : 'Visible'}

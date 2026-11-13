@@ -258,7 +258,7 @@ const CardsView: React.FC<CardsViewProps> = ({
     />
   );
   const wrappedContent = <ViewShell>
-    <ViewTotals collection={collection} collections={collections} properties={orderedProperties} items={items} totalFields={totalFields} groups={groups} contextPath={activeGroupPath} className="px-3 pt-3" />
+    <ViewTotals hiddenFields={hiddenFields} collection={collection} collections={collections} properties={orderedProperties} items={items} totalFields={totalFields} groups={groups} contextPath={activeGroupPath} className="px-3 pt-3" />
     {canEdit && <BulkSelectionToolbar count={selectedItemIds.size} properties={bulkEditableProperties} fieldId={bulkFieldId} value={bulkValue} collection={collection} collections={collections} onFieldChange={(value) => { setBulkFieldId(value); setBulkValue(getDefaultBulkValue(bulkEditableProperties.find((property) => property.id === value))); }} onValueChange={setBulkValue} onApply={handleBulkApply} onClear={() => setSelectedItemIds(new Set())} onDelete={handleBulkDelete} onConfirmDelete={confirmBulkDelete} deleteDialogOpen={bulkDeleteDialogOpen} onDeleteDialogOpenChange={setBulkDeleteDialogOpen} onBulkImportItad={onBulkImportItad ? () => onBulkImportItad(Array.from(selectedItemIds)) : undefined} onSelectAll={(checked) => setSelectedItemIds(checked ? new Set(items.map((item) => item.id)) : new Set())} allSelected={items.length > 0 && items.every((item) => selectedItemIds.has(item.id))} selectionTotal={items.length} />}
     {content}
   </ViewShell>;

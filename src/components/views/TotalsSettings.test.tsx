@@ -59,3 +59,14 @@ it('starts the always-visible checkbox unchecked and saves the explicit choice',
   checkbox.props.onChange({ target: { checked: true } });
   expect(onUpdate).toHaveBeenCalledWith({ totalsAlwaysVisible: true, totalsScope: 'both' });
 });
+
+it('uses an eye to override a hidden field without changing its calculation', () => {
+  const onChange = vi.fn();
+  const nodes = descendants(TotalsSettings({ properties, totalFields: { price: 'sum' }, position: 'both', hiddenFields: ['price'], fieldVisibility: { status: false }, onChange }));
+  const eye = nodes.find((node) => node.props['aria-label'] === 'Afficher le total · Prix')!;
+  expect(eye.props['aria-pressed']).toBe(false);
+  eye.props.onClick();
+  expect(onChange).toHaveBeenCalledWith({ totalsFieldVisibility: { status: false, price: true } });
+  const shown = descendants(TotalsSettings({ properties, totalFields: { price: 'sum' }, position: 'both', hiddenFields: ['price'], fieldVisibility: { price: true }, onChange }));
+  expect(shown.find((node) => node.props['aria-label'] === 'Masquer le total · Prix')!.props['aria-pressed']).toBe(true);
+});

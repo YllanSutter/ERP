@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/context-menu';
 
 export type KanbanColumnSettings = {
+  totalsFieldVisibility?: Record<string, boolean>;
   totalFields?: Record<string, string>;
   totalsPosition?: string;
   showTotals?: boolean;
@@ -51,6 +52,7 @@ interface KanbanViewProps {
   onViewDetail: (item: any) => void;
   groupBy?: string | null;
   totalsAlwaysVisible?: boolean;
+  totalsFieldVisibility?: Record<string, boolean>;
   totalFields?: Record<string, string>;
   totalsPosition?: string;
   hiddenFields?: string[];
@@ -73,6 +75,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   onDelete,
   onViewDetail,
   groupBy,
+  totalsFieldVisibility = {},
   totalFields = {},
   totalsPosition = 'none',
   totalsAlwaysVisible = false,
@@ -261,11 +264,14 @@ const KanbanView: React.FC<KanbanViewProps> = ({
 
           const settings = getColumnSettings(column);
           const position = settings.totalsPosition || totalsPosition;
+          const columnVisibility = { ...totalsFieldVisibility, ...settings.totalsFieldVisibility };
+          const columnHiddenFields = allDisplayableProps.filter((property: any) => !selectedFieldIds.includes(property.id)).map((property: any) => property.id);
           const columnTotalFields = settings.totalFields ?? totalFields;
           const showColumnTotals = !groupByProp || totalsAlwaysVisible || settings.totalFields != null || settings.totalsPosition != null || settings.showTotals === true;
           const renderTotals = (placement: 'top' | 'bottom') => showColumnTotals && settings.showTotals !== false && sortedColumnItems.length > 0 && allDisplayableProps.some((prop: any) => columnTotalFields[prop.id]) && (position === placement || position === 'both') && (
             <div className="my-2 rounded-lg border border-border" data-kanban-total-position={placement}>
-              <TotalsSurface position={placement} compact persistKey={`erp:kanban-totals:${collection.id}:${settingsGroupKey}:${column}`} displayProperties={allDisplayableProps} items={sortedColumnItems}
+              <TotalsSurface defaultHiddenFields={columnHiddenFields} fieldVisibility={columnVisibility}
+                onFieldVisibilityChange={(id, visible, fieldIds) => updateColumnSettings(column, { totalsFieldVisibility: { ...settings.totalsFieldVisibility, ...Object.fromEntries((fieldIds || [id]).map((fieldId) => [fieldId, visible])) } })} position={placement} compact persistKey={`erp:kanban-totals:${collection.id}:${settingsGroupKey}:${column}`} displayProperties={allDisplayableProps} items={sortedColumnItems}
                 totalFields={columnTotalFields} calculateTotal={calculateTotal} formatTotal={formatTotal}
                 />
             </div>
@@ -290,9 +296,9 @@ const KanbanView: React.FC<KanbanViewProps> = ({
               <Popover>
                 <PopoverTrigger asChild><Button variant="ghost" size="sm" className="float-right" aria-label={`Totaux de ${column}`}><Icons.Sigma size={14} /></Button></PopoverTrigger>
                 <SettingsPopoverContent title={`Totaux · ${column}`} className="max-h-[80vh] overflow-y-auto">
-                  <TotalsSettings items={items} collections={collections} properties={allDisplayableProps} totalFields={settings.totalFields ?? totalFields} position={position}
+                  <TotalsSettings hiddenFields={columnHiddenFields} fieldVisibility={columnVisibility} items={items} collections={collections} properties={allDisplayableProps} totalFields={settings.totalFields ?? totalFields} position={position}
                     onChange={(patch) => updateColumnSettings(column, patch)} />
-                  <Button variant="ghost" size="sm" onClick={() => updateColumnSettings(column, { totalFields: undefined, totalsPosition: undefined })}>Reprendre les réglages de la vue</Button>
+                  <Button variant="ghost" size="sm" onClick={() => updateColumnSettings(column, { totalFields: undefined, totalsPosition: undefined, totalsFieldVisibility: undefined })}>Reprendre les réglages de la vue</Button>
                 </SettingsPopoverContent>
               </Popover>
               <h3 className="font-semibold text-neutral-700 dark:text-white flex items-center justify-between">
