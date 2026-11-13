@@ -1,3 +1,4 @@
+import { resolveTotalsScope } from './totalsScope';
 import TableGroupTotals from './TableGroupTotals';
 import { orderSteamExchanges, steamTotalItems } from '@/lib/plugins/steam/exchanges';
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
@@ -124,6 +125,7 @@ const TableView: React.FC<TableViewProps> = ({
   groupDisplayColumnCounts = {},
   groupTabStyleFieldIds = {},
   groupTotalsByGroupId = {},
+  totalsScope,
   totalsPosition,
   totalFields = {},
   onSetTotalField,
@@ -1115,6 +1117,11 @@ const TableView: React.FC<TableViewProps> = ({
     console.log('confirmBulkDelete - all deletes called');
   }, [selectedItemIds, onDelete, onBulkDelete, collection?.id]);
 
+  const resolvedTotalsScope = resolveTotalsScope(totalsScope, groups.length > 0, totalsPosition);
+  const showGeneralTotals = resolvedTotalsScope !== 'groups';
+  const showGroupTotals = resolvedTotalsScope !== 'view';
+  const effectiveGroupTotals = showGroupTotals ? groupTotalsByGroupId : Object.fromEntries(groups.map((id) => [id, { enabled: false }]));
+
   const content = (
     <>
       {/* ─── Section totaux (globaux + par groupe) ────────────────────────── */}
@@ -1178,7 +1185,7 @@ const TableView: React.FC<TableViewProps> = ({
         );
       })()}
 
-      {(totalsPosition === 'top' || totalsPosition === 'both') && <TotalsBar displayProperties={visibleTotalProperties} items={items} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} />}
+      {showGeneralTotals && (totalsPosition === 'top' || totalsPosition === 'both') && <section aria-label="Total général" className="rounded-lg border border-border"><h3 className="px-4 pt-3 text-xs font-semibold text-muted-foreground">Total général</h3><TotalsBar displayProperties={visibleTotalProperties} items={items} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} /></section>}
       <div className="overflow-hidden rounded-lg border border-black/10 dark:border-white/5">
         <div className="flex  flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20 sticky top-0 z-20">
           <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
@@ -1250,7 +1257,7 @@ const TableView: React.FC<TableViewProps> = ({
               groupDisplayColumnCounts={groupDisplayColumnCounts}
               groupTabStyleFieldIds={groupTabStyleFieldIds}
               defaultGroupDisplayColumnCount={normalizeGroupColumnCount(groupDisplayColumnCount)}
-              groupTotalsByGroupId={groupTotalsByGroupId}
+              groupTotalsByGroupId={effectiveGroupTotals}
               groupedStructure={groupedStructure!}
               collection={collection}
               collections={collections}
@@ -1363,7 +1370,7 @@ const TableView: React.FC<TableViewProps> = ({
               });
             };
 
-            const showBottomTotalsByDefault = groups.length === 0 && (!totalsPosition || totalsPosition === 'bottom' || totalsPosition === 'both');
+            const showBottomTotalsByDefault = showGeneralTotals && groups.length === 0 && (!totalsPosition || totalsPosition === 'bottom' || totalsPosition === 'both');
 
             return (
             <div className="flex flex-col max-h-[calc(100vh-280px)]">
@@ -1490,7 +1497,7 @@ const TableView: React.FC<TableViewProps> = ({
               groupTabStyleFieldIds={groupTabStyleFieldIds}
               collectionId={collection.id}
               renderGroupTotals={(groupItems, groupId, position) => (
-                <TableGroupTotals config={groupTotalsByGroupId[groupId]} position={position}
+                <TableGroupTotals config={effectiveGroupTotals[groupId]} position={position}
                   displayProperties={orderedProperties.filter((prop) => !hiddenTotalFieldIds.includes(prop.id))}
                   items={groupItems} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} />
               )}
@@ -1505,7 +1512,7 @@ const TableView: React.FC<TableViewProps> = ({
 
         })()}
       </div>
-      {groups.length > 0 && (totalsPosition === 'bottom' || totalsPosition === 'both') && <TotalsBar displayProperties={visibleTotalProperties} items={items} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} />}
+      {showGeneralTotals && groups.length > 0 && (!totalsPosition || totalsPosition === 'bottom' || totalsPosition === 'both') && <section aria-label="Total général" className="rounded-lg border border-border"><h3 className="px-4 pt-3 text-xs font-semibold text-muted-foreground">Total général</h3><TotalsBar displayProperties={visibleTotalProperties} items={items} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} /></section>}
 
     </>
   );

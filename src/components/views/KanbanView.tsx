@@ -284,7 +284,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
             >
               <Popover>
                 <PopoverTrigger asChild><Button variant="ghost" size="sm" className="float-right" aria-label={`Totaux de ${column}`}><Icons.Sigma size={14} /></Button></PopoverTrigger>
-                <SettingsPopoverContent title={`Totaux · ${column}`}>
+                <SettingsPopoverContent title={`Totaux · ${column}`} className="max-h-[80vh] overflow-y-auto">
                   <TotalsSettings properties={allDisplayableProps} totalFields={settings.totalFields ?? totalFields} position={position}
                     onChange={(patch) => updateColumnSettings(column, patch)} />
                   <Button variant="ghost" size="sm" onClick={() => updateColumnSettings(column, { totalFields: undefined, totalsPosition: undefined })}>Reprendre les réglages de la vue</Button>

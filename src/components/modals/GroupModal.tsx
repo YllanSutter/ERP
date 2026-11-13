@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import ModalWrapper, { FormSelect, FormCheckbox } from '@/components/ui/ModalWrapper';
+import ModalWrapper, { FormSelect } from '@/components/ui/ModalWrapper';
 import {
   type TableGroupDisplayMode, type TableGroupColumnCount,
   normalizeGroupMode, normalizeColumnCount,
@@ -67,9 +67,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
       ? currentGroups.map((propertyId) => ({ uid: makeUid(), propertyId }))
       : [{ uid: makeUid(), propertyId: '' }]
   );
-  const [groupTotalsByGroupId, setGroupTotalsByGroupId] = useState<Record<string, GroupTotalConfig>>(
-    initialGroupTotalsByGroupId || {}
-  );
+  const groupTotalsByGroupId = initialGroupTotalsByGroupId || {};
   const [groupDisplayModes, setGroupDisplayModes] = useState<Record<string, TableGroupDisplayMode>>(
     initialGroupDisplayModes || {}
   );
@@ -105,17 +103,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
 
   const addRow = () => {
     setRows((prev) => [...prev, { uid: makeUid(), propertyId: '' }]);
-  };
-
-  const updateGroupTotalConfig = (groupId: string, patch: Partial<GroupTotalConfig>) => {
-    setGroupTotalsByGroupId((prev) => ({
-      ...prev,
-      [groupId]: {
-        enabled: prev[groupId]?.enabled ?? true,
-        position: prev[groupId]?.position === 'top' ? 'top' : prev[groupId]?.position === 'both' ? 'both' : 'bottom',
-        ...patch,
-      },
-    }));
   };
 
   const getGroupMode = (groupId: string, idx: number): TableGroupDisplayMode => {
@@ -174,7 +161,7 @@ const GroupModal: React.FC<GroupModalProps> = ({
         <>
           <h3 className="text-xl font-bold mb-2">Groupage</h3>
           <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-4">
-            Configure les niveaux de groupage et les totaux par niveau.
+            Configure les niveaux de groupage. Les sous-totaux se règlent dans l’onglet Totaux.
           </p>
         </>
       }
@@ -185,7 +172,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
       <div className="space-y-3 mb-5">
         {rows.map((row, idx) => {
           const groupId = row.propertyId;
-          const cfg = (groupId && groupTotalsByGroupId[groupId]) || { enabled: true, position: 'bottom' };
           const mode = groupId ? getGroupMode(groupId, idx) : 'accordion';
           const columnCount = groupId ? getGroupColumnCount(groupId) : 3;
           const groupProp = groupableProperties.find((p: any) => p.id === groupId);
@@ -257,26 +243,6 @@ const GroupModal: React.FC<GroupModalProps> = ({
                   options={GROUP_COLUMN_COUNT_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
                 />
 
-                <FormCheckbox
-                  label="Afficher le total"
-                  checked={cfg.enabled !== false}
-                  disabled={!groupId}
-                  onChange={(checked) => { if (groupId) updateGroupTotalConfig(groupId, { enabled: checked }); }}
-                />
-
-                <FormSelect
-                  value={cfg.position === 'top' ? 'top' : cfg.position === 'both' ? 'both' : 'bottom'}
-                  onChange={(v) => {
-                    if (!groupId) return;
-                    updateGroupTotalConfig(groupId, { position: v === 'top' ? 'top' : v === 'both' ? 'both' : 'bottom' });
-                  }}
-                  disabled={!groupId || cfg.enabled === false}
-                  options={[
-                    { value: 'bottom', label: 'Total en bas' },
-                    { value: 'top',    label: 'Total en haut' },
-                    { value: 'both',   label: 'Total en haut et en bas' },
-                  ]}
-                />
               </div>
 
               <p className="mt-2 text-[11px] text-neutral-500 dark:text-neutral-400">

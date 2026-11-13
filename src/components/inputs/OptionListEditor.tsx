@@ -106,7 +106,7 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
                     <div className="absolute z-[150] mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
                       <ColorPicker
                         value={opt.color || defaultColor}
-                        onChange={(val) => { updateOption(opt._idx, { color: val }); setOpenColorIndex(null); }}
+                        onChange={(val) => { updateOption(opt._idx, { color: val }); }}
                       />
                     </div>
                   )}
@@ -169,7 +169,7 @@ export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onC
             />
             {showColorPopover && (
               <div className="absolute z-[150] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
-                <ColorPicker value={newOptionColor} onChange={(val) => { setNewOptionColor(val); setShowColorPopover(false); }} />
+                <ColorPicker value={newOptionColor} onChange={(val) => { setNewOptionColor(val); }} />
               </div>
             )}
           </div>

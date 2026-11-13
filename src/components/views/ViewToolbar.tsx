@@ -1,3 +1,4 @@
+import ViewTotalsSettings from './ViewTotalsSettings';
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { FieldGroup, FieldGroupsLayout } from '@/lib/types';
@@ -600,6 +601,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                       items={[
                         { id: 'filters', label: 'Filtres', icon: Filter },
                         { id: 'groups', label: 'Groupage', icon: Layers },
+                        ...(['table', 'kanban'].includes(currentViewConfig.type) ? [{ id: 'totals', label: 'Totaux', icon: Icons.Sigma }] : []),
                         { id: 'settings', label: 'Paramètres', icon: Settings },
                       ]}>
                       <SettingsTabContent value="filters" scrollable>
@@ -706,6 +708,9 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                       <SettingsTabContent value="groups" scrollable>
                         {groupEditor}
                       </SettingsTabContent>
+                      {['table', 'kanban'].includes(currentViewConfig.type) && <SettingsTabContent value="totals" scrollable>
+                        <ViewTotalsSettings view={currentViewConfig} properties={orderedProperties.filter((property: any) => canViewFieldFn(property.id))} onUpdate={onUpdateViewConfig} />
+                      </SettingsTabContent>}
                       <SettingsTabContent value="settings" scrollable>
                   <ViewSettingsPanel
                     view={currentViewConfig}

@@ -1,4 +1,3 @@
-import { TotalsSettings } from './TotalsSettings';
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Settings2, Trash2 } from 'lucide-react';
 import type { ViewSettingsProps } from '@/lib/views';
@@ -27,7 +26,7 @@ const SettingsSelect: React.FC<{
 );
 
 
-export const TableViewSettings: React.FC<ViewSettingsProps> = ({ view, properties, onUpdate }) => (
+export const TableViewSettings: React.FC<ViewSettingsProps> = ({ view, onUpdate }) => (
   <div className="grid gap-2 sm:grid-cols-2">
     <SettingsSelect
       label="Affichage des groupes"
@@ -40,7 +39,6 @@ export const TableViewSettings: React.FC<ViewSettingsProps> = ({ view, propertie
       ]}
       onChange={(value) => onUpdate({ groupDisplayMode: value })}
     />
-    <TotalsSettings properties={properties} totalFields={(view.totalFields || {}) as Record<string, string>} position={String(view.totalsPosition || 'bottom')} onChange={onUpdate} />
   </div>
 );
 
@@ -122,7 +120,6 @@ export const KanbanViewSettings: React.FC<ViewSettingsProps> = ({ view, properti
       ]}
       onChange={(value) => onUpdate({ kanbanSortDirection: value })}
     />
-    <TotalsSettings properties={properties} totalFields={(view.totalFields || {}) as Record<string, string>} position={String(view.totalsPosition || 'none')} onChange={onUpdate} />
   </div>
 );
 
