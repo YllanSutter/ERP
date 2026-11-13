@@ -32,10 +32,12 @@ describe.each(['accordion', 'tabs', 'columns', 'select'] as const)('group totals
     expect(html).not.toContain('data-group-total-position="top"');
     expect(html.indexOf('ROWS')).toBeLessThan(html.indexOf('data-group-total-position="bottom"'));
     expect(html).toContain('TOTAL=35');
+    expect(html).not.toContain('title="Cartes"');
   });
   it('places top totals before the rows', () => {
     const html = render(mode, 'top');
     expect(html).not.toContain('data-group-total-position="bottom"');
+    expect(html).toContain('title="Cartes"');
     expect(html.indexOf('data-group-total-position="top"')).toBeLessThan(html.indexOf('ROWS'));
   });
   it('renders both positions and respects disabled totals', () => {

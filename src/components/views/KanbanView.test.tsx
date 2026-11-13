@@ -28,7 +28,7 @@ const item = { id: '1', name: 'Armagnac', status: 'À acheter', price: 35, tags:
 describe('Kanban card presentation', () => {
   it('keys the outer menu wrapper by item id for every card in a column', () => {
     vi.spyOn(ReactModule, 'useCallback').mockImplementation((callback) => callback);
-    vi.mocked(ReactModule.useState).mockReturnValueOnce([null, vi.fn()]);
+    vi.mocked(ReactModule.useState).mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([null, vi.fn()]);
     vi.mocked(ReactModule.useMemo)
       .mockImplementationOnce((factory) => factory())
       .mockImplementationOnce((factory) => factory());
@@ -72,6 +72,7 @@ describe('Kanban totals', () => {
     const html = render(position, false);
     expect(html).toContain('Toutes les données');
     expect(html).toContain('50 €');
+    expect(html.includes('title="Cartes"')).toBe(position !== 'bottom');
     expect(html.includes('data-kanban-total-position="top"')).toBe(position !== 'bottom');
     expect(html.includes('data-kanban-total-position="bottom"')).toBe(position !== 'top');
   });
@@ -92,7 +93,7 @@ describe('Kanban totals', () => {
 describe('Kanban column resets and visibility', () => {
   it('resets fields to view defaults and preserves totals, sorting and other columns', () => {
     vi.spyOn(ReactModule, 'useCallback').mockImplementation((callback) => callback);
-    vi.mocked(ReactModule.useState).mockReturnValueOnce([null, vi.fn()]);
+    vi.mocked(ReactModule.useState).mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([null, vi.fn()]);
     vi.mocked(ReactModule.useMemo).mockImplementationOnce((factory) => factory()).mockImplementationOnce((factory) => factory());
     const onUpdateViewConfig = vi.fn();
     const settings = { visibleFieldIds: ['price'], totalFields: { price: 'sum' }, totalsPosition: 'both', sortFieldId: 'price' };
@@ -126,4 +127,36 @@ describe('Kanban column resets and visibility', () => {
     expect(shownHtml).toContain('data-kanban-total-position="top"');
     expect(shownHtml).toContain('data-kanban-total-position="bottom"');
   });
+});
+
+it('hides default Kanban totals when grouped unless always-visible is checked', () => {
+  const props = { collection, items: [item], groupBy: 'status', totalFields: { price: 'sum' }, totalsPosition: 'bottom',
+    onEdit: vi.fn(), onDelete: vi.fn(), onViewDetail: vi.fn() };
+  expect(renderToStaticMarkup(<KanbanView {...props} />)).not.toContain('data-kanban-total-position');
+  expect(renderToStaticMarkup(<KanbanView {...props} totalsAlwaysVisible />)).toContain('data-kanban-total-position="bottom"');
+  expect(renderToStaticMarkup(<KanbanView {...props} columnSettings={{ status: { 'À acheter': { showTotals: true } } }} />)).toContain('data-kanban-total-position="bottom"');
+});
+
+it('edits a column custom total using the shared dialog and preserves other totals', () => {
+  vi.spyOn(ReactModule, 'useCallback').mockImplementation((callback) => callback);
+  const setTarget = vi.fn();
+  vi.mocked(ReactModule.useState).mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([{ column: 'À acheter', propertyId: 'price' }, setTarget]);
+  vi.mocked(ReactModule.useMemo).mockImplementationOnce((factory) => factory()).mockImplementationOnce((factory) => factory());
+  const onUpdateViewConfig = vi.fn();
+  const tree = KanbanView({ collection, items: [item], groupBy: 'status', totalFields: { price: 'sum', status: 'count' },
+    onEdit: vi.fn(), onDelete: vi.fn(), onViewDetail: vi.fn(), onUpdateViewConfig });
+  const nodes: React.ReactElement<any>[] = [];
+  const visit = (node: React.ReactNode) => React.Children.forEach(node, (child) => {
+    if (!React.isValidElement(child)) return;
+    nodes.push(child);
+    visit((child.props as any).children);
+  });
+  visit(tree);
+  nodes.find((node) => node.props.children === 'Prix' && node.props.onSelect)!.props.onSelect();
+  expect(setTarget).toHaveBeenCalledWith({ column: 'À acheter', propertyId: 'price' });
+  const dialog = nodes.find((node) => node.props.property?.id === 'price' && node.props.onClose && node.props.onChange)!;
+  dialog.props.onChange('number-filter:avg:status:Done');
+  expect(onUpdateViewConfig).toHaveBeenCalledWith({ kanbanColumnSettings: { status: { 'À acheter': {
+    totalFields: { price: 'number-filter:avg:status:Done', status: 'count' },
+  } } } });
 });

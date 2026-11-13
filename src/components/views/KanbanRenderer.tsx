@@ -30,6 +30,7 @@ const KanbanRenderer: React.FC<ViewRendererProps> = ({
     onViewDetail={onViewDetail}
     groupBy={typeof view.groupBy === 'string' ? view.groupBy : view.groupBy === null ? null : undefined}
     totalFields={(view.totalFields || {}) as Record<string, string>}
+    totalsAlwaysVisible={Boolean(view.totalsAlwaysVisible)}
     totalsPosition={String(view.totalsPosition || 'none')}
     hiddenFields={Array.isArray(view.hiddenFields) ? view.hiddenFields : []}
     collections={collections}

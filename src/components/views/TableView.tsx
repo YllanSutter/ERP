@@ -1,17 +1,17 @@
+import TotalsSurface from './TotalsSurface';
 import { resolveTotalsScope } from './totalsScope';
 import TableGroupTotals from './TableGroupTotals';
 import { orderSteamExchanges, steamTotalItems } from '@/lib/plugins/steam/exchanges';
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { ChevronRight, Plus, Zap, Sigma } from 'lucide-react';
+import { ChevronRight, Plus, Zap } from 'lucide-react';
 import { useViewGrouping } from '@/components/views/ViewGrouping';
 import { useViewPagination } from '@/lib/hooks/useViewPagination';
-import { TableViewProps } from '@/lib/types';
+import { TableViewProps, GroupTotalConfig } from '@/lib/types';
 import GroupRenderer from '@/components/TableView/GroupRenderer';
 import ViewGrouping from '@/components/views/ViewGrouping';
 import TableItemRow from '@/components/TableView/TableItemRow';
 import TableHeader from '@/components/TableView/TableHeader';
-import TotalsBar from '@/components/TableView/TotalsBar';
-import TotalsWidget, { type TotalsWidgetPreferences } from '@/components/TableView/TotalsWidget';
+import { type TotalsWidgetPreferences } from '@/components/TableView/TotalsWidget';
 import { useCanEdit } from '@/lib/hooks/useCanEdit';
 import { useAuth } from '@/auth/AuthProvider';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
@@ -125,6 +125,7 @@ const TableView: React.FC<TableViewProps> = ({
   groupDisplayColumnCounts = {},
   groupTabStyleFieldIds = {},
   groupTotalsByGroupId = {},
+  totalsAlwaysVisible = false,
   totalsScope,
   totalsPosition,
   totalFields = {},
@@ -427,7 +428,6 @@ const TableView: React.FC<TableViewProps> = ({
     });
   }, [groups.length]);
   const hiddenTotalFieldIds = totalsWidgetPreferences.hiddenFieldIds || [];
-  const visibleTotalProperties = displayProperties.filter((prop: any) => !hiddenTotalFieldIds.includes(prop.id));
   const [activeGroupSelectByDepth, setActiveGroupSelectByDepth] = useState<Record<number, string>>({});
   const lastSavedTotalsPreferencesRef = useRef<string>(JSON.stringify(incomingTotalsPreferences));
   const lastHydratedTotalsContextRef = useRef<string>('');
@@ -1117,16 +1117,18 @@ const TableView: React.FC<TableViewProps> = ({
     console.log('confirmBulkDelete - all deletes called');
   }, [selectedItemIds, onDelete, onBulkDelete, collection?.id]);
 
-  const resolvedTotalsScope = resolveTotalsScope(totalsScope, groups.length > 0, totalsPosition);
-  const showGeneralTotals = resolvedTotalsScope !== 'groups';
+  const resolvedTotalsScope = groups.length > 0 && !totalsAlwaysVisible ? 'groups' : resolveTotalsScope(totalsScope, groups.length > 0, totalsPosition);
+  const showGeneralTotals = resolvedTotalsScope !== 'groups' && (groups.length === 0 || totalsAlwaysVisible);
   const showGroupTotals = resolvedTotalsScope !== 'view';
-  const effectiveGroupTotals = showGroupTotals ? groupTotalsByGroupId : Object.fromEntries(groups.map((id) => [id, { enabled: false }]));
+  const effectiveGroupTotals: Record<string, GroupTotalConfig> = showGroupTotals ? groupTotalsByGroupId : Object.fromEntries(groups.map((id) => [id, { enabled: false }]));
 
   const content = (
     <>
       {/* ─── Section totaux (globaux + par groupe) ────────────────────────── */}
       {Object.keys(totalFields).length > 0 && items.length > 0 && (() => {
-        if (!totalsWidgetPreferences.showTotalsWidget) return null;
+        const topSelected = (showGeneralTotals && (totalsPosition === 'top' || totalsPosition === 'both')) ||
+          (showGroupTotals && groups.some((id) => effectiveGroupTotals[id]?.enabled !== false && ['top', 'both'].includes(effectiveGroupTotals[id]?.position || 'bottom')));
+        if (!topSelected) return null;
 
         // Traverser récursivement tous les niveaux de groupes
         const buildGroupedSections = () => {
@@ -1169,8 +1171,8 @@ const TableView: React.FC<TableViewProps> = ({
         }
 
         return (
-          <TotalsWidget
-            displayProperties={orderedProperties}
+          <TotalsSurface position="top"
+            displayProperties={orderedProperties.filter((property) => canViewFieldFn(property.id))}
             items={items}
             totalFields={totalFields}
             calculateTotal={calculateTotal}
@@ -1185,7 +1187,7 @@ const TableView: React.FC<TableViewProps> = ({
         );
       })()}
 
-      {showGeneralTotals && (totalsPosition === 'top' || totalsPosition === 'both') && <section aria-label="Total général" className="rounded-lg border border-border"><h3 className="px-4 pt-3 text-xs font-semibold text-muted-foreground">Total général</h3><TotalsBar displayProperties={visibleTotalProperties} items={items} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} /></section>}
+
       <div className="overflow-hidden rounded-lg border border-black/10 dark:border-white/5">
         <div className="flex  flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20 sticky top-0 z-20">
           <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
@@ -1198,19 +1200,6 @@ const TableView: React.FC<TableViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {Object.keys(totalFields).length > 0 && (
-              <Button
-                type="button"
-                onClick={() => setTotalsWidgetPreferences((prev) => ({ ...prev, showTotalsWidget: !prev.showTotalsWidget }))}
-                variant={totalsWidgetPreferences.showTotalsWidget ? 'secondary' : 'outline'}
-                size="sm"
-                className="gap-1"
-                title={totalsWidgetPreferences.showTotalsWidget ? 'Masquer le tableau de totaux' : 'Afficher le tableau de totaux'}
-              >
-                <Sigma size={11} />
-                <span>Tableau</span>
-              </Button>
-            )}
             <label className="text-xs text-neutral-600 dark:text-neutral-300">Lignes/page</label>
             <Select
               value={String(rowsPerPage)}
@@ -1349,7 +1338,7 @@ const TableView: React.FC<TableViewProps> = ({
             />
           ));
 
-          const renderTableShell = (body: React.ReactNode, footerItems?: any[], selectionScopeItems?: any[]) => {
+          const renderTableShell = (body: React.ReactNode, selectionScopeItems?: any[]) => {
             const scopedItems = selectionScopeItems || items;
             const scopedSelectableItems = canEdit ? scopedItems : [];
             const scopedAllSelected =
@@ -1369,8 +1358,6 @@ const TableView: React.FC<TableViewProps> = ({
                 return next;
               });
             };
-
-            const showBottomTotalsByDefault = showGeneralTotals && groups.length === 0 && (!totalsPosition || totalsPosition === 'bottom' || totalsPosition === 'both');
 
             return (
             <div className="flex flex-col max-h-[calc(100vh-280px)]">
@@ -1399,32 +1386,6 @@ const TableView: React.FC<TableViewProps> = ({
                   onReorderField={onReorderField ? handleReorderField : undefined}
                 />
                 <tbody className="divide-y divide-white/5">{body}</tbody>
-                {showBottomTotalsByDefault && Object.keys(totalFields).length > 0 && (footerItems || items).length > 0 && (
-                  <tfoot>
-                    <tr>
-                      {canEdit && <td className="px-1 py-2 w-8" />}
-                      {showSelectionColumn && <td className="px-2 py-2 w-10" />}
-                      {visibleTotalProperties.map((prop: any) => {
-                        const totalType = totalFields[prop.id];
-                        if (!totalType) return <td key={prop.id} className="px-2 py-2" />;
-
-                        return (
-                          <td key={prop.id} className="px-2 py-2 align-top">
-                            <TotalsBar
-                              displayProperties={[prop]}
-                              items={footerItems || items}
-                              totalFields={{ [prop.id]: totalType }}
-                              calculateTotal={calculateTotal}
-                              formatTotal={formatTotal}
-                              variant="inline"
-                              inlineMode="plain"
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  </tfoot>
-                )}
               </table>
               </div>
             </div>
@@ -1477,7 +1438,6 @@ const TableView: React.FC<TableViewProps> = ({
           if (!groupedStructure) {
             return renderTableShell(
               renderFlatRows(paginatedFlatItems),
-              paginatedFlatItems,
               paginatedFlatItems
             );
           }
@@ -1496,14 +1456,13 @@ const TableView: React.FC<TableViewProps> = ({
               groupDisplayColumnCounts={groupDisplayColumnCounts}
               groupTabStyleFieldIds={groupTabStyleFieldIds}
               collectionId={collection.id}
-              renderGroupTotals={(groupItems, groupId, position) => (
-                <TableGroupTotals config={effectiveGroupTotals[groupId]} position={position}
-                  displayProperties={orderedProperties.filter((prop) => !hiddenTotalFieldIds.includes(prop.id))}
+              renderGroupTotals={(groupItems, groupId, position) => position === 'top' ? null : (
+                <TableGroupTotals config={effectiveGroupTotals[groupId]} position={position} persistKey={`erp:group-totals:${collection.id}:${groupId}`}
+                  displayProperties={orderedProperties.filter((prop) => canViewFieldFn(prop.id) && !hiddenTotalFieldIds.includes(prop.id))}
                   items={groupItems} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} />
               )}
               renderItems={(groupItems) => renderTableShell(
                 renderFlatRows(sortItems(groupItems)),
-                groupItems,
                 groupItems,
               )}
               className="overflow-auto max-h-[calc(100vh-280px)]"
@@ -1512,7 +1471,11 @@ const TableView: React.FC<TableViewProps> = ({
 
         })()}
       </div>
-      {showGeneralTotals && groups.length > 0 && (!totalsPosition || totalsPosition === 'bottom' || totalsPosition === 'both') && <section aria-label="Total général" className="rounded-lg border border-border"><h3 className="px-4 pt-3 text-xs font-semibold text-muted-foreground">Total général</h3><TotalsBar displayProperties={visibleTotalProperties} items={items} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} /></section>}
+      {showGeneralTotals && (!totalsPosition || totalsPosition === 'bottom' || totalsPosition === 'both') &&
+        <section aria-label="Total général" data-view-total-position="bottom" className="rounded-lg border border-border">
+          <TotalsSurface position="bottom" displayProperties={orderedProperties.filter((property) => canViewFieldFn(property.id) && !hiddenTotalFieldIds.includes(property.id))}
+            items={items} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} />
+        </section>}
 
     </>
   );

@@ -1,3 +1,4 @@
+import CopyViewSettings from './CopyViewSettings';
 import React from 'react';
 import type { Collection, Property } from '@/lib/types';
 import { getViewRegistration } from '@/lib/views';
@@ -55,6 +56,7 @@ const ViewSettingsPanel: React.FC<ViewSettingsPanelProps> = ({
           />
         </div>
       )}
+      <CopyViewSettings key={view.id} view={view} views={views?.[collection.id] || []} onUpdate={onUpdate} />
     </div>
   );
 };

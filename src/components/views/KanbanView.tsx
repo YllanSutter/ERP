@@ -1,5 +1,6 @@
+import { CustomTotalDialog } from './CustomTotalSettings';
 import { TotalsSettings } from './TotalsSettings';
-import TotalsBar from '@/components/TableView/TotalsBar';
+import TotalsSurface from './TotalsSurface';
 import { useViewTotals } from '@/lib/hooks/useViewTotals';
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -49,6 +50,7 @@ interface KanbanViewProps {
   onDelete: (id: string) => void;
   onViewDetail: (item: any) => void;
   groupBy?: string | null;
+  totalsAlwaysVisible?: boolean;
   totalFields?: Record<string, string>;
   totalsPosition?: string;
   hiddenFields?: string[];
@@ -73,6 +75,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   groupBy,
   totalFields = {},
   totalsPosition = 'none',
+  totalsAlwaysVisible = false,
   hiddenFields = [],
   onChangeGroupBy,
   collections = [],
@@ -86,6 +89,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   onShowNewItemModal,
 }) => {
   const [draggedItem, setDraggedItem] = useState<any>(null);
+  const [customTotalTarget, setCustomTotalTarget] = useState<{ column: string; propertyId: string } | null>(null);
   const { calculateTotal, formatTotal } = useViewTotals(orderedProperties || collection?.properties || [], collection, collections);
   // Hooks de permissions
   const canEdit = useCanEdit(collection?.id);
@@ -258,11 +262,12 @@ const KanbanView: React.FC<KanbanViewProps> = ({
           const settings = getColumnSettings(column);
           const position = settings.totalsPosition || totalsPosition;
           const columnTotalFields = settings.totalFields ?? totalFields;
-          const renderTotals = (placement: 'top' | 'bottom') => settings.showTotals !== false && sortedColumnItems.length > 0 && allDisplayableProps.some((prop: any) => columnTotalFields[prop.id]) && (position === placement || position === 'both') && (
+          const showColumnTotals = !groupByProp || totalsAlwaysVisible || settings.totalFields != null || settings.totalsPosition != null || settings.showTotals === true;
+          const renderTotals = (placement: 'top' | 'bottom') => showColumnTotals && settings.showTotals !== false && sortedColumnItems.length > 0 && allDisplayableProps.some((prop: any) => columnTotalFields[prop.id]) && (position === placement || position === 'both') && (
             <div className="my-2 rounded-lg border border-border" data-kanban-total-position={placement}>
-              <TotalsBar displayProperties={allDisplayableProps} items={sortedColumnItems}
+              <TotalsSurface position={placement} compact persistKey={`erp:kanban-totals:${collection.id}:${settingsGroupKey}:${column}`} displayProperties={allDisplayableProps} items={sortedColumnItems}
                 totalFields={columnTotalFields} calculateTotal={calculateTotal} formatTotal={formatTotal}
-                variant="inline" inlineMode="plain" />
+                />
             </div>
           );
           return (
@@ -285,7 +290,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
               <Popover>
                 <PopoverTrigger asChild><Button variant="ghost" size="sm" className="float-right" aria-label={`Totaux de ${column}`}><Icons.Sigma size={14} /></Button></PopoverTrigger>
                 <SettingsPopoverContent title={`Totaux · ${column}`} className="max-h-[80vh] overflow-y-auto">
-                  <TotalsSettings properties={allDisplayableProps} totalFields={settings.totalFields ?? totalFields} position={position}
+                  <TotalsSettings items={items} collections={collections} properties={allDisplayableProps} totalFields={settings.totalFields ?? totalFields} position={position}
                     onChange={(patch) => updateColumnSettings(column, patch)} />
                   <Button variant="ghost" size="sm" onClick={() => updateColumnSettings(column, { totalFields: undefined, totalsPosition: undefined })}>Reprendre les réglages de la vue</Button>
                 </SettingsPopoverContent>
@@ -432,7 +437,14 @@ const KanbanView: React.FC<KanbanViewProps> = ({
             <ContextMenuContent className="min-w-[230px]">
               <ContextMenuLabel>{column}</ContextMenuLabel>
               <ContextMenuSeparator />
-              <ContextMenuCheckboxItem checked={settings.showTotals !== false && position !== 'none'}
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>Calcul personnalisé…</ContextMenuSubTrigger>
+                <ContextMenuSubContent>
+                  {allDisplayableProps.filter((property: any) => ['number', 'checkbox'].includes(property.type)).map((property: any) =>
+                    <ContextMenuItem key={property.id} onSelect={() => setCustomTotalTarget({ column, propertyId: property.id })}>{property.name}</ContextMenuItem>)}
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+              <ContextMenuCheckboxItem checked={showColumnTotals && settings.showTotals !== false && position !== 'none'}
                 onCheckedChange={(checked) => updateColumnSettings(column, {
                   showTotals: Boolean(checked),
                   ...(checked && position === 'none' ? { totalsPosition: 'bottom' } : {}),
@@ -504,6 +516,14 @@ const KanbanView: React.FC<KanbanViewProps> = ({
           </ContextMenu>
         )})}
       </div>
+      <CustomTotalDialog property={customTotalTarget ? allDisplayableProps.find((property: any) => property.id === customTotalTarget.propertyId) || null : null}
+        properties={allDisplayableProps} items={items} collections={collections}
+        value={customTotalTarget ? (getColumnSettings(customTotalTarget.column).totalFields ?? totalFields)[customTotalTarget.propertyId] || '' : ''}
+        onChange={(value) => {
+          if (!customTotalTarget) return;
+          updateColumnSettings(customTotalTarget.column, { totalFields: { ...(getColumnSettings(customTotalTarget.column).totalFields ?? totalFields), [customTotalTarget.propertyId]: value } });
+        }}
+        onClose={() => setCustomTotalTarget(null)} />
     </div>
   );
 };

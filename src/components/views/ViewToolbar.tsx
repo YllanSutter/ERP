@@ -709,7 +709,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                         {groupEditor}
                       </SettingsTabContent>
                       {['table', 'kanban'].includes(currentViewConfig.type) && <SettingsTabContent value="totals" scrollable>
-                        <ViewTotalsSettings view={currentViewConfig} properties={orderedProperties.filter((property: any) => canViewFieldFn(property.id))} onUpdate={onUpdateViewConfig} />
+                        <ViewTotalsSettings collections={collections} items={currentCollection.items || []} view={currentViewConfig} properties={orderedProperties.filter((property: any) => canViewFieldFn(property.id))} onUpdate={onUpdateViewConfig} />
                       </SettingsTabContent>}
                       <SettingsTabContent value="settings" scrollable>
                   <ViewSettingsPanel
@@ -717,7 +717,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                     collection={currentCollection}
                     properties={orderedProperties}
                     collections={collections}
-                    views={allViews}
+                    views={{ ...(allViews || {}), [currentCollection.id]: currentViews }}
                     onUpdate={onUpdateViewConfig}
                   />
                   <div className="my-5 border-t border-border" />

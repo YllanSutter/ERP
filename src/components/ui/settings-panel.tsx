@@ -1,3 +1,4 @@
+import { SelectLayerContext } from './select-layer';
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { X, type LucideIcon } from 'lucide-react';
@@ -58,6 +59,7 @@ export function SettingsSheet({ open, onOpenChange, title, description, icon, ac
 
 export function SettingsDialog({ open, onOpenChange, title, description, icon, actions, children, className, workspace = false, layer }: WindowProps & { workspace?: boolean; layer?: number }) {
   return (
+    <SelectLayerContext.Provider value={Math.max(401, (layer ?? 300) + 1)}>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent style={layer === undefined ? undefined : { zIndex: layer }} overlayStyle={layer === undefined ? undefined : { zIndex: layer }}
         className={cn('settings-surface flex max-h-[90dvh] w-[calc(100%_-_1rem)] flex-col gap-0 overflow-hidden p-0',
@@ -67,6 +69,7 @@ export function SettingsDialog({ open, onOpenChange, title, description, icon, a
         {children}
       </DialogContent>
     </Dialog>
+    </SelectLayerContext.Provider>
   );
 }
 

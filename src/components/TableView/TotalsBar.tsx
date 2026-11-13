@@ -142,6 +142,7 @@ export interface TotalsBarProps {
    * 'section' : bloc visuel dédié au-dessus du tableau avec titre et cartes larges
    */
   variant?: 'inline' | 'section';
+  compact?: boolean;
   /**
    * Sous-sections par groupe (variant 'section' uniquement).
    * Chaque entrée donne un label + les items du groupe.
@@ -173,6 +174,7 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
   calculateTotal,
   formatTotal,
   variant = 'inline',
+  compact = false,
   groupedSections,
   activeRootPath,
   activeSubPath,
@@ -227,14 +229,14 @@ const TotalsBar: React.FC<TotalsBarProps> = ({
 
       const card = (
         <div
-          className={`flex items-center gap-2.5 px-1 rounded-sm py-1 border ${borderClass} ${bgClass} min-w-[150px] max-w-[320px]`}
+          className={`flex items-center gap-2.5 px-1 rounded-sm py-1 border ${borderClass} ${bgClass} ${compact ? 'min-w-0 flex-[1_1_120px] max-w-full' : 'min-w-[150px] max-w-[320px]'}`}
           style={cardStyle}
         >
           <div className={`shrink-0 p-1 rounded-md bg-white/70 dark:bg-black/20 border ${borderClass}`} style={iconWrapStyle}>
             <PropIcon size={8} className={iconColorClass} style={accentStyle} />
           </div>
 
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <span className="block text-[11px] leading-none whitespace-nowrap overflow-hidden text-ellipsis">
               <span className="font-semibold text-neutral-600 dark:text-neutral-300">{prop.name}</span>
               <span className="mx-1 text-neutral-400 dark:text-neutral-500">·</span>

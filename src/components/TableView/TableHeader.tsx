@@ -1,3 +1,4 @@
+import { CustomTotalDialog } from '@/components/views/CustomTotalSettings';
 import React, { useState } from 'react';
 import * as Icons from 'lucide-react';
 import { Property } from '@/lib/types';
@@ -8,7 +9,6 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-  ContextMenuLabel,
   ContextMenuSub,
   ContextMenuSubTrigger,
   ContextMenuSubContent,
@@ -60,21 +60,11 @@ const TableHeader: React.FC<TableHeaderProps> = ({
   onReorderField,
 }) => {
   const canEdit = useCanEdit(collectionId);
+  const [customTotalProperty, setCustomTotalProperty] = useState<Property | null>(null);
   const [dragColId, setDragColId] = useState<string | null>(null);
   const [overColId, setOverColId] = useState<string | null>(null);
   // Exclure les propriétés en menu contextuel de l'affichage du header
   const displayProperties = visibleProperties.filter((p: any) => !p.showContextMenu);
-  const numberProperties = (allProperties || visibleProperties).filter((p: any) => p.type === 'number');
-  const numberBaseTotals = [
-    { value: 'sum', label: 'Somme' },
-    { value: 'avg', label: 'Moyenne' },
-    { value: 'min', label: 'Minimum' },
-    { value: 'max', label: 'Maximum' },
-  ];
-
-  const encodeNumberFilterTotalType = (baseType: string, fieldId: string, value: string) =>
-    `number-filter:${baseType}:${fieldId}:${encodeURIComponent(value)}`;
-
   // Types de totaux disponibles selon le type de champ
   const getTotalTypesForProperty = (prop: any) => {
     const common = [
@@ -161,94 +151,9 @@ const TableHeader: React.FC<TableHeaderProps> = ({
     }
   };
 
-  const getDistinctValuesForField = (fieldId: string, max = 40) => {
-    const map = new Map<string, string>();
-    const filterProp = (allProperties || visibleProperties).find((p: any) => p.id === fieldId);
-    const optionLabelMap = new Map<string, string>();
-
-    if (filterProp && (filterProp.type === 'select' || filterProp.type === 'multiselect')) {
-      (filterProp.options || []).forEach((opt: any) => {
-        const raw = typeof opt === 'string' ? opt : opt?.value;
-        const label = typeof opt === 'string' ? opt : (opt?.label || opt?.value);
-        if (raw !== undefined && raw !== null && raw !== '') {
-          optionLabelMap.set(String(raw), String(label ?? raw));
-        }
-      });
-    }
-
-    const relationLabelMap = new Map<string, string>();
-    const relation = filterProp?.type === 'relation' ? filterProp.relation : undefined;
-    if (relation?.targetCollectionId) {
-      const targetCollection = collections.find((c: any) => c.id === relation.targetCollectionId);
-      const displayFieldIds = Array.isArray(relation.displayFieldIds) && relation.displayFieldIds.length > 0
-        ? relation.displayFieldIds
-        : ['name'];
-
-      (targetCollection?.items || []).forEach((targetItem: any) => {
-        const id = String(targetItem?.id || '');
-        if (!id) return;
-        const labelParts = displayFieldIds
-          .map((fid: string) => targetItem?.[fid])
-          .filter((v: any) => v !== undefined && v !== null && v !== '')
-          .map((v: any) => String(v));
-        const label = labelParts.length > 0
-          ? labelParts.join(' · ')
-          : String(targetItem?.name || targetItem?.title || targetItem?.label || id);
-        relationLabelMap.set(id, label);
-      });
-    }
-
-    const addEntry = (rawValue: any) => {
-      if (rawValue === null || rawValue === undefined || rawValue === '') return;
-      const raw = String(rawValue);
-      if (map.has(raw)) return;
-
-      let label = raw;
-      if (filterProp?.type === 'checkbox') {
-        if (raw === 'true') label = 'Oui';
-        if (raw === 'false') label = 'Non';
-      } else if (relationLabelMap.has(raw)) {
-        label = relationLabelMap.get(raw) || raw;
-      } else if (optionLabelMap.has(raw)) {
-        label = optionLabelMap.get(raw) || raw;
-      }
-
-      map.set(raw, label);
-    };
-
-    (items || []).forEach((item: any) => {
-      const raw = item?.[fieldId];
-      if (raw === null || raw === undefined || raw === '') return;
-
-      if (Array.isArray(raw)) {
-        raw.forEach((v) => {
-          addEntry(v);
-        });
-        return;
-      }
-
-      if (typeof raw === 'object') {
-        if (raw.value !== undefined && raw.value !== null && raw.value !== '') {
-          addEntry(raw.value);
-          return;
-        }
-        if (raw.url !== undefined && raw.url !== null && raw.url !== '') {
-          addEntry(raw.url);
-          return;
-        }
-        addEntry(JSON.stringify(raw));
-        return;
-      }
-
-      addEntry(raw);
-    });
-
-    return Array.from(map.entries())
-      .map(([raw, label]) => ({ raw, label }))
-      .slice(0, max);
-  };
 
   return (
+    <>
     <thead className="bg-gray-100 dark:bg-black/30 border-b border-black/5 dark:border-white/5">
       <tr>
         {enableDragReorder && (
@@ -374,96 +279,12 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                             )}
                           </ContextMenuItem>
                         ))}
-                        {prop.type === 'checkbox' && numberProperties.length > 0 && (
-                          <>
-                            <ContextMenuSeparator />
-                            <ContextMenuLabel className="text-xs">Montant payé / restant</ContextMenuLabel>
-                            {numberProperties.map((numProp: any) => {
-                              const linkedValue = `linked-progress:${numProp.id}`;
-                              return (
-                                <ContextMenuItem
-                                  key={linkedValue}
-                                  onClick={() => {
-                                    if (totalFields[prop.id] === linkedValue) {
-                                      onToggleTotalField(prop.id, null);
-                                    } else {
-                                      onToggleTotalField(prop.id, linkedValue);
-                                    }
-                                  }}
-                                  className="flex items-center justify-between gap-2 text-neutral-700 dark:text-neutral-200"
-                                >
-                                  <span>{numProp.name}</span>
-                                  {totalFields[prop.id] === linkedValue && (
-                                    <Icons.Check size={14} className="text-brand-500 dark:text-brand-400" />
-                                  )}
-                                </ContextMenuItem>
-                              );
-                            })}
-                          </>
-                        )}
-                        {prop.type === 'number' && (
-                          <>
-                            <ContextMenuSeparator />
-                            <ContextMenuLabel className="text-xs">Exclure si champ = valeur</ContextMenuLabel>
-                            {numberBaseTotals.map((baseTotal) => {
-                              const filterableProps = (allProperties || visibleProperties)
-                                .filter((candidate: any) => candidate.id !== prop.id && !candidate.isRelationLinkedColumn);
-                              return (
-                                <ContextMenuSub key={`number-filter-${baseTotal.value}`}>
-                                  <ContextMenuSubTrigger className="flex items-center gap-2 text-neutral-700 dark:text-neutral-200">
-                                    <span>{baseTotal.label} (filtré)</span>
-                                  </ContextMenuSubTrigger>
-                                  <ContextMenuSubContent>
-                                    {filterableProps.length === 0 && (
-                                      <ContextMenuItem disabled className="text-neutral-500">
-                                        Aucun champ disponible
-                                      </ContextMenuItem>
-                                    )}
-                                    {filterableProps.map((filterProp: any) => {
-                                      const values = getDistinctValuesForField(filterProp.id);
-                                      return (
-                                        <ContextMenuSub key={`number-filter-${baseTotal.value}-${filterProp.id}`}>
-                                          <ContextMenuSubTrigger className="text-neutral-700 dark:text-neutral-200">
-                                            {filterProp.name}
-                                          </ContextMenuSubTrigger>
-                                          <ContextMenuSubContent>
-                                            {values.length === 0 ? (
-                                              <ContextMenuItem disabled className="text-neutral-500">
-                                                Aucune valeur
-                                              </ContextMenuItem>
-                                            ) : (
-                                              values.map((entry) => {
-                                                const filteredTotalType = encodeNumberFilterTotalType(baseTotal.value, filterProp.id, entry.raw);
-                                                return (
-                                                  <ContextMenuItem
-                                                    key={filteredTotalType}
-                                                    onClick={() => {
-                                                      if (totalFields[prop.id] === filteredTotalType) {
-                                                        onToggleTotalField(prop.id, null);
-                                                      } else {
-                                                        onToggleTotalField(prop.id, filteredTotalType);
-                                                      }
-                                                    }}
-                                                    className="flex items-center justify-between gap-2 text-neutral-700 dark:text-neutral-200"
-                                                  >
-                                                    <span className="truncate max-w-[220px]">= {entry.label}</span>
-                                                    {totalFields[prop.id] === filteredTotalType && (
-                                                      <Icons.Check size={14} className="text-brand-500 dark:text-brand-400" />
-                                                    )}
-                                                  </ContextMenuItem>
-                                                );
-                                              })
-                                            )}
-                                          </ContextMenuSubContent>
-                                        </ContextMenuSub>
-                                      );
-                                    })}
-                                  </ContextMenuSubContent>
-                                </ContextMenuSub>
-                              );
-                            })}
-                          </>
-                        )}
+                        {['number', 'checkbox'].includes(prop.type) && <>
+                          <ContextMenuSeparator />
+                          <ContextMenuItem onSelect={() => setCustomTotalProperty(prop)}>
+                            Calcul personnalisé…
+                          </ContextMenuItem>
+                        </>}
                         {totalFields[prop.id] && (
                           <>
                             <ContextMenuSeparator />
@@ -543,6 +364,11 @@ const TableHeader: React.FC<TableHeaderProps> = ({
         })}
       </tr>
     </thead>
+    <CustomTotalDialog property={customTotalProperty} properties={allProperties || visibleProperties} items={items} collections={collections}
+      value={customTotalProperty ? totalFields[customTotalProperty.id] || '' : ''}
+      onChange={(value) => { if (customTotalProperty) onToggleTotalField?.(customTotalProperty.id, value); }}
+      onClose={() => setCustomTotalProperty(null)} />
+    </>
   );
 };
 

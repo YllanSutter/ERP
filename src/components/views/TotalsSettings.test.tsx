@@ -46,7 +46,16 @@ describe('scope and group total settings', () => {
     nodes.find((node) => node.props['aria-label'] === 'Position du sous-total niveau 1')!.props.onChange('top');
     expect(onUpdate).toHaveBeenCalledWith({ groupTotalsByGroupId: { status: { enabled: true, position: 'top' }, price: { position: 'both' } } });
     expect(nodes.find((node) => node.type === TotalsSettings)!.props.showPosition).toBe(false);
-    const globalNodes = descendants(ViewTotalsSettings({ view: { ...view, totalsScope: 'view' }, properties, onUpdate }));
+    const globalNodes = descendants(ViewTotalsSettings({ view: { ...view, totalsScope: 'view', totalsAlwaysVisible: true }, properties, onUpdate }));
     expect(globalNodes.some((node) => node.props['aria-label'] === 'Position du sous-total niveau 1')).toBe(false);
   });
+});
+
+it('starts the always-visible checkbox unchecked and saves the explicit choice', () => {
+  const onUpdate = vi.fn();
+  const nodes = descendants(ViewTotalsSettings({ view: { id: 'table', name: 'Table', type: 'table', groups: ['status'] }, properties, onUpdate }));
+  const checkbox = nodes.find((node) => node.props.type === 'checkbox')!;
+  expect(checkbox.props.checked).toBe(false);
+  checkbox.props.onChange({ target: { checked: true } });
+  expect(onUpdate).toHaveBeenCalledWith({ totalsAlwaysVisible: true, totalsScope: 'both' });
 });

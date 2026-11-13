@@ -129,6 +129,7 @@ export interface TableViewProps {
   groupDisplayColumnCounts?: Record<string, TableGroupColumnCount>;
   groupTotalsByGroupId?: Record<string, GroupTotalConfig>;
   groupTabStyleFieldIds?: Record<string, string>;
+  totalsAlwaysVisible?: boolean;
   totalsScope?: 'view' | 'groups' | 'both';
   totalsPosition?: string;
   totalFields?: Record<string, string>; // fieldId -> totalType (sum, count, unique, avg, min, max)
