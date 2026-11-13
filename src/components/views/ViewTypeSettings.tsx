@@ -1,3 +1,4 @@
+import { TotalsSettings } from './TotalsSettings';
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Settings2, Trash2 } from 'lucide-react';
 import type { ViewSettingsProps } from '@/lib/views';
@@ -26,7 +27,7 @@ const SettingsSelect: React.FC<{
 );
 
 
-export const TableViewSettings: React.FC<ViewSettingsProps> = ({ view, onUpdate }) => (
+export const TableViewSettings: React.FC<ViewSettingsProps> = ({ view, properties, onUpdate }) => (
   <div className="grid gap-2 sm:grid-cols-2">
     <SettingsSelect
       label="Affichage des groupes"
@@ -39,6 +40,7 @@ export const TableViewSettings: React.FC<ViewSettingsProps> = ({ view, onUpdate 
       ]}
       onChange={(value) => onUpdate({ groupDisplayMode: value })}
     />
+    <TotalsSettings properties={properties} totalFields={(view.totalFields || {}) as Record<string, string>} position={String(view.totalsPosition || 'bottom')} onChange={onUpdate} />
   </div>
 );
 
@@ -99,12 +101,12 @@ export const KanbanViewSettings: React.FC<ViewSettingsProps> = ({ view, properti
   <div className="grid gap-2 sm:grid-cols-2">
     <SettingsSelect
       label="Regrouper par"
-      value={typeof view.groupBy === 'string' ? view.groupBy : ''}
+      value={typeof view.groupBy === 'string' ? view.groupBy : '__none'}
       options={[
-        { value: '', label: 'Aucun' },
+        { value: '__none', label: 'Aucun' },
         ...fieldOptions(properties, ['select']).map((property) => ({ value: property.id, label: property.name })),
       ]}
-      onChange={(value) => onUpdate({ groupBy: value || null })}
+      onChange={(value) => onUpdate({ groupBy: value === '__none' ? null : value })}
     />
     <SettingsToggle
       label="Afficher les champs au survol"
@@ -120,6 +122,7 @@ export const KanbanViewSettings: React.FC<ViewSettingsProps> = ({ view, properti
       ]}
       onChange={(value) => onUpdate({ kanbanSortDirection: value })}
     />
+    <TotalsSettings properties={properties} totalFields={(view.totalFields || {}) as Record<string, string>} position={String(view.totalsPosition || 'none')} onChange={onUpdate} />
   </div>
 );
 

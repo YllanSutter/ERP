@@ -1,3 +1,6 @@
+import { TotalsSettings } from './TotalsSettings';
+import TotalsBar from '@/components/TableView/TotalsBar';
+import { useViewTotals } from '@/lib/hooks/useViewTotals';
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
@@ -20,6 +23,7 @@ import {
   ContextMenuCheckboxItem,
   ContextMenuContent,
   ContextMenuLabel,
+  ContextMenuItem,
   ContextMenuRadioGroup,
   ContextMenuRadioItem,
   ContextMenuSeparator,
@@ -30,7 +34,10 @@ import {
 } from '@/components/ui/context-menu';
 
 export type KanbanColumnSettings = {
-  visibleFieldIds?: string[];
+  totalFields?: Record<string, string>;
+  totalsPosition?: string;
+  showTotals?: boolean;
+  visibleFieldIds?: string[] | null;
   sortFieldId?: string | null;
   sortDirection?: 'asc' | 'desc';
 };
@@ -41,7 +48,9 @@ interface KanbanViewProps {
   onEdit: (item: any) => void;
   onDelete: (id: string) => void;
   onViewDetail: (item: any) => void;
-  groupBy?: string;
+  groupBy?: string | null;
+  totalFields?: Record<string, string>;
+  totalsPosition?: string;
   hiddenFields?: string[];
   onChangeGroupBy?: (groupBy: string) => void;
   collections?: any[];
@@ -62,6 +71,8 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   onDelete,
   onViewDetail,
   groupBy,
+  totalFields = {},
+  totalsPosition = 'none',
   hiddenFields = [],
   onChangeGroupBy,
   collections = [],
@@ -75,6 +86,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   onShowNewItemModal,
 }) => {
   const [draggedItem, setDraggedItem] = useState<any>(null);
+  const { calculateTotal, formatTotal } = useViewTotals(orderedProperties || collection?.properties || [], collection, collections);
   // Hooks de permissions
   const canEdit = useCanEdit(collection?.id);
   const canEditFieldFn = useCanEditFields(collection?.id);
@@ -99,7 +111,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   
   // Determine groupBy property
   let groupByProp = selectProps.find((p: any) => p.id === groupBy);
-  if (!groupByProp && selectProps.length > 0) {
+  if (groupBy === undefined && !groupByProp && selectProps.length > 0) {
     groupByProp = selectProps[0];
   }
 
@@ -224,11 +236,11 @@ const KanbanView: React.FC<KanbanViewProps> = ({
         <div className="flex items-center gap-3 px-2">
           <span className="text-sm font-medium text-neutral-400">Grouper par:</span>
           <Select
-            value={groupByProp?.id || ''}
-            onValueChange={onChangeGroupBy}
+            value={groupByProp?.id || '__none'}
+            onValueChange={(value) => onUpdateViewConfig ? onUpdateViewConfig({ groupBy: value === '__none' ? null : value }) : onChangeGroupBy?.(value)}
           >
             <SelectTrigger className="w-48"><SelectValue placeholder="Choisir un champ" /></SelectTrigger>
-            <SelectContent>{selectProps.map((prop: any) => <SelectItem key={prop.id} value={prop.id}>{prop.name}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="__none">Aucun</SelectItem>{selectProps.map((prop: any) => <SelectItem key={prop.id} value={prop.id}>{prop.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       )}
@@ -243,6 +255,16 @@ const KanbanView: React.FC<KanbanViewProps> = ({
           const columnSortField = getColumnSettings(column).sortFieldId || null;
           const columnSortDirection = getColumnSettings(column).sortDirection || 'asc';
 
+          const settings = getColumnSettings(column);
+          const position = settings.totalsPosition || totalsPosition;
+          const columnTotalFields = settings.totalFields ?? totalFields;
+          const renderTotals = (placement: 'top' | 'bottom') => settings.showTotals !== false && sortedColumnItems.length > 0 && allDisplayableProps.some((prop: any) => columnTotalFields[prop.id]) && (position === placement || position === 'both') && (
+            <div className="my-2 rounded-lg border border-border" data-kanban-total-position={placement}>
+              <TotalsBar displayProperties={allDisplayableProps} items={sortedColumnItems}
+                totalFields={columnTotalFields} calculateTotal={calculateTotal} formatTotal={formatTotal}
+                variant="inline" inlineMode="plain" />
+            </div>
+          );
           return (
           <ContextMenu key={column}>
             <ContextMenuTrigger asChild>
@@ -260,6 +282,14 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                 background: `linear-gradient(to bottom right, ${columnColors[column]}30, ${columnColors[column]}05)`
               }}
             >
+              <Popover>
+                <PopoverTrigger asChild><Button variant="ghost" size="sm" className="float-right" aria-label={`Totaux de ${column}`}><Icons.Sigma size={14} /></Button></PopoverTrigger>
+                <SettingsPopoverContent title={`Totaux · ${column}`}>
+                  <TotalsSettings properties={allDisplayableProps} totalFields={settings.totalFields ?? totalFields} position={position}
+                    onChange={(patch) => updateColumnSettings(column, patch)} />
+                  <Button variant="ghost" size="sm" onClick={() => updateColumnSettings(column, { totalFields: undefined, totalsPosition: undefined })}>Reprendre les réglages de la vue</Button>
+                </SettingsPopoverContent>
+              </Popover>
               <h3 className="font-semibold text-neutral-700 dark:text-white flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: columnColors[column] }} />
@@ -269,6 +299,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
               </h3>
             </div>
 
+            {renderTotals('top')}
             {/* Cards Container */}
             <div 
               className="space-y-3 max-h-[450px] rounded-lg border border-black/5 dark:border-white/5 bg-black/10 dark:bg-white/10 p-4 overflow-y-auto"
@@ -383,6 +414,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
               )}
             </div>
 
+            {renderTotals('bottom')}
             {canEdit && onShowNewItemModal && groupByProp && column !== 'Toutes les données' && (
               <Button
                 type="button"
@@ -400,10 +432,22 @@ const KanbanView: React.FC<KanbanViewProps> = ({
             <ContextMenuContent className="min-w-[230px]">
               <ContextMenuLabel>{column}</ContextMenuLabel>
               <ContextMenuSeparator />
+              <ContextMenuCheckboxItem checked={settings.showTotals !== false && position !== 'none'}
+                onCheckedChange={(checked) => updateColumnSettings(column, {
+                  showTotals: Boolean(checked),
+                  ...(checked && position === 'none' ? { totalsPosition: 'bottom' } : {}),
+                })}>
+                Afficher les totaux
+              </ContextMenuCheckboxItem>
+              <ContextMenuSeparator />
 
               <ContextMenuSub>
                 <ContextMenuSubTrigger>Champs affichés</ContextMenuSubTrigger>
                 <ContextMenuSubContent className="max-h-72 overflow-y-auto">
+                  <ContextMenuItem onSelect={() => updateColumnSettings(column, { visibleFieldIds: null })}>
+                    Réinitialiser les champs affichés
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
                   {allDisplayableProps.map((prop: any) => {
                     const isChecked = selectedFieldIds.includes(prop.id);
                     return (

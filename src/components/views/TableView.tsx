@@ -124,6 +124,7 @@ const TableView: React.FC<TableViewProps> = ({
   groupDisplayColumnCounts = {},
   groupTabStyleFieldIds = {},
   groupTotalsByGroupId = {},
+  totalsPosition,
   totalFields = {},
   onSetTotalField,
   onBulkImportItad,
@@ -1177,6 +1178,7 @@ const TableView: React.FC<TableViewProps> = ({
         );
       })()}
 
+      {(totalsPosition === 'top' || totalsPosition === 'both') && <TotalsBar displayProperties={visibleTotalProperties} items={items} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} />}
       <div className="overflow-hidden rounded-lg border border-black/10 dark:border-white/5">
         <div className="flex  flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-black/10 dark:border-white/10 bg-white/60 dark:bg-black/20 sticky top-0 z-20">
           <div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
@@ -1361,7 +1363,7 @@ const TableView: React.FC<TableViewProps> = ({
               });
             };
 
-            const showBottomTotalsByDefault = groups.length === 0;
+            const showBottomTotalsByDefault = groups.length === 0 && (!totalsPosition || totalsPosition === 'bottom' || totalsPosition === 'both');
 
             return (
             <div className="flex flex-col max-h-[calc(100vh-280px)]">
@@ -1503,6 +1505,7 @@ const TableView: React.FC<TableViewProps> = ({
 
         })()}
       </div>
+      {groups.length > 0 && (totalsPosition === 'bottom' || totalsPosition === 'both') && <TotalsBar displayProperties={visibleTotalProperties} items={items} totalFields={totalFields} calculateTotal={calculateTotal} formatTotal={formatTotal} />}
 
     </>
   );

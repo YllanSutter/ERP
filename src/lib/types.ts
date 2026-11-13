@@ -128,6 +128,7 @@ export interface TableViewProps {
   groupDisplayColumnCounts?: Record<string, TableGroupColumnCount>;
   groupTotalsByGroupId?: Record<string, GroupTotalConfig>;
   groupTabStyleFieldIds?: Record<string, string>;
+  totalsPosition?: string;
   totalFields?: Record<string, string>; // fieldId -> totalType (sum, count, unique, avg, min, max)
   onSetTotalField?: (fieldId: string, totalType: string | null) => void;
   onBulkImportItad?: (itemIds: string[]) => Promise<void>;
