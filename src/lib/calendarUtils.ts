@@ -1,3 +1,4 @@
+import { normalizeColor } from './utils/colorUtils';
 /**
  * Découpe un événement sur plusieurs jours ouvrés, en tenant compte des horaires et de la pause
  * Retourne un tableau d'objets { ...item, __eventStart, __eventEnd }
@@ -376,12 +377,10 @@ export function getItemColor(itemId: string): ColorSet {
   };
 }
 
-export function getCalendarEventColors(itemId: string, collectionId: string, collectionColor?: string): ColorSet {
+export function getCalendarEventColors(itemId: string, collectionId: string, collectionColor?: string, itemColor?: string): ColorSet {
   const palette = ['#2563eb', '#0f766e', '#a855f7', '#c2410c', '#be185d', '#4d7c0f'];
   const hash = (value: string) => [...value].reduce((sum, char) => (Math.imul(sum, 31) + char.charCodeAt(0)) >>> 0, 0);
-  const color = collectionColor && /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(collectionColor)
-    ? collectionColor
-    : palette[hash(collectionId) % palette.length];
+  const color = normalizeColor(itemColor) || normalizeColor(collectionColor) || palette[hash(collectionId) % palette.length];
   const intensity = 10 + (hash(itemId) % 6) * 4;
   return {
     border: color,

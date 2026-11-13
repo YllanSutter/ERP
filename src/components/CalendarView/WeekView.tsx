@@ -1,3 +1,4 @@
+import { getItemColorValue } from '@/lib/utils/colorUtils';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import WeekEventCard from '@/components/CalendarView/WeekEventCard';
@@ -689,7 +690,7 @@ const WeekView: React.FC<WeekViewProps> = ({
               })}
               {layoutEvents.map(({ item, segment, multiDayIndex, startTime, endTime, column, totalColumns }) => {
                     const itemCollection = collectionsForProps.find(c => c.id === item.__collectionId);
-                    const colors = getCalendarEventColors(item.id, item.__collectionId || '', itemCollection?.color);
+                    const colors = getCalendarEventColors(item.id, item.__collectionId || '', itemCollection?.color, getItemColorValue(item, itemCollection?.properties));
                     const dateField = getDateFieldForItem ? getDateFieldForItem(item) : undefined;
                     const visibleIds = Array.isArray(itemCollection?.defaultVisibleFieldIds)
                       ? itemCollection.defaultVisibleFieldIds

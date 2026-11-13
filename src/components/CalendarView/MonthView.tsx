@@ -1,3 +1,4 @@
+import { getItemColorValue } from '@/lib/utils/colorUtils';
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/auth/AuthProvider';
@@ -9,7 +10,7 @@ interface MonthViewProps {
   items: any[];
   dateField: any;
   collection: any;
-  collections?: Array<{ id: string; color?: string }>;
+  collections?: Array<{ id: string; color?: string; properties?: Array<{ id: string; type: string }> }>;
   onDateSelect: (date: Date) => void;
   getNameValue: (item: any) => string;
   getItemsForDate: (date: Date) => any[];
@@ -135,7 +136,7 @@ const MonthView: React.FC<MonthViewProps> = ({
                               className="block w-full truncate rounded border-l-2 px-1 text-left text-[10px] font-medium text-foreground hover:underline [--calendar-event-surface:white] dark:[--calendar-event-surface:#171717]"
                               style={(() => {
                                 const source = collections.find((entry) => entry.id === item.__collectionId);
-                                const colors = getCalendarEventColors(item.id, item.__collectionId || '', source?.color);
+                                const colors = getCalendarEventColors(item.id, item.__collectionId || '', source?.color, getItemColorValue(item, source?.properties));
                                 return { backgroundColor: colors.bg, borderLeftColor: colors.border };
                               })()}
                               title={[getNameValue(item), ...segments.map((segment) =>

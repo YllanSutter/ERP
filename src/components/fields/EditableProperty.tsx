@@ -1,3 +1,4 @@
+import ColorField from './ColorField';
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { getSelectionLimit, toggleLimitedSelection } from '@/lib/utils/selectionLimit';
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
@@ -1521,6 +1522,8 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       />
     );
   }
+
+  if (property.type === 'color') return <ColorField value={value} onChange={onChange} readOnly={readOnly} className={className} />;
 
   // Number
   if (property.type === 'number') {

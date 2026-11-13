@@ -20,3 +20,10 @@ it('keeps the collection accent while varying the fill by event', () => {
   expect(first.bg).not.toBe(second.bg);
   expect(getCalendarEventColors('a', 'tasks', '#2563eb')).toEqual(first);
 });
+
+it('prioritizes the item color and preserves the collection fallback', () => {
+  expect(getCalendarEventColors('a', 'tasks', '#2563eb', '#ef4444').border).toBe('#ef4444');
+  expect(getCalendarEventColors('a', 'tasks', '#2563eb', '').border).toBe('#2563eb');
+  expect(getCalendarEventColors('a', 'tasks', '#2563eb', 'invalid')).toEqual(getCalendarEventColors('a', 'tasks', '#2563eb'));
+  expect(getCalendarEventColors('a', 'tasks', undefined, '#abc').border).toBe('#aabbcc');
+});

@@ -33,6 +33,7 @@ export interface Property {
 }
 
 export type PropertyType = 
+  | 'color'
   | 'text' 
   | 'number' 
   | 'date' 

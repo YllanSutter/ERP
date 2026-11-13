@@ -12,7 +12,8 @@ function setup(saved = '[]', value = '#abc') {
   vi.mocked(ReactModule.useState).mockImplementation((initial?: any) => [typeof initial === 'function' ? initial() : initial, vi.fn()] as any);
   vi.mocked(ReactModule.useEffect).mockImplementation(() => {});
   const onChange = vi.fn();
-  const tree = ColorPicker({ value, onChange });
+  const onClose = vi.fn();
+  const tree = ColorPicker({ value, onChange, onClose });
   const nodes: React.ReactElement<any>[] = [];
   const visit = (node: React.ReactNode) => React.Children.forEach(node, (child) => {
     if (!React.isValidElement(child)) return;
@@ -20,10 +21,19 @@ function setup(saved = '[]', value = '#abc') {
     visit((child.props as any).children);
   });
   visit(tree);
-  return { nodes, onChange, localStorage };
+  return { nodes, onChange, onClose, localStorage };
 }
 
 describe('shared color picker', () => {
+  it('offers explicit closing and Escape without closing the parent editor', () => {
+    const { nodes, onClose } = setup();
+    nodes.find((node) => node.props['aria-label'] === 'Fermer le sélecteur de couleur')!.props.onClick();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    const event = { key: 'Escape', stopPropagation: vi.fn() };
+    nodes[0].props.onKeyDown(event);
+    expect(event.stopPropagation).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
   it('offers a free color selector alongside the palette', () => {
     const html = renderToStaticMarkup(<ColorPicker value="#8b5cf6" onChange={() => {}} />);
     expect(html).toContain('type="color"');

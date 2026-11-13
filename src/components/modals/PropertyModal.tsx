@@ -669,6 +669,8 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
                             }),
                           ]}
                         />
+                      ) : type === 'color' ? (
+                        <EditableProperty property={{ name, type }} value={tpl.value} onChange={(value) => updateTemplate({ value })} />
                       ) : type === 'checkbox' ? (
                         <FormSelect
                           value={tpl.value === true ? 'true' : tpl.value === false ? 'false' : ''}

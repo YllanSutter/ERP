@@ -1,3 +1,5 @@
+import { normalizeColor } from '@/lib/utils/colorUtils';
+import { X } from 'lucide-react';
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -5,6 +7,7 @@ interface ColorPickerProps {
   value: string;
   onChange: (color: string) => void;
   className?: string;
+  onClose?: () => void;
 }
 
 const predefinedColors = [
@@ -27,12 +30,6 @@ const predefinedColors = [
 ];
 
 const RECENT_COLORS_KEY = 'erp:recent-colors';
-const normalizeColor = (color: string) => {
-  const raw = color.trim();
-  if (/^#[0-9a-f]{6}$/i.test(raw)) return raw.toLowerCase();
-  if (/^#[0-9a-f]{3}$/i.test(raw)) return '#' + raw.slice(1).split('').map((char) => char + char).join('').toLowerCase();
-  return null;
-};
 const readRecentColors = (): string[] => {
   try {
     const saved = JSON.parse(window.localStorage.getItem(RECENT_COLORS_KEY) || '[]');
@@ -40,7 +37,7 @@ const readRecentColors = (): string[] => {
   } catch { return []; }
 };
 
-const ColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, className }) => {
+const ColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, className, onClose }) => {
   const [draft, setDraft] = useState<string | null>(null);
   const [recentColors, setRecentColors] = useState(readRecentColors);
   const currentColor = normalizeColor(value || '') || '#8b5cf6';
@@ -64,7 +61,13 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, className })
     style={{ backgroundColor: color }} title={label} />;
 
   return (
-    <div className={cn('w-full min-w-0 space-y-3 rounded-lg bg-background p-3 text-foreground', className)}>
+    <div className={cn('w-full min-w-0 space-y-3 rounded-lg bg-background p-3 text-foreground', className)}
+      onKeyDown={(event) => { if (event.key === 'Escape' && onClose) { event.stopPropagation(); onClose(); } }}>
+      {onClose && <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold">Couleur</span>
+        <button type="button" aria-label="Fermer le sélecteur de couleur" onClick={() => { commitDraft(); onClose(); }}
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"><X size={16} /></button>
+      </div>}
       <div className="flex min-w-0 items-center gap-3">
         <label className="relative h-12 w-12 shrink-0 cursor-pointer overflow-hidden rounded-lg border border-border shadow-sm"
           style={{ backgroundColor: currentColor }} title="Choisir une couleur librement">

@@ -3,6 +3,7 @@ import { DashboardConfig } from './dashboardTypes';
 export const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const PROPERTY_TYPES = {
+  COLOR: 'color',
   TEXT: 'text',
   NUMBER: 'number',
   SELECT: 'select',

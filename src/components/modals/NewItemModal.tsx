@@ -49,7 +49,7 @@ import {
 
 
 const fieldTypeIcons: Record<string, Icons.LucideIcon> = {
-  text: Icons.Type, rich_text: Icons.FileText, richtext: Icons.FileText,
+  color: Icons.Palette, text: Icons.Type, rich_text: Icons.FileText, richtext: Icons.FileText,
   number: Icons.Hash, currency: Icons.Euro, price: Icons.Euro,
   date: Icons.CalendarDays, date_range: Icons.CalendarRange, time: Icons.Clock,
   relation: Icons.Link2, select: Icons.Tag, multiselect: Icons.Tags, multi_select: Icons.Tags,
