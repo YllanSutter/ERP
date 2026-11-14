@@ -3,7 +3,7 @@ import { Eye, Trash2 } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuLabel, ContextMenuTrigger } from '@/components/ui/context-menu';
 import EditableProperty from '@/components/fields/EditableProperty';
-import ColorPicker from '@/components/inputs/ColorPicker';
+import ColorPicker, { COLOR_PICKER_SURFACE_CLASS } from '@/components/inputs/ColorPicker';
 import { SettingsDialog } from '@/components/ui/settings-panel';
 import { Button } from '@/components/ui/button';
 import { normalizeColor } from '@/lib/utils/colorUtils';
@@ -69,7 +69,7 @@ const ItemContextMenu: React.FC<ItemContextMenuProps> = ({
       {isButton ? <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={4} className="z-[401] min-w-[12rem] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">{entries}</DropdownMenu.Content></DropdownMenu.Portal>
         : <ContextMenuContent>{entries}</ContextMenuContent>}
     </Root>
-    <SettingsDialog open={Boolean(colorProperty)} onOpenChange={(open) => { if (!open) setColorProperty(null); }} title={colorProperty?.name || 'Couleur'} layer={450}>
+    <SettingsDialog open={Boolean(colorProperty)} onOpenChange={(open) => { if (!open) setColorProperty(null); }} title={colorProperty?.name || 'Couleur'} className={COLOR_PICKER_SURFACE_CLASS} layer={450}>
       {colorProperty && <>
         <ColorPicker value={item[colorProperty.id] || ''} onChange={(value) => onEdit?.({ ...item, [colorProperty.id]: value })} />
         <div className="border-t border-border p-2"><Button type="button" variant="ghost" size="sm" onClick={() => { onEdit?.({ ...item, [colorProperty.id]: null }); setColorProperty(null); }}>Effacer la couleur</Button></div>

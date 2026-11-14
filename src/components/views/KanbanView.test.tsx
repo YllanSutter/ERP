@@ -28,7 +28,7 @@ const item = { id: '1', name: 'Armagnac', status: 'À acheter', price: 35, tags:
 describe('Kanban card presentation', () => {
   it('keys the outer menu wrapper by item id for every card in a column', () => {
     vi.spyOn(ReactModule, 'useCallback').mockImplementation((callback) => callback);
-    vi.mocked(ReactModule.useState).mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([null, vi.fn()]);
+    vi.mocked(ReactModule.useState).mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([null, vi.fn()]);
     vi.mocked(ReactModule.useMemo)
       .mockImplementationOnce((factory) => factory())
       .mockImplementationOnce((factory) => factory());
@@ -93,7 +93,7 @@ describe('Kanban totals', () => {
 describe('Kanban column resets and visibility', () => {
   it('resets fields to view defaults and preserves totals, sorting and other columns', () => {
     vi.spyOn(ReactModule, 'useCallback').mockImplementation((callback) => callback);
-    vi.mocked(ReactModule.useState).mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([null, vi.fn()]);
+    vi.mocked(ReactModule.useState).mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([null, vi.fn()]);
     vi.mocked(ReactModule.useMemo).mockImplementationOnce((factory) => factory()).mockImplementationOnce((factory) => factory());
     const onUpdateViewConfig = vi.fn();
     const settings = { visibleFieldIds: ['price'], totalFields: { price: 'sum' }, totalsPosition: 'both', sortFieldId: 'price' };
@@ -140,7 +140,7 @@ it('hides default Kanban totals when grouped unless always-visible is checked', 
 it('edits a column custom total using the shared dialog and preserves other totals', () => {
   vi.spyOn(ReactModule, 'useCallback').mockImplementation((callback) => callback);
   const setTarget = vi.fn();
-  vi.mocked(ReactModule.useState).mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([{ column: 'À acheter', propertyId: 'price' }, setTarget]);
+  vi.mocked(ReactModule.useState).mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([{ column: 'À acheter', propertyId: 'price' }, setTarget]);
   vi.mocked(ReactModule.useMemo).mockImplementationOnce((factory) => factory()).mockImplementationOnce((factory) => factory());
   const onUpdateViewConfig = vi.fn();
   const tree = KanbanView({ collection, items: [item], groupBy: 'status', totalFields: { price: 'sum', status: 'count' },
@@ -159,4 +159,13 @@ it('edits a column custom total using the shared dialog and preserves other tota
   expect(onUpdateViewConfig).toHaveBeenCalledWith({ kanbanColumnSettings: { status: { 'À acheter': {
     totalFields: { price: 'number-filter:avg:status:Done', status: 'count' },
   } } } });
+});
+
+
+it.each(['top', 'bottom'])('renders the contextual name count with other totals at %s', (position) => {
+  const html = renderToStaticMarkup(<KanbanView collection={collection} items={[item]} groupBy={null} totalFields={{ name: 'count', price: 'sum' }} totalsPosition={position}
+    onEdit={() => {}} onDelete={() => {}} onViewDetail={() => {}} />);
+  expect(html).toContain(`data-kanban-total-position="${position}"`);
+  expect(html).toContain('Nom');
+  expect(html).toContain('1 ligne');
 });

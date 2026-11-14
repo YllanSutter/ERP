@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import ColorPicker from '@/components/inputs/ColorPicker';
+import ColorPicker, { COLOR_PICKER_SURFACE_CLASS } from '@/components/inputs/ColorPicker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { normalizeColor } from '@/lib/utils/colorUtils';
@@ -17,7 +17,7 @@ export default function ColorField({ value, onChange, readOnly, className }: {
   if (readOnly) return <span className={cn('inline-flex', className)}>{preview}</span>;
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild><Button type="button" variant="ghost" size="sm" className={cn('h-auto justify-start px-1 py-1', className)} aria-label="Modifier la couleur">{preview}</Button></PopoverTrigger>
-    <PopoverContent className="w-[min(90vw,20rem)] overflow-hidden p-0" align="start">
+    <PopoverContent className={cn(COLOR_PICKER_SURFACE_CLASS, 'overflow-hidden p-0')} align="start">
       <ColorPicker value={color || ''} onChange={onChange} onClose={() => setOpen(false)} />
       <div className="border-t border-border p-2"><Button type="button" variant="ghost" size="sm" disabled={!color}
         onClick={() => { onChange(null); setOpen(false); }}>Effacer la couleur</Button></div>

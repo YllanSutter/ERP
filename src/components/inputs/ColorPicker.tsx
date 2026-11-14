@@ -3,6 +3,8 @@ import { X } from 'lucide-react';
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 
+export const COLOR_PICKER_SURFACE_CLASS = 'w-[min(90vw,20rem)] sm:max-w-[20rem]';
+
 interface ColorPickerProps {
   value: string;
   onChange: (color: string) => void;

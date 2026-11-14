@@ -18,7 +18,7 @@ import { useViewGrouping } from './ViewGrouping';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger } from '@/components/ui/popover';
-import { SettingsPopoverContent, SettingsTabs, SettingsTabContent, SettingsLabel, SettingsFooter } from '@/components/ui/settings-panel';
+import { SettingsDialog, SettingsPopoverContent, SettingsTabs, SettingsTabContent, SettingsLabel, SettingsFooter } from '@/components/ui/settings-panel';
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -92,6 +92,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   onShowNewItemModal,
 }) => {
   const [draggedItem, setDraggedItem] = useState<any>(null);
+  const [totalsColumn, setTotalsColumn] = useState<string | null>(null);
   const [customTotalTarget, setCustomTotalTarget] = useState<{ column: string; propertyId: string } | null>(null);
   const { calculateTotal, formatTotal } = useViewTotals(orderedProperties || collection?.properties || [], collection, collections);
   // Hooks de permissions
@@ -163,6 +164,9 @@ const KanbanView: React.FC<KanbanViewProps> = ({
       ),
     [orderedProperties, collection.properties, canViewFieldFn]
   );
+
+  const totalProperties = (orderedProperties || collection.properties).filter((property: any) => canViewFieldFn(property.id));
+  const customTotalProperties = totalProperties.filter((property: any) => ['number', 'checkbox'].includes(property.type));
 
   const defaultVisibleFieldIds = useMemo(
     () =>
@@ -265,13 +269,13 @@ const KanbanView: React.FC<KanbanViewProps> = ({
           const settings = getColumnSettings(column);
           const position = settings.totalsPosition || totalsPosition;
           const columnVisibility = { ...totalsFieldVisibility, ...settings.totalsFieldVisibility };
-          const columnHiddenFields = allDisplayableProps.filter((property: any) => !selectedFieldIds.includes(property.id)).map((property: any) => property.id);
+          const columnHiddenFields = totalProperties.filter((property: any) => hiddenFields.includes(property.id) || (!property.showContextMenu && !selectedFieldIds.includes(property.id))).map((property: any) => property.id);
           const columnTotalFields = settings.totalFields ?? totalFields;
           const showColumnTotals = !groupByProp || totalsAlwaysVisible || settings.totalFields != null || settings.totalsPosition != null || settings.showTotals === true;
-          const renderTotals = (placement: 'top' | 'bottom') => showColumnTotals && settings.showTotals !== false && sortedColumnItems.length > 0 && allDisplayableProps.some((prop: any) => columnTotalFields[prop.id]) && (position === placement || position === 'both') && (
+          const renderTotals = (placement: 'top' | 'bottom') => showColumnTotals && settings.showTotals !== false && sortedColumnItems.length > 0 && totalProperties.some((prop: any) => columnTotalFields[prop.id]) && (position === placement || position === 'both') && (
             <div className="my-2 rounded-lg border border-border" data-kanban-total-position={placement}>
               <TotalsSurface defaultHiddenFields={columnHiddenFields} fieldVisibility={columnVisibility}
-                onFieldVisibilityChange={(id, visible, fieldIds) => updateColumnSettings(column, { totalsFieldVisibility: { ...settings.totalsFieldVisibility, ...Object.fromEntries((fieldIds || [id]).map((fieldId) => [fieldId, visible])) } })} position={placement} compact persistKey={`erp:kanban-totals:${collection.id}:${settingsGroupKey}:${column}`} displayProperties={allDisplayableProps} items={sortedColumnItems}
+                onFieldVisibilityChange={(id, visible, fieldIds) => updateColumnSettings(column, { totalsFieldVisibility: { ...settings.totalsFieldVisibility, ...Object.fromEntries((fieldIds || [id]).map((fieldId) => [fieldId, visible])) } })} position={placement} compact persistKey={`erp:kanban-totals:${collection.id}:${settingsGroupKey}:${column}`} displayProperties={totalProperties} items={sortedColumnItems}
                 totalFields={columnTotalFields} calculateTotal={calculateTotal} formatTotal={formatTotal}
                 />
             </div>
@@ -293,20 +297,15 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                 background: `linear-gradient(to bottom right, ${columnColors[column]}30, ${columnColors[column]}05)`
               }}
             >
-              <Popover>
-                <PopoverTrigger asChild><Button variant="ghost" size="sm" className="float-right" aria-label={`Totaux de ${column}`}><Icons.Sigma size={14} /></Button></PopoverTrigger>
-                <SettingsPopoverContent title={`Totaux · ${column}`} className="max-h-[80vh] overflow-y-auto">
-                  <TotalsSettings hiddenFields={columnHiddenFields} fieldVisibility={columnVisibility} items={items} collections={collections} properties={allDisplayableProps} totalFields={settings.totalFields ?? totalFields} position={position}
-                    onChange={(patch) => updateColumnSettings(column, patch)} />
-                  <Button variant="ghost" size="sm" onClick={() => updateColumnSettings(column, { totalFields: undefined, totalsPosition: undefined, totalsFieldVisibility: undefined })}>Reprendre les réglages de la vue</Button>
-                </SettingsPopoverContent>
-              </Popover>
               <h3 className="font-semibold text-neutral-700 dark:text-white flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: columnColors[column] }} />
                   <span>{column}</span>
                 </div>
-                <span className="text-xs bg-white/10 px-2 py-1 rounded-full">{groupedItems[column].length}</span>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs tabular-nums">{groupedItems[column].length}</span>
+                  <Button variant="ghost" size="icon" className="size-7 shrink-0" aria-label={`Totaux de ${column}`} onClick={() => setTotalsColumn(column)}><Icons.Sigma size={14} /></Button>
+                </div>
               </h3>
             </div>
 
@@ -443,13 +442,14 @@ const KanbanView: React.FC<KanbanViewProps> = ({
             <ContextMenuContent className="min-w-[230px]">
               <ContextMenuLabel>{column}</ContextMenuLabel>
               <ContextMenuSeparator />
-              <ContextMenuSub>
+              <ContextMenuItem onSelect={() => setTotalsColumn(column)}><Icons.Sigma size={14} className="mr-2" />Réglages des totaux…</ContextMenuItem>
+              {customTotalProperties.length > 0 && <ContextMenuSub>
                 <ContextMenuSubTrigger>Calcul personnalisé…</ContextMenuSubTrigger>
                 <ContextMenuSubContent>
-                  {allDisplayableProps.filter((property: any) => ['number', 'checkbox'].includes(property.type)).map((property: any) =>
+                  {customTotalProperties.map((property: any) =>
                     <ContextMenuItem key={property.id} onSelect={() => setCustomTotalTarget({ column, propertyId: property.id })}>{property.name}</ContextMenuItem>)}
                 </ContextMenuSubContent>
-              </ContextMenuSub>
+              </ContextMenuSub>}
               <ContextMenuCheckboxItem checked={showColumnTotals && settings.showTotals !== false && position !== 'none'}
                 onCheckedChange={(checked) => updateColumnSettings(column, {
                   showTotals: Boolean(checked),
@@ -522,8 +522,18 @@ const KanbanView: React.FC<KanbanViewProps> = ({
           </ContextMenu>
         )})}
       </div>
-      <CustomTotalDialog property={customTotalTarget ? allDisplayableProps.find((property: any) => property.id === customTotalTarget.propertyId) || null : null}
-        properties={allDisplayableProps} items={items} collections={collections}
+      <SettingsDialog open={totalsColumn !== null} onOpenChange={(open) => { if (!open) setTotalsColumn(null); }} title={`Totaux · ${totalsColumn || ''}`} className="sm:max-w-lg" layer={440}>
+        {totalsColumn !== null && <div className="overflow-y-auto p-3">
+          <TotalsSettings properties={totalProperties} items={groupedItems[totalsColumn] || []} collections={collections}
+            hiddenFields={totalProperties.filter((property: any) => hiddenFields.includes(property.id) || (!property.showContextMenu && !getSelectedFieldIdsForColumn(totalsColumn).includes(property.id))).map((property: any) => property.id)}
+            fieldVisibility={{ ...totalsFieldVisibility, ...getColumnSettings(totalsColumn).totalsFieldVisibility }}
+            totalFields={getColumnSettings(totalsColumn).totalFields ?? totalFields} position={getColumnSettings(totalsColumn).totalsPosition || totalsPosition}
+            onChange={(patch) => updateColumnSettings(totalsColumn, patch)} />
+          <Button variant="ghost" size="sm" className="mt-2" onClick={() => updateColumnSettings(totalsColumn, { totalFields: undefined, totalsPosition: undefined, totalsFieldVisibility: undefined, showTotals: undefined })}>Reprendre les réglages de la vue</Button>
+        </div>}
+      </SettingsDialog>
+      <CustomTotalDialog property={customTotalTarget ? totalProperties.find((property: any) => property.id === customTotalTarget.propertyId) || null : null}
+        properties={totalProperties} items={items} collections={collections}
         value={customTotalTarget ? (getColumnSettings(customTotalTarget.column).totalFields ?? totalFields)[customTotalTarget.propertyId] || '' : ''}
         onChange={(value) => {
           if (!customTotalTarget) return;
