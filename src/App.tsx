@@ -1,3 +1,5 @@
+import ItemArchives from '@/components/modals/ItemArchives';
+import { visibleCollections } from '@/lib/itemArchive';
 import { SelectOptionsContext } from '@/components/fields/select-options-context';
 import { createTemporaryRelationView, splitTemporaryView } from '@/lib/views/temporaryRelationView';
 import { SteamExchangeDialog } from '@/lib/plugins/steam/SteamExchangeDialog';
@@ -297,7 +299,7 @@ const App = () => {
   };
   const viewHooks = useViews(sessionViews, updateSessionViews, activeCollection, activeView, setActiveView);
   const collectionsWithCalculatedFields = useMemo(
-    () => applyCalculatedFieldsToCollections(collections),
+    () => applyCalculatedFieldsToCollections(visibleCollections(collections)),
     [collections]
   );
   const currentCollection = collectionsWithCalculatedFields.find((c) => c.id === activeCollection);
@@ -742,7 +744,7 @@ const App = () => {
 
       <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen} className="flex flex-1 overflow-hidden">
         <Sidebar
-          collections={collections}
+          collections={collectionsWithCalculatedFields}
           views={views}
           dashboards={sortedDashboards}
           favorites={favorites}
@@ -762,7 +764,7 @@ const App = () => {
             setRelationFilter({ collectionId: null, ids: [] });
           }}
           onEditCollection={(col) => {
-            setEditingCollection(col);
+            setEditingCollection(collections.find((entry) => entry.id === col.id) || col);
             setShowEditCollectionModal(true);
           }}
           onToggleFavoriteView={(viewId: string) => {
@@ -919,6 +921,7 @@ const App = () => {
             </motion.div>
           ) : (
             <ViewShell>
+              <ItemArchives key={currentCollection.id} collection={collections.find((entry) => entry.id === currentCollection.id) || currentCollection} canEdit={canEdit} onRestore={itemHooks.restoreItem} onDelete={itemHooks.permanentlyDeleteItem} />
               <SteamBundles key={`${activeOrganizationId}:${currentCollection.id}`} organizationId={activeOrganizationId} collection={currentCollection} collections={collections} setCollections={setCollections} groupPath={steamGroupPath} view={activeViewConfig} groups={activeViewConfig?.groups || []} properties={orderedProperties} />
               <ViewToolbar
                 currentCollection={currentCollection}
@@ -926,7 +929,7 @@ const App = () => {
                 currentViewConfig={activeViewConfig}
                 activeView={activeView}
                 orderedProperties={orderedProperties}
-                collections={collections}
+                collections={collectionsWithCalculatedFields}
                 allViews={views}
                 showViewSettings={showViewSettings}
                 viewSettingsSection={showFilterModal ? 'filters' : showGroupModal ? 'groups' : undefined}

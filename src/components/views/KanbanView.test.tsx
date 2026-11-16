@@ -58,7 +58,7 @@ describe('Kanban card presentation', () => {
       collections={[]} onEdit={() => {}} onDelete={() => {}} onViewDetail={() => {}} />);
     expect(html).toContain('Armagnac');
     expect(html).toContain('Menu de Armagnac');
-    expect(html).toContain('Supprimer l’élément');
+    expect(html).toContain('Archiver l’élément');
     expect(html).toContain('35 €');
     expect(html).toContain('Anniversaire');
     expect(html).not.toContain('-top-7');

@@ -61,7 +61,7 @@ const ItemContextMenu: React.FC<ItemContextMenuProps> = ({
     </>}
     {canEdit && (extraActions.length > 0 || onDelete) && <Separator className="my-1 h-px bg-border" />}
     {canEdit && extraActions.map((action) => <Item key={action.label} onSelect={action.onSelect} className={`${entryClass} text-destructive`}>{action.label}</Item>)}
-    {canEdit && onDelete && <Item onSelect={() => onDelete(item.id)} className={`${entryClass} text-destructive`}><Trash2 size={14} /><span>Supprimer</span></Item>}
+    {canEdit && onDelete && <Item onSelect={() => onDelete(item.id)} className={`${entryClass} text-destructive`}><Trash2 size={14} /><span>Archiver</span></Item>}
   </>;
   return <>
     <Root>

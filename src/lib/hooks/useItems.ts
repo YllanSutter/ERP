@@ -1,3 +1,4 @@
+import { archiveItems, restoreArchivedItem, purgeArchivedItem } from '@/lib/itemArchive';
 import { generateId } from '@/lib/utils/id';
 import { stripCalculatedNumberFieldsFromItem } from '@/lib/calculatedFields';
 
@@ -231,101 +232,23 @@ export const useItems = (
     });
   };
 
-  const deleteItem = (itemId: string, collectionId?: string) => {
-    const deletedCollectionId = collectionId || activeCollection;
-    if (!deletedCollectionId) return;
-    console.log('deleteItem called:', itemId, 'collectionId:', deletedCollectionId, 'current collections count:', collections.length);
-    // 1) Remove the item from its source collection
-    let updatedCollections = collections.map((col) => {
-      if (col.id === deletedCollectionId) {
-        const filtered = { ...col, items: col.items.filter((i: any) => i.id !== itemId) };
-        console.log('deleteItem - filtering collection:', col.id, 'removed:', col.items.length - filtered.items.length, 'items remain:', filtered.items.length);
-        return filtered;
-      }
-      return col;
-    });
-
-    // 2) Cleanup relations in other collections that point to the deleted item's collection
-    updatedCollections = updatedCollections.map((col) => {
-      const newItems = (col.items || []).map((it: any) => {
-        let next = { ...it };
-        (col.properties || []).forEach((prop: any) => {
-          if (prop.type !== 'relation') return;
-          const relation = prop.relation || {};
-          const targetCollectionId = relation.targetCollectionId;
-          const relationType = relation.type || 'many_to_many';
-          const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
-
-          // Only relations that target the active (deleted item) collection
-          if (targetCollectionId === deletedCollectionId) {
-            const val = next[prop.id];
-            if (isSourceMany) {
-              const arr = Array.isArray(val) ? val : [];
-              const filtered = arr.filter((id: string) => id !== itemId);
-              if (filtered.length !== arr.length) next[prop.id] = filtered;
-            } else {
-              if (val === itemId) next[prop.id] = null;
-            }
-          }
-        });
-        return next;
-      });
-      return { ...col, items: newItems };
-    });
-
-    console.log('deleteItem - calling setCollections');
-    setCollections(updatedCollections);
+  // All normal deletion entry points archive; only the Archives panel can purge.
+  const bulkDeleteItems = (itemIds: string[], collectionId?: string) => {
+    const targetId = collectionId || activeCollection;
+    if (!targetId || !itemIds.length) return;
+    setCollections((previous) => archiveItems(previous, targetId, itemIds));
   };
 
-  const bulkDeleteItems = (itemIds: string[], collectionId?: string) => {
-    const deletedCollectionId = collectionId || activeCollection;
-    if (!deletedCollectionId || itemIds.length === 0) return;
-    console.log('bulkDeleteItems called:', itemIds, 'collectionId:', deletedCollectionId, 'count:', itemIds.length);
-    
-    const itemIdSet = new Set(itemIds);
-    
-    // 1) Remove all items from their source collection in ONE pass
-    let updatedCollections = collections.map((col) => {
-      if (col.id === deletedCollectionId) {
-        const originalCount = col.items.length;
-        const filtered = { ...col, items: col.items.filter((i: any) => !itemIdSet.has(i.id)) };
-        const removedCount = originalCount - filtered.items.length;
-        console.log('bulkDeleteItems - filtering collection:', col.id, 'removed:', removedCount, 'items remain:', filtered.items.length);
-        return filtered;
-      }
-      return col;
-    });
+  const deleteItem = (itemId: string, collectionId?: string) => {
+    bulkDeleteItems([itemId], collectionId);
+  };
 
-    // 2) Cleanup relations in other collections that point to the deleted items' collection
-    updatedCollections = updatedCollections.map((col) => {
-      const newItems = (col.items || []).map((it: any) => {
-        let next = { ...it };
-        (col.properties || []).forEach((prop: any) => {
-          if (prop.type !== 'relation') return;
-          const relation = prop.relation || {};
-          const targetCollectionId = relation.targetCollectionId;
-          const relationType = relation.type || 'many_to_many';
-          const isSourceMany = relationType === 'one_to_many' || relationType === 'many_to_many';
+  const restoreItem = (itemId: string, collectionId: string) => {
+    setCollections((previous) => restoreArchivedItem(previous, collectionId, itemId));
+  };
 
-          // Only relations that target the active (deleted items) collection
-          if (targetCollectionId === deletedCollectionId) {
-            const val = next[prop.id];
-            if (isSourceMany) {
-              const arr = Array.isArray(val) ? val : [];
-              const filtered = arr.filter((id: string) => !itemIdSet.has(id));
-              if (filtered.length !== arr.length) next[prop.id] = filtered;
-            } else {
-              if (itemIdSet.has(val)) next[prop.id] = null;
-            }
-          }
-        });
-        return next;
-      });
-      return { ...col, items: newItems };
-    });
-
-    console.log('bulkDeleteItems - calling setCollections once with all deletions');
-    setCollections(updatedCollections);
+  const permanentlyDeleteItem = (itemId: string, collectionId: string) => {
+    setCollections((previous) => purgeArchivedItem(previous, collectionId, itemId));
   };
 
   /**
@@ -396,6 +319,8 @@ export const useItems = (
     updateItem,
     deleteItem,
     bulkDeleteItems,
+    restoreItem,
+    permanentlyDeleteItem,
     bulkUpdateItems
   };
 };

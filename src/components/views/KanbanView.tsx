@@ -374,7 +374,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                           <Ellipsis size={14} />
                         </button>
                       </ItemContextMenu>
-                      {canEdit && <button type="button" draggable={false} aria-label="Supprimer l’élément" title="Supprimer l’élément"
+                      {canEdit && <button type="button" draggable={false} aria-label="Archiver l’élément" title="Archiver l’élément"
                         onClick={() => onDelete(item.id)}
                         className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/15 hover:text-destructive">
                         <Trash2 size={13} />

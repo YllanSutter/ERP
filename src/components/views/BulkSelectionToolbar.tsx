@@ -56,18 +56,18 @@ export const BulkSelectionToolbar: React.FC<BulkSelectionToolbarProps> = ({
         <Button type="button" className="h-8 w-8 shrink-0" variant="secondary" size="icon" disabled={!fieldId} onClick={onApply} aria-label="Appliquer" title="Appliquer"><Check /></Button>
         {onBulkImportItad && <Button type="button" className="shrink-0" variant="secondary" size="sm" onClick={onBulkImportItad}>⬇️ Importer ITAD ({count})</Button>}
         <Button type="button" className="h-8 w-8 shrink-0" variant="outline" size="icon" onClick={onClear} aria-label="Désélectionner" title="Désélectionner"><X /></Button>
-        <Button type="button" className="h-8 w-8 shrink-0" variant="destructive" size="icon" onClick={onDelete} aria-label="Supprimer la sélection" title="Supprimer la sélection"><Trash2 /></Button>
+        <Button type="button" className="h-8 w-8 shrink-0" variant="destructive" size="icon" onClick={onDelete} aria-label="Archiver la sélection" title="Archiver la sélection"><Trash2 /></Button>
       </>}
     </div>
     <AlertDialog open={deleteDialogOpen} onOpenChange={onDeleteDialogOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Supprimer la sélection ?</AlertDialogTitle>
-          <AlertDialogDescription>Cette action supprimera définitivement {count} élément{count > 1 ? 's' : ''}.</AlertDialogDescription>
+          <AlertDialogTitle>Archiver la sélection ?</AlertDialogTitle>
+          <AlertDialogDescription>Vous pourrez restaurer depuis les archives les {count} élément{count > 1 ? 's' : ''}.</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Annuler</AlertDialogCancel>
-          <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700" onClick={onConfirmDelete}>Supprimer</AlertDialogAction>
+          <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700" onClick={onConfirmDelete}>Archiver</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

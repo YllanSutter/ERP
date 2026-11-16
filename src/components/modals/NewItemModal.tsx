@@ -1905,14 +1905,14 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     type="button"
                     className="px-3 py-2 text-xs font-medium text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/10 hover:border-red-500/40 transition-all"
                   >
-                    Supprimer
+                    Archiver
                   </button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Supprimer cet objet ?</AlertDialogTitle>
+                    <AlertDialogTitle>Archiver cet objet ?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Cette action est irréversible. L’objet sera supprimé définitivement.
+                      L’objet sera conservé dans les archives. Vous pourrez le restaurer ou le supprimer définitivement depuis cet espace.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter className="mt-6">
@@ -1923,7 +1923,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                         onClose();
                       }}
                     >
-                      Supprimer
+                      Archiver
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
