@@ -1,4 +1,4 @@
-const internalFields = new Set(['_eventSegments', '_preserveEventSegments', '_steamExchangeReceivedIds']);
+const internalFields = new Set(['_eventSegments', '_preserveEventSegments', '_steamExchangeReceivedIds', '_archivedAt']);
 export const isSyncableItemField = (key) => !key.startsWith('_') || internalFields.has(key);
 const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 

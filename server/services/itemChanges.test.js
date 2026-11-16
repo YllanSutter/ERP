@@ -302,3 +302,33 @@ test('a Steam exchange survives the save response when the received game is crea
   assert.equal(cancellation.statusCode, 200);
   assert.deepEqual(h.state.collections[0].items[0][exchangeField], []);
 });
+
+test('archiving persists through the targeted save and reload, and only restoration clears it', async () => {
+  const state = initial();
+  const next = copy(state.collections);
+  const archivedAt = '2026-11-16T09:00:00.000Z';
+  next[0].items[0]._archivedAt = archivedAt;
+  const changes = buildItemChanges(state.collections, next, true);
+  assert.equal(changes.length, 1, 'archiving must produce a save operation');
+  const h = harness(state);
+  const archived = await h.call({ stateVersion: 1, mutationId: randomUUID(), itemChanges: changes });
+  assert.equal(archived.statusCode, 200);
+  assert.equal(applyItemChanges(state.collections, archived.body.itemChanges)[0].items[0]._archivedAt, archivedAt);
+  const reload = await h.call(undefined, 'GET', '/api/state');
+  assert.equal(reload.body.collections[0].items[0]._archivedAt, archivedAt);
+
+  const edited = copy(reload.body.collections);
+  edited[0].items[0].name = 'Updated while archived';
+  const edit = await h.call({ stateVersion: 2, mutationId: randomUUID(), itemChanges: buildItemChanges(reload.body.collections, edited, true) });
+  assert.equal(edit.statusCode, 200);
+  assert.equal((await h.call(undefined, 'GET', '/api/state')).body.collections[0].items[0]._archivedAt, archivedAt);
+
+  const restored = copy(h.state.collections);
+  delete restored[0].items[0]._archivedAt;
+  const restoration = await h.call({ stateVersion: 3, mutationId: randomUUID(), itemChanges: buildItemChanges(h.state.collections, restored, true) });
+  assert.equal(restoration.statusCode, 200);
+  assert.ok(restoration.body.itemChanges[0].updated[0].unset.includes('_archivedAt'));
+  const restoredReload = await h.call(undefined, 'GET', '/api/state');
+  assert.equal(Object.hasOwn(restoredReload.body.collections[0].items[0], '_archivedAt'), false);
+  assert.equal(restoredReload.body.collections[0].items[0].name, 'Updated while archived');
+});
