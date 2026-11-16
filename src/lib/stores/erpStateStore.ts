@@ -33,7 +33,9 @@ export const createErpStateStore = (orgKey: string | null) => {
       set({ activeCollection: value });
     },
     setActiveView: (value) => {
-      value ? storage.set(keys.view, value) : storage.remove(keys.view);
+      if (!value?.startsWith('temporary-relation-')) {
+        value ? storage.set(keys.view, value) : storage.remove(keys.view);
+      }
       set({ activeView: value });
     },
     setActiveDashboard: (value) => {

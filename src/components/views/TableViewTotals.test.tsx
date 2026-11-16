@@ -21,6 +21,18 @@ function render(position?: string, grouped = false, totalsAlwaysVisible = true, 
 }
 afterEach(() => vi.unstubAllGlobals());
 
+it.each(['asc', 'desc'])('sorts manual order in the %s direction without changing stored items', (direction) => {
+  const rows = [{ id: 'first' }, { id: 'second' }, { id: 'third' }];
+  const html = render('none', false, true, {
+    items: rows,
+    initialSortState: { column: null, direction },
+  });
+  const displayed = direction === 'asc' ? rows : [...rows].reverse();
+  expect(html.indexOf(`ROW-${displayed[0].id}`)).toBeLessThan(html.indexOf(`ROW-${displayed[1].id}`));
+  expect(html.indexOf(`ROW-${displayed[1].id}`)).toBeLessThan(html.indexOf(`ROW-${displayed[2].id}`));
+  expect(rows.map((row) => row.id)).toEqual(['first', 'second', 'third']);
+});
+
 describe.each([false, true])('consistent table totals (grouped=%s)', (grouped) => {
   it('shows one module panel at the top only when requested', () => {
     const html = render('top', grouped);

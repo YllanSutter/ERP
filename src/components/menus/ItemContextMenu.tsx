@@ -66,7 +66,7 @@ const ItemContextMenu: React.FC<ItemContextMenuProps> = ({
   return <>
     <Root>
       <Trigger asChild>{children}</Trigger>
-      {isButton ? <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={4} className="z-[401] min-w-[12rem] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">{entries}</DropdownMenu.Content></DropdownMenu.Portal>
+      {isButton ? <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={4} className="z-[150] min-w-[12rem] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">{entries}</DropdownMenu.Content></DropdownMenu.Portal>
         : <ContextMenuContent>{entries}</ContextMenuContent>}
     </Root>
     <SettingsDialog open={Boolean(colorProperty)} onOpenChange={(open) => { if (!open) setColorProperty(null); }} title={colorProperty?.name || 'Couleur'} className={COLOR_PICKER_SURFACE_CLASS} layer={450}>

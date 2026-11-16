@@ -1,191 +1,79 @@
 import React, { useState } from 'react';
 import * as Icons from 'lucide-react';
-import { OptionType } from '@/components/inputs/LightSelect';
-import IconPicker from '@/components/inputs/IconPicker';
-import ColorPicker from '@/components/inputs/ColorPicker';
-import DraggableList from '@/components/inputs/DraggableList';
+import type { OptionType } from './LightSelect';
+import IconPicker from './IconPicker';
+import ColorPicker from './ColorPicker';
+import DraggableList from './DraggableList';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { findMatchingOption } from '@/lib/utils/selectOptions';
 import { cn } from '@/lib/utils';
 
 interface OptionListEditorProps {
   options: OptionType[];
-  onChange: (opts: OptionType[]) => void;
+  onChange: (options: OptionType[]) => void;
 }
-
 const defaultColor = '#8b5cf6';
 const defaultIcon = 'Tag';
 
 export const OptionListEditor: React.FC<OptionListEditorProps> = ({ options, onChange }) => {
-  const [newOptionValue, setNewOptionValue] = useState('');
-  const [newOptionColor, setNewOptionColor] = useState(defaultColor);
-  const [newOptionIcon, setNewOptionIcon] = useState<string>(defaultIcon);
-  const [showIconPopover, setShowIconPopover] = useState(false);
-  const [showColorPopover, setShowColorPopover] = useState(false);
-  const [openIconIndex, setOpenIconIndex] = useState<number | null>(null);
-  const [openColorIndex, setOpenColorIndex] = useState<number | null>(null);
-
-  const normalizeOption = (opt: OptionType): { value: string; label: string; color: string; icon: string } => {
-    if (typeof opt === 'string') return { value: opt, label: opt, color: defaultColor, icon: defaultIcon };
-    return {
-      value: opt.value,
-      label: opt.label || opt.value,
-      color: opt.color || defaultColor,
-      icon: opt.icon || defaultIcon
-    };
+  const [name, setName] = useState('');
+  const [newIcon, setNewIcon] = useState(defaultIcon);
+  const [newColor, setNewColor] = useState(defaultColor);
+  const [newIconOpen, setNewIconOpen] = useState(false);
+  const [newColorOpen, setNewColorOpen] = useState(false);
+  const [iconIndex, setIconIndex] = useState<number | null>(null);
+  const [colorIndex, setColorIndex] = useState<number | null>(null);
+  const normalized = options.map(option => typeof option === 'string'
+    ? { value: option, label: option, color: defaultColor, icon: defaultIcon }
+    : { ...option, label: option.label || option.value, color: option.color || defaultColor, icon: option.icon || defaultIcon });
+  const duplicate = Boolean(name.trim() && findMatchingOption(options, name));
+  const add = () => {
+    const label = name.trim();
+    if (!label || duplicate) return;
+    onChange([...options, { value: label, label, color: newColor, icon: newIcon }]);
+    setName('');
   };
-
-  const normalizedOptions: { value: string; label: string; color: string; icon: string }[] = options.map(normalizeOption);
-
-  const addOption = () => {
-    if (!newOptionValue.trim()) return;
-    const trimmed = newOptionValue.trim();
-    const next = [...normalizedOptions, { value: trimmed, label: trimmed, color: newOptionColor, icon: newOptionIcon }];
-    onChange(next);
-    setNewOptionValue('');
-    setNewOptionColor(defaultColor);
-    setNewOptionIcon(defaultIcon);
-  };
-
-  const removeOption = (index: number) => {
-    const next = normalizedOptions.filter((_, i) => i !== index);
-    onChange(next);
-  };
-
-  const updateOption = (index: number, partial: Partial<{ value: string; label: string; color: string; icon: string }>) => {
-    const next = normalizedOptions.map((opt, i) => (i === index ? { ...opt, ...partial } : opt));
-    onChange(next);
-  };
-
-  const reorderOptions = (next: OptionType[]) => onChange(next);
-
-  return (
-    <div className="space-y-3">
-      <label className="block text-sm font-medium text-neutral-600 dark:text-neutral-300">Options</label>
-      <div className="space-y-2">
-        <DraggableList
-          items={normalizedOptions.map((opt, idx) => ({ ...opt, _idx: idx }))}
-          getId={(opt) => `option-${opt._idx}`}
-          onReorder={(reordered) => onChange(reordered.map(({ _idx, ...opt }) => opt))}
-          renderItem={(opt, { isDragging }) => {
-            const OptIcon = (Icons as any)[opt.icon] || null;
-            return (
-              <div className={cn(
-                "flex items-center gap-2 p-2 dark:bg-neutral-800/50 border border-white/10 rounded-lg",
-                isDragging && "border-cyan-500/60 bg-neutral-800"
-              )}>
-                <div className="flex items-center gap-2 cursor-grab text-neutral-500">
-                  <Icons.GripVertical size={16} />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setOpenIconIndex(openIconIndex === opt._idx ? null : opt._idx)}
-                    className="w-9 h-9 flex items-center justify-center rounded-lg border border-black/10 dark:border-white/10 bg-dark/5 dark:bg-white/5 hover:bg-white/10 text-neutral-700 dark:text-white"
-                    title="Choisir une icône"
-                  >
-                    {OptIcon ? <OptIcon size={18} /> : <Icons.Tag size={18} />}
-                  </button>
-                  {openIconIndex === opt._idx && (
-                    <div className="absolute z-[150] mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
-                      <IconPicker
-                        value={opt.icon || defaultIcon}
-                        onChange={(val) => { updateOption(opt._idx, { icon: val }); setOpenIconIndex(null); }}
-                        mode="all"
-                      />
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setOpenColorIndex(openColorIndex === opt._idx ? null : opt._idx)}
-                    className="w-9 h-9 rounded-lg border border-white/10"
-                    style={{ backgroundColor: opt.color || defaultColor }}
-                    title="Choisir une couleur"
-                  />
-                  {openColorIndex === opt._idx && (
-                    <div className="absolute z-[150] mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
-                      <ColorPicker
-                        value={opt.color || defaultColor}
-                        onClose={() => setOpenColorIndex(null)}
-                        onChange={(val) => { updateOption(opt._idx, { color: val }); }}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <input
-                  type="text"
-                  value={opt.label}
-                  onChange={(e) => updateOption(opt._idx, { label: e.target.value })}
-                  className="flex-1 px-3 py-2 bg-gray-100 dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white text-sm placeholder-neutral-500 focus:border-brand-500 focus:outline-none"
-                />
-
-                <button
-                  onClick={() => removeOption(opt._idx)}
-                  className="p-1.5 hover:bg-red-500/20 rounded text-red-400"
-                  title="Supprimer"
-                >
-                  <Icons.X size={16} />
-                </button>
-              </div>
-            );
-          }}
-        />
-        {normalizedOptions.length === 0 && (
-          <div className="text-xs text-neutral-500 px-1">Aucune option</div>
-        )}
-      </div>
-      <div className="flex flex-col gap-3">
-        <div className="flex gap-2 items-center">
-          <input
-            type="text"
-            value={newOptionValue}
-            onChange={(e) => setNewOptionValue(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && addOption()}
-            placeholder="Nouvelle option"
-            className="flex-1 px-3 py-2 bg-gray-100 dark:bg-neutral-900/60 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-white text-sm placeholder-neutral-500 focus:border-brand-500 focus:outline-none"
-          />
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowIconPopover((v) => !v)}
-              className="w-10 h-10 flex items-center justify-center bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 border border-black/10 dark:border-white/10 rounded-lg text-neutral-700 dark:text-neutral-300"
-              title="Choisir une icône"
-            >
-              {(Icons as any)[newOptionIcon] ? React.createElement((Icons as any)[newOptionIcon], { size: 18 }) : <Icons.Tag size={18} />}
-            </button>
-            {showIconPopover && (
-              <div className="absolute z-[150] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
-                <IconPicker value={newOptionIcon} onChange={(val) => { setNewOptionIcon(val); setShowIconPopover(false); }} mode="all" />
-              </div>
-            )}
-          </div>
-          <div className="relative leading-none">
-            <button
-              type="button"
-              onClick={() => setShowColorPopover((v) => !v)}
-              className="w-9 h-9 rounded-lg border border-white/10"
-              style={{ backgroundColor: newOptionColor }}
-              title="Choisir une couleur"
-            />
-            {showColorPopover && (
-              <div className="absolute z-[150] right-0 mt-2 w-[280px] bg-neutral-900/95 border border-white/10 rounded-lg shadow-xl backdrop-blur p-3">
-                <ColorPicker onClose={() => setShowColorPopover(false)} value={newOptionColor} onChange={(val) => { setNewOptionColor(val); }} />
-              </div>
-            )}
-          </div>
-          <div className="relative leading-none">
-          <button
-            onClick={addOption}
-            className="w-9 h-9 px-1 grid items-center justify-center py-2 bg-brand-500 dark:bg-brand-500/20 hover:bg-brand-500/30 border border-brand-500/50 rounded-lg text-white text-sm transition-colors"
-          >
-            <Icons.Plus size={14} />
-          </button>
-          </div>
-        </div>
-      </div>
+  const update = (index: number, partial: Partial<{ label: string; color: string; icon: string }>) => onChange(options.map((option, i) => i === index ? { ...normalized[i], ...partial } : option));
+  const NewIcon = (Icons as any)[newIcon] || Icons.Tag;
+  const control = 'flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500';
+  return <div className="space-y-2">
+    <div className="flex flex-nowrap items-center gap-2 border-b border-border/60 pb-2">
+      <span className="shrink-0 text-xs font-medium">Options <span className="text-[10px] font-normal text-muted-foreground">{options.length}</span></span>
+      <input aria-label="Nom de la nouvelle option" value={name} onChange={event => setName(event.target.value)}
+        onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); add(); } }}
+        placeholder="Ajouter une option…" className="h-7 min-w-0 flex-1 rounded-md bg-muted/40 px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-brand-500" />
+      <Popover open={newIconOpen} onOpenChange={setNewIconOpen}>
+        <PopoverTrigger asChild><button type="button" className={control} aria-label="Icône de la nouvelle option" title="Icône de la nouvelle option" style={{ color: newColor }}><NewIcon size={13} /></button></PopoverTrigger>
+        <PopoverContent className="z-[450] w-72 p-2"><IconPicker value={newIcon} mode="all" onChange={icon => { setNewIcon(icon); setNewIconOpen(false); }} /></PopoverContent>
+      </Popover>
+      <Popover open={newColorOpen} onOpenChange={setNewColorOpen}>
+        <PopoverTrigger asChild><button type="button" className={control} aria-label="Couleur de la nouvelle option" title="Couleur de la nouvelle option"><span className="h-3 w-3 rounded-full border border-black/10" style={{ backgroundColor: newColor }} /></button></PopoverTrigger>
+        <PopoverContent className="z-[450] w-72 p-2"><ColorPicker value={newColor} onClose={() => setNewColorOpen(false)} onChange={setNewColor} /></PopoverContent>
+      </Popover>
+      <button type="button" className={cn(control, 'disabled:opacity-30')} disabled={!name.trim() || duplicate} onClick={add}
+        aria-label="Ajouter l’option" title={duplicate ? 'Cette option existe déjà' : 'Ajouter · Entrée'}><Icons.Plus size={14} /></button>
     </div>
-  );
+    <DraggableList items={normalized.map((option, index) => ({ ...option, _index: index }))} getId={option => option.value}
+      onReorder={reordered => onChange(reordered.map(({ _index, ...option }) => option))}
+      renderItem={(option, { isDragging }) => {
+        const Icon = (Icons as any)[option.icon] || Icons.Tag;
+        return <div className={cn('flex min-w-0 items-center gap-1 rounded-md py-0.5 hover:bg-muted/30', isDragging && 'bg-muted')}>
+          <Icons.GripVertical size={12} className="shrink-0 cursor-grab text-muted-foreground/50" />
+          <Popover open={iconIndex === option._index} onOpenChange={open => setIconIndex(open ? option._index : null)}>
+            <PopoverTrigger asChild><button type="button" className={control} aria-label={`Icône de ${option.label}`} title="Changer l’icône" style={{ color: option.color }}><Icon size={12} /></button></PopoverTrigger>
+            <PopoverContent className="z-[450] w-72 p-2"><IconPicker value={option.icon} mode="all" onChange={icon => { update(option._index, { icon }); setIconIndex(null); }} /></PopoverContent>
+          </Popover>
+          <input aria-label={`Libellé de ${option.value}`} value={option.label} onChange={event => update(option._index, { label: event.target.value })}
+            className="h-7 min-w-0 flex-1 rounded-full border px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
+            style={{ backgroundColor: `${option.color}10`, borderColor: `${option.color}30` }} />
+          <Popover open={colorIndex === option._index} onOpenChange={open => setColorIndex(open ? option._index : null)}>
+            <PopoverTrigger asChild><button type="button" className={control} aria-label={`Couleur de ${option.label}`} title="Changer la couleur"><span className="h-3 w-3 rounded-full border border-black/10" style={{ backgroundColor: option.color }} /></button></PopoverTrigger>
+            <PopoverContent className="z-[450] w-72 p-2"><ColorPicker value={option.color} onClose={() => setColorIndex(null)} onChange={color => update(option._index, { color })} /></PopoverContent>
+          </Popover>
+          <button type="button" className={cn(control, 'hover:text-red-500')} aria-label={`Supprimer ${option.label}`} title="Supprimer l’option" onClick={() => onChange(options.filter((_, index) => index !== option._index))}><Icons.X size={12} /></button>
+        </div>;
+      }} />
+    {!options.length && <p className="py-2 text-xs text-muted-foreground">Saisissez un nom puis appuyez sur Entrée.</p>}
+  </div>;
 };
-
 export default OptionListEditor;

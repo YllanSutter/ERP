@@ -238,7 +238,7 @@ const TableView: React.FC<TableViewProps> = ({
     cb(sortState);
   }, [sortState]);
 
-  const handleSort = useCallback((columnId: string) => {
+  const handleSort = useCallback((columnId: string | null) => {
     setSortState((prev) => {
       if (prev.column === columnId) {
         return { column: columnId, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
@@ -281,7 +281,9 @@ const TableView: React.FC<TableViewProps> = ({
 
   // Fonction de tri générique
   const sortItems = useCallback((arr: any[]) => {
-    if (!sortState.column) return orderSteamExchanges(arr, collection);
+    if (!sortState.column) {
+      return orderSteamExchanges(sortState.direction === 'desc' ? [...arr].reverse() : arr, collection);
+    }
     const col = sortState.column;
     const sortProp = orderedProperties.find((p: any) => p.id === col);
     const sorted = [...arr].sort((a, b) => {
@@ -1378,7 +1380,7 @@ const TableView: React.FC<TableViewProps> = ({
                   collectionId={collection?.id}
                   sortState={sortState}
                   onSort={handleSort}
-                  onManualOrder={() => setSortState({ column: null, direction: 'asc' })}
+                  onManualOrder={() => handleSort(null)}
                   enableDragReorder={canEdit}
                   enableSelection={showSelectionColumn}
                   allSelected={scopedAllSelected}

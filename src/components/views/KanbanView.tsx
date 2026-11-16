@@ -5,7 +5,7 @@ import { useViewTotals } from '@/lib/hooks/useViewTotals';
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
-import { Ellipsis, FileText, Clock, Info, Link2, Trash2, GripHorizontal, Plus } from 'lucide-react';
+import { Ellipsis, Trash2, GripHorizontal, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { OptionTags } from '@/components/inputs/OptionTags';
 import EditableProperty from '@/components/fields/EditableProperty';
@@ -17,8 +17,7 @@ import { shouldShowColumn } from '@/lib/utils/columnFilterUtils';
 import { useViewGrouping } from './ViewGrouping';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverTrigger } from '@/components/ui/popover';
-import { SettingsDialog, SettingsPopoverContent, SettingsTabs, SettingsTabContent, SettingsLabel, SettingsFooter } from '@/components/ui/settings-panel';
+import { SettingsDialog } from '@/components/ui/settings-panel';
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -357,41 +356,24 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                         className="h-auto min-w-0 flex-1 justify-start p-0 text-left text-sm font-semibold hover:bg-transparent">
                         <span className="truncate">{getNameValue(item, collection)}</span>
                       </Button>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button type="button" draggable={false} aria-label={`Champs de ${getNameValue(item, collection)}`}
-                            className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground">
-                            <Ellipsis size={14} />
-                          </button>
-                        </PopoverTrigger>
-                        <SettingsPopoverContent align="start" title={getNameValue(item, collection)}>
-                          {(() => {
-                            const tabs = [
-                              { id: 'infos', label: 'Infos', Icon: Info, accepts: (type: string) => !['relation', 'date', 'date_range', 'rich_text'].includes(type) },
-                              { id: 'relations', label: 'Relations', Icon: Link2, accepts: (type: string) => type === 'relation' },
-                              { id: 'temps', label: 'Temps', Icon: Clock, accepts: (type: string) => ['date', 'date_range'].includes(type) },
-                              { id: 'notes', label: 'Notes', Icon: FileText, accepts: (type: string) => type === 'rich_text' },
-                            ].map((tab) => ({ ...tab, fields: cardProps.filter((prop: any) => tab.accepts(prop.type)) }))
-                              .filter((tab) => tab.fields.length);
-                            return tabs.length > 0 ? <SettingsTabs defaultValue={tabs[0].id} label="Champs de la carte"
-                              items={tabs.map(({ id, label, Icon }) => ({ id, label, icon: Icon }))}>
-                              {tabs.map(({ id, fields }) => <SettingsTabContent scrollable key={id} value={id} className="max-h-[min(50vh,20rem)] divide-y divide-border">
-                                {fields.map((prop: any) => <div key={prop.id} className="settings-field-row min-w-0">
-                                  <SettingsLabel>{prop.name}</SettingsLabel>
-                                  <EditableProperty property={prop} value={item[prop.id]} size="sm"
-                                    onChange={(value) => onEdit({ ...item, [prop.id]: value })}
-                                    collections={collections} currentItem={item} onRelationChange={onRelationChange}
-                                    onNavigateToCollection={onNavigateToCollection} forceRichEditor={prop.type === 'rich_text'}
-                                    readOnly={!canEdit || !canEditFieldFn(prop.id)} />
-                                </div>)}
-                              </SettingsTabContent>)}
-                            </SettingsTabs> : <p className="text-xs text-muted-foreground">Aucun champ visible.</p>;
-                          })()}
-                          <SettingsFooter>
-                            <button type="button" onClick={() => onViewDetail(item)} className="text-xs font-medium text-primary hover:underline">Ouvrir la fiche</button>
-                          </SettingsFooter>
-                        </SettingsPopoverContent>
-                      </Popover>
+                      <ItemContextMenu
+                        triggerMode="button"
+                        item={item}
+                        onViewDetail={onViewDetail}
+                        onDelete={onDelete}
+                        canEdit={canEdit}
+                        quickEditProperties={(orderedProperties || collection.properties).filter((p: any) => p.showContextMenu && canEditFieldFn(p.id))}
+                        onEdit={onEdit}
+                        collections={collections}
+                        onRelationChange={onRelationChange}
+                        onNavigateToCollection={onNavigateToCollection}
+                        canEditField={canEditFieldFn}
+                      >
+                        <button type="button" draggable={false} aria-label={`Menu de ${getNameValue(item, collection)}`}
+                          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground">
+                          <Ellipsis size={14} />
+                        </button>
+                      </ItemContextMenu>
                       {canEdit && <button type="button" draggable={false} aria-label="Supprimer l’élément" title="Supprimer l’élément"
                         onClick={() => onDelete(item.id)}
                         className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/15 hover:text-destructive">

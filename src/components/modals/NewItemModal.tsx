@@ -291,7 +291,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               const sourceProp = selectedCollection.properties?.find((p: any) => p.id === template.when?.fieldId);
               const isGroup = template.isCurrentGroupTemplate;
               const value = isGroup ? groupContextRef.current?.[prop.id] : template.value;
-              const label = template.name || (isGroup ? 'Groupage actuel' : template.when?.fieldId
+              const label = template.name?.trim() || (isGroup ? 'Groupage actuel' : template.when?.fieldId
                 ? `${sourceProp?.name || 'Condition'} = ${formatValueForDisplay(template.when.value)}`
                 : `Template ${index + 1}`);
               const isDate = prop.type === 'date' || prop.type === 'date_range';

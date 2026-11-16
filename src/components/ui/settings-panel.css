@@ -294,3 +294,10 @@
 }
 .settings-section-title-ruled.settings-section-header { border-bottom: 0; }
 .settings-section-title-ruled > span { flex: none; }
+
+/* Intrinsic width for reading panels, bounded for readable lines and small screens. */
+.settings-surface[data-fit-content="true"] {
+  width: max-content;
+  min-width: min(20rem, 100vw);
+  max-width: min(32rem, 100vw);
+}

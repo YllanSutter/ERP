@@ -41,3 +41,43 @@ shells de vues restent transparents afin de ne pas empiler les voiles au-dessus 
 - ajouter une variante nommée plutôt qu'une longue combinaison locale ;
 - documenter toute exception visuelle propre à un renderer ;
 - vérifier les états clair, sombre, focus, désactivé et responsive.
+
+## Sélecteurs compacts et création contextuelle
+
+Pour les menus de relations, recherches et sélecteurs similaires, privilégier une
+interface fine : une seule ligne pour la recherche, le compteur et les actions
+(modèle, ajout, validation). Seuls les badges de résultats peuvent revenir à la ligne.
+Éviter les en-têtes, pieds de menu, boutons pleine largeur et blocs décoratifs
+supplémentaires. Utiliser des icônes discrètes avec un libellé accessible et une infobulle.
+La recherche se réduit avec `min-width: 0` ; les actions restent sur la même ligne.
+
+Conserver les résultats sous forme de badges compacts, avec un état sélectionné
+lisible, et afficher les plus récents en premier. En création depuis une recherche,
+reprendre le texte saisi dans le premier champ texte simple, sans toucher aux autres
+valeurs prédéfinies. Une recherche vide conserve les valeurs par défaut.
+
+La création contextuelle garde une seule barre (retour, titre, créer et lier), puis
+des lignes de champs compactes avec libellé et contrôle alignés. Le formulaire peut
+se développer verticalement et défiler ; éviter un second bandeau d'actions.
+
+## Panneaux latéraux à droite
+
+Les panneaux latéraux de contenu et de paramètres utilisent `SettingsSheet` dans
+`src/components/ui/settings-panel.tsx`, avec `SettingsBody` et, si nécessaire,
+`SettingsFooter`. Cela inclut les layouts, paramètres de vue, propriétés, filtres
+épinglés et détails de relations. Ne pas recréer un panneau droit avec un `Dialog`
+repositionné ou une surface `fixed` locale. La navigation principale conserve son
+composant `Sidebar`, adapté à la navigation.
+
+Passer `nested` lorsqu'un panneau s'ouvre au-dessus d'une fenêtre existante, et
+`trigger` pour conserver le déclencheur accessible et le retour du focus à la fermeture.
+
+Pour les panneaux de lecture, `fitContent` adapte la largeur au contenu entre
+20 et 32 rem, sans dépasser la largeur de l'écran. Les textes longs reviennent
+à la ligne plutôt que d'élargir indéfiniment le panneau.
+
+Les menus select/multiselect permettent de rechercher puis créer et sélectionner une
+option avec Entrée ou `+`, sans ouvrir les paramètres de propriété. La ligne d'ajout
+inclut des contrôles compacts d'icône et de couleur. Dans les paramètres d'une propriété
+existante, les changements d'options sont enregistrés immédiatement ; le bouton global
+ne doit pas être nécessaire pour confirmer un ajout d'option.

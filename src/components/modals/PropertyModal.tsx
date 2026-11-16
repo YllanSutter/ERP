@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { DATE_GRANULARITIES, getPluginPropertyTypeOptions } from '@/components/modals/modalLib';
 import { useAuth } from '@/auth/AuthProvider';
 import { getSelectionLimit } from '@/lib/utils/selectionLimit';
-import { SettingsSheet, SettingsTabs, SettingsTabContent, SettingsFooter, SettingsLabel } from '@/components/ui/settings-panel';
+import { SettingsSheet, SettingsTabs, SettingsTabContent, SettingsFooter, SettingsLabel, SettingsSection } from '@/components/ui/settings-panel';
 import { Button } from '@/components/ui/button';
 
 const LazyRichTextEditor = React.lazy(() => import('@/components/fields/RichTextEditor'));
@@ -20,6 +20,7 @@ interface PropertyModalProps {
   nested?: boolean;
   onClose: () => void;
   onSave: (property: any) => void;
+  onOptionsChange?: (options: OptionType[]) => void;
   property?: any;
   collections: any[];
   currentCollectionId: string;
@@ -34,11 +35,13 @@ const TYPE_CONFIG_LABEL: Record<string, string> = {
   date_range: 'Date',
   relation: 'Relation',
   number: 'Nombre',
+  image: 'Image',
 };
 
 const PropertyModal: React.FC<PropertyModalProps> = ({
   onClose,
   onSave,
+  onOptionsChange,
   property,
   collections,
   currentCollectionId,
@@ -49,7 +52,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
 
   const [imageMaxWidth, setImageMaxWidth] = useState(String(property?.imageDisplay?.maxWidth || ''));
   const [imageMaxHeight, setImageMaxHeight] = useState(String(property?.imageDisplay?.maxHeight || ''));
-  const [imageFit, setImageFit] = useState(property?.imageDisplay?.fit || 'contain');
+  const [imageFit, setImageFit] = useState<string>(property?.imageDisplay?.fit || 'contain');
   const [imageBaseUrl, setImageBaseUrl] = useState(property?.imageBaseUrl || '');
   const [defaultImage, setDefaultImage] = useState(property?.defaultImage || null);
   const [name, setName] = useState(property?.name || '');
@@ -123,15 +126,15 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
 
   const tabs = [
     { id: 'infos', label: 'Général', Icon: Icons.SlidersHorizontal },
-    ...(configLabel ? [{ id: 'config', label: configLabel, Icon: Icons.ListChecks }] : []),
-    ...(type !== 'image' ? [{ id: 'templates', label: 'Valeurs par défaut', Icon: Icons.WandSparkles }] : []),
+    ...(configLabel ? [{ id: 'config', label: configLabel, Icon: type === 'image' ? Icons.Image : Icons.ListChecks }] : []),
+    { id: 'templates', label: type === 'image' ? 'Règles automatiques' : 'Valeurs par défaut', Icon: Icons.WandSparkles },
   ];
 
   // Si on change de type et que l'onglet 'config' disparaît, revenir sur 'infos'
   const handleTypeChange = (newType: string) => {
     setType(newType);
     if (newType === 'image' && icon === 'Tag') setIcon('Image');
-    if ((activeTab === 'config' && !TYPE_CONFIG_LABEL[newType]) || (activeTab === 'templates' && newType === 'image')) {
+    if ((activeTab === 'config' && !TYPE_CONFIG_LABEL[newType])) {
       setActiveTab('infos');
     }
   };
@@ -178,7 +181,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
     if (type === 'image' && normalizeImageField(defaultImage, imageBaseUrl).images.length) savedProperty.defaultImage = defaultImage;
     else delete savedProperty.defaultImage;
     savedProperty.showContextMenu = showContextMenu;
-    savedProperty.defaultTemplates = defaultTemplates;
+    savedProperty.defaultTemplates = defaultTemplates.map(template => ({ ...template, name: template.name?.trim() || '' }));
     if (supportsValueLimit && selectionLimit !== undefined) savedProperty.maxValues = selectionLimit;
     else delete savedProperty.maxValues;
 
@@ -242,7 +245,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   const TinyLabel = SettingsLabel;
 
   return (
-    <SettingsSheet open wide nested={nested} onOpenChange={(open) => { if (!open) onClose(); }}
+    <SettingsSheet open wide={type !== 'image'} nested={nested} onOpenChange={(open) => { if (!open) onClose(); }}
       title={isEditing ? 'Modifier la propriété' : 'Nouvelle propriété'}
       description={name.trim() || 'Configure le champ et ses valeurs.'}>
         <SettingsTabs value={activeTab} onValueChange={setActiveTab}
@@ -275,31 +278,56 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
         </div>
       )}
 
-      {activeTab === 'infos' && type === 'image' && (
-        <div className="space-y-4 border-t border-border pt-4 mt-4">
-          <FormField label="URL de base des images" hint="Commune à cette collection pour ce champ. Exemple : https://www.ba-decoupe.fr/data/themes/ba-decoupe/images/ ; saisissez ensuite home-bg1.jpg. Un lien complet reste prioritaire.">
-            <FormInput type="url" value={imageBaseUrl} placeholder="https://exemple.fr/images/" onChange={event => setImageBaseUrl(event.target.value)} />
-          </FormField>
-          <FormField label="Image par défaut" hint="Affichée quand l’objet n’a aucune image. L’étoile choisit l’image principale.">
-            <ImageField baseUrl={imageBaseUrl} value={defaultImage} onChange={setDefaultImage} name="Image par défaut" />
-          </FormField>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Largeur maximale (px)" hint="Vide : toute la largeur disponible.">
-              <FormInput type="number" min={1} step={1} value={imageMaxWidth} placeholder="Automatique" onChange={event => setImageMaxWidth(event.target.value)} />
-            </FormField>
-            <FormField label="Hauteur maximale (px)" hint="Vide : hauteur naturelle.">
-              <FormInput type="number" min={1} step={1} value={imageMaxHeight} placeholder="Automatique" onChange={event => setImageMaxHeight(event.target.value)} />
-            </FormField>
-          </div>
-          <FormField label="Cadrage de la bannière">
-            <FormSelect value={imageFit} onChange={setImageFit} options={[
-              { value: 'contain', label: 'Contenir : image entière' },
-              { value: 'cover', label: 'Couvrir : remplir et recadrer' },
-              { value: 'fill', label: 'Étirer' },
-              { value: 'none', label: 'Taille originale' },
-              { value: 'scale-down', label: 'Réduire seulement' },
-            ]} />
-          </FormField>
+      {activeTab === 'config' && type === 'image' && (
+        <div className="space-y-5">
+          <SettingsSection title="Source des images" icon={Icons.Link} appearance="plain" ruled>
+            <div className="space-y-2">
+              <FormField label="Dossier de base">
+                <FormInput aria-label="URL du dossier de base des images" type="url" value={imageBaseUrl} placeholder="https://exemple.fr/images/" onChange={event => setImageBaseUrl(event.target.value)} />
+              </FormField>
+              <p className="text-xs leading-relaxed text-muted-foreground">Facultatif. Permet de saisir un nom de fichier au lieu d’une URL complète.</p>
+              <details className="text-xs text-muted-foreground">
+                <summary className="w-fit cursor-pointer rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500">Voir un exemple</summary>
+                <p className="mt-2 break-words leading-relaxed">Avec <code>https://exemple.fr/images/</code>, saisir <code>photo.jpg</code> utilise ce dossier. Une URL complète reste prioritaire.</p>
+              </details>
+            </div>
+          </SettingsSection>
+          <SettingsSection title="Image de remplacement" icon={Icons.Image} appearance="plain" ruled>
+            <div className="flex items-center justify-between gap-4">
+              <p className="min-w-0 text-xs leading-relaxed text-muted-foreground">Affichée si l’élément n’a pas d’image.</p>
+              <div className="shrink-0"><ImageField baseUrl={imageBaseUrl} value={defaultImage} onChange={setDefaultImage} name="Image de remplacement" /></div>
+            </div>
+          </SettingsSection>
+          <SettingsSection title="Dimensions et cadrage" icon={Icons.Scan} appearance="plain" ruled>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Largeur max. (px)">
+                  <FormInput aria-label="Largeur maximale en pixels" type="number" min={1} step={1} value={imageMaxWidth} placeholder="Auto" onChange={event => setImageMaxWidth(event.target.value)} />
+                </FormField>
+                <FormField label="Hauteur max. (px)">
+                  <FormInput aria-label="Hauteur maximale en pixels" type="number" min={1} step={1} value={imageMaxHeight} placeholder="Auto" onChange={event => setImageMaxHeight(event.target.value)} />
+                </FormField>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">Vide : largeur disponible et hauteur naturelle.</p>
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3">
+                <span className="text-xs font-medium">Cadrage</span>
+                <FormSelect value={imageFit} onChange={setImageFit} options={[
+                  { value: 'contain', label: 'Image entière' },
+                  { value: 'cover', label: 'Remplir et recadrer' },
+                  { value: 'fill', label: 'Étirer' },
+                  { value: 'none', label: 'Taille originale' },
+                  { value: 'scale-down', label: 'Réduire seulement' },
+                ]} />
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">{{
+                contain: 'Conserve toute l’image et ses proportions.',
+                cover: 'Remplit l’espace en rognant les bords si nécessaire.',
+                fill: 'Remplit l’espace en déformant l’image si nécessaire.',
+                none: 'Conserve la taille d’origine ; l’image peut être coupée.',
+                'scale-down': 'Réduit les grandes images sans agrandir les petites.',
+              }[imageFit as 'contain' | 'cover' | 'fill' | 'none' | 'scale-down']}</p>
+            </div>
+          </SettingsSection>
         </div>
       )}
 
@@ -307,7 +335,11 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
       {activeTab === 'config' && (type === 'select' || type === 'multi_select' || type === 'multiselect') && (
         <div className="space-y-4">
           {valueLimitField}
-          <OptionListEditor options={options} onChange={setOptions} />
+          <OptionListEditor options={options} onChange={(nextOptions) => {
+            setOptions(nextOptions);
+            if (isEditing && property.type === type) onOptionsChange?.(nextOptions);
+          }} />
+          {isEditing && property.type === type && onOptionsChange && <p className="text-[10px] text-muted-foreground">Options enregistrées automatiquement.</p>}
         </div>
       )}
 
@@ -500,7 +532,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
       )}
 
       {/* ── Onglet Templates ───────────────────────────────────────────────── */}
-      {(activeTab === 'templates' || (type === 'image' && activeTab === 'infos')) && (
+      {activeTab === 'templates' && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm text-neutral-500">
@@ -510,7 +542,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
               type="button"
               onClick={() => {
                 const newIndex = defaultTemplates.length;
-                setDefaultTemplates((prev) => ([...prev, { id: `tpl_${Date.now()}`, when: { fieldId: '', value: '' }, value: '' }]));
+                setDefaultTemplates((prev) => ([...prev, { id: `tpl_${Date.now()}`, name: '', when: { fieldId: '', value: '' }, value: '' }]));
                 setSelectedTplIndex(newIndex);
               }}
               className="text-xs px-3 py-1.5 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 font-medium"
@@ -525,7 +557,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
               <div className="flex items-center gap-1 overflow-x-auto border-b border-black/10 dark:border-white/10 mb-3">
                 {defaultTemplates.map((tpl, index) => {
                   const fieldName = templateSourceOptions.find((p: any) => p.id === tpl.when?.fieldId)?.name;
-                  const label = fieldName ? fieldName : `Règle ${index + 1}`;
+                  const label = tpl.name?.trim() || fieldName || `Règle ${index + 1}`;
                   const isActive = index === selectedTplIndex;
                   return (
                     <div
@@ -569,6 +601,12 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
 
                 return (
                   <div className="rounded-xl border border-black/10 dark:border-white/10 overflow-hidden">
+                    <div className="border-b border-border px-4 py-3">
+                      <FormField label="Nom du template">
+                        <FormInput aria-label="Nom du template" value={tpl.name || ''} placeholder="Ex. Début de mois, Nouveau développeur…"
+                          onChange={event => updateTemplate({ name: event.target.value })} />
+                      </FormField>
+                    </div>
                     <div className="px-4 pt-4 pb-3 bg-black/[0.02] dark:bg-white/[0.02]">
                       <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block mb-2">Condition</span>
                       <div className="grid grid-cols-2 gap-2">
@@ -703,7 +741,7 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
           </SettingsTabContent>
         </SettingsTabs>
         <SettingsFooter>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>{isEditing && onOptionsChange && ['select', 'multi_select', 'multiselect'].includes(property.type) ? 'Fermer' : 'Annuler'}</Button>
           <Button type="button" size="sm" disabled={!name.trim() || !validSelectionLimit} onClick={handleSave}>
             {isEditing ? 'Enregistrer' : 'Créer la propriété'}
           </Button>

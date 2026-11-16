@@ -1,3 +1,8 @@
+import { SelectPropertyField } from './SelectPropertyField';
+import { prefillRelationDraft } from '@/lib/utils/relationCreation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { newestFirst, normalizeSearch } from '@/lib/utils/recentItems';
 import ColorField from './ColorField';
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { getSelectionLimit, toggleLimitedSelection } from '@/lib/utils/selectionLimit';
@@ -8,8 +13,6 @@ import SteamPropertyField from '@/components/fields/SteamPropertyField';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
-import { LightSelect } from '@/components/inputs/LightSelect';
-import { LightMultiSelect } from '@/components/inputs/LightMultiSelect';
 import { PopoverButton, LinkedItemsViewer } from '@/components/inputs/PopoverButton';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -476,10 +479,10 @@ const RelationEditor = ({
   }, []);
 
   const filteredItems = useMemo(() => 
-    targetItems.filter((ti: any) => {
-      const q = searchQuery.toLowerCase();
-      const byName = toSearchText(getItemName(ti)).includes(q);
-      const byLabel = toSearchText(getItemLabel(ti)).includes(q);
+    newestFirst(targetItems).filter((ti: any) => {
+      const q = normalizeSearch(searchQuery);
+      const byName = normalizeSearch(toSearchText(getItemName(ti))).includes(q);
+      const byLabel = normalizeSearch(toSearchText(getItemLabel(ti))).includes(q);
       return byName || byLabel;
     }),
   [targetItems, getItemName, getItemLabel, searchQuery, toSearchText]);
@@ -502,7 +505,7 @@ const RelationEditor = ({
   const handleCreateNew = useCallback((templateData?: any) => {
     if (atSelectionLimit) return;
     try {
-      const dataToUse = templateData || newItemData;
+      const dataToUse = prefillRelationDraft(targetCollection?.properties || [], templateData || newItemData, '', property.relation?.filter);
       
       console.log('handleCreateNew - dataToUse:', dataToUse);
       
@@ -654,153 +657,80 @@ const RelationEditor = ({
         }
       }
     });
-    return initialData;
-  }, [targetCollection, evaluateTemplateValue]);
+    return prefillRelationDraft(targetCollection?.properties || [], initialData, searchQuery, property.relation?.filter);
+  }, [targetCollection, evaluateTemplateValue, searchQuery, property.relation?.filter]);
 
+  const creationProperties = (targetCollection?.properties || []).filter((prop: any) => prop.type !== 'relation');
+  const firstTextProperty = creationProperties.find((prop: any) => prop.type === 'text');
   const createForm = (
     <div className="space-y-2">
-      <div className="flex items-center justify-between pb-2 border-b border-white/10">
-        <span className="text-sm font-medium text-white">Nouvel élément</span>
-        <button onClick={() => { setIsCreating(false); setNewItemData({}); }} className="text-neutral-400 hover:text-white">
-          <Icons.X size={16} />
-        </button>
+      <div className="flex min-w-0 items-center gap-1 border-b border-border/60 pb-2">
+        <Button type="button" variant="ghost" size="sm" className="h-7 w-7 shrink-0 p-0" aria-label="Revenir aux relations" title="Retour"
+          onClick={() => { setIsCreating(false); setNewItemData({}); }}><Icons.ArrowLeft size={14} /></Button>
+        <span className="min-w-0 flex-1 truncate text-xs font-medium" title={targetCollection?.name}>Ajouter · {targetCollection?.name}</span>
+        <Button type="button" size="sm" className="h-7 shrink-0 gap-1 px-2" disabled={atSelectionLimit} onClick={() => handleCreateNew()}>
+          <Icons.Plus size={12} /> Créer et lier
+        </Button>
       </div>
-      <div className="space-y-3 max-h-96 overflow-y-auto">
-        {targetCollection?.properties?.map((prop: any) => {
-          if (prop.type === 'relation') return null;
-          const fieldValue = newItemData[prop.id];
-          const applicableTemplates = (prop.defaultTemplates || []).filter((tpl: any) => 
-            tpl.value !== undefined && tpl.value !== null && tpl.value !== ''
-          );
-          
+      <div className="max-h-[min(60vh,24rem)] overflow-y-auto space-y-1">
+        {creationProperties.map((prop: any) => {
+          const constrainedByRelation = property.relation?.filter?.fieldId === prop.id && property.relation.filter.value !== '' && property.relation.filter.value != null;
+          const applicableTemplates = (prop.defaultTemplates || []).filter((tpl: any) => tpl.value !== undefined && tpl.value !== null && tpl.value !== '');
           return (
-            <div key={prop.id}>
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <label className="block text-xs font-medium text-neutral-400">{prop.name}</label>
-                {applicableTemplates.length > 0 && (
-                  <div className="flex gap-1">
-                    {applicableTemplates.map((tpl: any, idx: number) => (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          const evaluatedValue = evaluateTemplateValue(tpl.value, prop.type);
-                          setNewItemData((prev: any) => ({ ...prev, [prop.id]: evaluatedValue }));
-                        }}
-                        className="text-xs px-1.5 py-0.5 bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/30 rounded text-emerald-300"
-                        title={`Utiliser: ${tpl.value}`}
-                      >
-                        Auto
-                      </button>
-                    ))}
-                  </div>
-                )}
+            <div key={prop.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-start gap-2 py-1">
+              <div className="flex min-w-0 items-center gap-1 pt-1.5">
+                <span className="truncate text-xs text-muted-foreground" title={prop.name}>{prop.name}</span>
+                {constrainedByRelation && <Icons.LockKeyhole size={10} className="shrink-0 text-muted-foreground" aria-label={`Imposé par la relation ${property.name}`} />}
+                {!constrainedByRelation && applicableTemplates.length > 0 && <select aria-label={`Valeur prédéfinie pour ${prop.name}`} title="Valeur prédéfinie" value=""
+                  className="h-4 w-5 shrink-0 bg-transparent text-[10px] text-muted-foreground focus-visible:outline-brand-500"
+                  onChange={event => {
+                    if (event.target.value === '') return;
+                    const tpl = applicableTemplates[Number(event.target.value)];
+                    setNewItemData((prev: any) => ({ ...prev, [prop.id]: evaluateTemplateValue(tpl.value, prop.type) }));
+                  }}>
+                  <option value="" disabled>↳</option>
+                  {applicableTemplates.map((tpl: any, index: number) => <option key={index} value={index}>{tpl.name?.trim() || String(tpl.value)}</option>)}
+                </select>}
               </div>
-              <EditableProperty
-                property={prop}
-                value={fieldValue}
-                onChange={(val) => setNewItemData((prev: any) => ({ ...prev, [prop.id]: val }))}
-                size="sm"
-                collections={collections}
-                currentItem={newItemData}
-                onRelationChange={() => {}}
-                readOnly={false}
-              />
+              <div className="min-w-0">
+                {prop.type === 'text' ? <Input aria-label={prop.name} readOnly={constrainedByRelation} title={constrainedByRelation ? `Imposé par la relation ${property.name}` : undefined} autoFocus={prop.id === firstTextProperty?.id} value={newItemData[prop.id] ?? ''}
+                  placeholder={prop.name} className="h-8 px-2 text-xs md:text-xs shadow-none"
+                  onChange={event => setNewItemData((prev: any) => ({ ...prev, [prop.id]: event.target.value }))} /> :
+                  <EditableProperty property={prop} value={newItemData[prop.id]}
+                    onChange={val => setNewItemData((prev: any) => ({ ...prev, [prop.id]: val }))}
+                    size="sm" collections={collections} collection={targetCollection} currentItem={newItemData} onRelationChange={() => {}} readOnly={constrainedByRelation}
+                    forceRichEditor={prop.type === 'rich_text'} />}
+              </div>
             </div>
           );
         })}
       </div>
-      <div className="flex gap-2 pt-2 border-t border-white/10">
-        <button
-          onClick={() => handleCreateNew()}
-          disabled={atSelectionLimit}
-          className="disabled:opacity-40 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-brand-600 hover:bg-brand-700 rounded text-sm text-white font-medium"
-        >
-          <Icons.Check size={14} />
-          Créer et lier
-        </button>
-        <button
-          onClick={() => { setIsCreating(false); setNewItemData({}); }}
-          className="px-3 py-2 bg-gray-300 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 rounded text-sm text-white"
-        >
-          Annuler
-        </button>
-      </div>
     </div>
   );
 
-  const renderSearchList = (close: () => void) =>
-    isSourceMany ? (
-      <div role={selectionLimit === 1 ? 'radiogroup' : undefined} aria-label="Relations" className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
+  const renderSearchList = (close: () => void) => (
+    <div className="space-y-2">
+      <div className="flex max-h-52 flex-wrap content-start gap-1.5 overflow-y-auto p-0.5" aria-label="Relations">
+        {!isSourceMany && value && <button type="button" className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition hover:bg-muted" onClick={() => { onRelationChange(property, currentItem, null); close(); }}>Aucun</button>}
         {filteredItems.map((ti: any) => {
           const checked = selectedIds.includes(ti.id);
-          const label = getItemLabel(ti);
-          return (
-            <button
-              key={ti.id}
-              type="button"
-              role={selectionLimit === 1 ? 'radio' : undefined}
-              aria-checked={selectionLimit === 1 ? checked : undefined}
-              disabled={!checked && selectionLimit !== undefined && selectionLimit > 1 && selectedIds.length >= selectionLimit}
-              className={cn(
-                'px-2 py-1 rounded-full text-xs border border-black/10 dark:border-white/10 transition disabled:opacity-40 disabled:cursor-not-allowed',
-                checked ? 'font-semibold' : 'hover:bg-black/10 dark:hover:bg-white/10'
-              )}
-              style={checked ? { backgroundColor: 'rgba(139,92,246,0.16)', color: '#a78bfa' } : {  }}
-              onClick={() => {
-                toggleItem(ti.id);
-                close();
-              }}
-            >
-              <span className="truncate">{label}</span>
-            </button>
-          );
+          return <button key={ti.id} type="button" aria-pressed={checked}
+            title={getItemLabel(ti)}
+            disabled={!checked && atSelectionLimit}
+            className={cn('inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-1 text-xs leading-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40', checked ? 'border-brand-500/30 bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'border-border/70 text-foreground/80 hover:border-brand-500/30 hover:bg-muted')}
+            onClick={() => {
+              if (isSourceMany) toggleItem(ti.id);
+              else onRelationChange(property, currentItem, ti.id);
+              if (!isSourceMany || selectionLimit === 1) { setSearchQuery(''); close(); }
+            }}>
+            {checked && <Icons.Check size={11} className="shrink-0" />}
+            <span className="truncate">{getItemLabel(ti)}</span>
+          </button>;
         })}
-        {filteredItems.length === 0 && searchQuery && (
-          <div className="text-xs text-neutral-500 px-2 py-1">Aucun résultat</div>
-        )}
+        {!filteredItems.length && <p className="w-full py-3 text-center text-xs text-muted-foreground">{searchQuery ? 'Aucun résultat.' : 'Aucun élément disponible.'}</p>}
       </div>
-    ) : (
-      <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto text-sm">
-        <button
-          type="button"
-          className={cn(
-            'px-2 py-1 rounded-full text-xs border border-black/10 dark:border-white/10 transition',
-            !value ? 'bg-white/15 border-white/20 text-white' : 'bg-white/5 border-white/10 text-neutral-300 hover:bg-white/10'
-          )}
-          onClick={() => {
-            onRelationChange(property, currentItem, null);
-            setSearchQuery('');
-            close();
-          }}
-        >
-          Aucun
-        </button>
-        {filteredItems.map((ti: any) => {
-          const selected = value === ti.id;
-          return (
-            <button
-              key={ti.id}
-              type="button"
-              className={cn(
-                'px-2 py-1 rounded-full text-xs border border-black/10 dark:border-white/10 transition',
-                selected ? 'font-semibold' : 'hover:bg-black/10 dark:hover:bg-white/10'
-              )}
-              style={selected ? { backgroundColor: 'rgba(139,92,246,0.16)', borderColor: 'rgba(139,92,246,0.35)', color: '#a78bfa' } : { borderColor: 'rgba(255,255,255,0.08)' }}
-              onClick={() => {
-                onRelationChange(property, currentItem, ti.id);
-                setSearchQuery('');
-                close();
-              }}
-            >
-              {getItemLabel(ti)}
-            </button>
-          );
-        })}
-        {filteredItems.length === 0 && searchQuery && (
-          <div className="text-xs text-neutral-500 px-2 py-1">Aucun résultat</div>
-        )}
-      </div>
-    );
+    </div>
+  );
 
   return (
     <div className={cn("flex items-center gap-2 justify-end ", className)}>
@@ -885,88 +815,56 @@ const RelationEditor = ({
           title={isSourceMany ? "Ajouter / gérer" : "Ajouter / changer"}
           isAbsolute={true}
           size={13}
-          contentClassName="w-80"
+          contentClassName="w-80 max-w-[calc(100vw-2rem)]"
         >
           {({ close }) => (
             <div className="space-y-2">
-              {!isCreating && (
-                <div className="relative">
-                  <Icons.Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500" />
-                  <input
-                    type="text"
-                    placeholder="Rechercher..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-2 py-1.5 bg-gray-100 dark:bg-neutral-800/50 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white placeholder-neutral-500 focus:border-brand-500 focus:outline-none"
-                  />
-                </div>
-              )}
-              
-              {atSelectionLimit && <p className="text-xs text-muted-foreground">Limite de {selectionLimit} valeurs atteinte. Retire une valeur pour en ajouter une autre.</p>}
               {isCreating ? createForm : (
                 <>
-                  {availableTemplates.length > 0 ? (
-                    <>
-                      <div className="flex items-center justify-between pb-2 border-b border-black/10 dark:border-white/10">
-                        <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Créer depuis un template</span>
-                      </div>
-                      <select
-                        aria-label="Créer depuis un template"
-                        disabled={atSelectionLimit}
-                        value=""
+                  <div className="flex min-w-0 flex-nowrap items-center gap-1 border-b border-border/60 pb-2">
+                    <label className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 focus-within:ring-1 focus-within:ring-brand-500">
+                      <Icons.Search size={13} className="shrink-0 text-muted-foreground" />
+                      <input type="text" aria-label="Rechercher une relation" placeholder="Rechercher…"
+                        value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                        className="h-7 w-full min-w-0 bg-transparent text-xs outline-none placeholder:text-muted-foreground" />
+                    </label>
+                    <span className={cn('shrink-0 whitespace-nowrap text-[10px] tabular-nums', atSelectionLimit ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}
+                      title={atSelectionLimit ? `Limite de ${selectionLimit} valeurs atteinte. Retirez une relation pour en ajouter une autre.` : 'Éléments liés · résultats du plus récent au plus ancien'}>
+                      {selectedIds.length}{selectionLimit ? `/${selectionLimit}` : ''} lié(s)
+                    </span>
+                    {availableTemplates.length > 0 && (
+                      <select aria-label="Créer depuis un template" title="Créer depuis un template" disabled={atSelectionLimit} value=""
                         onChange={(e) => {
                           if (e.target.value === '') return;
                           const tpl = availableTemplates[Number(e.target.value)];
                           if (!tpl) return;
                           const templateData: any = initializeWithTemplates();
                           const targetProp = targetCollection?.properties?.find((p: any) => p.id === tpl.targetFieldId);
-                          if (targetProp) {
-                            templateData[tpl.targetFieldId] = evaluateTemplateValue(tpl.value, targetProp.type);
-                          }
+                          if (targetProp) templateData[tpl.targetFieldId] = evaluateTemplateValue(tpl.value, targetProp.type);
                           templateData[tpl.when.fieldId] = tpl.when.value;
-                          setNewItemData(templateData);
+                          setNewItemData(prefillRelationDraft(targetCollection?.properties || [], templateData, '', property.relation?.filter));
                           setIsCreating(true);
                         }}
-                        className="w-full px-3 py-2 bg-gray-100 dark:bg-neutral-800 border border-black/10 dark:border-white/10 rounded text-sm text-neutral-700 dark:text-white focus:border-brand-500 focus:outline-none"
-                      >
-                        <option value="" disabled>Choisir un template…</option>
+                        className="h-7 w-[70px] shrink-0 rounded-md border-0 bg-transparent text-[10px] text-muted-foreground outline-none hover:bg-muted focus-visible:ring-1 focus-visible:ring-brand-500 disabled:opacity-40">
+                        <option value="" disabled>Modèle</option>
                         {availableTemplates.map((tpl: any, index: number) => {
                           const whenProp = currentItem?.__collectionId
                             ? collections?.find((c: any) => c.id === currentItem.__collectionId)?.properties?.find((p: any) => p.id === tpl.when.fieldId)
                             : null;
-                          const conditionText = whenProp ? `${whenProp.name} = ${tpl.when.value}` : tpl.when.value;
-                          return <option key={index} value={index}>{conditionText}</option>;
+                          return <option key={index} value={index}>{tpl.name?.trim() || (whenProp ? `${whenProp.name} = ${tpl.when.value}` : tpl.when.value)}</option>;
                         })}
                       </select>
-                      <div className="pt-2 border-t border-black/10 dark:border-white/10">
-                        <button
-                          disabled={atSelectionLimit}
-                          onClick={() => {
-                            const initialData = initializeWithTemplates();
-                            setNewItemData(initialData);
-                            setIsCreating(true);
-                          }}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/30 rounded text-sm text-neutral-700 dark:text-white"
-                        >
-                          <Icons.Plus size={14} />
-                          Créer sans template
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <button
-                      disabled={atSelectionLimit}
-                      onClick={() => {
-                        const initialData = initializeWithTemplates();
-                        setNewItemData(initialData);
-                        setIsCreating(true);
-                      }}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 bg-brand-600/20 hover:bg-brand-600/30 border border-brand-500/30 rounded text-sm text-neutral-700 dark:text-white"
-                    >
+                    )}
+                    <button type="button" disabled={atSelectionLimit} aria-label="Créer et lier un nouvel élément" title="Créer et lier un nouvel élément"
+                      onClick={() => { setNewItemData(initializeWithTemplates()); setIsCreating(true); }}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500 disabled:opacity-40">
                       <Icons.Plus size={14} />
-                      Créer nouveau
                     </button>
-                  )}
+                    <button type="button" onClick={close} aria-label="Terminer la sélection" title="Terminé"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500">
+                      <Icons.Check size={14} />
+                    </button>
+                  </div>
                   {renderSearchList(close)}
                 </>
               )}
@@ -1050,35 +948,11 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     return <ImageField value={value} defaultValue={property.defaultImage} baseUrl={property.imageBaseUrl} onChange={onChange} readOnly={readOnly} name={property.name} />;
   }
 
-  // Select
-  if (property.type === 'select') {
-    return (
-      <LightSelect
-        options={property.options || []}
-        value={value || ''}
-        onChange={onChange}
-        className={className}
-        sizeClass={sizeClasses}
-        disabled={readOnly}
-      />
-    );
-  }
-
-  // Multi-select
-  if (property.type === 'multi_select' || property.type === 'multiselect') {
-    const selectedValues: string[] = normalizeRelationIds(value);
-    return (
-      <LightMultiSelect
-        options={property.options || []}
-        values={selectedValues}
-        onChange={onChange}
-        className={className}
-        sizeClass={sizeClasses}
-        disabled={readOnly}
-        maxVisible={maxVisible}
-        maxValues={property.maxValues}
-      />
-    );
+  // Shared select editor, including contextual option creation.
+  if (['select', 'multi_select', 'multiselect'].includes(property.type)) {
+    const ownerId = collection?.id || collections?.find((candidate: any) => candidate.properties?.includes(property))?.id || currentItem?.__collectionId;
+    return <SelectPropertyField property={property} collectionId={ownerId} value={value} onChange={onChange}
+      readOnly={readOnly} className={className} sizeClass={sizeClasses} maxVisible={maxVisible} />;
   }
 
   // Checkbox

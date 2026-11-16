@@ -3,7 +3,7 @@ import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { X, type LucideIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './dialog';
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from './sheet';
+import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from './sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
 import { PopoverContent, PopoverClose } from './popover';
@@ -45,10 +45,11 @@ interface WindowProps extends Omit<HeaderProps, 'onClose' | 'titleComponent' | '
   className?: string;
 }
 
-export function SettingsSheet({ open, onOpenChange, title, description, icon, actions, children, className, wide = false, nested = false }: WindowProps & { wide?: boolean; nested?: boolean }) {
+export function SettingsSheet({ open, onOpenChange, title, description, icon, actions, children, className, wide = false, nested = false, trigger, fitContent = false }: WindowProps & { wide?: boolean; nested?: boolean; trigger?: React.ReactElement; fitContent?: boolean }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" overlayClassName={nested ? 'z-[309] bg-transparent' : 'z-[299] bg-transparent'}
+      {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
+      <SheetContent side="right" data-fit-content={fitContent || undefined} overlayClassName={nested ? 'z-[309] bg-transparent' : 'z-[299] bg-transparent'}
         className={cn('settings-surface flex w-full flex-col gap-0 overflow-hidden p-0', wide ? 'sm:max-w-2xl' : 'sm:max-w-lg', nested ? 'z-[310]' : 'z-[300]', className)}>
         <SettingsHeader title={title} description={description} icon={icon} actions={actions} titleComponent={SheetTitle} descriptionComponent={SheetDescription} />
         {children}

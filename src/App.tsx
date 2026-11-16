@@ -1,3 +1,5 @@
+import { SelectOptionsContext } from '@/components/fields/select-options-context';
+import { createTemporaryRelationView, splitTemporaryView } from '@/lib/views/temporaryRelationView';
 import { SteamExchangeDialog } from '@/lib/plugins/steam/SteamExchangeDialog';
 import { getSteamBundleConfig } from '@/lib/plugins/steam/collectionRoles';
 import { STEAM_EXCHANGE_FIELD, steamExchanges } from '@/lib/plugins/steam/exchanges';
@@ -208,6 +210,7 @@ const App = () => {
     collectionId: null,
     ids: []
   });
+  const [temporaryRelationView, setTemporaryRelationView] = useState<{ collectionId: string; organizationId: string | null; view: any } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
     const stored = localStorage.getItem('erp_sidebar_open');
@@ -281,7 +284,18 @@ const App = () => {
     }
   };
 
-  const viewHooks = useViews(views, setViews, activeCollection, activeView, setActiveView);
+  const sessionView = temporaryRelationView?.organizationId === activeOrganizationId ? temporaryRelationView : null;
+  const sessionViews = sessionView ? {
+    ...views,
+    [sessionView.collectionId]: [...(views[sessionView.collectionId] || []), sessionView.view],
+  } : views;
+  const updateSessionViews = (nextViews: Record<string, any[]>) => {
+    if (!sessionView) { setViews(nextViews); return; }
+    const { temporary, saved } = splitTemporaryView(nextViews, sessionView.collectionId, sessionView.view.id);
+    setTemporaryRelationView(temporary ? { ...sessionView, view: temporary } : null);
+    if (JSON.stringify(saved) !== JSON.stringify(views)) setViews(saved);
+  };
+  const viewHooks = useViews(sessionViews, updateSessionViews, activeCollection, activeView, setActiveView);
   const collectionsWithCalculatedFields = useMemo(
     () => applyCalculatedFieldsToCollections(collections),
     [collections]
@@ -530,14 +544,20 @@ const App = () => {
   }, [sidebarOpen]);
 
   useEffect(() => {
-    if (!activeCollection || !activeView) return;
+    if (!activeCollection || !activeView || activeView.startsWith('temporary-relation-')) return;
     localStorage.setItem(`erp_lastView_${activeOrganizationId || 'default'}_${activeCollection}`, activeView);
   }, [activeCollection, activeView, activeOrganizationId]);
 
   const handleNavigateToCollection = (collectionId: string, linkedIds?: string[]) => {
     setActiveDashboard(null);
     setActiveCollection(collectionId);
-    if (linkedIds && linkedIds.length > 0) {
+    if (linkedIds !== undefined) {
+      const view = createTemporaryRelationView();
+      setTemporaryRelationView({ collectionId, organizationId: activeOrganizationId, view });
+      setActiveView(view.id);
+      setShowFilterModal(false);
+      setShowGroupModal(false);
+      setShowViewSettings(false);
       setRelationFilter({ collectionId, ids: linkedIds });
     } else {
       setRelationFilter({ collectionId: null, ids: [] });
@@ -595,7 +615,14 @@ const App = () => {
     setRelationFilter({ collectionId: null, ids: [] });
   };
 
-  const clearRelationFilter = () => setRelationFilter({ collectionId: null, ids: [] });
+  const clearRelationFilter = () => {
+    setRelationFilter({ collectionId: null, ids: [] });
+    if (sessionView && activeView === sessionView.view.id) {
+      setTemporaryRelationView(null);
+      const savedView = (views[sessionView.collectionId] || []).find(canSeeView);
+      setActiveView(savedView?.id || null);
+    }
+  };
 
   const sortedDashboards = useMemo(() => {
     const base = [...dashboards];
@@ -613,16 +640,18 @@ const App = () => {
     [currentCollection, activeViewConfig, collectionsWithCalculatedFields]
   );
 
+  const effectiveRelationFilter = useMemo(() => activeViewConfig?.temporaryRelationView
+    ? relationFilter : { collectionId: null, ids: [] }, [activeViewConfig?.temporaryRelationView, relationFilter]);
   const filteredItems = useMemo(
     () =>
       getFilteredItems(
         currentCollection,
         activeViewConfig,
-        relationFilter,
+        effectiveRelationFilter,
         activeCollection,
         collectionsWithCalculatedFields
       ),
-    [currentCollection, activeViewConfig, relationFilter, activeCollection, collectionsWithCalculatedFields]
+    [currentCollection, activeViewConfig, effectiveRelationFilter, activeCollection, collectionsWithCalculatedFields]
   );
   const updatePinnedFilters = (update: (filters: CollectionFilter[]) => CollectionFilter[]) => {
     if (!canEdit || !activeCollection) return;
@@ -665,6 +694,7 @@ const App = () => {
   }
 
   return (
+    <SelectOptionsContext.Provider value={{ collections, setCollections }}>
     <ItemImageRendererProvider value={(image, props) => image.source === 'steam' && activeOrganizationId && pluginManager.isPluginActive(activeOrganizationId, 'steam')
       ? <SteamImage appid={image.steamAppId} variant="header" className={props.className} alt={props.alt} style={props.style} /> : undefined}>
     <div className={`relative isolate h-screen flex flex-col ${theme === 'dark' ? 'bg-neutral-950 text-black dark:text-white' : 'bg-white text-neutral-900'}`}> 
@@ -792,7 +822,7 @@ const App = () => {
             impersonatedRoleId={impersonatedRoleId}
             availableRoles={availableRoles}
             activeCollectionName={currentCollection?.name || null}
-            collectionFilters={currentCollection && !showAutomations && !activeDashboard && (
+            collectionFilters={currentCollection && !activeViewConfig?.temporaryRelationView && !showAutomations && !activeDashboard && (
               <PinnedCollectionFilters
                 key={currentCollection.id}
                 collection={currentCollection}
@@ -961,7 +991,7 @@ const App = () => {
                     }}
                   />
                 )}
-                relationFilter={relationFilter}
+                relationFilter={effectiveRelationFilter}
                 activeCollection={activeCollection}
                 favorites={favorites}
                 onSetActiveView={setActiveView}
@@ -1102,7 +1132,7 @@ const App = () => {
                     views={activeViewConfig.type === 'layout'
                       ? Object.fromEntries(Object.entries(views).map(([id, entries]) => [id, entries.filter(canSeeView)]))
                       : views}
-                    relationFilter={relationFilter}
+                    relationFilter={effectiveRelationFilter}
                     activeCollectionId={activeCollection}
                     properties={orderedProperties}
                     onUpdateView={(updates) => viewHooks.updateView(activeViewConfig.id, updates)}
@@ -1356,6 +1386,14 @@ const App = () => {
             setShowPropertyModal(false);
             setEditingProperty(null);
           }}
+          onOptionsChange={(options) => {
+            if (!editingProperty || !activeCollection) return;
+            setCollections(previous => previous.map(collection => collection.id !== activeCollection ? collection : {
+              ...collection,
+              properties: collection.properties.map((field: any) => field.id === editingProperty.id ? { ...field, options } : field),
+            }));
+            setEditingProperty((previous: any) => previous ? { ...previous, options } : previous);
+          }}
           property={editingProperty}
           collections={collections}
           currentCollectionId={activeCollection || ''}
@@ -1597,6 +1635,7 @@ const App = () => {
       )}
     </div>
     </ItemImageRendererProvider>
+    </SelectOptionsContext.Provider>
   );
 };
 

@@ -143,7 +143,7 @@ export const getFilteredItems = (
       .filter((v: any) => v !== undefined && v !== null && v !== '');
   };
   
-  const pinnedFilters = (currentCollection.pinnedFilters ?? []).filter((filter: CollectionFilter) =>
+  const pinnedFilters = (currentViewConfig.temporaryRelationView ? [] : currentCollection.pinnedFilters ?? []).filter((filter: CollectionFilter) =>
     filter.collectionFields || !filter.sourceCollectionId || filter.sourceCollectionId === currentCollection.id
   );
   const viewFilters = (currentViewConfig.filters ?? []).filter((filter: CollectionFilter) =>
@@ -261,7 +261,7 @@ export const getFilteredItems = (
       : rules.some((rule) => matchesRule(item, rule)));
   });
 
-  if (relationFilter.collectionId === activeCollection && currentCollection.id === activeCollection && relationFilter.ids?.length) {
+  if (relationFilter.collectionId === activeCollection && currentCollection.id === activeCollection && (currentViewConfig.temporaryRelationView || relationFilter.ids?.length)) {
     filtered = filtered.filter((item) => relationFilter.ids.includes(item.id));
   }
   

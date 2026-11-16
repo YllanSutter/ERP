@@ -1,3 +1,4 @@
+import ItemSearchResults from './ItemSearchResults';
 import React from 'react';
 import * as Icons from 'lucide-react';
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -33,21 +34,6 @@ interface CommandMenuProps {
   onShowAutomations: () => void;
 }
 
-const MAX_ITEMS_IN_COMMAND_MENU = 500;
-
-function getItemDisplayName(item: any, collection: any): string {
-  const nameField = collection?.properties?.find(
-    (p: any) => p.id === 'name' || p.name === 'Nom'
-  );
-  if (nameField) {
-    const v = item?.[nameField.id];
-    if (typeof v === 'string' && v.trim()) return v;
-  }
-  if (typeof item?.name === 'string' && item.name.trim()) return item.name;
-  if (typeof item?.title === 'string' && item.title.trim()) return item.title;
-  return 'Sans titre';
-}
-
 const getViewIcon = (view: any) => {
   if (typeof view?.icon === 'string' && (Icons as any)[view.icon]) {
     return (Icons as any)[view.icon];
@@ -81,42 +67,35 @@ const CommandMenu: React.FC<CommandMenuProps> = ({
   onLogout,
   onShowAutomations,
 }) => {
+  const [query, setQuery] = React.useState('');
+
   useHotkeys(
     'mod+k',
     (e) => {
       e.preventDefault();
+      setQuery('');
       onOpenChange(!open);
     },
     { enableOnFormTags: true, enableOnContentEditable: true, preventDefault: true },
     [open, onOpenChange]
   );
 
+
   const runCommand = (fn: () => void) => {
+    setQuery('');
     onOpenChange(false);
     setTimeout(fn, 0);
   };
 
-  const allItems = React.useMemo(() => {
-    const out: Array<{ collection: any; item: any; name: string }> = [];
-    for (const col of collections || []) {
-      const items = Array.isArray(col?.items) ? col.items : [];
-      for (const item of items) {
-        out.push({
-          collection: col,
-          item,
-          name: getItemDisplayName(item, col),
-        });
-        if (out.length >= MAX_ITEMS_IN_COMMAND_MENU) return out;
-      }
-    }
-    return out;
-  }, [collections]);
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Rechercher éléments, collections, vues, dashboards…" />
+    <CommandDialog open={open} onOpenChange={(nextOpen) => { setQuery(''); onOpenChange(nextOpen); }}>
+      <CommandInput value={query} onValueChange={setQuery} placeholder="Rechercher éléments, collections, vues, dashboards…" />
       <CommandList>
         <CommandEmpty>Aucun résultat.</CommandEmpty>
+
+        <ItemSearchResults collections={collections} query={query}
+          onSelectItem={(collection, item) => runCommand(() => onSelectItem(collection.id, item.id))} />
 
         {dashboards.length > 0 && (
           <CommandGroup heading="Dashboards">
@@ -174,24 +153,7 @@ const CommandMenu: React.FC<CommandMenuProps> = ({
           </CommandGroup>
         )}
 
-        {allItems.length > 0 && (
-          <CommandGroup heading="Éléments">
-            {allItems.map(({ collection, item, name }) => {
-              const IconComponent = (Icons as any)[collection?.icon] || Icons.FileText;
-              return (
-                <CommandItem
-                  key={`item-${collection.id}-${item.id}`}
-                  value={`item ${collection.name} ${name}`}
-                  onSelect={() => runCommand(() => onSelectItem(collection.id, item.id))}
-                >
-                  <IconComponent className="text-muted-foreground" />
-                  <span className="truncate">{name}</span>
-                  <CommandShortcut>{collection.name}</CommandShortcut>
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
-        )}
+
 
         {organizations.length > 1 && (
           <CommandGroup heading="Organisations">

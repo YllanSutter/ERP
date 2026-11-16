@@ -1,3 +1,5 @@
+import ItemSearchResults from '@/components/menus/ItemSearchResults';
+import { CommandDialog, CommandInput, CommandList, CommandEmpty } from '@/components/ui/command';
 import ViewTotalsSettings from './ViewTotalsSettings';
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -211,64 +213,11 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchCollectionId, setSearchCollectionId] = useState<string | null>(null);
   // État pour la gestion des groupes de champs dans le panneau Paramètres
   const [newGroupLabel, setNewGroupLabel] = useState('');
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupLabel, setEditingGroupLabel] = useState('');
   const [groupFieldPickerOpen, setGroupFieldPickerOpen] = useState<string | null>(null);
-
-  const activeCollections = calendarCollections.length > 0 ? calendarCollections : currentCollection ? [currentCollection] : [];
-  const normalizeSearchText = (input: any): string => {
-    if (input === null || input === undefined) return '';
-    if (typeof input === 'string') return input;
-    if (typeof input === 'number' || typeof input === 'boolean') return String(input);
-    if (Array.isArray(input)) return input.map((v) => normalizeSearchText(v)).join(' ');
-    if (typeof input === 'object') {
-      const candidate = input.name ?? input.label ?? input.title ?? input.value ?? input.id ?? input.appid;
-      if (candidate !== null && candidate !== undefined) return String(candidate);
-      try {
-        return JSON.stringify(input);
-      } catch {
-        return '';
-      }
-    }
-    return String(input);
-  };
-
-  const getItemLabel = (collection: any, item: any) => {
-    const props = collection?.properties || [];
-    const nameField = props.find((p: any) => p.name === 'Nom' || p.id === 'name') || props[0];
-    const rawLabel = !nameField
-      ? item?.name || item?.id || 'Élément'
-      : item?.[nameField.id] || item?.name || item?.id || 'Élément';
-    const normalized = normalizeSearchText(rawLabel).trim();
-    return normalized || 'Élément';
-  };
-
-  const activeSearchCollectionId =
-    searchCollectionId || (activeCollections.length > 1 ? 'all' : activeCollections[0]?.id || null);
-  const searchResults = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (activeSearchCollectionId === 'all') {
-      const MAX_RESULTS = 50;
-      const entries = activeCollections.flatMap((col: any) => {
-        const items = Array.isArray(col.items) ? col.items : [];
-        const filtered = query
-          ? items.filter((item: any) => getItemLabel(col, item).toLowerCase().includes(query))
-          : items.slice(0, 10);
-        return filtered.map((item: any) => ({ collection: col, item }));
-      });
-      return { collection: null, items: entries.slice(0, MAX_RESULTS) };
-    }
-    const selectedCollection = activeCollections.find((c: any) => c.id === activeSearchCollectionId);
-    if (!selectedCollection) return { collection: null, items: [] };
-    const items = Array.isArray(selectedCollection.items) ? selectedCollection.items : [];
-    const filtered = query
-      ? items.filter((item: any) => getItemLabel(selectedCollection, item).toLowerCase().includes(query))
-      : items.slice(0, 10);
-    return { collection: selectedCollection, items: filtered };
-  }, [activeCollections, activeSearchCollectionId, searchQuery]);
 
   const viewIcons: Record<string, typeof Table> = {
     table: Table,
@@ -451,107 +400,24 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
       
         <div className="flex min-w-0 items-center gap-2 flex-wrap">
           <div className="flex min-w-0 items-center gap-2 flex-wrap">
-              <div className="relative">
-            <Input
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setIsSearchOpen(true);
-              }}
-              onFocus={() => setIsSearchOpen(true)}
-              onBlur={() => setTimeout(() => setIsSearchOpen(false), 150)}
-              placeholder="Rechercher un projet…"
-              className="h-9 w-[min(16rem,calc(100vw-7rem))] max-w-full text-xs"
-            />
-            {isSearchOpen && activeCollections.length > 0 && (
-              <div className="absolute left-0 mt-2 w-[28rem] max-w-[80vw] rounded-lg border border-black/10 dark:border-white/10 bg-background dark:bg-neutral-900 shadow-xl backdrop-blur z-30 p-3">
-                <div className="lg:text-sm text-xs text-neutral-700 dark:text-neutral-400 mb-2">
-                  {searchQuery.trim()
-                    ? 'Résultats de recherche'
-                    : ''}
-                </div>
-                {activeCollections.length > 1 && (
-                  <div className="flex items-center gap-2 mb-3">
-                    <ToolbarButton
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => setSearchCollectionId('all')}
-                      active={activeSearchCollectionId === 'all'}
-                      className={cn(
-                        'h-auto px-2.5 py-1 text-sm font-semibold',
-                        activeSearchCollectionId === 'all'
-                          ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
-                          : 'text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 border border-black/10 dark:border-white/10 '
-                      )}
-                    >
-                      Tout
-                    </ToolbarButton>
-                    {activeCollections.map((col: any) => (
-                      <ToolbarButton
-                        key={col.id}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => setSearchCollectionId(col.id)}
-                        active={activeSearchCollectionId === col.id}
-                        className={cn(
-                          'h-auto px-2.5 py-1 text-sm font-semibold',
-                          activeSearchCollectionId === col.id
-                            ? 'bg-brand-500/20 text-brand-600 dark:text-brand-300 border border-brand-500/30'
-                            : 'text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 border border-black/10 dark:border-white/10'
-                        )}
-                      >
-                        {col.name}
-                      </ToolbarButton>
-                    ))}
-                  </div>
-                )}
-                <div className="max-h-72 overflow-y-auto space-y-1">
-                  {activeSearchCollectionId === 'all' ? (
-                    searchResults.items.length > 0 ? (
-                      searchResults.items.map(({ collection, item }: any) => (
-                        <Button
-                          key={`${collection.id}-${item.id}`}
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            onOpenItemFromSearch(collection, item);
-                            setIsSearchOpen(false);
-                          }}
-                          variant="ghost"
-                          size="sm"
-                          className="h-auto w-full justify-between px-2 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-white/10"
-                        >
-                          <span className="truncate">{getItemLabel(collection, item)}</span>
-                          <span className="text-[11px] text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 ">{collection.name}</span>
-                        </Button>
-                      ))
-                    ) : (
-                      <div className="text-sm text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 ">Aucun résultat.</div>
-                    )
-                  ) : searchResults.collection && searchResults.items.length > 0 ? (
-                    searchResults.items.map((item: any) => (
-                      <Button
-                        key={item.id}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          onOpenItemFromSearch(searchResults.collection, item);
-                          setIsSearchOpen(false);
-                        }}
-                        variant="ghost"
-                        size="sm"
-                        className="h-auto w-full justify-between px-2 py-1 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-white/10"
-                      >
-                        <span className="truncate">{getItemLabel(searchResults.collection, item)}</span>
-                      </Button>
-                    ))
-                  ) : (
-                    <div className="text-sm text-neutral-700 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 ">Aucun résultat.</div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+            <Button variant="outline" onClick={() => setIsSearchOpen(true)}
+              className="h-9 w-[min(16rem,calc(100vw-7rem))] max-w-full justify-start text-xs text-muted-foreground">
+              <Icons.Search size={14} />
+              Rechercher dans {currentCollection?.name || 'la collection'}…
+            </Button>
+            <CommandDialog open={isSearchOpen} onOpenChange={(open) => { setIsSearchOpen(open); setSearchQuery(''); }}>
+              <CommandInput value={searchQuery} onValueChange={setSearchQuery}
+                placeholder={`Rechercher dans ${currentCollection?.name || 'la collection'}…`} />
+              <CommandList>
+                <CommandEmpty>Aucun résultat.</CommandEmpty>
+                <ItemSearchResults collections={currentCollection ? [currentCollection] : []} query={searchQuery}
+                  onSelectItem={(collection, item) => {
+                    setIsSearchOpen(false);
+                    setSearchQuery('');
+                    setTimeout(() => onOpenItemFromSearch(collection, item), 0);
+                  }} />
+              </CommandList>
+            </CommandDialog>
             <TooltipProvider>
               <div className="flex items-center gap-2">
                 <Tooltip>
@@ -605,7 +471,7 @@ const ViewToolbar: React.FC<ViewToolbarProps> = ({
                         { id: 'settings', label: 'Paramètres', icon: Settings },
                       ]}>
                       <SettingsTabContent value="filters" scrollable>
-                        <p className="px-1 py-2 text-xs text-muted-foreground">Les règles ci-dessous se combinent. Les filtres globaux restent accessibles à côté du titre de la collection.</p>
+                        <p className="px-1 py-2 text-xs text-muted-foreground">{currentViewConfig.temporaryRelationView ? 'Vue temporaire : les filtres épinglés de la collection ne sont pas appliqués.' : 'Les règles ci-dessous se combinent. Les filtres globaux restent accessibles à côté du titre de la collection.'}</p>
                         {((currentViewConfig.filters?.length ?? 0) > 0 ||
                           (relationFilter.collectionId === activeCollection && relationFilter.ids.length > 0)) && (
                           <section className="my-2 rounded-lg border border-border bg-muted/25" aria-label="Filtres actifs">

@@ -35,7 +35,7 @@ describe('Kanban card presentation', () => {
     const secondItem = { ...item, id: '2', name: 'Autre achat' };
     const element = KanbanView({ collection, items: [item, secondItem], groupBy: 'status',
       collections: [], onEdit: vi.fn(), onDelete: vi.fn(), onViewDetail: vi.fn() });
-    const menus: React.ReactElement[] = [];
+    const menus: React.ReactElement<any>[] = [];
     const visit = (node: React.ReactNode) => {
       React.Children.forEach(node, (child) => {
         if (!React.isValidElement(child)) return;
@@ -44,14 +44,20 @@ describe('Kanban card presentation', () => {
       });
     };
     visit(element);
-    expect(menus.map((menu) => menu.key)).toEqual(['1', '2']);
+    expect(menus.filter((menu) => !menu.props.triggerMode).map((menu) => menu.key)).toEqual(['1', '2']);
+    expect(menus.map((menu) => menu.props.triggerMode || 'context')).toEqual(['context', 'button', 'context', 'button']);
+    for (const index of [0, 2]) {
+      const { children: contextChildren, ...contextProps } = menus[index].props;
+      const { children: buttonChildren, triggerMode, ...buttonProps } = menus[index + 1].props;
+      expect(buttonProps).toEqual(contextProps);
+    }
   });
 
   it('keeps actions inside the header and shows compact previews instead of field controls', () => {
     const html = renderToStaticMarkup(<KanbanView collection={collection} items={[item]} groupBy="status"
       collections={[]} onEdit={() => {}} onDelete={() => {}} onViewDetail={() => {}} />);
     expect(html).toContain('Armagnac');
-    expect(html).toContain('Champs de Armagnac');
+    expect(html).toContain('Menu de Armagnac');
     expect(html).toContain('Supprimer l’élément');
     expect(html).toContain('35 €');
     expect(html).toContain('Anniversaire');

@@ -157,7 +157,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
     <thead className="bg-gray-100 dark:bg-black/30 border-b border-black/5 dark:border-white/5">
       <tr>
         {enableDragReorder && (
-          <th scope="col" className={`w-8 px-1 py-2 text-center border-b border-r border-[#ffffff10] ${onManualOrder && !sortState?.column ? 'shadow-[inset_0_-2px_0] shadow-brand-500/70' : ''}`}>
+          <th scope="col" aria-sort={onManualOrder && !sortState?.column ? (sortState?.direction === 'desc' ? 'descending' : 'ascending') : undefined} className={`w-8 px-1 py-2 text-center border-b border-r border-[#ffffff10] ${onManualOrder && !sortState?.column ? 'shadow-[inset_0_-2px_0] shadow-brand-500/70' : ''}`}>
             {onManualOrder && (
               <button
                 type="button"
@@ -168,6 +168,7 @@ const TableHeader: React.FC<TableHeaderProps> = ({
                 className={`inline-flex rounded p-1 hover:bg-black/5 dark:hover:bg-white/10 ${sortState?.column ? 'text-neutral-500 dark:text-neutral-400' : 'text-brand-700 dark:text-brand-300'}`}
               >
                 <Icons.ListOrdered size={14} aria-hidden="true" />
+                {!sortState?.column && (sortState?.direction === 'desc' ? <Icons.ArrowDown size={12} /> : <Icons.ArrowUp size={12} />)}
               </button>
             )}
           </th>
