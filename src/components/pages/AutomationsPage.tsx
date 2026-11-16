@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils/id';
 /**
  * AutomationsPage.tsx
  * Page globale de gestion des automations.
@@ -125,7 +126,7 @@ const OPERATOR_HAS_VALUE: Set<ConditionOperator> = new Set([
   'equals', 'not_equals', 'contains', 'greater', 'less',
 ]);
 
-const uuid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const uuid = generateId;
 
 const emptyTrigger = (): AutomationTrigger => ({
   type: 'item_created',

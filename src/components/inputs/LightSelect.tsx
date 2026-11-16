@@ -7,7 +7,7 @@ import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 import { getSelectionLimit, toggleLimitedSelection } from '@/lib/utils/selectionLimit';
 import { normalizeSearch } from '@/lib/utils/recentItems';
 import { findMatchingOption, optionLabel, optionValue, type SelectOption } from '@/lib/utils/selectOptions';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from '@/components/ui/popover';
 
 export type OptionType = SelectOption;
 interface LightSelectBaseProps {
@@ -64,10 +64,11 @@ export const LightSelect: React.FC<LightSelectProps> = (props) => {
   const badgeClass = 'inline-flex max-w-full shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] leading-4 transition-colors';
   return (
     <Popover open={open && !disabled} onOpenChange={next => { setOpen(next); setQuery(''); }}>
+      <PopoverAnchor asChild>
       <div className={cn('flex min-w-0 items-center gap-1', sizeClass, className)}>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
           {!selected.length && (disabled ? <span className="text-xs text-muted-foreground">{placeholder}</span> :
-            <PopoverTrigger asChild><button type="button" className="rounded px-1 py-0.5 text-xs text-muted-foreground hover:bg-muted" aria-label="Choisir une option">{placeholder}</button></PopoverTrigger>)}
+            <button type="button" className="rounded px-1 py-0.5 text-xs text-muted-foreground hover:bg-muted" aria-label="Choisir une option" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>{placeholder}</button>)}
           {selected.slice(0, visibleCount).map(value => {
             const option = options.find(option => optionValue(option) === value);
             const label = option ? resolveLabel(option) : value;
@@ -88,6 +89,7 @@ export const LightSelect: React.FC<LightSelectProps> = (props) => {
         </div>
         {!disabled && <PopoverTrigger asChild><button type="button" aria-label="Ajouter ou modifier les options" title="Ajouter ou modifier les options" className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"><Icons.Plus size={12} /></button></PopoverTrigger>}
       </div>
+      </PopoverAnchor>
       <PopoverContent align="end" className="z-[401] w-80 max-w-[calc(100vw-1rem)] space-y-2 p-2">
         <div className="flex flex-nowrap items-center gap-1 border-b border-border/60 pb-1.5">
           <Icons.Search size={12} className="shrink-0 text-muted-foreground" />

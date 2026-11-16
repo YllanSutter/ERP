@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils/id';
 import { Button } from '@/components/ui/button';
 import { prepareSteamItem } from './itemImages';
 import { SettingsSection, SettingsSelect, SettingsLabel, SettingsHint } from '@/components/ui/settings-panel';
@@ -54,7 +55,7 @@ export function SteamCollectionSettings({
               ]} />
             {!(collection.properties || []).some((property: any) => property.type === 'image') && (
               <Button type="button" variant="outline" size="sm" onClick={() => {
-                const id = crypto.randomUUID();
+                const id = generateId();
                 const next = { ...collection, properties: [...(collection.properties || []), { id, name: 'Images', type: 'image', icon: 'Image' }], plugins: { ...collection.plugins, steam: { ...settings, imagePropertyId: id } } };
                 onChange({ properties: next.properties, plugins: next.plugins, items: (collection.items || []).map((item: any) => prepareSteamItem(next, item)) });
               }}>Créer le champ Image Steam</Button>

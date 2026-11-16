@@ -1,6 +1,7 @@
+import { generateId } from '@/lib/utils/id';
 export function createTemporaryRelationView() {
   return {
-    id: `temporary-relation-${crypto.randomUUID()}`,
+    id: `temporary-relation-${generateId()}`,
     name: 'Relations · temporaire',
     type: 'table',
     temporaryRelationView: true,

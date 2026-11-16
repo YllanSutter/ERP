@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils/id';
 import { stripCalculatedNumberFieldsFromItem } from '@/lib/calculatedFields';
 
 const applyRelationChangeInternal = (
@@ -103,12 +104,7 @@ export const useItems = (
   activeCollection: string | null,
   prepareItem?: (collection: any, item: any) => any
 ) => {
-  const generateItemId = () => {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID();
-    }
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  };
+  const generateItemId = generateId;
 
   // Ajout d'un paramètre optionnel collectionId pour cibler la bonne collection
   const saveItem = (item: any, editingItem: any, collectionId?: string, steamExchangeDrafts: any[] = []) => {

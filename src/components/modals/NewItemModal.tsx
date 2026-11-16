@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils/id';
 import { getSteamBundleConfig } from '@/lib/plugins/steam/collectionRoles';
 import { SteamExchangeEditor } from '@/lib/plugins/steam/SteamExchangeEditor';
 import { STEAM_EXCHANGE_FIELD, canReceiveSteamGame, createSteamExchangeDraft, steamExchanges } from '@/lib/plugins/steam/exchanges';
@@ -83,6 +84,7 @@ interface NewItemModalProps {
   onToggleFavoriteItem?: (itemId: string) => void;
   orderedProperties?: any[];
   onOpenRelatedItem?: (collection: any, item: any) => void;
+  onNavigateToCollection?: (collectionId: string, linkedIds?: string[]) => void;
   groupContext?: Record<string, any> | null;
   /** Groupes de champs configurés dans les paramètres de la vue (section Détails) */
   fieldGroups?: FieldGroup[];
@@ -115,6 +117,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   onToggleFavoriteItem,
   orderedProperties,
   onOpenRelatedItem,
+  onNavigateToCollection,
   groupContext,
   fieldGroups = [],
   fieldGroupsLayout = 'stacked',
@@ -1290,9 +1293,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     }
 
     if (!isReallyEditing && !dataToSave.id) {
-      dataToSave.id = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      dataToSave.id = generateId();
     }
 
     try {
@@ -1414,6 +1415,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   onChange={(val) => handleChange(titleProperty.id, val)}
                   size="xl"
                   collections={readableCollections}
+                  onNavigateToCollection={onNavigateToCollection}
                   collection={selectedCollection}
                   currentItem={formData}
                   onRelationChange={(property, item, value) => {
@@ -1622,6 +1624,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       onChange={(val) => handleChange(prop.id, val)}
                       size="md"
                       collections={readableCollections}
+                  onNavigateToCollection={onNavigateToCollection}
                       collection={selectedCollection}
                       currentItem={formData}
                       onRelationChange={(property, item, value) => {
@@ -1705,6 +1708,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       onChange={(val) => handleChange(prop.id, val)}
                       size="md"
                       collections={readableCollections}
+                  onNavigateToCollection={onNavigateToCollection}
                       collection={selectedCollection}
                       currentItem={formData}
                       onRelationChange={(property, _item, value) => {
@@ -1874,6 +1878,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                           onChange={(val) => handleChange(prop.id, val)}
                           size="md"
                           collections={readableCollections}
+                  onNavigateToCollection={onNavigateToCollection}
                           collection={selectedCollection}
                           currentItem={formData}
                           readOnly={!canWriteField(selectedCollection?.id, prop.id)}

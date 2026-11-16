@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils/id';
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 import type { Collection, Item, Property } from '@/lib/types';
 import { getSteamDisplayName } from './steamUtils';
@@ -32,7 +33,7 @@ export function createSteamExchangeDraft(
 ): Item | undefined {
   const steamField = collection.properties.find((property) => property.type === 'steam' && canEditField(property.id));
   if (!steamField) return;
-  const draft = { id: crypto.randomUUID(), [steamField.id]: game, _steamExchangeDraft: true };
+  const draft = { id: generateId(), [steamField.id]: game, _steamExchangeDraft: true };
   if (bundleField && canEditField(bundleField)) {
     const bundleValue = steamExchanges(collection).root(source)[bundleField];
     if (bundleValue != null) draft[bundleField] = bundleValue;

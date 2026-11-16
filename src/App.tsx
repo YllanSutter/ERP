@@ -1419,6 +1419,12 @@ const App = () => {
       })()}
       {showNewItemModal && (
         <NewItemModal
+          onNavigateToCollection={(collectionId, linkedIds) => {
+            handleNavigateToCollection(collectionId, linkedIds);
+            setShowNewItemModal(false);
+            setEditingItem(null);
+            setModalCollection(null);
+          }}
           preparePluginItem={preparePluginItem}
           renderPluginBanner={(collection, item) => <SteamItemBanner collection={collection} item={item} />}
           renderPluginActions={(collection, item) => <SteamBundlePublishButton collection={collection} item={item} collections={collections} />}

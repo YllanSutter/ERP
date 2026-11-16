@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils/id';
 "use client"
 
 import { useRef, useState } from "react"
@@ -95,7 +96,7 @@ function useFileUpload(options: UploadOptions) {
     }
 
     const abortController = new AbortController()
-    const fileId = crypto.randomUUID()
+    const fileId = generateId()
 
     const newFileItem: FileItem = {
       id: fileId,

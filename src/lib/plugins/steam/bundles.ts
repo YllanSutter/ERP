@@ -1,3 +1,4 @@
+import { generateId } from '@/lib/utils/id';
 import { bundleGroupProperty, groupValueForBundle } from './bundleGrouping';
 import type { Collection, Property } from '@/lib/types';
 
@@ -75,7 +76,7 @@ export function importBundle(
   snapshot: any,
   collections: Collection[],
   config: any,
-  uuid: () => string = () => crypto.randomUUID(),
+  uuid: () => string = () => generateId(),
 ) {
   if (
     snapshot?.format !== 'steam-bundle-v1' ||
