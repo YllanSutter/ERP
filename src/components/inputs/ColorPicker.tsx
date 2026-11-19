@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import { normalizeColor } from '@/lib/utils/colorUtils';
 import { X } from 'lucide-react';
 import React, { useState } from 'react';
@@ -34,7 +35,7 @@ const predefinedColors = [
 const RECENT_COLORS_KEY = 'erp:recent-colors';
 const readRecentColors = (): string[] => {
   try {
-    const saved = JSON.parse(window.localStorage.getItem(RECENT_COLORS_KEY) || '[]');
+    const saved = JSON.parse(databaseStorage.getItem(RECENT_COLORS_KEY) || '[]');
     return Array.isArray(saved) ? [...new Set(saved.filter((color): color is string => typeof color === 'string').map(normalizeColor).filter((color): color is string => Boolean(color)))].slice(0, 16) : [];
   } catch { return []; }
 };
@@ -48,7 +49,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, className, o
     if (!color) return;
     const next = [color, ...readRecentColors().filter((entry) => entry !== color)].slice(0, 16);
     setRecentColors(next);
-    try { window.localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(next)); } catch { /* Color selection remains available without storage. */ }
+    try { databaseStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(next)); } catch { /* Color selection remains available without storage. */ }
   };
   const chooseColor = (color: string) => { onChange(color); rememberColor(color); };
   const commitDraft = () => {

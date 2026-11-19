@@ -1,3 +1,4 @@
+import { initializeDatabaseStorage, clearDatabaseStorage, flushDatabaseStorage } from '@/lib/databaseStorage';
 import React, { createContext, useContext, useEffect, useMemo, useState, useRef, useCallback } from 'react';
 
 import LoginPage from '@/components/pages/LoginPage';
@@ -41,6 +42,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [impersonatedRoleId, setImpersonatedRoleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [persistenceError, setPersistenceError] = useState('');
+  useEffect(() => {
+    const onError = (event: Event) => setPersistenceError((event as CustomEvent<string>).detail);
+    const onSaved = () => setPersistenceError('');
+    window.addEventListener('erp-persistence-error', onError);
+    window.addEventListener('erp-persistence-saved', onSaved);
+    return () => {
+      window.removeEventListener('erp-persistence-error', onError);
+      window.removeEventListener('erp-persistence-saved', onSaved);
+    };
+  }, []);
+
   const [sessionExpired, setSessionExpired] = useState(false);
   const expiredRef = useRef(false);
   const authGeneration = useRef(0);
@@ -53,6 +66,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setSessionExpired(true);
   }, []);
   const clearSession = () => {
+    clearDatabaseStorage();
     authGeneration.current += 1;
     userRef.current = null;
     expiredRef.current = false;
@@ -108,6 +122,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (expiredRef.current && userRef.current && data.user?.id !== userRef.current.id) {
         throw new Error('Reconnectez-vous avec le même compte pour reprendre vos modifications.');
       }
+      if (data.user?.id && data.activeOrganizationId) {
+        await initializeDatabaseStorage(data.user.id, data.activeOrganizationId);
+        if (generation !== authGeneration.current) return;
+      }
+      setPersistenceError(previous => previous === 'Chargement des données impossible. Réessayez de vous connecter.' ? '' : previous);
       setUser(data.user);
       expiredRef.current = false;
       setSessionExpired(false);
@@ -119,6 +138,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setImpersonatedRoleId(data.impersonatedRoleId || null);
     } catch (err) {
       console.error('Auth refresh failed', err);
+      setPersistenceError('Chargement des données impossible. Réessayez de vous connecter.');
       if (recover) throw err;
     } finally {
       if (!silent) setLoading(false);
@@ -131,6 +151,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const logout = async () => {
+    await flushDatabaseStorage();
     clearSession();
     try {
       await fetch(`${API_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
@@ -171,6 +192,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loading,
     refresh,
     switchOrganization: async (organizationId: string) => {
+      await flushDatabaseStorage();
       const res = await fetch(`${API_URL}/organizations/switch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -181,7 +203,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Impossible de changer d’organisation');
       }
-      setActiveOrganizationId(organizationId);
       await refresh();
     },
     createOrganization: async (name: string) => {
@@ -274,7 +295,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return <AuthContext.Provider value={value}>
-    {children}
+    {persistenceError && <div role="alert" className="bg-amber-100 p-3 text-center text-amber-950">{persistenceError}</div>}
+    {!loading && <React.Fragment key={`${user?.id || 'anonymous'}/${activeOrganizationId || ''}`}>{children}</React.Fragment>}
     <dialog ref={sessionDialog} aria-label="Session expirée" onCancel={event => event.preventDefault()}
       className="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none border-0 bg-background p-0 text-foreground backdrop:bg-black/60">
       {sessionExpired && <>

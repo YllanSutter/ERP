@@ -1,12 +1,7 @@
+import { databaseStorage } from './databaseStorage';
+
 export const storage = {
-  get(key: string): string | null {
-    if (typeof window === 'undefined') return null;
-    return window.localStorage.getItem(key);
-  },
-  set(key: string, value: string): void {
-    if (typeof window !== 'undefined') window.localStorage.setItem(key, value);
-  },
-  remove(key: string): void {
-    if (typeof window !== 'undefined') window.localStorage.removeItem(key);
-  },
+  get: databaseStorage.getItem,
+  set: databaseStorage.setItem,
+  remove: databaseStorage.removeItem,
 };

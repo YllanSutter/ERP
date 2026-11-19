@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import ItemArchives from '@/components/modals/ItemArchives';
 import { visibleCollections } from '@/lib/itemArchive';
 import { SelectOptionsContext } from '@/components/fields/select-options-context';
@@ -81,7 +82,7 @@ const App = () => {
   // Thème persistant (clair/sombre)
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('erp-theme') as 'light' | 'dark') || 'light';
+      return (databaseStorage.getItem('erp-theme') as 'light' | 'dark') || 'light';
     }
     return 'light';
   });
@@ -89,7 +90,7 @@ const App = () => {
     document.body.classList.toggle('dark', theme === 'dark');
     document.documentElement.classList.toggle('dark', theme === 'dark');
     if (typeof window !== 'undefined') {
-      localStorage.setItem('erp-theme', theme);
+      databaseStorage.setItem('erp-theme', theme);
     }
   }, [theme]);
 
@@ -215,7 +216,7 @@ const App = () => {
   const [temporaryRelationView, setTemporaryRelationView] = useState<{ collectionId: string; organizationId: string | null; view: any } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
-    const stored = localStorage.getItem('erp_sidebar_open');
+    const stored = databaseStorage.getItem('erp_sidebar_open');
     return stored ? stored === '1' : true;
   });
   const [showAccessManager, setShowAccessManager] = useState(false);
@@ -533,7 +534,7 @@ const App = () => {
     // Si la vue active existe dans la collection courante, on la garde
     const found = visibleViews.find((v: any) => v.id === activeView);
     if (!found) {
-      const lastViewId = localStorage.getItem(`erp_lastView_${activeOrganizationId || 'default'}_${activeCollection}`);
+      const lastViewId = databaseStorage.getItem(`erp_lastView_${activeOrganizationId || 'default'}_${activeCollection}`);
       const lastViewExists = lastViewId && visibleViews.some((v: any) => v.id === lastViewId);
       setActiveView(lastViewExists ? lastViewId : visibleViews[0].id);
     }
@@ -542,12 +543,12 @@ const App = () => {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem('erp_sidebar_open', sidebarOpen ? '1' : '0');
+    databaseStorage.setItem('erp_sidebar_open', sidebarOpen ? '1' : '0');
   }, [sidebarOpen]);
 
   useEffect(() => {
     if (!activeCollection || !activeView || activeView.startsWith('temporary-relation-')) return;
-    localStorage.setItem(`erp_lastView_${activeOrganizationId || 'default'}_${activeCollection}`, activeView);
+    databaseStorage.setItem(`erp_lastView_${activeOrganizationId || 'default'}_${activeCollection}`, activeView);
   }, [activeCollection, activeView, activeOrganizationId]);
 
   const handleNavigateToCollection = (collectionId: string, linkedIds?: string[]) => {
@@ -759,7 +760,7 @@ const App = () => {
             setShowAutomations(false);
             setActiveDashboard(null);
             setActiveCollection(collectionId);
-            const lastViewId = localStorage.getItem(`erp_lastView_${collectionId}`);
+            const lastViewId = databaseStorage.getItem(`erp_lastView_${collectionId}`);
             setActiveView(lastViewId || 'default');
             setRelationFilter({ collectionId: null, ids: [] });
           }}
@@ -787,7 +788,7 @@ const App = () => {
             setActiveDashboard(null);
             setActiveCollection(collectionId);
             setActiveView(viewId);
-            localStorage.setItem(`erp_lastView_${activeOrganizationId || 'default'}_${collectionId}`, viewId);
+            databaseStorage.setItem(`erp_lastView_${activeOrganizationId || 'default'}_${collectionId}`, viewId);
             setRelationFilter({ collectionId: null, ids: [] });
           }}
           onSelectItem={(collectionId: string, itemId: string) => {
@@ -1287,7 +1288,7 @@ const App = () => {
           setShowAutomations(false);
           setActiveDashboard(null);
           setActiveCollection(collectionId);
-          const lastViewId = localStorage.getItem(`erp_lastView_${collectionId}`);
+          const lastViewId = databaseStorage.getItem(`erp_lastView_${collectionId}`);
           setActiveView(lastViewId || 'default');
           setRelationFilter({ collectionId: null, ids: [] });
         }}
@@ -1295,7 +1296,7 @@ const App = () => {
           setActiveDashboard(null);
           setActiveCollection(collectionId);
           setActiveView(viewId);
-          localStorage.setItem(`erp_lastView_${activeOrganizationId || 'default'}_${collectionId}`, viewId);
+          databaseStorage.setItem(`erp_lastView_${activeOrganizationId || 'default'}_${collectionId}`, viewId);
           setRelationFilter({ collectionId: null, ids: [] });
         }}
         onSelectDashboard={(dashboardId) => {

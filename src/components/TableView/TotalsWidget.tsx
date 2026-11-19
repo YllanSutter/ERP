@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import { isTotalFieldVisible } from '@/lib/utils/totalVisibility';
 import React from 'react';
 import { SettingsBody, SettingsSectionTitle, SettingsHint } from '@/components/ui/settings-panel';
@@ -666,7 +667,7 @@ const TotalsWidget: React.FC<TotalsWidgetProps> = ({
     lastEmittedPreferencesSignatureRef.current = serialized;
     if (persistKey && typeof window !== 'undefined') {
       try {
-        window.localStorage.setItem(persistKey, serialized);
+        databaseStorage.setItem(persistKey, serialized);
       } catch {
         // The parent still receives the preference update for the current session.
       }

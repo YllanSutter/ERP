@@ -1,3 +1,4 @@
+vi.mock('@/lib/databaseStorage', () => ({ databaseStorage: { getItem: (key: string) => localStorage.getItem(key), setItem: (key: string, value: string) => localStorage.setItem(key, value), removeItem: (key: string) => localStorage.removeItem(key) } }));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyPatch, buildSnapshotAt, compactHistory, computePatch, historyKey, readItemHistory, recordCollectionHistory, restoreHistorySnapshot } from './itemHistory';
 

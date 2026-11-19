@@ -40,6 +40,15 @@ export const bootstrapDatabase = async ({ pool, ensureDefaultOrganization }) => 
 
   await pool.query('ALTER TABLE organizations ADD COLUMN IF NOT EXISTS accent_color TEXT');
 
+  await pool.query(`CREATE TABLE IF NOT EXISTS browser_state (
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    owner_key TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (organization_id, owner_key, key)
+  )`);
+
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS organization_members (
       organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,

@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import { useState } from 'react';
 
 export type PinnedItemField = { id: string; keepOriginal: boolean };
@@ -11,7 +12,7 @@ export function normalizePinnedFields(value: unknown): PinnedItemField[] {
   }).map(entry => ({ id: entry.id, keepOriginal: entry.keepOriginal !== false }));
 }
 function read(key: string): PinnedItemField[] {
-  try { return normalizePinnedFields(JSON.parse(localStorage.getItem(key) || '[]')); }
+  try { return normalizePinnedFields(JSON.parse(databaseStorage.getItem(key) || '[]')); }
   catch { return []; }
 }
 export function usePinnedItemFields(organizationId: string, userId: string, collectionId: string) {
@@ -25,7 +26,7 @@ export function usePinnedItemFields(organizationId: string, userId: string, coll
       next.splice(index < 0 ? next.length : index, 0, { id, keepOriginal });
     }
     setState({ key, fields: next });
-    try { localStorage.setItem(key, JSON.stringify(next)); }
+    try { databaseStorage.setItem(key, JSON.stringify(next)); }
     catch (error) { console.warn('Impossible de mémoriser les champs épinglés', error); }
   };
   return { fields, update };

@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import React, { useState, useMemo } from 'react';
 import { useConfigSync } from '@/lib/hooks/useConfigSync';
 import { getNameValue as getNameValueLib, MONTH_NAMES, parseTimeToDecimalHour, getMonday, getPreviousPeriod, getNextPeriod } from '@/lib/calendarUtils';
@@ -177,7 +178,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const getInitialViewMode = () => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = viewConfig?.calendarViewMode || window.localStorage.getItem('calendarViewMode');
+        const saved = viewConfig?.calendarViewMode || databaseStorage.getItem('calendarViewMode');
         if (saved === 'month' || saved === 'week' || saved === 'day') return saved;
       } catch {}
     }
@@ -189,7 +190,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     setViewMode(mode);
     if (typeof window !== 'undefined') {
       try {
-        window.localStorage.setItem('calendarViewMode', mode);
+        databaseStorage.setItem('calendarViewMode', mode);
       } catch {}
     }
   };

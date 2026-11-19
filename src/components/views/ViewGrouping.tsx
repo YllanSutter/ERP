@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,7 +16,7 @@ const groupedTabsContentClass = 'mt-2 rounded-none border-0 p-0';
 const getStoredGroupChoice = (key: string, choices: string[]) => {
   if (typeof window === 'undefined') return undefined;
   try {
-    const stored = window.localStorage.getItem(key);
+    const stored = databaseStorage.getItem(key);
     return stored && choices.includes(stored) ? stored : undefined;
   } catch {
     return undefined;
@@ -132,13 +133,13 @@ const ViewGrouping: React.FC<ViewGroupingProps> = ({
     try {
       const sharedSelections = readGroupFieldSelections(collectionId || 'unknown');
       const sharedSelects = Object.fromEntries(groups.flatMap((fieldId, depth) => typeof sharedSelections[fieldId] === 'string' ? [[depth, sharedSelections[fieldId]]] : []));
-      const rawSelects = window.localStorage.getItem(rootSelectStorageKey);
+      const rawSelects = databaseStorage.getItem(rootSelectStorageKey);
       if (Object.keys(sharedSelects).length > 0) setActiveSelects(sharedSelects);
       else if (rawSelects) {
         const storedSelects = JSON.parse(rawSelects);
         if (storedSelects && typeof storedSelects === 'object') setActiveSelects(storedSelects);
       }
-      const storedTab = window.localStorage.getItem(rootTabsStorageKey);
+      const storedTab = databaseStorage.getItem(rootTabsStorageKey);
       if (storedTab) setActiveTabs((previous) => ({ ...previous, root: storedTab }));
     } catch {
       // Fall back to the first available group.

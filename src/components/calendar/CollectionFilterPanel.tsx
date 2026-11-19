@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import React, { useEffect } from 'react';
 import { LightMultiSelect } from '../inputs/LightMultiSelect';
 
@@ -41,10 +42,10 @@ const getFiltersKey = (collectionId: string, viewId?: string | null) => viewId ?
 const getDateFieldKey = (collectionId: string, viewId?: string | null) => viewId ? `erp_collection_datefield_${collectionId}_${viewId}` : `erp_collection_datefield_${collectionId}`;
 
 
-  // Charger les filtres et la dateField depuis localStorage au montage, spécifique à la collection
+  // Charger les filtres et la dateField depuis les préférences en base au montage, spécifique à la collection
   useEffect(() => {
     if (!collection?.id) return;
-    const savedFilters = localStorage.getItem(getFiltersKey(collection.id, viewId));
+    const savedFilters = databaseStorage.getItem(getFiltersKey(collection.id, viewId));
     if (savedFilters) {
       try {
         const parsed = JSON.parse(savedFilters);
@@ -53,7 +54,7 @@ const getDateFieldKey = (collectionId: string, viewId?: string | null) => viewId
         }
       } catch {}
     }
-    const savedDateField = localStorage.getItem(getDateFieldKey(collection.id, viewId));
+    const savedDateField = databaseStorage.getItem(getDateFieldKey(collection.id, viewId));
     if (savedDateField && savedDateField !== '' && setDateField) {
       setDateField(savedDateField);
     }
@@ -64,7 +65,7 @@ const getDateFieldKey = (collectionId: string, viewId?: string | null) => viewId
   useEffect(() => {
     if (!collection?.id) return;
     if (filters && Object.keys(filters).length > 0) {
-      localStorage.setItem(getFiltersKey(collection.id, viewId), JSON.stringify(filters));
+      databaseStorage.setItem(getFiltersKey(collection.id, viewId), JSON.stringify(filters));
     }
   }, [filters, collection?.id, viewId]);
 
@@ -72,7 +73,7 @@ const getDateFieldKey = (collectionId: string, viewId?: string | null) => viewId
   useEffect(() => {
     if (!collection?.id) return;
     if (dateField !== undefined && dateField !== null) {
-      localStorage.setItem(getDateFieldKey(collection.id, viewId), dateField);
+      databaseStorage.setItem(getDateFieldKey(collection.id, viewId), dateField);
     }
   }, [dateField, collection?.id, viewId]);
 

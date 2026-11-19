@@ -31,6 +31,7 @@ test('PostgreSQL backup/restore preserves data, upgrades old schemas and rolls b
       INSERT INTO user_roles VALUES ('00000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000002');
       INSERT INTO app_state (organization_id,data) VALUES ('00000000-0000-0000-0000-000000000002','original');
     `);
+    await pool.query("INSERT INTO browser_state VALUES ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'erp-theme', 'dark')");
     for (const directory of ['templates', 'saved']) await fs.mkdir(path.join(root, 'pdf', directory), { recursive: true });
     const pdf = path.join(root, 'pdf', 'templates', 'example.pdf');
     await fs.writeFile(pdf, '%PDF-original');
@@ -46,18 +47,20 @@ test('PostgreSQL backup/restore preserves data, upgrades old schemas and rolls b
       const file = path.join(root, 'backups', snapshot.name);
       const { stdout } = await exec('tar', ['-tf', file]);
       assert.match(stdout, /manifest.json/); assert.match(stdout, /database.sql/); assert.match(stdout, /example.pdf/);
+      await pool.query("UPDATE browser_state SET value='light'");
       await setData('changed'); await fs.writeFile(pdf, '%PDF-changed');
       await restoreDbBackup(snapshot.name);
+      assert.equal((await pool.query('SELECT value FROM browser_state')).rows[0].value, 'dark');
       assert.equal(await readData(), 'original');
       assert.equal(await fs.readFile(pdf, 'utf8'), '%PDF-original');
       assert.ok((await listBackups()).some(backup => backup.name.includes('pre-restore')));
     });
     await t.test('upgrades missing login columns and plugin tables before committing a legacy SQL restore', async () => {
-      await pool.query('ALTER TABLE organizations DROP COLUMN accent_color; ALTER TABLE users DROP COLUMN user_preferences; ALTER TABLE app_state DROP COLUMN version; DROP TABLE steam_public_bundles;');
+      await pool.query('ALTER TABLE organizations DROP COLUMN accent_color; ALTER TABLE users DROP COLUMN user_preferences; ALTER TABLE app_state DROP COLUMN version; DROP TABLE steam_public_bundles; DROP TABLE browser_state;');
       await exec('pg_dump', [...args, '--no-owner', '--no-privileges', '--file', sqlFile]);
       await bootstrap(); await setData('current');
       await restoreDbBackup('legacy.sql');
-      await pool.query('SELECT user_preferences FROM users; SELECT accent_color FROM organizations; SELECT version FROM app_state; SELECT id FROM steam_public_bundles;');
+      await pool.query('SELECT user_preferences FROM users; SELECT accent_color FROM organizations; SELECT version FROM app_state; SELECT id FROM steam_public_bundles; SELECT key FROM browser_state;');
       assert.equal(await readData(), 'original');
       const user = await pool.query("SELECT u.id FROM users u JOIN user_roles ur ON ur.user_id=u.id JOIN roles r ON r.id=ur.role_id WHERE r.name='admin'");
       assert.equal(user.rowCount, 1);
@@ -120,7 +123,9 @@ test('PostgreSQL backup/restore preserves data, upgrades old schemas and rolls b
       await fs.writeFile(aPdf,'%PDF-A-backup'); await fs.writeFile(bPdf,'%PDF-B');
       await fs.writeFile(aPdf.replace('.pdf','.meta.json'),JSON.stringify({id:'org-a',organizationId:a}));
       await fs.writeFile(bPdf.replace('.pdf','.meta.json'),JSON.stringify({id:'org-b',organizationId:b}));
+      await pool.query('INSERT INTO browser_state VALUES ($1,$3,$4,$5),($2,$3,$4,$6)', [a,b,actor,'erp-item-draft:c:new','A draft','B draft']);
       const snapshot = await createOrganizationBackup({pool,organizationId:a,label:'org-test'});
+      await pool.query('UPDATE browser_state SET value=$2 WHERE organization_id=$1',[a,'modified']);
       const staging = path.join(root,'org-inspect'); await fs.mkdir(staging);
       await exec('tar',['-xf',path.join(root,'backups',snapshot.name),'-C',staging]);
       const json = JSON.parse(await fs.readFile(path.join(staging,'organization.json'),'utf8'));
@@ -135,6 +140,8 @@ test('PostgreSQL backup/restore preserves data, upgrades old schemas and rolls b
       assert.equal((await pool.query('SELECT data FROM app_state WHERE organization_id=$1',[a])).rows[0].data,aState);
       assert.deepEqual((await pool.query('SELECT * FROM app_state WHERE organization_id=$1',[b])).rows,beforeB);
       assert.deepEqual((await pool.query('SELECT * FROM users ORDER BY id')).rows,users);
+      assert.equal((await pool.query('SELECT value FROM browser_state WHERE organization_id=$1',[a])).rows[0].value,'A draft');
+      assert.equal((await pool.query('SELECT value FROM browser_state WHERE organization_id=$1',[b])).rows[0].value,'B draft');
       assert.equal(await fs.readFile(aPdf,'utf8'),'%PDF-A-backup');
       assert.equal(await fs.readFile(bPdf,'utf8'),'%PDF-B');
       assert.equal(await isSiteCreator(pool,actor),true);

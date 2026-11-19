@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import { isTotalFieldVisible } from '@/lib/utils/totalVisibility';
 import React, { useCallback, useState } from 'react';
 import TotalsBar, { type TotalsBarProps } from '@/components/TableView/TotalsBar';
@@ -13,7 +14,7 @@ function TopTotals({ preferences, onPreferencesChange, ...props }: Omit<Props, '
   const [savedPreferences, setSavedPreferences] = useState<TotalsWidgetPreferences>(() => {
     try {
       if (props.persistKey && typeof window !== 'undefined') {
-        const saved = JSON.parse(window.localStorage.getItem(props.persistKey) || 'null');
+        const saved = JSON.parse(databaseStorage.getItem(props.persistKey) || 'null');
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) return saved;
       }
     } catch { /* Keep modules usable when storage is unavailable. */ }

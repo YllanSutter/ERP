@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 export const GROUPING_SELECTION_CHANGE_EVENT = 'erp:grouping-selection-change';
 
 /**
@@ -8,8 +9,8 @@ export const GROUPING_SELECTION_CHANGE_EVENT = 'erp:grouping-selection-change';
 export function saveGroupingSelection(key: string, value: string) {
   if (typeof window === 'undefined') return;
   try {
-    if (window.localStorage.getItem(key) === value) return;
-    window.localStorage.setItem(key, value);
+    if (databaseStorage.getItem(key) === value) return;
+    databaseStorage.setItem(key, value);
     window.dispatchEvent(new CustomEvent(GROUPING_SELECTION_CHANGE_EVENT, {
       detail: { key, value },
     }));
@@ -23,7 +24,7 @@ const groupSelectionKey = (collectionId: string) => `erp:group-selection:${colle
 export function readGroupFieldSelections(collectionId: string): Record<string, string> {
   if (typeof window === 'undefined') return {};
   try {
-    const raw = window.localStorage.getItem(groupSelectionKey(collectionId));
+    const raw = databaseStorage.getItem(groupSelectionKey(collectionId));
     const parsed = raw ? JSON.parse(raw) : {};
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch {

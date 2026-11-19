@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as LucideIcons from 'lucide-react';
 import { getGroupLabel, countItemsInGroup, GroupedItems, resolveGroupVisualStyle } from '@/lib/groupingUtils';
@@ -242,7 +243,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
       let storedTab: string | null = null;
       if (typeof window !== 'undefined') {
         try {
-          storedTab = localStorage.getItem(subTabsStorageKey);
+          storedTab = databaseStorage.getItem(subTabsStorageKey);
         } catch {
           storedTab = null;
         }
@@ -275,7 +276,7 @@ const GroupRenderer: React.FC<GroupRendererProps> = ({
       let storedSelect: string | null = null;
       if (typeof window !== 'undefined') {
         try {
-          storedSelect = localStorage.getItem(subSelectStorageKey);
+          storedSelect = databaseStorage.getItem(subSelectStorageKey);
         } catch {
           storedSelect = null;
         }

@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import React from 'react';
 import TotalsWidget, { type TotalsWidgetPreferences } from '@/components/TableView/TotalsWidget';
 import { useViewTotals } from '@/lib/hooks/useViewTotals';
@@ -25,7 +26,7 @@ const readPreferences = (collectionId: string, hasGroups: boolean): TotalsWidget
   const fallback = getDefaultPreferences(hasGroups);
   if (typeof window === 'undefined') return fallback;
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(getStorageKey(collectionId)) || '{}');
+    const parsed = JSON.parse(databaseStorage.getItem(getStorageKey(collectionId)) || '{}');
     return parsed && typeof parsed === 'object' ? { ...fallback, ...parsed } : fallback;
   } catch {
     return fallback;
@@ -59,7 +60,7 @@ export const ViewTotals: React.FC<ViewTotalsProps> = ({ collection, collections,
   const handlePreferencesChange = React.useCallback((next: TotalsWidgetPreferences) => {
     setPreferences(next);
     try {
-      window.localStorage.setItem(preferencesKey, JSON.stringify(next));
+      databaseStorage.setItem(preferencesKey, JSON.stringify(next));
     } catch {
       // Keep the current session usable if storage is unavailable.
     }

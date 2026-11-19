@@ -1,3 +1,4 @@
+vi.mock('@/lib/databaseStorage', () => ({ databaseStorage: { getItem: (key: string) => localStorage.getItem(key), setItem: (key: string, value: string) => localStorage.setItem(key, value), removeItem: (key: string) => localStorage.removeItem(key) } }));
 import * as ReactModule from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { normalizePinnedFields, usePinnedItemFields } from './usePinnedItemFields';

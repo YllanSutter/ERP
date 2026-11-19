@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import { usePinnedItemFields } from '@/lib/hooks/usePinnedItemFields';
 import { PinnedFieldsSettings, PinnedFieldsHeader } from './PinnedItemFields';
 import { historyKey as buildScopedHistoryKey, readItemHistory, restoreHistorySnapshot } from '@/lib/itemHistory';
@@ -577,7 +578,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     setDraftPayload(null);
     setDraftPromptOpen(false);
     try {
-      const raw = localStorage.getItem(draftKey);
+      const raw = databaseStorage.getItem(draftKey);
       if (!raw) {
         initialDataRef.current = initialForm.data;
         setFormDataRaw(initialForm.data);
@@ -599,7 +600,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       }
       if (areValuesEqual(parsed.formData, initialForm.data)) {
         try {
-          localStorage.removeItem(draftKey);
+          databaseStorage.removeItem(draftKey);
         } catch {
           // ignore stockage local indisponible
         }
@@ -678,7 +679,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     setDraftPayload(null);
     setHasLocalDraft(false);
     try {
-      localStorage.removeItem(draftKey);
+      databaseStorage.removeItem(draftKey);
     } catch {
       // ignore stockage local indisponible
     }
@@ -691,7 +692,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     if (disableDraftRef.current) return;
     if (!isDraftDirty) {
       try {
-        localStorage.removeItem(draftKey);
+        databaseStorage.removeItem(draftKey);
       } catch {
         // ignore stockage local indisponible
       }
@@ -706,7 +707,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         selectedCollectionId,
         updatedAt: new Date().toISOString(),
       };
-      localStorage.setItem(draftKey, JSON.stringify(payload));
+      databaseStorage.setItem(draftKey, JSON.stringify(payload));
       setHasLocalDraft(true);
     } catch {
       // ignore stockage local indisponible
@@ -725,7 +726,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           selectedCollectionId,
           updatedAt: new Date().toISOString(),
         };
-        localStorage.setItem(draftKey, JSON.stringify(payload));
+        databaseStorage.setItem(draftKey, JSON.stringify(payload));
       } catch {
         // ignore stockage local indisponible
       }
@@ -1206,7 +1207,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     disableDraftRef.current = true;
     setHasLocalDraft(false);
     try {
-      localStorage.removeItem(draftKey);
+      databaseStorage.removeItem(draftKey);
     } catch {
       // ignore stockage local indisponible
     }

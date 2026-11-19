@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
 import MonthView from '../CalendarView/MonthView';
@@ -185,7 +186,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
     if (typeof window !== 'undefined') {
       try {
         const key = viewModeStorageKey ? `calendarViewMode:${viewModeStorageKey}` : 'calendarViewMode';
-        const saved = window.localStorage.getItem(key);
+        const saved = databaseStorage.getItem(key);
         if (saved === 'month' || saved === 'week' || saved === 'day') return saved;
       } catch {}
     }
@@ -199,7 +200,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
       try {
         const modeValue = typeof mode === 'function' ? mode(viewMode) : mode;
         const key = viewModeStorageKey ? `calendarViewMode:${viewModeStorageKey}` : 'calendarViewMode';
-        window.localStorage.setItem(key, modeValue);
+        databaseStorage.setItem(key, modeValue);
       } catch {}
     }
   };

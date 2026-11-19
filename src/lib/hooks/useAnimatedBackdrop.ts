@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import { useSyncExternalStore } from 'react';
 
 const STORAGE_KEY = 'erp:animated-backdrop';
@@ -6,7 +7,7 @@ let fallbackEnabled = true;
 
 function readEnabled() {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = databaseStorage.getItem(STORAGE_KEY);
     return stored === null ? fallbackEnabled : stored !== 'false';
   } catch { return fallbackEnabled; }
 }
@@ -27,7 +28,7 @@ export function useAnimatedBackdrop() {
   const enabled = useSyncExternalStore(subscribe, readEnabled, () => true);
   const toggle = () => {
     fallbackEnabled = !readEnabled();
-    try { localStorage.setItem(STORAGE_KEY, String(fallbackEnabled)); }
+    try { databaseStorage.setItem(STORAGE_KEY, String(fallbackEnabled)); }
     catch { /* Keep the choice for this session when storage is unavailable. */ }
     window.dispatchEvent(new Event(CHANGE_EVENT));
   };

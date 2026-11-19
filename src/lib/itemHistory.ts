@@ -1,4 +1,5 @@
-/** Local item history: one baseline, followed by lossless field deltas. */
+import { databaseStorage } from '@/lib/databaseStorage';
+/** Organization item history: one baseline, followed by lossless field deltas. */
 export type HistoryPatch = { set: Record<string, any>; unset: string[]; deltas?: Record<string, [number, number, string]> };
 export type ItemHistory = { base: any; versions: any[] };
 const equal = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
@@ -72,18 +73,18 @@ export function readItemHistory(organizationId: string, collection: any, itemId:
   try {
     const key = historyKey(organizationId, collection.id, itemId);
     const legacyKey = `erp-item-versions:${collection.id}:${itemId}`;
-    const scoped = localStorage.getItem(key);
-    const raw = scoped || localStorage.getItem(legacyKey);
+    const scoped = databaseStorage.getItem(key);
+    const raw = scoped || databaseStorage.getItem(legacyKey);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed?.base || !Array.isArray(parsed.versions)) return null;
     const compact = compactHistory(parsed, collection.properties || []);
     const encoded = JSON.stringify(compact);
     try {
-      if (scoped !== encoded) localStorage.setItem(key, encoded);
+      if (scoped !== encoded) databaseStorage.setItem(key, encoded);
       // Remove only the duplicate legacy copy after verifying the new write.
-      if (!scoped && localStorage.getItem(key) === encoded) localStorage.removeItem(legacyKey);
-    } catch (error) { console.warn('Impossible de compacter l’historique local', error); }
+      if (!scoped && databaseStorage.getItem(key) === encoded) databaseStorage.removeItem(legacyKey);
+    } catch (error) { console.warn('Impossible de compacter l’historique', error); }
     return compact;
   } catch { return null; }
 }
@@ -102,8 +103,8 @@ export function recordCollectionHistory(previous: any[], next: any[], organizati
         let history = readItemHistory(organizationId, collection, item.id);
         if (!history) {
           // Preserve unreadable existing data instead of replacing it with a new history.
-          if (localStorage.getItem(historyKey(organizationId, collection.id, item.id)) ||
-              localStorage.getItem(`erp-item-versions:${collection.id}:${item.id}`)) {
+          if (databaseStorage.getItem(historyKey(organizationId, collection.id, item.id)) ||
+              databaseStorage.getItem(`erp-item-versions:${collection.id}:${item.id}`)) {
             throw new Error('Historique existant illisible : données conservées');
           }
           history = { base: sanitizeHistoryItem(old || item, properties), versions: [] };
@@ -113,14 +114,14 @@ export function recordCollectionHistory(previous: any[], next: any[], organizati
         const hasChanges = Object.keys(patch.set).length || patch.unset.length || Object.keys(patch.deltas || {}).length;
         if (!hasChanges && (old || history.versions.length)) continue;
         if (old && !history.versions.length) {
-          history.versions.push({ ts: new Date().toISOString(), userId: null, userName: 'État avant suivi',
+          history.versions.push({ id: crypto.randomUUID(), ts: new Date().toISOString(), userId: null, userName: 'État avant suivi',
             action: 'baseline', patch: { set: {}, unset: [] } });
         }
-        history.versions.push({ ts: new Date().toISOString(), userId: user?.id || null,
+        history.versions.push({ id: crypto.randomUUID(), ts: new Date().toISOString(), userId: user?.id || null,
           userName: user?.name || user?.email || 'Utilisateur', action: old ? 'update' : 'create', patch });
-        localStorage.setItem(historyKey(organizationId, collection.id, item.id), JSON.stringify(history));
+        databaseStorage.setItem(historyKey(organizationId, collection.id, item.id), JSON.stringify(history));
         changed = true;
-      } catch (error) { console.warn('Historique local indisponible', error); }
+      } catch (error) { console.warn('Historique indisponible', error); }
     }
   }
   if (changed && typeof window !== 'undefined') window.dispatchEvent(new Event('erp-item-history-changed'));

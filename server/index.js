@@ -1,3 +1,4 @@
+import { registerBrowserStateRoutes } from './routes/browserStateRoutes.js';
 import { isSiteCreator, ensureSiteCreator } from './services/siteOwnerAccess.js';
 import { createOrganizationBackup, restoreOrganizationBackup } from './services/organizationBackupService.js';
 import { createBackupScheduler, createScopedBackupOperations } from './services/backupScheduler.js';
@@ -390,6 +391,7 @@ registerBackupRoutes({ app, appContext });
 registerAppStateAdminRoutes({ app, appContext });
 
 registerStateRoutes({ app, appContext });
+registerBrowserStateRoutes({ app, appContext });
 
 registerAutomationRoutes({ app, appContext });
 

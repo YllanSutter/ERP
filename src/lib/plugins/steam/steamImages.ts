@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import { bundleRequest } from './bundleApi';
 
 const REVISION_KEY = 'erp:steam-images-revision';
@@ -8,7 +9,7 @@ export function steamImagesRevision() {
   try {
     return typeof window === 'undefined'
       ? '0'
-      : window.localStorage.getItem(REVISION_KEY) || fallbackRevision;
+      : databaseStorage.getItem(REVISION_KEY) || fallbackRevision;
   } catch {
     return fallbackRevision;
   }
@@ -57,7 +58,7 @@ export async function refreshSteamImages() {
   headers.clear();
   fallbackRevision = String(result.updatedAt);
   try {
-    window.localStorage.setItem(REVISION_KEY, String(result.updatedAt));
+    databaseStorage.setItem(REVISION_KEY, String(result.updatedAt));
   } catch {
     /* current mounted images still retry */
   }

@@ -6,6 +6,7 @@ import { createBackupArchive, extractBackupArchive, bundlePdfFiles, pdfDirectori
 import { backupScope, getBackupDirectory, resolveBackupPath, serializeBackupOperation, pruneBackups } from './backupService.js';
 
 const tables = {
+  browser_state: ['organization_id', 'owner_key', 'key', 'value'],
   organization_members: ['organization_id', 'user_id'],
   roles: ['id', 'organization_id', 'name', 'description', 'is_system'],
   permissions: ['id', 'organization_id', 'role_id', 'collection_id', 'item_id', 'field_id', 'can_read', 'can_write', 'can_delete', 'can_manage_fields', 'can_manage_views', 'can_manage_permissions'],
@@ -91,6 +92,7 @@ export const restoreOrganizationBackup = ({ pool, name, organizationId, actorUse
     const snapshot = JSON.parse(await fs.readFile(path.join(staging, 'organization.json'), 'utf8'));
     if (manifest.scope !== 'organization' || manifest.organizationId !== organizationId || snapshot.scope !== 'organization' ||
         snapshot.version !== 1 || snapshot.organizationId !== organizationId || snapshot.organization?.id !== organizationId) throw new Error('Périmètre de sauvegarde incompatible.');
+    snapshot.tables.browser_state ??= []; // Archives created before database-backed UI state.
     for (const table of [...Object.keys(tables), 'app_state']) {
       if (!Array.isArray(snapshot.tables?.[table]) || snapshot.tables[table].some(row => row.organization_id !== organizationId)) throw new Error('Données de sauvegarde hors organisation.');
     }
@@ -112,7 +114,7 @@ export const restoreOrganizationBackup = ({ pool, name, organizationId, actorUse
     if (!organization.rowCount) throw new Error('Organisation introuvable.');
     const users = new Set((await client.query('SELECT id FROM users')).rows.map(user => user.id));
     if (!users.has(actorUserId)) throw new Error('Compte administrateur introuvable.');
-    for (const table of ['permissions', 'user_roles', 'roles', 'organization_members', 'plugin_configs', 'automations', 'pdf_plugin_saved_pdfs', 'steam_public_bundles']) {
+    for (const table of ['browser_state', 'permissions', 'user_roles', 'roles', 'organization_members', 'plugin_configs', 'automations', 'pdf_plugin_saved_pdfs', 'steam_public_bundles']) {
       await client.query(`DELETE FROM ${table} WHERE organization_id=$1`, [organizationId]);
     }
     for (const [table, columns] of Object.entries(tables)) {

@@ -1,3 +1,4 @@
+import { databaseStorage } from '@/lib/databaseStorage';
 import { isTotalFieldVisible } from '@/lib/utils/totalVisibility';
 import TotalsSurface from './TotalsSurface';
 import { resolveTotalsScope } from './totalsScope';
@@ -21,7 +22,6 @@ import { Button } from '@/components/ui/button';
 import { BulkSelectionToolbar } from '@/components/views/BulkSelectionToolbar';
 import { countItemsInGroup, getGroupLabel, resolveGroupVisualStyle } from '@/lib/groupingUtils';
 import { isCalculatedNumberProperty } from '@/lib/calculatedFields';
-import { API_URL } from '@/lib/constants';
 import { compareValues } from '@/lib/utils/sortUtils';
 import { getSteamDisplayName } from '@/lib/plugins/steam/steamUtils';
 import { buildGroupPrefill } from '@/lib/utils/groupPrefillUtils';
@@ -413,7 +413,7 @@ const TableView: React.FC<TableViewProps> = ({
     () => {
       let localPreferences: unknown;
       if (typeof window !== 'undefined') {
-        try { localPreferences = JSON.parse(window.localStorage.getItem(totalsStorageKey) || 'null'); } catch { localPreferences = null; }
+        try { localPreferences = JSON.parse(databaseStorage.getItem(totalsStorageKey) || 'null'); } catch { localPreferences = null; }
       }
       return normalizeTotalsWidgetPreferences(
         localPreferences || (user?.user_preferences as any)?.erpTotals?.[totalsPersistKey],
@@ -455,7 +455,7 @@ const TableView: React.FC<TableViewProps> = ({
       let storedTab = '';
       if (typeof window !== 'undefined') {
         try {
-          storedTab = localStorage.getItem(rootTabsStorageKey) || '';
+          storedTab = databaseStorage.getItem(rootTabsStorageKey) || '';
         } catch {
           storedTab = '';
         }
@@ -487,46 +487,11 @@ const TableView: React.FC<TableViewProps> = ({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      window.localStorage.setItem(totalsStorageKey, JSON.stringify(totalsWidgetPreferences));
+      databaseStorage.setItem(totalsStorageKey, JSON.stringify(totalsWidgetPreferences));
     } catch {
       // Keep total controls usable if local persistence is unavailable.
     }
   }, [totalsStorageKey, totalsWidgetPreferences]);
-
-  useEffect(() => {
-    if (!user?.id || !activeOrganizationId) return;
-
-    const serialized = JSON.stringify(totalsWidgetPreferences);
-    if (serialized === lastSavedTotalsPreferencesRef.current) return;
-
-    const timeout = setTimeout(async () => {
-      try {
-        const res = await fetch(`${API_URL}/users/${encodeURIComponent(user.id)}/preferences`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            preferences: {
-              erpTotals: {
-                [totalsPersistKey]: totalsWidgetPreferences,
-              },
-            },
-          }),
-        });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data?.error || 'Sauvegarde des préférences des totaux impossible');
-        }
-
-        lastSavedTotalsPreferencesRef.current = serialized;
-      } catch (error) {
-        console.error('Totals preferences save failed', error);
-      }
-    }, 350);
-
-    return () => clearTimeout(timeout);
-  }, [totalsWidgetPreferences, user?.id, activeOrganizationId, totalsPersistKey]);
 
   useEffect(() => {
     const rootGroupMode: 'accordion' | 'columns' | 'tabs' | 'select' =
@@ -538,7 +503,7 @@ const TableView: React.FC<TableViewProps> = ({
     if (typeof window === 'undefined') return;
     try {
       const sharedSelections = readGroupFieldSelections(collection?.id || 'unknown');
-      const raw = localStorage.getItem(rootSelectStorageKey);
+      const raw = databaseStorage.getItem(rootSelectStorageKey);
       const next: Record<number, string> = {};
       groups.forEach((fieldId, depth) => {
         const value = sharedSelections[fieldId];

@@ -1,3 +1,4 @@
+vi.mock('@/lib/databaseStorage', () => ({ databaseStorage: { getItem: (key: string) => window.localStorage.getItem(key), setItem: (key: string, value: string) => window.localStorage.setItem(key, value), removeItem: (key: string) => window.localStorage.removeItem(key) } }));
 import { afterEach, expect, it, vi } from 'vitest';
 import {
   getSteamAppId,
