@@ -1,3 +1,4 @@
+import { setBusinessPersistencePending } from './databaseStorage';
 import { recordCollectionHistory } from './itemHistory';
 import { v4 as uuidv4 } from 'uuid';
 import { buildItemChanges, applyItemChanges, isSyncableItemField } from '../../shared/itemChanges.js';
@@ -155,7 +156,7 @@ export function useErpSync({
   latestCollectionsRef.current = collections;
   const saveQueueRef = useRef<SaveQueue | null>(null);
   useEffect(() => {
-    const queue = new SaveQueue(setSaveStatus);
+    const queue = new SaveQueue(status => { setSaveStatus(status); setBusinessPersistencePending(status !== 'saved' && status !== 'loading'); });
     saveQueueRef.current = queue;
     setSaveStatus('loading');
     setItemConflicts([]);
@@ -170,6 +171,7 @@ export function useErpSync({
     window.addEventListener('beforeunload', beforeUnload);
     return () => {
       queue.dispose();
+      setBusinessPersistencePending(false);
       window.removeEventListener('online', retry);
       window.removeEventListener('beforeunload', beforeUnload);
     };

@@ -1,4 +1,6 @@
-import { initializeDatabaseStorage, clearDatabaseStorage, flushDatabaseStorage } from '@/lib/databaseStorage';
+import { SessionPersistenceNotice } from '@/components/layout/SessionPersistenceNotice';
+import { StorageRecovery } from '@/components/layout/StorageRecovery';
+import { initializeDatabaseStorage, clearDatabaseStorage, flushDatabaseStorage, monitorDatabaseStorage } from '@/lib/databaseStorage';
 import React, { createContext, useContext, useEffect, useMemo, useState, useRef, useCallback } from 'react';
 
 import LoginPage from '@/components/pages/LoginPage';
@@ -53,6 +55,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       window.removeEventListener('erp-persistence-saved', onSaved);
     };
   }, []);
+
+  useEffect(() => { if (user?.id && activeOrganizationId) return monitorDatabaseStorage(); }, [user?.id, activeOrganizationId]);
 
   const [sessionExpired, setSessionExpired] = useState(false);
   const expiredRef = useRef(false);
@@ -296,14 +300,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return <AuthContext.Provider value={value}>
     {persistenceError && <div role="alert" className="bg-amber-100 p-3 text-center text-amber-950">{persistenceError}</div>}
+    {user && !loading && <StorageRecovery account={user.email || user.name} organization={organizations.find(org => org.id === activeOrganizationId)?.name || activeOrganizationId || ''} />}
     {!loading && <React.Fragment key={`${user?.id || 'anonymous'}/${activeOrganizationId || ''}`}>{children}</React.Fragment>}
     <dialog ref={sessionDialog} aria-label="Session expirée" onCancel={event => event.preventDefault()}
       className="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none border-0 bg-background p-0 text-foreground backdrop:bg-black/60">
       {sessionExpired && <>
-        <div role="alert" className="bg-amber-100 p-4 text-center text-amber-950">
-          Votre session a expiré. Reconnectez-vous avec le même compte pour reprendre.
-          Vos modifications en cours sont conservées dans cet onglet. Ne le fermez pas et ne rechargez pas la page.
-        </div>
+        <SessionPersistenceNotice />
         <LoginPage onLogin={value.login} onRegister={value.register} loading={loading} reconnect />
       </>}
     </dialog>

@@ -1,3 +1,4 @@
+import { useRemoteStorage } from '@/lib/hooks/useDatabaseStorage';
 import { databaseStorage } from '@/lib/databaseStorage';
 import React, { useEffect } from 'react';
 import { LightMultiSelect } from '../inputs/LightMultiSelect';
@@ -41,6 +42,11 @@ const CollectionFilterPanel: React.FC<FilterModalProps> = ({
 const getFiltersKey = (collectionId: string, viewId?: string | null) => viewId ? `erp_collection_filters_${collectionId}_${viewId}` : `erp_collection_filters_${collectionId}`;
 const getDateFieldKey = (collectionId: string, viewId?: string | null) => viewId ? `erp_collection_datefield_${collectionId}_${viewId}` : `erp_collection_datefield_${collectionId}`;
 
+
+  useRemoteStorage([getFiltersKey(collection.id, viewId), getDateFieldKey(collection.id, viewId)], () => {
+    try { setFilters(JSON.parse(databaseStorage.getItem(getFiltersKey(collection.id, viewId)) || '{}')); } catch { /* Keep valid filters. */ }
+    setDateField(databaseStorage.getItem(getDateFieldKey(collection.id, viewId)) || '');
+  });
 
   // Charger les filtres et la dateField depuis les préférences en base au montage, spécifique à la collection
   useEffect(() => {

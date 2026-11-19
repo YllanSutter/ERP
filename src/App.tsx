@@ -94,6 +94,16 @@ const App = () => {
     }
   }, [theme]);
 
+  useEffect(() => {
+    const sync = () => {
+      const saved = databaseStorage.getItem('erp-theme');
+      if (saved === 'light' || saved === 'dark') setTheme(saved);
+      setSidebarOpen(databaseStorage.getItem('erp_sidebar_open') !== '0');
+    };
+    window.addEventListener('erp-database-state-changed', sync);
+    return () => window.removeEventListener('erp-database-state-changed', sync);
+  }, []);
+
   // Filtres par dashboard (clé = dashboard.id)
   const [dashboardFilters, setDashboardFilters] = useState<Record<string, any[]>>({});
   const {

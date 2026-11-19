@@ -13,8 +13,9 @@ it('keeps pinned fields editable outside tab content and exposes unpin actions',
   expect(html).toContain('aria-label="Prix"');
   expect(html).not.toContain('tabpanel');
   const cards = React.Children.toArray(tree.props.children) as React.ReactElement<any>[];
-  const heading = React.Children.toArray(cards[0].props.children)[0] as React.ReactElement<any>;
-  const button = React.Children.toArray(heading.props.children)[1] as React.ReactElement<any>;
+  const button = React.Children.toArray(cards[0].props.children)[2] as React.ReactElement<any>;
+  expect(cards[0].props.className).toContain('items-center');
+  expect(html).toContain('whitespace-nowrap');
   button.props.onClick();
   expect(onUnpin).toHaveBeenCalledWith('status');
 });

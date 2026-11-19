@@ -1,3 +1,4 @@
+import { usePinnedItemFields } from '@/lib/hooks/usePinnedItemFields';
 import { ImageField } from '@/components/fields/ImageField';
 import { normalizeImageField, validImageSource } from '@/lib/itemImages';
 import React, { useEffect, useState } from 'react';
@@ -47,7 +48,12 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
   currentCollectionId,
   nested = false
 }) => {
-  const { activeOrganizationId } = useAuth();
+  const { activeOrganizationId, user } = useAuth();
+  const { fields: pinnedFields, update: updatePinnedField } = usePinnedItemFields(
+    activeOrganizationId || 'default', user?.id || 'anonymous', currentCollectionId);
+  const initialPin = pinnedFields.find(field => field.id === property?.id);
+  const [pinnedInItem, setPinnedInItem] = useState(Boolean(initialPin));
+  const [keepPinnedOriginal, setKeepPinnedOriginal] = useState(initialPin?.keepOriginal !== false);
   const isEditing = !!property;
 
   const [imageMaxWidth, setImageMaxWidth] = useState(String(property?.imageDisplay?.maxWidth || ''));
@@ -240,6 +246,10 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
     }
 
     onSave(savedProperty);
+    const fieldId = property?.id || name.toLowerCase().replace(/\s+/g, '_');
+    if (pinnedInItem !== Boolean(initialPin) || (pinnedInItem && keepPinnedOriginal !== initialPin?.keepOriginal)) {
+      updatePinnedField(fieldId, pinnedInItem, keepPinnedOriginal);
+    }
   };
 
   const TinyLabel = SettingsLabel;
@@ -734,6 +744,9 @@ const PropertyModal: React.FC<PropertyModalProps> = ({
       {/* ── Onglet Avancé ─────────────────────────────────────────────────── */}
       {activeTab === 'infos' && (
         <div className="mt-4 space-y-3 border-t border-border pt-4">
+          <FormCheckbox label="Épingler en haut des fiches" checked={pinnedInItem} onChange={setPinnedInItem} />
+          <FormHint className="ml-6">Visible à côté du titre, dans tous les onglets des fiches de cette collection.</FormHint>
+          {pinnedInItem && <FormCheckbox label="Garder aussi à l’emplacement d’origine" checked={keepPinnedOriginal} onChange={setKeepPinnedOriginal} />}
           <FormCheckbox label="Afficher dans le menu contextuel" checked={showContextMenu} onChange={setShowContextMenu} />
           <FormHint className="ml-6">Au clic droit sur les objets</FormHint>
         </div>

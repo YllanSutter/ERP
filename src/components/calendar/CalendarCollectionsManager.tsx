@@ -1,3 +1,4 @@
+import { useRemoteStorage } from '@/lib/hooks/useDatabaseStorage';
 import { databaseStorage } from '@/lib/databaseStorage';
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
@@ -193,6 +194,7 @@ const CalendarCollectionsManager: React.FC<CalendarCollectionsManagerProps> = ({
     return 'month';
   };
   const [viewMode, setViewMode] = useState<CalendarViewMode>(getInitialViewMode());
+  useRemoteStorage([viewModeStorageKey ? `calendarViewMode:${viewModeStorageKey}` : 'calendarViewMode'], () => setViewMode(getInitialViewMode()));
   const [currentDate, setCurrentDate] = useState(new Date());
   const setViewModePersist = (mode: React.SetStateAction<CalendarViewMode>) => {
     setViewMode(mode);

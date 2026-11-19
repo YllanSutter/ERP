@@ -559,6 +559,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   React.useEffect(() => { groupContextRef.current = groupContext ?? null; }, [groupContext]);
 
   const draftAppliedRef = useRef(false);
+  const draftDecisionPendingRef = useRef(false);
   const draftReadyRef = useRef(true);
   const didMountRef = useRef(false);
   const disableDraftRef = useRef(false);
@@ -573,6 +574,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   React.useEffect(() => {
     draftAppliedRef.current = false;
+    draftDecisionPendingRef.current = false;
     disableDraftRef.current = false;
     setHasLocalDraft(false);
     setDraftPayload(null);
@@ -610,6 +612,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         setHasLocalDraft(false);
         return;
       }
+      draftDecisionPendingRef.current = true;
       setHasLocalDraft(true);
       setDraftPayload({
         formData: parsed.formData,
@@ -663,6 +666,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       }
     });
 
+    draftDecisionPendingRef.current = false;
     draftAppliedRef.current = true;
     initialDataRef.current = liveBase;
     setFormDataRaw(mergedDraft);
@@ -675,6 +679,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   }, [draftPayload, initialForm]);
 
   const discardDraftPayload = React.useCallback(() => {
+    draftDecisionPendingRef.current = false;
     setDraftPromptOpen(false);
     setDraftPayload(null);
     setHasLocalDraft(false);
@@ -689,7 +694,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   }, [draftKey, initialForm]);
 
   React.useEffect(() => {
-    if (disableDraftRef.current) return;
+    if (disableDraftRef.current || draftDecisionPendingRef.current) return;
     if (!isDraftDirty) {
       try {
         databaseStorage.removeItem(draftKey);
@@ -716,7 +721,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   React.useEffect(() => {
     return () => {
-      if (disableDraftRef.current) return;
+      if (disableDraftRef.current || draftDecisionPendingRef.current) return;
       if (!isDraftDirty) return;
       try {
         const payload = {
@@ -2146,7 +2151,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       <Dialog open={draftPromptOpen} onOpenChange={setDraftPromptOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Brouillon local détecté</DialogTitle>
+            <DialogTitle>Brouillon enregistré détecté</DialogTitle>
             <DialogDescription>
               Un brouillon existe pour cet item. Voulez-vous l’appliquer ?
             </DialogDescription>

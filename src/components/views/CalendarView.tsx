@@ -1,3 +1,4 @@
+import { useRemoteStorage } from '@/lib/hooks/useDatabaseStorage';
 import { databaseStorage } from '@/lib/databaseStorage';
 import React, { useState, useMemo } from 'react';
 import { useConfigSync } from '@/lib/hooks/useConfigSync';
@@ -186,6 +187,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   };
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>(getInitialViewMode);
 
+  useRemoteStorage(['calendarViewMode'], () => setViewMode(getInitialViewMode()));
   const setViewModePersist = (mode: 'month' | 'week' | 'day') => {
     setViewMode(mode);
     if (typeof window !== 'undefined') {

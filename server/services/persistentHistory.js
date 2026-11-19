@@ -8,23 +8,23 @@ function apply(snapshot, patch = {}) {
   }
   return next;
 }
-const identity = version => version.id || JSON.stringify([version.ts, version.userId, version.action, version.userName]);
+export const historyVersionIdentity = version => version.id || JSON.stringify([version.ts, version.userId, version.action, version.userName]);
 export function mergePersistentHistory(currentValue, incomingValue) {
   if (!currentValue) return incomingValue;
   const current = JSON.parse(currentValue);
   const incoming = JSON.parse(incomingValue);
-  const known = new Set(current.versions.map(identity));
+  const known = new Set(current.versions.map(historyVersionIdentity));
   let source = incoming.base;
   for (const version of incoming.versions) {
     source = apply(source, version.patch);
-    if (known.has(identity(version))) continue;
+    if (known.has(historyVersionIdentity(version))) continue;
     // Convert string deltas using their original baseline. Replaying those
     // offsets directly against a concurrently modified document corrupts it.
     const patch = version.patch || {};
     const set = { ...patch.set };
     for (const key of Object.keys(patch.deltas || {})) set[key] = source[key];
     current.versions.push({ ...version, patch: { set, unset: patch.unset || [] } });
-    known.add(identity(version));
+    known.add(historyVersionIdentity(version));
   }
   return JSON.stringify(current);
 }

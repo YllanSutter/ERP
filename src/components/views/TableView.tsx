@@ -1,3 +1,4 @@
+import { useRemoteStorage } from '@/lib/hooks/useDatabaseStorage';
 import { databaseStorage } from '@/lib/databaseStorage';
 import { isTotalFieldVisible } from '@/lib/utils/totalVisibility';
 import TotalsSurface from './TotalsSurface';
@@ -423,6 +424,9 @@ const TableView: React.FC<TableViewProps> = ({
     [user?.user_preferences, totalsPersistKey, totalsStorageKey, groups.length]
   );
   const [totalsWidgetPreferences, setTotalsWidgetPreferences] = useState<TotalsWidgetPreferences>(() => incomingTotalsPreferences);
+  useRemoteStorage([totalsStorageKey], () => {
+    try { setTotalsWidgetPreferences(normalizeTotalsWidgetPreferences(JSON.parse(databaseStorage.getItem(totalsStorageKey) || 'null'), groups.length > 0)); } catch { /* Keep the last valid preferences. */ }
+  });
   const handleTotalsPreferencesChange = useCallback((next: TotalsWidgetPreferences) => {
     setTotalsWidgetPreferences((prev) => {
       const normalizedNext = normalizeTotalsWidgetPreferences(next, groups.length > 0);

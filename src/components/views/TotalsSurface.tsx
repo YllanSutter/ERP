@@ -1,3 +1,4 @@
+import { useRemoteStorage } from '@/lib/hooks/useDatabaseStorage';
 import { databaseStorage } from '@/lib/databaseStorage';
 import { isTotalFieldVisible } from '@/lib/utils/totalVisibility';
 import React, { useCallback, useState } from 'react';
@@ -19,6 +20,9 @@ function TopTotals({ preferences, onPreferencesChange, ...props }: Omit<Props, '
       }
     } catch { /* Keep modules usable when storage is unavailable. */ }
     return { showTotalsWidget: true, widgetExpanded: true };
+  });
+  useRemoteStorage([props.persistKey || ''], () => {
+    try { setSavedPreferences(JSON.parse(databaseStorage.getItem(props.persistKey || '') || '{}')); } catch { /* Ignore malformed preferences. */ }
   });
   const updatePreferences = useCallback((next: TotalsWidgetPreferences) => setSavedPreferences((previous) => ({ ...previous, ...next })), []);
   const updateVisibility = useCallback((id: string, visible: boolean, fieldIds?: string[]) => setSavedPreferences((previous) => ({ ...previous, fieldVisibility: { ...previous.fieldVisibility, ...Object.fromEntries((fieldIds || [id]).map((fieldId) => [fieldId, visible])) } })), []);

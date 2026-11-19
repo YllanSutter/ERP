@@ -40,12 +40,10 @@ export function PinnedFieldsHeader({ properties, onUnpin, renderField }: {
 }) {
   if (!properties.length) return null;
   return <div aria-label="Champs épinglés" className="flex min-w-0 flex-wrap items-start gap-2">
-    {properties.map(property => <div key={property.id} className="min-w-40 max-w-full flex-1 rounded-lg border border-border bg-background/70 px-2.5 py-1.5 sm:max-w-80">
-      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-medium text-muted-foreground">
-        <span className="truncate">{property.name}</span>
-        <button type="button" aria-label={`Désépingler ${property.name}`} title="Désépingler" className="shrink-0 hover:text-foreground" onClick={() => onUnpin(property.id)}><PinOff size={11} /></button>
-      </div>
-      <div className="min-w-0 overflow-x-auto">{renderField(property)}</div>
+    {properties.map(property => <div key={property.id} className="flex min-w-40 max-w-full flex-1 items-center gap-2 rounded-lg border border-border bg-background/70 px-2.5 py-1.5 sm:max-w-80">
+      <span className="max-w-24 shrink-0 truncate text-[10px] font-medium text-muted-foreground">{property.name}</span>
+      <div className="min-w-0 flex-1 overflow-hidden whitespace-nowrap">{renderField(property)}</div>
+      <button type="button" aria-label={`Désépingler ${property.name}`} title="Désépingler" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={() => onUnpin(property.id)}><PinOff size={11} /></button>
     </div>)}
   </div>;
 }

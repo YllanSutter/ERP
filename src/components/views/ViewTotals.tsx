@@ -1,3 +1,4 @@
+import { useRemoteStorage } from '@/lib/hooks/useDatabaseStorage';
 import { databaseStorage } from '@/lib/databaseStorage';
 import React from 'react';
 import TotalsWidget, { type TotalsWidgetPreferences } from '@/components/TableView/TotalsWidget';
@@ -53,6 +54,7 @@ export const ViewTotals: React.FC<ViewTotalsProps> = ({ collection, collections,
     return sections;
   }, [collections, getItemsForGroup, groupedStructure, groups, properties]);
   const [preferences, setPreferences] = React.useState<TotalsWidgetPreferences>(() => readPreferences(collection.id, groups.length > 0));
+  useRemoteStorage([getStorageKey(collection.id)], () => setPreferences(readPreferences(collection.id, groups.length > 0)));
   const preferencesKey = getStorageKey(collection.id);
   React.useEffect(() => {
     setPreferences(readPreferences(collection.id, groups.length > 0));
