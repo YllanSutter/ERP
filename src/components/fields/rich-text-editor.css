@@ -120,3 +120,10 @@
 .tiptap.ProseMirror .rte-atom-handle:focus-within .rte-block-handle {
   opacity: 0.6;
 }
+
+/* Compact editing surface inside table context menus. */
+.rte-container.context-rich-editor .simple-editor-wrapper {
+  height: min(45vh, 22rem);
+  min-height: 10rem;
+  padding: 0 0.5rem;
+}

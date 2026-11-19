@@ -57,3 +57,37 @@ test('presence derives identity from the session and is scoped to an authorized 
     { room: organizationRoom('org-a'), event: 'usersConnected', users: [{ id: 'alice', name: 'ALICE' }] },
   ]);
 });
+
+test('real presence uses WebSocket, reconnects after transport loss and supports polling fallback', { skip: process.env.RUN_SOCKET_INTEGRATION !== '1' }, async t => {
+  const { createServer } = await import('node:http');
+  const { Server } = await import('socket.io');
+  const { io: connect } = await import('socket.io-client');
+  const { default: cookieParser } = await import('cookie-parser');
+  const { once } = await import('node:events');
+  const { presenceSocketOptions } = await import('../../shared/presenceSocketOptions.js');
+  for (const transports of [['websocket', 'polling'], ['polling']]) {
+    await t.test(transports[0], async () => {
+      const server = createServer();
+      const io = new Server(server, { transports });
+      setupSocketPresence({ io, parseCookies: cookieParser(), requireAuth: (req,res,next) => {
+        if (req.cookies.access_token !== 'alice') return res.status(401).json({});
+        req.auth = { user: {id:'alice',name:'Alice'}, activeOrganization: {id:req.headers['x-organization-id']} }; next();
+      }});
+      server.listen(0,'127.0.0.1'); await once(server,'listening');
+      const client = connect(`http://127.0.0.1:${server.address().port}`, { ...presenceSocketOptions('org-a'), extraHeaders: {Cookie:'access_token=alice'}, reconnectionDelay:20,timeout:1000 });
+      try {
+        await once(client,'connect',{signal:AbortSignal.timeout(4000)});
+        assert.equal(client.io.engine.transport.name,transports[0]);
+        const users = once(client,'usersConnected',{signal:AbortSignal.timeout(4000)}); client.emit('whoIsConnected');
+        assert.deepEqual((await users)[0],[{id:'alice',name:'Alice'}]);
+        if(transports[0]==='websocket') {
+          const oldId = client.id;
+          const reconnect = once(client,'connect',{signal:AbortSignal.timeout(4000)});
+          io.sockets.sockets.get(oldId).conn.close(); await reconnect;
+          assert.notEqual(client.id,oldId);
+          assert.equal(client.io.engine.transport.name,'websocket');
+        }
+      } finally { client.disconnect(); await new Promise(resolve=>io.close(resolve)); }
+    });
+  }
+});

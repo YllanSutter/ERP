@@ -60,7 +60,7 @@ export async function flushDatabaseStorage(): Promise<void> {
   sending = new Set(batch.keys());
   saving = (async () => {
     try {
-      const body = JSON.stringify({ entries: Object.fromEntries(batch), expected, organizationId });
+      const body = JSON.stringify({ entries: Object.fromEntries(batch), expected, organizationId, userId: context.split('/')[0] });
       const response = await fetch(`${API}/browser-state`, {
         method: 'PATCH', credentials: 'include', keepalive: new TextEncoder().encode(body).length < 60000, signal: AbortSignal.timeout(15000),
         headers: { 'Content-Type': 'application/json' },
@@ -96,7 +96,7 @@ async function importEntries(entries: Record<string, string>, claimUnscoped = fa
   const ownGeneration = generation;
   const result = await fetch(`${API}/browser-state/import`, {
     method: 'POST', credentials: 'include', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ entries, organizationId: organization(), claimUnscoped }),
+    body: JSON.stringify({ entries, organizationId: organization(), userId: context.split('/')[0], claimUnscoped }),
   });
   if (!result.ok) throw new Error('Legacy import failed');
   const saved = await result.json();

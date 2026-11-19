@@ -32,6 +32,7 @@ test('PostgreSQL backup/restore preserves data, upgrades old schemas and rolls b
       INSERT INTO app_state (organization_id,data) VALUES ('00000000-0000-0000-0000-000000000002','original');
     `);
     await pool.query("INSERT INTO browser_state VALUES ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'erp-theme', 'dark')");
+    await pool.query("INSERT INTO user_state VALUES ('00000000-0000-0000-0000-000000000001','erp-theme','dark')");
     for (const directory of ['templates', 'saved']) await fs.mkdir(path.join(root, 'pdf', directory), { recursive: true });
     const pdf = path.join(root, 'pdf', 'templates', 'example.pdf');
     await fs.writeFile(pdf, '%PDF-original');
@@ -47,20 +48,21 @@ test('PostgreSQL backup/restore preserves data, upgrades old schemas and rolls b
       const file = path.join(root, 'backups', snapshot.name);
       const { stdout } = await exec('tar', ['-tf', file]);
       assert.match(stdout, /manifest.json/); assert.match(stdout, /database.sql/); assert.match(stdout, /example.pdf/);
-      await pool.query("UPDATE browser_state SET value='light'");
+      await pool.query("UPDATE browser_state SET value='light'; UPDATE user_state SET value='light'");
       await setData('changed'); await fs.writeFile(pdf, '%PDF-changed');
       await restoreDbBackup(snapshot.name);
       assert.equal((await pool.query('SELECT value FROM browser_state')).rows[0].value, 'dark');
+      assert.equal((await pool.query('SELECT value FROM user_state')).rows[0].value, 'dark');
       assert.equal(await readData(), 'original');
       assert.equal(await fs.readFile(pdf, 'utf8'), '%PDF-original');
       assert.ok((await listBackups()).some(backup => backup.name.includes('pre-restore')));
     });
     await t.test('upgrades missing login columns and plugin tables before committing a legacy SQL restore', async () => {
-      await pool.query('ALTER TABLE organizations DROP COLUMN accent_color; ALTER TABLE users DROP COLUMN user_preferences; ALTER TABLE app_state DROP COLUMN version; DROP TABLE steam_public_bundles; DROP TABLE browser_state;');
+      await pool.query('ALTER TABLE organizations DROP COLUMN accent_color; ALTER TABLE users DROP COLUMN user_preferences; ALTER TABLE app_state DROP COLUMN version; DROP TABLE steam_public_bundles; DROP TABLE browser_state; DROP TABLE user_state;');
       await exec('pg_dump', [...args, '--no-owner', '--no-privileges', '--file', sqlFile]);
       await bootstrap(); await setData('current');
       await restoreDbBackup('legacy.sql');
-      await pool.query('SELECT user_preferences FROM users; SELECT accent_color FROM organizations; SELECT version FROM app_state; SELECT id FROM steam_public_bundles; SELECT key FROM browser_state;');
+      await pool.query('SELECT user_preferences FROM users; SELECT accent_color FROM organizations; SELECT version FROM app_state; SELECT id FROM steam_public_bundles; SELECT key FROM browser_state; SELECT key FROM user_state;');
       assert.equal(await readData(), 'original');
       const user = await pool.query("SELECT u.id FROM users u JOIN user_roles ur ON ur.user_id=u.id JOIN roles r ON r.id=ur.role_id WHERE r.name='admin'");
       assert.equal(user.rowCount, 1);
@@ -174,6 +176,39 @@ test('PostgreSQL backup/restore preserves data, upgrades old schemas and rolls b
       await ensureSiteCreator(pool);
       assert.equal(await isSiteCreator(pool,actor),true);
       assert.equal(await isSiteCreator(pool,'00000000-0000-0000-0000-000000000009'),false);
+    });
+    await t.test('account appearance follows the user across organizations, retains scoped settings and isolates other accounts', async () => {
+      const { registerBrowserStateRoutes } = await import('../routes/browserStateRoutes.js');
+      const routes = {};
+      const app = Object.fromEntries(['get','patch','post'].map(method => [method, (url, ...handlers) => { routes[method + ' ' + url] = handlers.at(-1); }]));
+      registerBrowserStateRoutes({ app, appContext: { pool, requireAuth() {}, hasPermission: () => true, logger: { error() {} } } });
+      const user = '00000000-0000-0000-0000-000000000001';
+      const a = '00000000-0000-0000-0000-000000000002';
+      const b = '00000000-0000-0000-0000-000000000004';
+      await pool.query('INSERT INTO browser_state VALUES ($1,$3,$4,$5),($2,$3,$4,$6) ON CONFLICT (organization_id,owner_key,key) DO UPDATE SET value=EXCLUDED.value', [a,b,user,'erp-theme','dark','light']);
+      await pool.query('INSERT INTO browser_state VALUES ($1,$3,$4,$5),($2,$3,$4,$6)', [a,b,user,'calendarViewMode','month','week']);
+      const request = async (method, org, body = {}, id = user) => {
+        const res = { code: 200, status(code) { this.code=code;return this; }, json(value) { this.body=value;return this; } };
+        await routes[method+' /api/browser-state']({ auth: { user: { id }, activeOrganization: { id: org } }, body }, res);
+        assert.equal(res.code,200);
+        return res.body;
+      };
+      assert.equal((await request('get',a)).entries['erp-theme'],'dark');
+      assert.equal((await request('get',b)).entries['erp-theme'],'dark');
+      assert.equal((await request('get',a)).entries.calendarViewMode,'month');
+      assert.equal((await request('get',b)).entries.calendarViewMode,'week');
+      await request('patch',b,{ entries: { 'erp-theme': 'light' } });
+      assert.equal((await request('get',a)).entries['erp-theme'],'light');
+      const otherUser = '00000000-0000-0000-0000-000000000009';
+      assert.equal((await request('get',a,{},otherUser)).entries['erp-theme'],undefined);
+      // Restoring organization A must not revert account-wide appearance.
+      const { createOrganizationBackup, restoreOrganizationBackup } = await import('./organizationBackupService.js');
+      const snapshot = await createOrganizationBackup({pool,organizationId:a,label:'account-scope'});
+      await request('patch',a,{ entries: { 'erp-theme': 'dark' } });
+      await restoreOrganizationBackup({pool,name:snapshot.name,organizationId:a,actorUserId:user});
+      assert.equal((await request('get',b)).entries['erp-theme'],'dark');
+      await request('patch',a,{entries: {'erp-theme':null}});
+      assert.equal((await request('get',b)).entries['erp-theme'],undefined);
     });
     await t.test('a scheduled run creates both organization archives and the full database archive', async () => {
       const { createScopedBackupOperations } = await import('./backupScheduler.js');

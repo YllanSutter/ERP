@@ -1,3 +1,4 @@
+import { ACCOUNT_STORAGE_KEYS, isAccountStorageKey, migrateAccountState } from '../services/accountState.js';
 import { createHash } from 'node:crypto';
 import { legacyStorageScope } from '../../shared/legacyStorageScope.js';
 import { historyVersionIdentity, mergePersistentHistory } from '../services/persistentHistory.js';
@@ -44,12 +45,18 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
     });
   };
   const read = async (req) => {
+    await migrateAccountState(pool, req.auth.user.id, req.auth.activeOrganization.id);
     const result = await pool.query(
-      'SELECT key, value FROM browser_state WHERE organization_id = $1 AND owner_key IN ($2, $3)',
-      [req.auth.activeOrganization.id, req.auth.user.id, 'organization']);
+      `SELECT key, value FROM browser_state
+       WHERE organization_id = $1 AND owner_key IN ($2, $3) AND NOT (key = ANY($4::text[]))
+       UNION ALL SELECT key, value FROM user_state WHERE user_id = $2::uuid AND key = ANY($4::text[]) AND value IS NOT NULL`,
+      [req.auth.activeOrganization.id, req.auth.user.id, 'organization', ACCOUNT_STORAGE_KEYS]);
     return Object.fromEntries(result.rows.filter(row => allowed(req, row.key, row.value)).map(row => [row.key, row.value]));
   };
   const guard = (req, res) => {
+    if (req.body?.userId && req.body.userId !== req.auth.user.id) {
+      res.status(409).json({ error: 'Account changed; reconnect before saving' }); return false;
+    }
     if (!req.auth.activeOrganization?.id) { res.status(400).json({ error: 'No active organization' }); return false; }
     if ((req.body?.organizationId || req.query?.organizationId) && (req.body?.organizationId || req.query?.organizationId) !== req.auth.activeOrganization.id) {
       res.status(409).json({ error: 'Organization changed; reload before saving' }); return false;
@@ -85,6 +92,18 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
         const key = originalKey.startsWith('erp-item-versions:') && originalKey.slice('erp-item-versions:'.length).split(':').length === 2
           ? `erp-item-versions:${req.auth.activeOrganization.id}:${originalKey.slice('erp-item-versions:'.length)}` : originalKey;
         let value = incomingValue;
+        if (isAccountStorageKey(key)) {
+          if (value === null) {
+            // A tombstone prevents old organization copies from being reimported.
+            if (!importOnly) await client.query(`INSERT INTO user_state (user_id, key, value) VALUES ($1,$2,NULL)
+              ON CONFLICT (user_id, key) DO UPDATE SET value=NULL`, [req.auth.user.id, key]);
+          } else {
+            await client.query(`INSERT INTO user_state (user_id, key, value) VALUES ($1,$2,$3)
+              ON CONFLICT (user_id, key) DO ${importOnly ? 'NOTHING' : 'UPDATE SET value=EXCLUDED.value'}`, [req.auth.user.id, key, value]);
+          }
+          importedKeys.push(originalKey);
+          continue;
+        }
         const owner = isSharedStorageKey(key) ? 'organization' : req.auth.user.id;
         if (key.startsWith('erp-item-draft:')) {
           const existing = await client.query('SELECT value FROM browser_state WHERE organization_id=$1 AND owner_key=$2 AND key=$3',

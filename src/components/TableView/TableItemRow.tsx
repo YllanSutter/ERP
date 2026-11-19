@@ -286,11 +286,16 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
               const effectiveValue = exchangeLabel ?? item[prop.id];
 
               return (
-                <ContextMenuItem key={prop.id} className="flex items-center justify-between gap-4 cursor-default" onSelect={(e) => e.preventDefault()}>
+                <div key={prop.id} role="group" aria-label={`Modifier ${prop.name}`}
+                  className={prop.type === 'rich_text' ? "flex flex-col gap-1 px-2 py-1.5 cursor-default" : "flex items-start justify-between gap-4 px-2 py-1.5 cursor-default"}
+                  onKeyDown={(event) => { if (event.key !== 'Escape') event.stopPropagation(); }}
+                  onPointerMove={(event) => event.stopPropagation()}>
                   <span className="text-xs text-neutral-400">{prop.name}:</span>
-                  <div className="flex-1 max-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                  <div className={prop.type === 'rich_text' ? "w-[min(32rem,calc(100vw-3rem))]" : "flex-1 max-w-[200px]"} onClick={(e) => e.stopPropagation()}>
                     <EditableProperty
                       property={effectiveProperty}
+                      forceRichEditor={prop.type === 'rich_text'}
+                      className={prop.type === 'rich_text' ? 'context-rich-editor' : undefined}
                       value={effectiveValue}
                       onChange={(val) => {
                         if (exchangeLabel !== undefined) return;
@@ -307,7 +312,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
                       collection={collection}
                     />
                   </div>
-                </ContextMenuItem>
+                </div>
               );
             })}
             

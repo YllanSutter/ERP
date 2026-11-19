@@ -25,7 +25,7 @@ test('reads only current user and organization state and hides restricted histor
     { key: 'erp-item-versions:org:c:i', value: JSON.stringify({ base: { secret: 'hidden' }, versions: [] }) },
   ]);
   await routes['get /api/browser-state'](req, res);
-  assert.deepEqual(calls[0][1], ['org', 'alice', 'organization']);
+  assert.deepEqual(calls.find(([sql]) => sql.startsWith('SELECT key, value'))[1].slice(0, 3), ['org', 'alice', 'organization']);
   assert.deepEqual(res.body.entries, { 'erp-theme': 'dark' });
 });
 test('rejects writes after an organization switch', async () => {
@@ -42,7 +42,7 @@ test('imports idempotently and retains unauthorized originals in the browser', a
   assert.equal(res.code, 200);
   assert.deepEqual(res.body.importedKeys, ['erp-theme']);
   assert.match(calls.find(([sql]) => sql.startsWith('INSERT'))[0], /DO NOTHING/);
-  assert.deepEqual(calls.find(([sql]) => sql.startsWith('INSERT'))[1], ['org', 'alice', 'erp-theme', 'light']);
+  assert.deepEqual(calls.find(([sql]) => sql.startsWith('INSERT'))[1], ['alice', 'erp-theme', 'light']);
 });
 
 test('requires explicit ownership claims and rejects another user or organization even when claiming', async () => {
@@ -108,4 +108,22 @@ test('retains historical changes from another author when adding an authorized c
   ] }) } };
   await routes['patch /api/browser-state'](req, res);
   assert.equal(res.code, 200);
+});
+
+test('appearance writes target the account while view choices stay in the organization', async () => {
+  const { routes, calls, req, res } = setup();
+  req.body = { userId: 'alice', entries: { 'erp-theme': 'dark', calendarViewMode: 'week' } };
+  await routes['patch /api/browser-state'](req,res);
+  assert.equal(res.code,200);
+  const account = calls.find(([sql]) => sql.startsWith('INSERT INTO user_state'));
+  const scoped = calls.find(([sql]) => sql.startsWith('INSERT INTO browser_state'));
+  assert.deepEqual(account[1],['alice','erp-theme','dark']);
+  assert.deepEqual(scoped[1],['org','alice','calendarViewMode','week']);
+});
+test('a tab from another logged-in account cannot overwrite global appearance', async () => {
+  const { routes, calls, req, res } = setup();
+  req.body = { userId: 'bob', entries: { 'erp-theme': 'dark' } };
+  await routes['patch /api/browser-state'](req,res);
+  assert.equal(res.code,409);
+  assert.equal(calls.length,0);
 });

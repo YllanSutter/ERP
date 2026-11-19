@@ -1,3 +1,4 @@
+import { presenceSocketOptions } from '../shared/presenceSocketOptions.js';
 import { databaseStorage } from '@/lib/databaseStorage';
 import ItemArchives from '@/components/modals/ItemArchives';
 import { visibleCollections } from '@/lib/itemArchive';
@@ -455,7 +456,7 @@ const App = () => {
       setSocket(null);
       return;
     }
-    const connection = io({ transports: ['polling'], auth: { organizationId: activeOrganizationId } });
+    const connection = io(presenceSocketOptions(activeOrganizationId));
     setSocket(connection);
     return () => { connection.disconnect(); };
   }, [user?.id, activeOrganizationId]);
