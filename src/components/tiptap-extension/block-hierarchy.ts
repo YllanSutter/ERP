@@ -33,6 +33,11 @@ export function splitOutlineBoundaryLists(state: EditorState): Transaction | nul
 // Headings own the following siblings up to the next heading of equal/higher level.
 export function blockRange(doc: PMNode, pos: number): BlockRange | null {
   const $pos = doc.resolve(Math.min(pos, doc.content.size))
+  // An exact item boundary identifies that item, even inside another task.
+  const nextItem = $pos.nodeAfter
+  if (nextItem && items.includes(nextItem.type.name)) {
+    return { from: pos, to: pos + nextItem.nodeSize, node: nextItem }
+  }
   for (let depth = $pos.depth; depth > 0; depth--) {
     const node = $pos.node(depth)
     if (items.includes(node.type.name)) return { from: $pos.before(depth), to: $pos.after(depth), node }

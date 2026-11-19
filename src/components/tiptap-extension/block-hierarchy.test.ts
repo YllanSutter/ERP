@@ -8,7 +8,7 @@ import { history, undo, redo } from '@tiptap/pm/history'
 import { Slice, Fragment } from '@tiptap/pm/model'
 import { CollapsibleHeading } from '@/components/tiptap-node/heading-node/heading-node-extension'
 import { blockRange, enterAfterCollapsed, moveBlock, plainTaskList } from './block-hierarchy'
-import { OutlineEditing, headingDropTarget, outlineDecorations, taskPaste } from './outline-editing'
+import { OutlineEditing, listItemDropTarget, headingDropTarget, outlineDecorations, taskPaste } from './outline-editing'
 
 const schema = getSchema([OutlineEditing, StarterKit.configure({ heading: false }), CollapsibleHeading, TaskList,
   TaskItem.extend({ addAttributes() { return { ...this.parent?.(), collapsed: { default: false } } } }).configure({ nested: true })])
@@ -270,5 +270,46 @@ describe('folded section regressions', () => {
     state.doc.check()
     undo(state, tr => { state = state.apply(tr) })
     expect(state.doc.eq(document)).toBe(true)
+  })
+})
+
+describe('dragging tasks between levels', () => {
+  it.each([false, true])('moves Photos beside Bleu blanc with its children (after=%s)', after => {
+    const photos = task('Photos', [tasks(task('En attente'))], true)
+    const bleu = task('Bleu blanc')
+    const parent = task('Dans l’idée', [tasks(bleu)])
+    const document = doc(tasks(parent, photos))
+    const state = stateAt(document, 'Photos').reconfigure({ plugins: [history()] })
+    const source = blockRange(document, state.selection.from)!
+    const targetPos = blockRange(document, stateAt(document, 'Bleu blanc').selection.from)!.from
+    const target = listItemDropTarget(state, source, targetPos, after, false)!
+    let next = state.apply(moveBlock(state, source, target.pos, target.wrapIn)!)
+    expect(next.doc.eq(doc(tasks(task('Dans l’idée', [tasks(...(after ? [bleu, photos] : [photos, bleu]))]))))).toBe(true)
+    next.doc.check()
+    undo(next, tr => { next = next.apply(tr) })
+    expect(next.doc.eq(document)).toBe(true)
+  })
+
+  it.each([false, true])('nests under a task with or without an existing child list (%s)', existing => {
+    const photos = task('Photos', [tasks(task('En attente'))], true)
+    const parent = task('Parent', existing ? [tasks(task('Bleu blanc'))] : [], true)
+    const document = doc(tasks(parent, photos))
+    const state = stateAt(document, 'Photos')
+    const source = blockRange(document, state.selection.from)!
+    const target = listItemDropTarget(state, source, 1, true, true)!
+    const tr = moveBlock(state, source, target.pos, target.wrapIn)!
+    expect(tr.doc.eq(doc(tasks(task('Parent', [tasks(...(existing ? [task('Bleu blanc'), photos] : [photos]))]))))).toBe(true)
+    tr.doc.check()
+  })
+
+  it('promotes a subtree to its parent level', () => {
+    const photos = task('Photos', [tasks(task('En attente'))])
+    const document = doc(tasks(task('Parent', [tasks(task('Bleu blanc'), photos)])))
+    const state = stateAt(document, 'Photos')
+    const source = blockRange(document, state.selection.from)!
+    const target = listItemDropTarget(state, source, 1, true, false)!
+    const tr = moveBlock(state, source, target.pos, target.wrapIn)!
+    expect(tr.doc.eq(doc(tasks(task('Parent', [tasks(task('Bleu blanc'))]), photos)))).toBe(true)
+    tr.doc.check()
   })
 })

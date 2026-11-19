@@ -106,18 +106,47 @@ export function headingDropTarget(state: EditorState, source: BlockRange, headin
   return { pos: headingPos + target.node.nodeSize, wrapIn: state.doc.resolve(source.from).parent.type }
 }
 
+/** A rightward drop nests the whole subtree; an aligned drop makes a sibling. */
+export function listItemDropTarget(state: EditorState, source: BlockRange, itemPos: number, after: boolean, nest: boolean): BlockDropTarget | null {
+  const target = blockRange(state.doc, itemPos)
+  if (!target || !itemTypes.includes(source.node.type.name) || target.node.type.name !== source.node.type.name) return null
+  if (!nest) return { pos: after ? target.to : target.from }
+  const listType = state.doc.resolve(source.from).parent.type
+  let nested: BlockDropTarget | null = null
+  target.node.forEach((child, offset) => {
+    if (child.type === listType) nested = { pos: itemPos + offset + (after ? child.nodeSize : 2) }
+  })
+  return nested || { pos: target.to - 1, wrapIn: listType }
+}
+
 function dropDestination(view: EditorView, event: DragEvent, source: BlockRange): BlockDropTarget | null {
   const element = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-rte-block]') : null
   if (!element || !view.dom.contains(element)) return null
-  const pos = Number(element.dataset.rteBlock)
+  let itemElement = element
+  // Moving left over an ancestor's gutter promotes the dropped subtree.
+  if (itemTypes.includes(source.node.type.name)) {
+    let ancestor = itemElement.parentElement?.closest<HTMLElement>('[data-rte-block]')
+    while (ancestor && view.dom.contains(ancestor)) {
+      const line = itemElement.querySelector('p') || itemElement
+      if (event.clientX >= line.getBoundingClientRect().left - 16) break
+      const ancestorBlock = view.state.doc.nodeAt(Number(ancestor.dataset.rteBlock))
+      if (!ancestorBlock || !itemTypes.includes(ancestorBlock.type.name)) break
+      itemElement = ancestor
+      ancestor = ancestor.parentElement?.closest<HTMLElement>('[data-rte-block]')
+    }
+  }
+  const pos = Number(itemElement.dataset.rteBlock)
   const target = blockRange(view.state.doc, pos)
   if (!target) return null
-  const firstLine = element.querySelector('p, .tt-heading-content') || element
+  const firstLine = itemElement.querySelector('p, .tt-heading-content') || itemElement
   const rect = firstLine.getBoundingClientRect()
   const after = event.clientY >= rect.top + rect.height / 2
   // Drop an item on a heading to put it at the beginning/end of that section's list.
   if (itemTypes.includes(source.node.type.name) && target.node.type.name === 'heading') {
     return headingDropTarget(view.state, source, pos, after)
+  }
+  if (itemTypes.includes(source.node.type.name) && itemTypes.includes(target.node.type.name)) {
+    return listItemDropTarget(view.state, source, pos, after, event.clientX > rect.left + 16)
   }
   return { pos: after ? target.to : target.from }
 }

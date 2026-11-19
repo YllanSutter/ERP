@@ -162,7 +162,8 @@
       .tt-task-content > ol,
       .tt-task-content > [data-node-view-content-react] > ul,
       .tt-task-content > [data-node-view-content-react] > ol {
-        padding-left: 2rem;
+        // The checkbox and its gap already provide one indentation step.
+        padding-left: 0;
       }
 
       .tt-task-toggle {
