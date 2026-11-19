@@ -291,7 +291,11 @@ export function useErpSync({
   useEffect(() => {
     if (!socket || !organizationId) return;
 
-    const handleStructureUpdated = async (payload?: { userId?: string; organizationId?: string }) => {
+    const handleStructureUpdated = async (payload?: { userId?: string; organizationId?: string; source?: string }) => {
+      if (payload?.source === 'db.restore' && (!payload.organizationId || payload.organizationId === organizationId)) {
+        window.location.reload();
+        return;
+      }
       if (payload?.organizationId && payload.organizationId !== organizationId) return;
       if (payload?.userId && user && payload.userId === user.id) return;
 

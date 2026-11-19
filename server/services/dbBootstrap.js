@@ -1,3 +1,6 @@
+import { ensureSiteCreator } from './siteOwnerAccess.js';
+import { ensureBundleStorage } from '../plugins/steam/bundles.js';
+
 export const bootstrapDatabase = async ({ pool, ensureDefaultOrganization }) => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -286,8 +289,46 @@ export const bootstrapDatabase = async ({ pool, ensureDefaultOrganization }) => 
     'CREATE UNIQUE INDEX IF NOT EXISTS pdf_plugin_saved_item_unique ON pdf_plugin_saved_pdfs (organization_id, collection_id, item_id);'
   );
 
+  await pool.query('CREATE TABLE IF NOT EXISTS site_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+  await ensureSiteCreator(pool);
+  await ensureBundleStorage(pool);
+
   const firstUser = await pool.query('SELECT id FROM users ORDER BY created_at ASC, id ASC LIMIT 1');
   if (firstUser.rowCount > 0) {
     await ensureDefaultOrganization(firstUser.rows[0].id);
   }
+};
+
+// Run the same schema upgrades during SQL restoration, before its transaction commits.
+export const getDatabaseRestoreSql = async () => {
+  const statements = [];
+  await bootstrapDatabase({
+    pool: { query: async (sql) => { statements.push(sql); return { rows: [], rowCount: 0 }; } },
+    ensureDefaultOrganization: async () => {},
+  });
+  return `SET search_path = public, pg_catalog;\n${statements.join(';\n')};\n
+DO $$
+DECLARE first_user UUID; default_org UUID;
+BEGIN
+  SELECT id INTO first_user FROM users ORDER BY created_at ASC, id ASC LIMIT 1;
+  IF first_user IS NOT NULL THEN
+    SELECT id INTO default_org FROM organizations ORDER BY created_at ASC, id ASC LIMIT 1;
+    IF default_org IS NULL THEN
+      default_org := gen_random_uuid();
+      INSERT INTO organizations (id, name, owner_user_id) VALUES (default_org, 'Organisation principale', first_user);
+    END IF;
+    INSERT INTO organization_members (organization_id, user_id) VALUES (default_org, first_user) ON CONFLICT DO NOTHING;
+    UPDATE app_state SET organization_id = default_org WHERE organization_id IS NULL;
+    UPDATE roles SET organization_id = default_org WHERE organization_id IS NULL;
+    UPDATE user_roles SET organization_id = default_org WHERE organization_id IS NULL;
+    UPDATE permissions SET organization_id = default_org WHERE organization_id IS NULL;
+    INSERT INTO organization_members (organization_id, user_id)
+      SELECT DISTINCT organization_id, user_id FROM user_roles WHERE organization_id IS NOT NULL ON CONFLICT DO NOTHING;
+  END IF;
+END $$;
+-- Exercise the columns required by login, organizations and app state before committing.
+SELECT user_preferences FROM users LIMIT 0;
+SELECT accent_color FROM organizations LIMIT 0;
+SELECT organization_id, version, data FROM app_state LIMIT 0;
+`;
 };

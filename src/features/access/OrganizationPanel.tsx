@@ -68,14 +68,27 @@ export const OrganizationPanel = ({ context }: Props) => {
 
 export const BackupsPanel = ({ context }: Props) => (
   <div className="space-y-2">
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-sm font-medium">Périmètre :</span>
+      <Button size="sm" variant={context.backupScope === 'organization' ? 'default' : 'outline'} disabled={context.backupBusy} onClick={() => void context.changeBackupScope('organization')}>Organisation active</Button>
+      {context.backupStatus?.canManageDatabaseBackups && <Button size="sm" variant={context.backupScope === 'database' ? 'default' : 'outline'} disabled={context.backupBusy} onClick={() => void context.changeBackupScope('database')}>Base complète · créateur du site</Button>}
+    </div>
+    <p className={context.backupScope === 'database' ? 'text-sm text-destructive' : 'text-xs text-muted-foreground'}>
+      {context.backupScope === 'database' ? 'Ces sauvegardes concernent toutes les organisations, les comptes et les droits du site.' : 'Seule l’organisation active sera restaurée. Les autres organisations et les comptes utilisateurs sont conservés.'}
+    </p>
     <form className="flex flex-wrap items-center gap-2" onSubmit={(event) => { event.preventDefault(); void context.createBackup(); }}>
       <label className="min-w-36 flex-1">
         <span className="sr-only">Nom de la sauvegarde</span>
         <Input className="h-8" placeholder="Nom de la sauvegarde (facultatif)" value={context.backupLabel} onChange={(event) => context.setBackupLabel(event.target.value)} />
       </label>
-      <Button type="submit" size="sm" disabled={context.backupBusy}>Créer une sauvegarde</Button>
-      <Button type="button" size="sm" variant="outline" onClick={context.reloadBackups} disabled={context.backupBusy}>Actualiser</Button>
+      <Button type="submit" size="sm" disabled={context.backupBusy || !context.backupStatus?.scopedBackupsSupported}>Créer une sauvegarde</Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => void context.reloadBackups()} disabled={context.backupBusy}>Actualiser</Button>
     </form>
+    {context.backupStatus && <div className="text-xs text-muted-foreground" role="status">
+      <p>{context.backupStatus.enabled ? `Sauvegarde automatique toutes les ${context.backupStatus.intervalMinutes} minutes.` : 'Sauvegardes automatiques désactivées.'}
+        {context.backupStatus.running ? ' Sauvegarde en cours…' : context.backupStatus.nextRunAt ? ` Prochaine tentative : ${new Date(context.backupStatus.nextRunAt).toLocaleString('fr-FR')}.` : ''}</p>
+      {context.backupStatus.lastError && <p className="text-destructive">{context.backupStatus.lastError}</p>}
+    </div>}
     {context.visibleBackups.length === 0 ? (
       <p className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">Aucune sauvegarde disponible.</p>
     ) : (
@@ -85,11 +98,11 @@ export const BackupsPanel = ({ context }: Props) => (
             <div className="min-w-0 flex-1">
               <div className="break-all text-sm font-medium">{backup.name}</div>
               <div className="text-xs text-muted-foreground">
-                {context.formatBytes(backup.size)} · {new Date(backup.createdAt).toLocaleString('fr-FR')}
+                {backup.scope === 'database' ? 'Base complète' : 'Organisation'} · {context.formatBytes(backup.size)} · {new Date(backup.createdAt).toLocaleString('fr-FR')}
               </div>
             </div>
             <div className="ml-auto flex items-center [&_button]:size-8">
-              <IconButton label="Restaurer cette sauvegarde" onClick={() => context.restoreBackup(backup.name)} disabled={context.backupBusy}><RotateCcw /></IconButton>
+              <IconButton label={backup.scope === 'database' ? 'Restaurer toute la base' : 'Restaurer cette organisation'} onClick={() => context.restoreBackup(backup.name)} disabled={context.backupBusy}><RotateCcw /></IconButton>
               <IconButton label="Télécharger cette sauvegarde" onClick={() => context.downloadBackup(backup.name)}><Download /></IconButton>
               <IconButton label="Supprimer cette sauvegarde" className="text-red-600 hover:text-red-700 dark:text-red-400" onClick={() => context.deleteBackup(backup.name)} disabled={context.backupBusy}><Trash2 /></IconButton>
             </div>

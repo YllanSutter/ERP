@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { OptionTags } from './OptionTags';
 
 interface PopoverButtonProps {
+  trigger?: React.ReactElement;
   icon?: 'Plus' | 'List' | 'Search'; // Icône à afficher
   title?: string;
   children: React.ReactNode | ((helpers: { close: () => void }) => React.ReactNode);
@@ -24,6 +25,7 @@ interface PopoverButtonProps {
 }
 
 export const PopoverButton: React.FC<PopoverButtonProps> = ({
+  trigger,
   icon = 'Plus',
   title,
   children,
@@ -43,7 +45,7 @@ export const PopoverButton: React.FC<PopoverButtonProps> = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
+        {trigger || <button
           disabled={disabled}
           className={cn(
             "p-1  hover:bg-black/10 text-neutral-900 dark:hover:bg-white/5 dark:text-neutral-200  opacity-30 hover:opacity-100 transition-all duration-300",
@@ -55,9 +57,9 @@ export const PopoverButton: React.FC<PopoverButtonProps> = ({
           title={title}
         >
           {IconComponent && <IconComponent size={size} />}
-        </button>
+        </button>}
       </PopoverTrigger>
-      <PopoverContent 
+      <PopoverContent onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}
           className={cn(
             "p-2 bg-white text-neutral-700 border border-black/10 dark:bg-neutral-900 dark:text-neutral-200 dark:border-white/10 z-[201] pointer-events-auto -mt-2",
             contentClassName

@@ -11,7 +11,7 @@ export default function EditableFieldPreview({ children, ...props }: Props) {
   if (props.readOnly || calculated) return <>{children}</>;
   const trigger = (
     <div role="button" tabIndex={0} aria-label={`Modifier ${props.property.name}`}
-          className="min-w-0 cursor-pointer"
+          className="min-h-5 min-w-0 cursor-pointer"
           draggable={false}
           onClick={(event) => event.stopPropagation()}
           onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}
@@ -21,7 +21,8 @@ export default function EditableFieldPreview({ children, ...props }: Props) {
               event.currentTarget.click();
             }
           }}>
-          <div className="pointer-events-none">{children}</div>
+          <div className="pointer-events-none">{props.value == null || props.value === '' || (Array.isArray(props.value) && !props.value.length)
+            ? <span className="text-muted-foreground">—</span> : children}</div>
         </div>
   );
   if (['select', 'multi_select', 'multiselect'].includes(props.property.type)) {
@@ -30,6 +31,15 @@ export default function EditableFieldPreview({ children, ...props }: Props) {
       || props.currentItem?.__collectionId;
     return <SelectPropertyField property={props.property} collectionId={collectionId} value={props.value}
       onChange={props.onChange} trigger={trigger} />;
+  }
+  if (['date', 'relation'].includes(props.property.type)) {
+    return <EditableProperty {...props} disableNameLink editorTrigger={trigger} />;
+  }
+  if (props.property.type !== 'rich_text') {
+    return <div className="min-w-0" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}
+      onDragStart={event => { event.preventDefault(); event.stopPropagation(); }}>
+      <EditableProperty {...props} disableNameLink />
+    </div>;
   }
   return (
     <Popover>

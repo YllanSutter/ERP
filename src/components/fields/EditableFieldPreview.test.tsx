@@ -51,3 +51,24 @@ it.each(['select', 'multi_select', 'multiselect'])('opens %s directly from the c
   expect(tree.props.trigger.props['aria-label']).toBe('Modifier Reçu ?');
   expect(renderToStaticMarkup(tree.props.trigger)).toContain('Oui');
 });
+
+it.each(['select', 'multiselect', 'multi_select'])('keeps an empty %s visibly clickable', type => {
+  const tree = EditableFieldPreview({ property: { id: 'status', name: 'Statut', type }, value: [], onChange: vi.fn(), children: null });
+  const html = renderToStaticMarkup(tree.props.trigger);
+  expect(html).toContain('—');
+  expect(html).toContain('min-h-5');
+});
+
+it.each(['number', 'text', 'email', 'url', 'checkbox'])('edits %s directly in the card', type => {
+  const onChange = vi.fn();
+  const tree = EditableFieldPreview({ property: { id: 'value', name: 'Valeur', type }, value: '', onChange, children: '—' });
+  expect(tree.type).toBe('div');
+  expect(tree.props.children.type).toBe(EditableProperty);
+  expect(tree.props.children.props.onChange).toBe(onChange);
+});
+
+it.each(['date', 'relation'])('uses the preview to open the %s editor directly', type => {
+  const tree = EditableFieldPreview({ property: { id: 'value', name: 'Valeur', type }, value: '', onChange: vi.fn(), children: null });
+  expect(tree.type).toBe(EditableProperty);
+  expect(renderToStaticMarkup(tree.props.editorTrigger)).toContain('—');
+});

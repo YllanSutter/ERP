@@ -1,3 +1,7 @@
+import { isSiteCreator, ensureSiteCreator } from './services/siteOwnerAccess.js';
+import { createOrganizationBackup, restoreOrganizationBackup } from './services/organizationBackupService.js';
+import { createBackupScheduler, createScopedBackupOperations } from './services/backupScheduler.js';
+import { createDatabaseMaintenance } from './services/databaseMaintenance.js';
 import { createShutdownHandler } from './services/shutdownService.js';
 import { createJsonBodyParser } from './services/jsonBodyParser.js';
 import { logger } from './services/logger.js';
@@ -23,8 +27,8 @@ import { loadBuiltinServerPlugins } from './plugins/builtin.js';
 import { mountServerPlugins } from './plugins/registry.js';
 import {
   BACKUP_INTERVAL_MINUTES,
+  backupScope,
   createDbBackup,
-  pruneBackups,
   listBackups,
   restoreDbBackup,
   resolveBackupPath,
@@ -104,6 +108,8 @@ app.use(cors({
 app.use(cookieParser());
 app.use(compression());
 app.use(createJsonBodyParser());
+const databaseMaintenance = createDatabaseMaintenance();
+app.use('/api', databaseMaintenance.middleware);
 
 // --- DB bootstrap -------------------------------------------------------
 const bootstrap = async () => {
@@ -209,6 +215,7 @@ const ensureAppStateForOrganization = async (organizationId) => {
 
 const ensureDefaultOrganization = async (ownerUserId) => {
   if (!ownerUserId) return null;
+  await ensureSiteCreator(pool);
 
   let orgRes = await pool.query('SELECT id, name FROM organizations ORDER BY created_at ASC, id ASC LIMIT 1');
   if (!orgRes.rowCount) {
@@ -354,7 +361,13 @@ const appContext = {
   shouldRecalculateSegments,
   calculateEventSegments,
   defaultCalendarConfig: DEFAULT_CALENDAR_CONFIG,
+  withDatabaseMaintenance: databaseMaintenance.run,
+  isSiteCreator: (userId) => isSiteCreator(pool, userId),
   backup: {
+    getBackupStatus: () => backupScheduler.getStatus(),
+    backupScope,
+    createOrganizationBackup: (organizationId, label) => createOrganizationBackup({ pool, organizationId, label }),
+    restoreOrganizationBackup: (name, organizationId, actorUserId) => restoreOrganizationBackup({ pool, name, organizationId, actorUserId }),
     listBackups,
     createDbBackup,
     restoreDbBackup,
@@ -401,7 +414,16 @@ app.get('*', (req, res) => {
 // --- Bootstrap and start -----------------------------------------------
 let serverInstance;
 let socketInstance;
-let backupInterval;
+const scopedBackupOperations = createScopedBackupOperations({
+  pool, listBackups, createDbBackup,
+  createOrganizationBackup: (organizationId, label) => createOrganizationBackup({ pool, organizationId, label }),
+});
+const backupScheduler = createBackupScheduler({
+  intervalMinutes: BACKUP_INTERVAL_MINUTES,
+  createBackup: (label) => databaseMaintenance.run(null, () => scopedBackupOperations.createBackup(label)),
+  listBackups: scopedBackupOperations.listBackups,
+  logger,
+});
 (async () => {
   try {
     await bootstrap();
@@ -414,27 +436,7 @@ let backupInterval;
     socketInstance = io;
     global.io = io;
 
-    // Sauvegardes automatiques (optionnelles)
-    if (BACKUP_INTERVAL_MINUTES > 0 && !isNaN(BACKUP_INTERVAL_MINUTES)) {
-      const intervalMs = BACKUP_INTERVAL_MINUTES * 60 * 1000;
-      logger.info(`[BACKUP] Sauvegardes automatiques toutes les ${BACKUP_INTERVAL_MINUTES} minutes`);
-      backupInterval = setInterval(async () => {
-        try {
-          await createDbBackup('auto');
-        } catch (err) {
-          logger.error('[BACKUP] Échec sauvegarde automatique', err);
-        }
-      }, intervalMs);
-    } else {
-      logger.info('[BACKUP] Sauvegardes automatiques désactivées');
-    }
-
-    // Nettoyage initial des anciennes sauvegardes
-    try {
-      await pruneBackups();
-    } catch (err) {
-      logger.error('[BACKUP] Échec du nettoyage initial', err);
-    }
+    await backupScheduler.start();
 
   } catch (err) {
     logger.error({ err }, 'Failed to bootstrap server');
@@ -446,7 +448,7 @@ let backupInterval;
 const shutdown = createShutdownHandler({
   getServer: () => serverInstance,
   getSockets: () => socketInstance,
-  stopBackups: () => { if (backupInterval) clearInterval(backupInterval); },
+  stopBackups: () => backupScheduler.stop(),
   createBackup: createDbBackup,
   closeDatabase: () => pool.end(),
   logger,

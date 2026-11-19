@@ -233,14 +233,14 @@ const EventItem: React.FC<EventItemProps> = ({
   const formatHour = (time: number) => formatTimeDisplay(Math.floor(time), Math.round((time % 1) * 60));
   const timeLabel = `${formatHour(startTime)} – ${formatHour(previewEndTime)}`;
   const badgeTypes = ['select', 'multiselect', 'multi_select', 'relation'];
-  const badgeFields = bodyProps.flatMap((prop: any) => {
+  const badgeFields = bodyProps.flatMap<{ prop: any; value: any; options: OptionType[]; label: string }>((prop: any) => {
     if (!badgeTypes.includes(prop.type)) return [];
     if (prop.type === 'relation') {
       const label = formatFieldValue(item, prop, collections);
-      return label ? [{ prop, value: label, label, options: [{ value: label, label, color: '#64748b' }] }] : [];
+      return [{ prop, value: label || '', label: label || prop.name, options: label ? [{ value: label, label, color: '#64748b' }] : [] }];
     }
     const value = item[prop.id];
-    if (!value || (Array.isArray(value) && !value.length)) return [];
+
     const options: OptionType[] = prop.options || [];
     const label = (Array.isArray(value) ? value : [value]).map((id) => {
       const option = options.find((candidate) => (typeof candidate === 'string' ? candidate : candidate.value) === id);
@@ -266,7 +266,7 @@ const EventItem: React.FC<EventItemProps> = ({
   const fieldGroups = new Map<string, any[]>();
   for (const prop of bodyProps) {
     const value = item[prop.id];
-    if (prop.type === 'url' || badgeTypes.includes(prop.type) || value == null || value === '' || (Array.isArray(value) && !value.length)) continue;
+    if ((prop.type === 'url' && value) || badgeTypes.includes(prop.type)) continue;
     const groupType = prop.type === 'rich_text' ? 'text' : prop.type;
     const group = fieldGroups.get(groupType) ?? [];
     group.push(prop);

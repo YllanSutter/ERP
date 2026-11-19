@@ -24,6 +24,7 @@ import { calculateSegmentsClient } from '@/lib/calculateSegmentsClient';
 const LazyRichTextEditor = React.lazy(() => import('@/components/fields/RichTextEditor'));
 
 interface EditablePropertyProps {
+  editorTrigger?: React.ReactElement;
   property: any;
   value: any;
   onChange: (value: any) => void;
@@ -416,8 +417,10 @@ const RelationEditor = ({
   size,
   onNavigateToCollection,
   onNavigateToRelatedItem,
-  isSourceMany
+  isSourceMany,
+  editorTrigger
 }: {
+  editorTrigger?: React.ReactElement;
   property: any;
   value: any;
   currentItem: any;
@@ -734,7 +737,7 @@ const RelationEditor = ({
 
   return (
     <div className={cn("flex items-center gap-2 justify-end ", className)}>
-      <div className="flex gap-1 flex-1 min-w-0 justify-end flex-wrap max-w-[200px] overflow-hidden max-h-[100px] overflow-y-auto">
+      {!editorTrigger && <div className="flex gap-1 flex-1 min-w-0 justify-end flex-wrap max-w-[200px] overflow-hidden max-h-[100px] overflow-y-auto">
         {visibleSelectedIds.map((id: string) => {
           const it = targetItems.find((ti: any) => ti.id === id);
           const targetItemForNavigation = it || targetCollection?.items?.find((ti: any) => ti.id === id) || null;
@@ -808,9 +811,10 @@ const RelationEditor = ({
           </span>
         )}
       </div>
-      
+      }
       {!readOnly && (
         <PopoverButton
+          trigger={editorTrigger}
           icon="Plus"
           title={isSourceMany ? "Ajouter / gérer" : "Ajouter / changer"}
           isAbsolute={true}
@@ -872,7 +876,7 @@ const RelationEditor = ({
           )}
         </PopoverButton>
       )}
-      {ViewerButton}
+      {!editorTrigger && ViewerButton}
     </div>
   );
 };
@@ -929,7 +933,8 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   forceRichEditor = false,
   richTextPreviewLimit,
   compactDate = false,
-  maxVisible
+  maxVisible,
+  editorTrigger
 }) => {
   const sizeClasses = {
     xs: 'text-[10px] h-7',
@@ -1062,7 +1067,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
       <>
       <Popover open={open} onOpenChange={handleDatePopoverOpenChange}>
         <PopoverTrigger asChild>
-          <button
+          {editorTrigger || <button
             disabled={readOnly}
             className={cn(
               "w-full px-2 py-1 bg-transparent border border-transparent text-left text-neutral-700 dark:text-white hover:border-black/10 dark:hover:border-white/10 rounded transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed",
@@ -1078,9 +1083,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
               dateGranularity === 'year' ? 'Choisir une année' :
               'Choisir une date et heure'
             )}
-          </button>
+          </button>}
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 bg-background dark:bg-neutral-900 border-neutral-700" align="start">
+        <PopoverContent onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()} className="w-auto p-0 bg-background dark:bg-neutral-900 border-neutral-700" align="start">
           <div className="flex flex-row gap-4 p-3">
             {includeDuration && onRelationChange && currentItem && dateGranularity === 'full' && (
               <div className="flex flex-col items-center justify-center min-w-[110px]">
@@ -1339,6 +1344,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
 
     return (
       <RelationEditor
+        editorTrigger={editorTrigger}
         property={property}
         value={value}
         currentItem={currentItem}

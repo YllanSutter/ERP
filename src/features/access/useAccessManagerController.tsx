@@ -128,6 +128,9 @@ export const useAccessManagerController = ({
   const [members, setMembers] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any[]>([]);
   const [backups, setBackups] = useState<any[]>([]);
+  const [backupStatus, setBackupStatus] = useState<any>(null);
+  const [backupScope, setBackupScope] = useState<'organization' | 'database'>('organization');
+  const backupHeaders = (): Record<string, string> => activeOrganizationId ? { 'X-Organization-Id': activeOrganizationId } : {};
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [creatingRole, setCreatingRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
@@ -178,10 +181,13 @@ export const useAccessManagerController = ({
       setPermissions(permsData);
       setMemberCandidates(Array.isArray(candidatesData) ? candidatesData : []);
       try {
-        const bRes = await fetch(`${API_URL}/db/backups`, { credentials: 'include' });
+        setBackupScope('organization');
+        const bRes = await fetch(`${API_URL}/db/backups?scope=organization`, { credentials: 'include', headers: backupHeaders() });
         if (bRes.ok) {
           const backupsData = await bRes.json();
-          setBackups(Array.isArray(backupsData) ? backupsData : []);
+          setBackups(Array.isArray(backupsData) ? backupsData.filter(backup => backup.scope === 'organization' && backup.organizationId === activeOrganizationId) : []);
+          const status = await fetch(`${API_URL}/db/backups/status`, { credentials: 'include', headers: backupHeaders() });
+          if (status.ok) setBackupStatus(await status.json());
         }
       } catch (err) {
         console.error(err);
@@ -229,25 +235,34 @@ export const useAccessManagerController = ({
     return `${size.toFixed(1)} ${unit}`;
   };
 
-  const reloadBackups = async () => {
+  const reloadBackups = async (scope: 'organization' | 'database' = backupScope) => {
     try {
-      const res = await fetch(`${API_URL}/db/backups`, { credentials: 'include' });
+      const res = await fetch(`${API_URL}/db/backups?scope=${scope}`, { credentials: 'include', headers: backupHeaders() });
       if (!res.ok) throw new Error('Load backups failed');
       const data = await res.json();
-      setBackups(Array.isArray(data) ? data : []);
+      setBackups(Array.isArray(data) ? data.filter(backup => backup.scope === scope && (scope === 'database' || backup.organizationId === activeOrganizationId)) : []);
+      const status = await fetch(`${API_URL}/db/backups/status`, { credentials: 'include', headers: backupHeaders() });
+      if (status.ok) setBackupStatus(await status.json());
     } catch (err) {
       console.error(err);
     }
   };
 
+  const changeBackupScope = async (scope: 'organization' | 'database') => {
+    setBackupScope(scope);
+    setBackups([]);
+    await reloadBackups(scope);
+  };
+
   const createBackup = async () => {
+    if (!backupStatus?.scopedBackupsSupported) return;
     setBackupBusy(true);
     try {
       const res = await fetch(`${API_URL}/db/backups`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...backupHeaders() },
         credentials: 'include',
-        body: JSON.stringify({ label: backupLabel.trim() || undefined }),
+        body: JSON.stringify({ scope: backupScope, label: backupLabel.trim() || undefined }),
       });
       if (!res.ok) {
         let message = 'Impossible de créer la sauvegarde.';
@@ -274,6 +289,7 @@ export const useAccessManagerController = ({
     try {
       const res = await fetch(`${API_URL}/db/backups/${encodeURIComponent(name)}`, {
         credentials: 'include',
+        headers: backupHeaders(),
       });
       if (!res.ok) throw new Error('Download backup failed');
       const blob = await res.blob();
@@ -298,6 +314,7 @@ export const useAccessManagerController = ({
       const res = await fetch(`${API_URL}/db/backups/${encodeURIComponent(name)}`, {
         method: 'DELETE',
         credentials: 'include',
+        headers: backupHeaders(),
       });
       if (!res.ok) throw new Error('Delete backup failed');
       await reloadBackups();
@@ -308,19 +325,28 @@ export const useAccessManagerController = ({
   };
 
   const restoreBackup = async (name: string) => {
-    const ok = confirm(`Restaurer la base depuis ${name} ? Cette action écrase la base actuelle.`);
-    if (!ok) return;
+    const complete = backups.find(backup => backup.name === name)?.scope === 'database';
+    const organizationName = organizations.find(organization => organization.id === activeOrganizationId)?.name || 'active';
+    if (complete) {
+      if (prompt('Cette restauration remplace TOUTES les organisations et les comptes. Pour confirmer, tapez : RESTAURER TOUTE LA BASE') !== 'RESTAURER TOUTE LA BASE') return;
+    } else if (!confirm(`Restaurer uniquement l’organisation « ${organizationName} » depuis ${name} ? Les autres organisations et les comptes utilisateurs seront conservés.`)) return;
     setBackupBusy(true);
     try {
       const res = await fetch(`${API_URL}/db/backups/${encodeURIComponent(name)}/restore`, {
         method: 'POST',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...backupHeaders() },
+        body: JSON.stringify({ confirmScope: complete ? 'database' : 'organization' }),
       });
-      if (!res.ok) throw new Error('Restore backup failed');
-      alert('Restauration terminée.');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || 'Impossible de restaurer la sauvegarde.');
+      }
+      alert(complete ? 'Restauration complète terminée. Une reconnexion avec les identifiants de la sauvegarde peut être nécessaire.' : 'Organisation restaurée. Les autres organisations et les comptes ont été conservés.');
+      window.location.reload();
     } catch (err) {
       console.error(err);
-      alert('Impossible de restaurer la sauvegarde.');
+      alert(err instanceof Error ? err.message : 'Impossible de restaurer la sauvegarde.');
     } finally {
       setBackupBusy(false);
     }
@@ -1353,7 +1379,7 @@ export const useAccessManagerController = ({
   };
 
 
-  const panelContext = { API_URL, collections, onSaveSteamExchangeLabels, dashboards, dataTransferTab, setDataTransferTab, importOrganizationName, setImportOrganizationName, importBusy, importOrganizationsFromFiles, loadAll, activeOrganizationId, organizations, organizationNameEdits, organizationColorEdits, updateOrganizationDraft, pendingSettingsCount, savingSettings, settingsNotice, saveAllSettings, busy, deleteOrganization, backups, backupLabel, setBackupLabel, reloadBackups, createBackup, backupBusy, visibleBackups, formatBytes, restoreBackup, downloadBackup, deleteBackup, sortedBackups, loading, roles, creatingRole, setCreatingRole, selectedRoleId, setSelectedRoleId, newRoleName, setNewRoleName, newRoleDesc, setNewRoleDesc, createRole, permissionsTab, setPermissionsTab, findPermission, toggleFlag, permissions, collectionsWithProps, flags, toggleDashboardVisibilityForRole, isDashboardVisibleForRole, importRelationSummary, patchImportPreviewOrganizations, IMPORT_PROPERTY_TYPE_OPTIONS, selectableUsers, filteredUsers, userQuery, setUserQuery, selectedPreferencesUserId, setSelectedPreferencesUserId, members, user, parseRoleIds, selectedPreferencesDraft, selectedPreferencesUser, memberIds, updateUserPreferencesDraft, passwordInputs, setPasswordInputs, updateUserPassword, deleteUser, isLocal, isSelf, relationChoiceFieldByKey, setRelationChoiceFieldByKey, updateImportOrganizationName, removeImportOrganization, updateImportCollectionName, removeImportCollection, updateImportProperty, removeImportProperty, convertRelationToChoiceField, pickDefaultChoiceFieldId, hydrateChoiceFieldOptions, deletedImportProperties, setDeletedImportProperties, importMapperTab, setImportMapperTab, importMappingDiagnostics, importPreviewOrganizations, importCommitBusy, autoFixImportMapping, importOrganizationsWithManualMapping, showImportMapper, setShowImportMapper };
+  const panelContext = { API_URL, collections, onSaveSteamExchangeLabels, dashboards, dataTransferTab, setDataTransferTab, importOrganizationName, setImportOrganizationName, importBusy, importOrganizationsFromFiles, loadAll, activeOrganizationId, organizations, organizationNameEdits, organizationColorEdits, updateOrganizationDraft, pendingSettingsCount, savingSettings, settingsNotice, saveAllSettings, busy, deleteOrganization, backupStatus, backupScope, changeBackupScope, backups, backupLabel, setBackupLabel, reloadBackups, createBackup, backupBusy, visibleBackups, formatBytes, restoreBackup, downloadBackup, deleteBackup, sortedBackups, loading, roles, creatingRole, setCreatingRole, selectedRoleId, setSelectedRoleId, newRoleName, setNewRoleName, newRoleDesc, setNewRoleDesc, createRole, permissionsTab, setPermissionsTab, findPermission, toggleFlag, permissions, collectionsWithProps, flags, toggleDashboardVisibilityForRole, isDashboardVisibleForRole, importRelationSummary, patchImportPreviewOrganizations, IMPORT_PROPERTY_TYPE_OPTIONS, selectableUsers, filteredUsers, userQuery, setUserQuery, selectedPreferencesUserId, setSelectedPreferencesUserId, members, user, parseRoleIds, selectedPreferencesDraft, selectedPreferencesUser, memberIds, updateUserPreferencesDraft, passwordInputs, setPasswordInputs, updateUserPassword, deleteUser, isLocal, isSelf, relationChoiceFieldByKey, setRelationChoiceFieldByKey, updateImportOrganizationName, removeImportOrganization, updateImportCollectionName, removeImportCollection, updateImportProperty, removeImportProperty, convertRelationToChoiceField, pickDefaultChoiceFieldId, hydrateChoiceFieldOptions, deletedImportProperties, setDeletedImportProperties, importMapperTab, setImportMapperTab, importMappingDiagnostics, importPreviewOrganizations, importCommitBusy, autoFixImportMapping, importOrganizationsWithManualMapping, showImportMapper, setShowImportMapper };
 
 
   return { isAdmin, panelContext };

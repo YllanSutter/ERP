@@ -3,6 +3,7 @@ import { encryptStateSecrets } from '../services/secretFieldService.js';
 export const registerAppStateAdminRoutes = ({ app, appContext }) => {
   const {
     logger,
+    isSiteCreator,
     requireAuth,
     pool,
     upsertPermission,
@@ -20,14 +21,14 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
     const isOrgAdmin = req.auth.roles.some((r) => r.name === 'admin');
     const isBaseAdmin = !!req.auth.baseIsAdmin;
 
-    if (scope === 'global' && !isBaseAdmin) {
+    try {
+    if (scope === 'global' && (!isBaseAdmin || !await isSiteCreator(req.auth.user.id))) {
       return res.status(403).json({ error: 'Forbidden: global export requires base admin' });
     }
     if (scope === 'organization' && !isOrgAdmin) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    try {
       if (scope === 'organization') {
         const organizationId = req.auth.activeOrganization?.id;
         if (!organizationId) return res.status(400).json({ error: 'No active organization' });
@@ -42,7 +43,7 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
 
         const users = (
           await pool.query(
-            `SELECT u.*
+            `SELECT u.id, u.email, u.name, u.provider, u.created_at
              FROM users u
              INNER JOIN organization_members om ON om.user_id = u.id
              WHERE om.organization_id = $1
@@ -100,14 +101,14 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
     const isOrgAdmin = req.auth.roles.some((r) => r.name === 'admin');
     const isBaseAdmin = !!req.auth.baseIsAdmin;
 
-    if (scope === 'global' && !isBaseAdmin) {
+    try {
+    if (scope === 'global' && (!isBaseAdmin || !await isSiteCreator(req.auth.user.id))) {
       return res.status(403).json({ error: 'Forbidden: global import requires base admin' });
     }
     if (scope === 'organization' && !isOrgAdmin) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    try {
       if (req.body?.scope && req.body.scope !== scope) {
         return res.status(400).json({ error: 'Le périmètre du fichier ne correspond pas à celui de l’import.' });
       }
@@ -149,31 +150,8 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
 
             if (existingUserRes.rowCount > 0) {
               const persistedUserId = existingUserRes.rows[0].id;
-              await client.query(
-                `UPDATE users SET
-                   email = $2,
-                   name = $3,
-                   provider = $4,
-                   provider_id = $5,
-                   password_hash = $6,
-                   created_at = $7,
-                   favorite_views = $8,
-                   favorite_items = $9,
-                   user_preferences = $10
-                 WHERE id = $1`,
-                [
-                  persistedUserId,
-                  user.email,
-                  user.name,
-                  user.provider,
-                  user.provider_id,
-                  user.password_hash,
-                  user.created_at,
-                  user.favorite_views || [],
-                  user.favorite_items || [],
-                  user.user_preferences || {}
-                ]
-              );
+              // User identity and credentials are shared by all organizations.
+              // An organization import only reconnects memberships to existing accounts.
               userIdMap.set(user.id, persistedUserId);
             } else {
               await client.query(

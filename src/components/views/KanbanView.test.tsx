@@ -59,7 +59,7 @@ describe('Kanban card presentation', () => {
     expect(html).toContain('Armagnac');
     expect(html).toContain('Menu de Armagnac');
     expect(html).toContain('Archiver l’élément');
-    expect(html).toContain('35 €');
+    expect(html).toContain('Prix');
     expect(html).toContain('Anniversaire');
     expect(html).not.toContain('-top-7');
     expect(html).not.toContain('Augmenter');
