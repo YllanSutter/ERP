@@ -19,21 +19,6 @@ export default defineConfig({
       },
     },
   },
-  build: {
-    rollupOptions: {
-      output: {
-        onlyExplicitManualChunks: true,
-        manualChunks(id) {
-          if (!id.includes('/node_modules/')) return;
-          if (/\/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react';
-          if (id.includes('/node_modules/lucide-react/')) return 'icons';
-          if (id.includes('/node_modules/recharts/')) return 'charts';
-          if (id.includes('/node_modules/pdf-lib/')) return 'pdf';
-          if (id.includes('/node_modules/@tiptap/')) return 'tiptap';
-          if (id.includes('/node_modules/framer-motion/') || id.includes('/node_modules/motion-')) return 'motion';
-          if (id.includes('/node_modules/@radix-ui/')) return 'radix';
-        },
-      },
-    },
-  },
+  // Let Rollup split the graph at dynamic imports. Package-based manual chunks
+  // can split dependency cycles (e.g. Recharts/d3) across initialization order.
 });
