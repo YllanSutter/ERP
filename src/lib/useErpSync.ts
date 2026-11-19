@@ -1,3 +1,4 @@
+import { recordCollectionHistory } from './itemHistory';
 import { v4 as uuidv4 } from 'uuid';
 import { buildItemChanges, applyItemChanges, isSyncableItemField } from '../../shared/itemChanges.js';
 import { useEffect, useRef, useState } from 'react';
@@ -389,6 +390,7 @@ export function useErpSync({
         items: result.rebasedCollections.find((remote: Collection) => remote.id === collection.id)?.items || [],
       }))
       : applyItemChanges(pending.previous, result.itemChanges);
+    recordCollectionHistory(pending.previous, applyItemChanges(pending.previous, pending.payload.itemChanges), organizationId!, user);
     latestCollectionsRef.current = mergeSavedCollections(pending.submitted, saved, latestCollectionsRef.current);
     setCollections((local) => mergeSavedCollections(pending.submitted, saved, local));
     lastSavedCollectionsRef.current = saved;
@@ -486,6 +488,7 @@ export function useErpSync({
           if (allOk) {
             console.log(`[useErpSync] All ${patches.length} patches succeeded, snapshot updated`);
             if (!isActive()) return;
+            recordCollectionHistory(prevCollections, cleanedCollections, organizationId, user);
             lastSavedCollectionsRef.current = cleanedCollections;
             if (!needsFullPost) return; // tout est sauve via les patches
           } else {
@@ -525,6 +528,7 @@ export function useErpSync({
           if (!isActive()) return;
           stateVersionRef.current = Number(result?.stateVersion) || stateVersionRef.current;
 
+          recordCollectionHistory(prevCollections, cleanedCollections, organizationId, user);
           const serverCollections = result?.collections || result?.automationCollections || null;
           if (serverCollections) {
             console.log(`[useErpSync] Applying server-returned collections after save`);

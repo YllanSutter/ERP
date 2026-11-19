@@ -1,3 +1,6 @@
+import { usePinnedItemFields } from '@/lib/hooks/usePinnedItemFields';
+import { PinnedFieldsSettings, PinnedFieldsHeader } from './PinnedItemFields';
+import { historyKey as buildScopedHistoryKey, readItemHistory, restoreHistorySnapshot } from '@/lib/itemHistory';
 import { generateId } from '@/lib/utils/id';
 import { getSteamBundleConfig } from '@/lib/plugins/steam/collectionRoles';
 import { SteamExchangeEditor } from '@/lib/plugins/steam/SteamExchangeEditor';
@@ -7,6 +10,7 @@ import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
 import { Star, Trash2, Clock, Edit2, History, ChevronLeft, FileText, ChevronDown, Sparkles, Link2, LayoutGrid } from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
+import EditableFieldPreview from '@/components/fields/EditableFieldPreview';
 import { ItemBanner } from '@/components/fields/ItemBanner';
 import { InteractiveBackdrop } from '@/components/ui/InteractiveBackdrop';
 import { Button } from '@/components/ui/button';
@@ -42,7 +46,7 @@ import {
   calculateSegmentsClient, formatSegmentDisplay,
   isEmptyValue,
   extractTextFromTiptap, serializeTiptapLines, isRichTextValue,
-  diffLines, areValuesEqual, computePatch, applyPatch, buildSnapshotAt,
+  diffLines, areValuesEqual, buildSnapshotAt,
   formatValueForDisplay,
   type FieldGroup,
   type FieldGroupsLayout,
@@ -461,51 +465,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     return `erp-item-draft:${collectionId}:${itemPart}`;
   };
 
-  const buildHistoryKey = (collectionId: string, itemId: string) => {
-    return `erp-item-versions:${collectionId}:${itemId}`;
-  };
-
-  const passwordHistoryMask = '********';
-  const passwordPropertyIds = new Set<string>(
-    (selectedCollection?.properties || [])
-      .filter((property: any) => property?.type === 'password')
-      .map((property: any) => String(property.id))
-  );
-
-  const sanitizeVersionData = (data: any) => {
-    if (!data || typeof data !== 'object') return data;
-    const { __collectionId, ...rest } = data as any;
-    const sanitized = { ...rest };
-    passwordPropertyIds.forEach((propertyId) => {
-      if (Object.prototype.hasOwnProperty.call(sanitized, propertyId) &&
-          sanitized[propertyId] !== null &&
-          sanitized[propertyId] !== undefined &&
-          sanitized[propertyId] !== '') {
-        sanitized[propertyId] = passwordHistoryMask;
-      }
-    });
-    return sanitized;
-  };
-
-  const sanitizeHistoryData = (history: any) => {
-    if (!history || typeof history !== 'object') return history;
-    return {
-      ...history,
-      base: sanitizeVersionData(history.base || {}),
-      versions: Array.isArray(history.versions)
-        ? history.versions.map((version: any) => ({
-            ...version,
-            patch: {
-              ...(version.patch || {}),
-              set: sanitizeVersionData(version.patch?.set || {}),
-            },
-          }))
-        : [],
-    };
-  };
-
-
-
   // Fusionne l'item prérempli (editingItem) avec les valeurs par défaut
   function getInitialFormData(col = selectedCollection, prefill: any = editingItem) {
     const data: any = { ...(prefill || {}) };
@@ -606,11 +565,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     () => buildDraftKey(selectedCollectionId, isReallyEditing ? editingItem?.id : undefined),
     [selectedCollectionId, isReallyEditing, editingItem?.id]
   );
-  const historyKey = useMemo(() => {
-    const itemId = editingItem?.id || formData?.id;
-    if (!itemId) return null;
-    return buildHistoryKey(selectedCollectionId, itemId);
-  }, [selectedCollectionId, editingItem?.id, formData?.id]);
+  const historyItemId = editingItem?.id || formData?.id;
+  const historyKey = historyItemId
+    ? buildScopedHistoryKey(activeOrganizationId || 'default', selectedCollectionId, historyItemId)
+    : null;
 
   React.useEffect(() => {
     draftAppliedRef.current = false;
@@ -991,33 +949,22 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     setFormDataRaw((prev: any) => ({ ...prev, ...updates }));
   }, [collections, editingItem?.id, selectedCollectionId, isReallyEditing]);
 
+  const historyProperties = selectedCollection?.properties;
   React.useEffect(() => {
-    if (!historyKey) {
-      setHistoryData(null);
+    const refresh = () => {
+      setHistoryData(historyItemId ? readItemHistory(activeOrganizationId || 'default',
+        { id: selectedCollectionId, properties: historyProperties }, historyItemId) : null);
       setHistorySelectedIndex(null);
       setHistoryPreview(null);
-      return;
-    }
-    try {
-      const raw = localStorage.getItem(historyKey);
-      if (!raw) {
-        setHistoryData(null);
-        return;
-      }
-      const parsed = JSON.parse(raw);
-      if (!parsed || !parsed.base || !Array.isArray(parsed.versions)) {
-        setHistoryData(null);
-        return;
-      }
-      const sanitized = sanitizeHistoryData(parsed);
-      if (JSON.stringify(sanitized) !== JSON.stringify(parsed)) {
-        localStorage.setItem(historyKey, JSON.stringify(sanitized));
-      }
-      setHistoryData(sanitized);
-    } catch {
-      setHistoryData(null);
-    }
-  }, [historyKey]);
+    };
+    refresh();
+    window.addEventListener('erp-item-history-changed', refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener('erp-item-history-changed', refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, [historyKey, historyItemId, activeOrganizationId, selectedCollectionId, historyProperties]);
 
   React.useEffect(() => {
     if (!historyOpen || !historyData || historyData.versions.length === 0) return;
@@ -1052,12 +999,22 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     (prop: any) => prop.isNameField || prop.id === 'name' || prop.name === 'Nom'
   ) || classicPropsSansRichText.find((prop: any) => prop.type !== 'image');
 
+  const { fields: pinnedFields, update: updatePinnedField } = usePinnedItemFields(
+    activeOrganizationId || 'default', user?.id || 'anonymous', selectedCollectionId);
+  const pinnableProperties = (selectedCollection.properties || []).filter((prop: any) =>
+    prop.id !== titleProperty?.id && canReadField(selectedCollection.id, prop.id));
+  const pinnedProperties = pinnedFields.flatMap(field => {
+    const prop = pinnableProperties.find((candidate: any) => candidate.id === field.id);
+    return prop ? [prop] : [];
+  });
+  const showAtOriginal = (prop: any) => !pinnedFields.some(field => field.id === prop.id && !field.keepOriginal);
+
   // Le titre est identifié par sa propriété, pas par sa position dans la vue.
   // Cela évite de masquer un nouveau champ quand une vue réordonne les propriétés.
   const detailsPropsForDisplay = classicPropsSansRichText.filter(
-    (prop: any) => prop.id !== titleProperty?.id
+    (prop: any) => prop.id !== titleProperty?.id && showAtOriginal(prop)
   );
-  const relationPropsForDisplay = relationProps;
+  const relationPropsForDisplay = relationProps.filter(showAtOriginal);
 
   // Calcule les segments prégénérés côté client (pour aperçu dans le modal)
   const previewSegments = useMemo(() => {
@@ -1092,10 +1049,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   );
 
   // Toujours afficher tous les champs date si la collection en a — même vides.
-  const datePropsForDisplay = dateProps;
+  const datePropsForDisplay = dateProps.filter(showAtOriginal);
 
   // Toujours afficher tous les champs rich text si la collection en a.
-  const richTextPropsForDisplay = richTextProps;
+  const richTextPropsForDisplay = richTextProps.filter(showAtOriginal);
 
   const richTextTabs = useMemo(
     () => richTextPropsForDisplay.map((prop: any, index: number) => ({
@@ -1296,64 +1253,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       dataToSave.id = generateId();
     }
 
-    try {
-      const historyItemId = dataToSave.id || editingItem?.id;
-      if (historyItemId) {
-        const key = buildHistoryKey(selectedCollectionId, historyItemId);
-        const raw = localStorage.getItem(key);
-        const { __steamExchangeDrafts, ...versionData } = dataToSave;
-        const snapshot = sanitizeVersionData(versionData);
-        const userName = user?.name || user?.email || 'Utilisateur';
-        const userId = user?.id || null;
-        const entryBase = {
-          id: `v_${Date.now()}`,
-          ts: new Date().toISOString(),
-          userId,
-          userName,
-        };
-
-        if (!raw) {
-          const history = {
-            base: snapshot,
-            versions: [
-              {
-                ...entryBase,
-                action: 'create',
-                patch: { set: {}, unset: [] },
-              },
-            ],
-          };
-          localStorage.setItem(key, JSON.stringify(history));
-          setHistoryData(history);
-        } else {
-          const parsed = JSON.parse(raw);
-          const base = parsed?.base || {};
-          const versions = Array.isArray(parsed?.versions) ? parsed.versions : [];
-          const latest = versions.length
-            ? buildSnapshotAt(base, versions, versions.length - 1)
-            : base;
-          const patch = computePatch(latest, snapshot);
-          if (Object.keys(patch.set).length > 0 || patch.unset.length > 0) {
-            const nextHistory = {
-              base,
-              versions: [
-                ...versions,
-                {
-                  ...entryBase,
-                  action: versions.length === 0 ? 'create' : 'update',
-                  patch,
-                },
-              ],
-            };
-            localStorage.setItem(key, JSON.stringify(nextHistory));
-            setHistoryData(nextHistory);
-          }
-        }
-      }
-    } catch {
-      // ignore stockage local indisponible
-    }
-
     if (!isReallyEditing && !dataToSave.id) {
       const { id, ...rest } = dataToSave;
       dataToSave = rest;
@@ -1432,8 +1331,24 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               </div>
             )}
           </div>
+          <PinnedFieldsHeader properties={pinnedProperties} onUnpin={id => updatePinnedField(id, false)}
+            renderField={prop => <EditableFieldPreview property={prop} value={formData[prop.id]}
+              onChange={value => handleChange(prop.id, value)} size="sm"
+              collection={selectedCollection} collections={readableCollections} currentItem={formData}
+              readOnly={!canWriteField(selectedCollection.id, prop.id)}
+              onNavigateToCollection={onNavigateToCollection}
+              onRelationChange={(property, item, value) => {
+                if (!canWriteField(selectedCollection.id, property.id)) return;
+                if (property.type === 'relation' || property.type === 'multi_select') handleChange(property.id, value);
+                else setFormData(item);
+              }}>
+                <EditableProperty property={prop} value={formData[prop.id]} onChange={() => {}} readOnly size="sm"
+                  collection={selectedCollection} collections={readableCollections} currentItem={formData} richTextPreviewLimit={80} compactDate />
+              </EditableFieldPreview>}
+          />
           {/* Actions droite */}
           <div className="flex flex-wrap items-center gap-1 shrink-0">
+            <PinnedFieldsSettings properties={pinnableProperties} fields={pinnedFields} onChange={updatePinnedField} />
             {titleProperty && renderTemplatePicker(titleProperty)}
             {renderPluginActions?.(selectedCollection, formData)}
             {hasLocalDraft && (
@@ -2297,7 +2212,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                     </div>
                     <Button
                       onClick={() => {
-                        setFormData(historyPreview);
+                        setFormData(restoreHistorySnapshot(formData, historyPreview, selectedCollection.properties || [],
+                          id => canWriteField(selectedCollection.id, id)));
                         setHistoryOpen(false);
                       }}
                     >

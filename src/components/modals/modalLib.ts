@@ -262,30 +262,7 @@ export const diffLines = (before: string, after: string): { type: 'add' | 'remov
   return result.reverse().filter((entry) => entry.text.trim() !== '');
 };
 
-export const computePatch = (prev: any, next: any): { set: Record<string, any>; unset: string[] } => {
-  const set: Record<string, any> = {};
-  const unset: string[] = [];
-  const prevObj = prev || {};
-  const nextObj = next || {};
-  Object.keys(nextObj).forEach((key) => { if (!areValuesEqual(prevObj[key], nextObj[key])) set[key] = nextObj[key]; });
-  Object.keys(prevObj).forEach((key) => { if (!(key in nextObj)) unset.push(key); });
-  return { set, unset };
-};
-
-export const applyPatch = (base: any, patch: { set: Record<string, any>; unset: string[] }): any => {
-  const next = { ...(base || {}) } as any;
-  Object.entries(patch.set || {}).forEach(([key, value]) => { next[key] = value; });
-  (patch.unset || []).forEach((key) => { delete next[key]; });
-  return next;
-};
-
-export const buildSnapshotAt = (base: any, versions: any[], index: number): any => {
-  let snapshot = { ...(base || {}) } as any;
-  for (let i = 0; i <= index; i += 1) {
-    snapshot = applyPatch(snapshot, versions[i].patch || { set: {}, unset: [] });
-  }
-  return snapshot;
-};
+export { computePatch, applyPatch, buildSnapshotAt } from '@/lib/itemHistory';
 
 /** Formate une valeur quelconque en texte lisible pour les dialogues de comparaison */
 export const formatValueForDisplay = (val: any): string => {
