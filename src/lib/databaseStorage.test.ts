@@ -122,3 +122,14 @@ it('uses the confirmed draft baseline and exposes server-preserved conflicts', a
   expect(databaseStorage.getItem('erp-item-draft:c:new')).toBe('remote edit');
   expect(getDraftRecoveries()[0].value).toBe('my edit');
 });
+it('saves large item histories without the browser keepalive size limit', async () => {
+  request.mockResolvedValueOnce(ok({ entries: {} }));
+  await initializeDatabaseStorage('u', 'org');
+  const history = JSON.stringify({ base: { notes: 'x'.repeat(100000), status: 'todo' }, versions: [] });
+  databaseStorage.setItem('erp-item-versions:org:c:i', history);
+  request.mockResolvedValueOnce(ok({ ok: true }));
+  await flushDatabaseStorage();
+  const options = request.mock.calls[1][1];
+  expect(options.keepalive).toBe(false);
+  expect(JSON.parse(options.body).entries['erp-item-versions:org:c:i']).toBe(history);
+});
