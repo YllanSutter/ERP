@@ -1,9 +1,15 @@
 export const isArchivedItem = (item: any): boolean => Boolean(item?._archivedAt);
 
-export const visibleCollections = (collections: any[]) => collections.map((collection) => ({
-  ...collection,
-  items: (collection.items || []).filter((item: any) => !isArchivedItem(item)),
-}));
+const visibleCollectionCache = new WeakMap<object, any>();
+export const visibleCollections = (collections: any[]) => collections.map((collection) => {
+  const cached = visibleCollectionCache.get(collection);
+  if (cached) return cached;
+  const items = collection.items || [];
+  const visible = items.filter((item: any) => !isArchivedItem(item));
+  const result = Array.isArray(collection.items) && visible.length === items.length ? collection : { ...collection, items: visible };
+  visibleCollectionCache.set(collection, result);
+  return result;
+});
 
 export function archiveItems(collections: any[], collectionId: string, itemIds: string[]) {
   const ids = new Set(itemIds);

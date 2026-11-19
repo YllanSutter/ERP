@@ -34,7 +34,8 @@ export interface Property {
 
 export type PropertyType = 
   | 'color'
-  | 'text' 
+  | 'text'
+  | 'rich_text'
   | 'number' 
   | 'date' 
   | 'select' 

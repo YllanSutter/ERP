@@ -1,3 +1,4 @@
+import { WindowedList } from '@/components/ui/windowed-list';
 import { CustomTotalDialog } from './CustomTotalSettings';
 import { TotalsSettings } from './TotalsSettings';
 import TotalsSurface from './TotalsSurface';
@@ -311,17 +312,14 @@ const KanbanView: React.FC<KanbanViewProps> = ({
 
             {renderTotals('top')}
             {/* Cards Container */}
-            <div 
-              className="space-y-3 max-h-[450px] rounded-lg border border-black/5 dark:border-white/5 bg-black/10 dark:bg-white/10 p-4 overflow-y-auto"
+            <WindowedList
+              className="max-h-[450px] rounded-lg border border-black/5 dark:border-white/5 bg-black/10 dark:bg-white/10 p-4 overflow-y-auto"
+              items={sortedColumnItems}
+              pinnedId={draggedItem?.id}
               onDragOver={handleDragOver}
               onDrop={() => handleDrop(column)}
-            >
-              {sortedColumnItems.length === 0 ? (
-                <div className="flex items-center justify-center h-32 text-neutral-500 text-sm">
-                  Aucun élément
-                </div>
-              ) : (
-                sortedColumnItems.map((item, idx) => (
+              empty={<div className="flex items-center justify-center h-32 text-neutral-500 text-sm">Aucun élément</div>}
+              renderItem={(item, idx) => (
                   <ItemContextMenu
                     key={item.id}
                     item={item}
@@ -341,7 +339,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                       onDragEnd={canEdit ? () => setDraggedItem(null) : undefined}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
+                      transition={{ delay: sortedColumnItems.length > 60 ? 0 : Math.min(idx, 5) * 0.05 }}
                       whileHover={canEdit ? { scale: 1.02 } : {}}
                       className={cn(
                         "group relative min-w-0 rounded-lg border border-black/10 dark:border-white/10 p-3 hover:border-white/20 transition-all space-y-2",
@@ -407,9 +405,8 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                     </div>
                     </motion.div>
                   </ItemContextMenu>
-                ))
               )}
-            </div>
+            />
 
             {renderTotals('bottom')}
             {canEdit && onShowNewItemModal && groupByProp && column !== 'Toutes les données' && (

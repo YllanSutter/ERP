@@ -10,7 +10,7 @@
 
 import { Plugin } from '../types';
 import { pdfPluginManifest } from './manifest';
-import { detectPdfFields, resolvePdfValues, loadPdfBytes } from './pdfUtils';
+import type { resolvePdfValues } from './pdfUtils';
 
 export const pdfPlugin: Plugin = {
   manifest: pdfPluginManifest,
@@ -46,6 +46,7 @@ export const pdfPlugin: Plugin = {
       name: 'Detect PDF Fields',
       description: 'Détecte les champs modifiables (AcroForm) d un modèle PDF',
       handler: async (templateId: string) => {
+        const { detectPdfFields, loadPdfBytes } = await import('./pdfUtils');
         const bytes = await loadPdfBytes('template', templateId);
         return detectPdfFields(bytes);
       },
@@ -56,6 +57,7 @@ export const pdfPlugin: Plugin = {
       description:
         "Calcule les valeurs des champs PDF depuis le mapping, en donnant la priorité aux modifications manuelles de l'utilisateur",
       handler: async (params: Parameters<typeof resolvePdfValues>[0]) => {
+        const { resolvePdfValues } = await import('./pdfUtils');
         return resolvePdfValues(params);
       },
     },

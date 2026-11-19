@@ -1,4 +1,4 @@
-import { databaseStorage } from '@/lib/databaseStorage';
+import { databaseStorage, loadDatabaseKeys } from '@/lib/databaseStorage';
 import { usePinnedItemFields } from '@/lib/hooks/usePinnedItemFields';
 import { PinnedFieldsSettings, PinnedFieldsHeader } from './PinnedItemFields';
 import { historyKey as buildScopedHistoryKey, readItemHistory, restoreHistorySnapshot } from '@/lib/itemHistory';
@@ -40,7 +40,7 @@ import { cn } from '@/lib/utils';
 import './NewItemModal.css';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/auth/AuthProvider';
-import { ItemPdfBlock } from '@/components/fields/ItemPdfBlock';
+const ItemPdfBlock = React.lazy(() => import('@/components/fields/ItemPdfBlock').then(module => ({ default: module.ItemPdfBlock })));
 import { usePdfPluginConfig } from '@/lib/plugins/pdf/usePdfPlugin';
 import {
   getRoundedNow, workDayStart, workDayEnd,
@@ -964,6 +964,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       setHistoryPreview(null);
     };
     refresh();
+    if (historyKey) void loadDatabaseKeys([historyKey, `erp-item-versions:${selectedCollectionId}:${historyItemId}`]).catch(error => console.warn('Historique indisponible', error));
     window.addEventListener('erp-item-history-changed', refresh);
     window.addEventListener('storage', refresh);
     return () => {
@@ -1414,14 +1415,14 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                   sideOffset={10}
                   className="w-[min(900px,calc(100vw-2rem))] max-h-[min(78vh,760px)] overflow-y-auto bg-background border-border p-4 shadow-2xl"
                 >
-                  <ItemPdfBlock
+                  <React.Suspense fallback={<div role="status">Chargement du PDF…</div>}><ItemPdfBlock
                     organizationId={activeOrganizationId || 'default'}
                     config={pdfPluginConfig}
                     collection={selectedCollection}
                     item={editingItem}
                     formData={formData}
                     collections={collections}
-                  />
+                  /></React.Suspense>
                 </PopoverContent>
               </Popover>
             )}

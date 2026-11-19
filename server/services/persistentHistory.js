@@ -17,7 +17,7 @@ export function mergePersistentHistory(currentValue, incomingValue) {
   let source = incoming.base;
   for (const version of incoming.versions) {
     source = apply(source, version.patch);
-    if (known.has(historyVersionIdentity(version))) continue;
+    if (known.has(historyVersionIdentity(version)) || (version.action === 'baseline' && current.versions.length)) continue;
     // Convert string deltas using their original baseline. Replaying those
     // offsets directly against a concurrently modified document corrupts it.
     const patch = version.patch || {};

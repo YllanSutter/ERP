@@ -11,6 +11,7 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
 
     const members = await pool.query(
       `SELECT u.id, u.email, u.name, u.provider,
+              EXISTS (SELECT 1 FROM site_settings ss WHERE ss.key = 'site_owner_user_id' AND ss.value = u.id::text) AS is_site_owner,
               COALESCE(json_agg(ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL), '[]') as role_ids
        FROM organization_members om
        INNER JOIN users u ON u.id = om.user_id
@@ -30,6 +31,7 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
 
     const candidates = await pool.query(
       `SELECT u.id, u.email, u.name, u.provider,
+              EXISTS (SELECT 1 FROM site_settings ss WHERE ss.key = 'site_owner_user_id' AND ss.value = u.id::text) AS is_site_owner,
               ARRAY(
                 SELECT DISTINCT r.name
                 FROM user_roles ur
@@ -122,6 +124,7 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
     if (!organizationId) return res.status(400).json({ error: 'No active organization' });
     const users = await pool.query(
       `SELECT u.id, u.email, u.name, u.provider,
+              EXISTS (SELECT 1 FROM site_settings ss WHERE ss.key = 'site_owner_user_id' AND ss.value = u.id::text) AS is_site_owner,
               COALESCE(u.user_preferences, '{}'::jsonb) AS user_preferences,
               COALESCE(json_agg(ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL), '[]') as role_ids
        FROM users u

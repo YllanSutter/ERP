@@ -5,7 +5,18 @@ import ShinyButton from '@/components/ui/ShinyButton';
 import { SettingsTabs, SettingsTabContent, SettingsSectionTitle } from '@/components/ui/settings-panel';
 import type { AccessContext } from './panelTypes';
 export type DataTransferPanelProps = { context: AccessContext };
-export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
+export const DataTransferPanel = ({ context }: DataTransferPanelProps) => {
+  const [globalAccess, setGlobalAccess] = React.useState<{ userId: string | undefined; allowed: boolean } | null>(null);
+  const canManageGlobalState = globalAccess?.userId === context.user?.id && globalAccess?.allowed === true;
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch(`${context.API_URL}/appstate/access`, { credentials: 'include' })
+      .then(async response => response.ok ? response.json() : null)
+      .then(access => { if (!cancelled) setGlobalAccess({ userId: context.user?.id, allowed: access?.canManageGlobalState === true }); })
+      .catch(() => { if (!cancelled) setGlobalAccess({ userId: context.user?.id, allowed: false }); });
+    return () => { cancelled = true; };
+  }, [context.API_URL, context.user?.id]);
+  return (
   <div className="min-w-0">
               <SettingsTabs
                 value={context.dataTransferTab}
@@ -53,7 +64,7 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                   <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2">
                     <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">Remplacer les données existantes</div>
                     <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-2">
-                      Remplace les données existantes via un export appstate JSON (scope auto: organisation ou global).
+                      Remplace l’organisation active via un export Appstate JSON. Le remplacement global est réservé au compte principal.
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
                       <label className="px-3 py-1 rounded bg-brand-600 hover:bg-brand-700 text-white text-xs shadow cursor-pointer" title="Import historique appstate (peut remplacer des données selon le scope)">
@@ -87,6 +98,12 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                                     ? 'global'
                                     : 'organization';
 
+                              if (inferredScope === 'global' && !canManageGlobalState) {
+                                throw new Error('Import global réservé au compte principal.');
+                              }
+                              if (!window.confirm(inferredScope === 'global'
+                                ? 'Remplacer les données de toutes les organisations par ce fichier ?'
+                                : 'Remplacer les données de l’organisation active par ce fichier ?')) return;
                               const res = await fetch(`${context.API_URL}/appstate?scope=${inferredScope}`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -120,7 +137,7 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                   <div className="rounded-lg border border-brand-500/30 bg-brand-500/10 p-2">
                     <div className="text-[11px] font-semibold text-brand-800 dark:text-brand-200 mb-2">EXPORT</div>
                     <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-2">
-                      Exporte l’organisation active (JSON/CSV) ou tout l’ERP (global JSON).
+                      Exporte l’organisation active (JSON/CSV). L’export global de l’ERP est réservé au compte principal.
                     </p>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -147,13 +164,13 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                       >
                         Orga JSON
                       </button>
-                      <button
+                      {canManageGlobalState && <button
                         className="px-3 py-1 rounded bg-brand-600 hover:bg-brand-700 text-white text-xs shadow"
                         onClick={async () => {
                           try {
                             const res = await fetch(`${context.API_URL}/appstate?scope=global`, { credentials: 'include' });
-                            if (!res.ok) throw new Error('Erreur export global appstate');
                             const data = await res.json();
+                            if (!res.ok) throw new Error(data?.error || 'Erreur export global appstate');
                             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement('a');
@@ -163,14 +180,14 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                             a.click();
                             document.body.removeChild(a);
                             URL.revokeObjectURL(url);
-                          } catch {
-                            alert('Erreur lors de l\'export global appstate.');
+                          } catch (err) {
+                            alert(err instanceof Error ? err.message : 'Erreur lors de l’export global.');
                           }
                         }}
                         title="Exporter toutes les organisations (global) en JSON"
                       >
                         Global JSON
-                      </button>
+                      </button>}
                       <button
                         className="px-3 py-1 rounded bg-yellow-600 hover:bg-yellow-700 text-white text-xs shadow"
                         onClick={async () => {
@@ -201,7 +218,7 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
                             for (const col of exportCollections) {
                               const items = Array.isArray(col.items) ? col.items : [];
                               if (items.length === 0) continue;
-                              const allKeys = Array.from(new Set(items.flatMap((item: {}) => Object.keys(item))));
+                              const allKeys = Array.from(new Set(items.flatMap((item: object) => Object.keys(item))));
                               const header = allKeys.join(',');
                               const csvRows = [header];
                               for (const item of items) {
@@ -245,3 +262,4 @@ export const DataTransferPanel = ({ context }: DataTransferPanelProps) => (
               </SettingsTabs>
             </div>
 );
+};

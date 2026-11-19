@@ -1,6 +1,6 @@
 const internalFields = new Set(['_eventSegments', '_preserveEventSegments', '_steamExchangeReceivedIds', '_archivedAt']);
 export const isSyncableItemField = (key) => !key.startsWith('_') || internalFields.has(key);
-const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const equal = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
 
 // Les champs métier restent libres : aucun nom de collection/propriété n'est codé ici.
 export function buildItemChanges(previous, next, includePrevious = false) {
@@ -9,6 +9,7 @@ export function buildItemChanges(previous, next, includePrevious = false) {
   for (const col of next) {
     const base = before.get(col.id);
     if (!base) throw new Error('Collection not found');
+    if (col === base || col.items === base.items) continue;
     const passwordFields = new Set((base.properties || []).filter(({ type }) => type === 'password').map(({ id }) => id));
     const oldItems = new Map((base.items || []).map((item) => [item.id, item]));
     const nextIds = new Set((col.items || []).map((item) => item.id));
@@ -16,6 +17,7 @@ export function buildItemChanges(previous, next, includePrevious = false) {
     for (const item of col.items || []) {
       const old = oldItems.get(item.id);
       if (!old) { added.push(item); continue; }
+      if (old === item) continue;
       const fields = {}, unset = [];
       const previousFields = {};
       for (const key of new Set([...Object.keys(old), ...Object.keys(item)])) {

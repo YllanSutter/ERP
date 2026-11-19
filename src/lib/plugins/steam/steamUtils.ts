@@ -4,7 +4,7 @@ import { imageUrlRevision } from './steamImages';
  * Cette liste est intégrée dans le build
  */
 
-import steamListRaw from './steamList.json';
+
 
 export interface SteamGame {
   appid: number;
@@ -148,7 +148,7 @@ export async function loadSteamGamesList(): Promise<SteamGame[]> {
         /* The bundled catalogue remains available offline. */
       }
     }
-    const list = normalizeSteamGames(steamListRaw);
+    const list = normalizeSteamGames((await import('./steamList.json')).default);
     if (generation === catalogueGeneration && list.length) cachedSteamGames = list;
     return list;
   })().finally(() => {

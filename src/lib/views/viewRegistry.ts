@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import type { NativeViewType, ViewDefinition, ViewRegistration, ViewType } from './viewTypes';
 import {
   CalendarViewSettings,
@@ -7,11 +8,11 @@ import {
   TableViewSettings,
 } from '@/components/views/ViewTypeSettings';
 import { getPluginViewRegistrations } from './pluginViewRegistry';
-import KanbanRenderer from '@/components/views/KanbanRenderer';
-import CalendarRenderer from '@/components/views/CalendarRenderer';
-import LayoutView from '@/components/views/LayoutView';
-import TableRenderer from '@/components/views/TableRenderer';
-import CardsRenderer from '@/components/views/CardsRenderer';
+const KanbanRenderer = lazy(() => import('@/components/views/KanbanRenderer'));
+const CalendarRenderer = lazy(() => import('@/components/views/CalendarRenderer'));
+const LayoutView = lazy(() => import('@/components/views/LayoutView'));
+const TableRenderer = lazy(() => import('@/components/views/TableRenderer'));
+const CardsRenderer = lazy(() => import('@/components/views/CardsRenderer'));
 
 const defaultCapabilities = {
   supportsGrouping: false,

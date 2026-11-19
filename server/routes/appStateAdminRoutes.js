@@ -7,11 +7,20 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
     requireAuth,
     pool,
     upsertPermission,
-    syncAppStateIdSequence,
+    withDatabaseMaintenance,
     ensureSystemRolesForOrganization,
     getRoleByNameInOrganization,
     uuidv4,
   } = appContext;
+  app.get('/api/appstate/access', requireAuth, async (req, res) => {
+    try {
+      return res.json({ canManageGlobalState: await isSiteCreator(req.auth.user.id) });
+    } catch (err) {
+      logger.error({ err }, 'Failed to load global transfer access');
+      return res.status(500).json({ error: 'Impossible de vérifier les droits d’import/export global.' });
+    }
+  });
+
   // --- Export/Import app_state (admin only) ---
   // --- Export/Import global state (admin only) ---
   app.get('/api/appstate', requireAuth, async (req, res) => {
@@ -19,11 +28,10 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
     const scope = rawScope === 'global' ? 'global' : 'organization';
 
     const isOrgAdmin = req.auth.roles.some((r) => r.name === 'admin');
-    const isBaseAdmin = !!req.auth.baseIsAdmin;
 
     try {
-    if (scope === 'global' && (!isBaseAdmin || !await isSiteCreator(req.auth.user.id))) {
-      return res.status(403).json({ error: 'Forbidden: global export requires base admin' });
+    if (scope === 'global' && !await isSiteCreator(req.auth.user.id)) {
+      return res.status(403).json({ error: 'Export global réservé au compte principal.' });
     }
     if (scope === 'organization' && !isOrgAdmin) {
       return res.status(403).json({ error: 'Forbidden' });
@@ -99,11 +107,10 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
     const scope = rawScope === 'global' ? 'global' : 'organization';
 
     const isOrgAdmin = req.auth.roles.some((r) => r.name === 'admin');
-    const isBaseAdmin = !!req.auth.baseIsAdmin;
 
     try {
-    if (scope === 'global' && (!isBaseAdmin || !await isSiteCreator(req.auth.user.id))) {
-      return res.status(403).json({ error: 'Forbidden: global import requires base admin' });
+    if (scope === 'global' && !await isSiteCreator(req.auth.user.id)) {
+      return res.status(403).json({ error: 'Import global réservé au compte principal.' });
     }
     if (scope === 'organization' && !isOrgAdmin) {
       return res.status(403).json({ error: 'Forbidden' });
@@ -258,77 +265,87 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
         return res.json({ ok: true, scope });
       }
 
-      // Désactiver les contraintes FK temporairement
-      await pool.query('SET session_replication_role = replica;');
-      // Vider toutes les tables dans l'ordre inverse des dépendances
-      await pool.query('DELETE FROM organization_members');
-      await pool.query('DELETE FROM organizations');
-      await pool.query('DELETE FROM user_roles');
-      await pool.query('DELETE FROM permissions');
-      await pool.query('DELETE FROM roles');
-      await pool.query('DELETE FROM app_state');
-      await pool.query('DELETE FROM users');
-      // Réinsérer dans l'ordre des dépendances
-      for (const user of users) {
-        await pool.query(
-          'INSERT INTO users (id, email, name, provider, provider_id, password_hash, created_at, favorite_views, favorite_items, user_preferences) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-          [user.id, user.email, user.name, user.provider, user.provider_id, user.password_hash, user.created_at, user.favorite_views || [], user.favorite_items || [], user.user_preferences || {}]
-        );
+      if (!Array.isArray(organizations) || !Array.isArray(organization_members) ||
+          !users.some(user => user.id === req.auth.user.id)) {
+        return res.status(400).json({ error: 'Le fichier global doit contenir les organisations, leurs membres et le compte principal.' });
       }
-      if (Array.isArray(organizations)) {
-        for (const org of organizations) {
-          await pool.query(
-            'INSERT INTO organizations (id, name, owner_user_id, created_at, accent_color) VALUES ($1,$2,$3,$4,$5)',
-            [org.id, org.name, org.owner_user_id || null, org.created_at || new Date().toISOString(), /^#[0-9a-f]{6}$/i.test(org.accent_color) ? org.accent_color : null]
-          );
+      await withDatabaseMaintenance(req, async () => {
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          // Respecter les dépendances sans désactiver les contraintes de la base.
+          await client.query('DELETE FROM user_roles');
+          await client.query('DELETE FROM permissions');
+          await client.query('DELETE FROM roles');
+          await client.query('DELETE FROM app_state');
+          await client.query('DELETE FROM organization_members');
+          await client.query('DELETE FROM organizations');
+          await client.query('DELETE FROM users');
+          // Réinsérer dans l'ordre des dépendances
+          for (const user of users) {
+            await client.query(
+              'INSERT INTO users (id, email, name, provider, provider_id, password_hash, created_at, favorite_views, favorite_items, user_preferences) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+              [user.id, user.email, user.name, user.provider, user.provider_id, user.password_hash, user.created_at, user.favorite_views || [], user.favorite_items || [], user.user_preferences || {}]
+            );
+          }
+          if (Array.isArray(organizations)) {
+            for (const org of organizations) {
+              await client.query(
+                'INSERT INTO organizations (id, name, owner_user_id, created_at, accent_color) VALUES ($1,$2,$3,$4,$5)',
+                [org.id, org.name, org.owner_user_id || null, org.created_at || new Date().toISOString(), /^#[0-9a-f]{6}$/i.test(org.accent_color) ? org.accent_color : null]
+              );
+            }
+          }
+          if (Array.isArray(organization_members)) {
+            for (const member of organization_members) {
+              await client.query(
+                'INSERT INTO organization_members (organization_id, user_id) VALUES ($1, $2)',
+                [member.organization_id, member.user_id]
+              );
+            }
+          }
+          for (const role of roles) {
+            await client.query(
+              'INSERT INTO roles (id, organization_id, name, description, is_system) VALUES ($1,$2,$3,$4,$5)',
+              [role.id, role.organization_id || null, role.name, role.description, role.is_system]
+            );
+          }
+          for (const perm of permissions) {
+            await client.query(
+              'INSERT INTO permissions (id, organization_id, role_id, collection_id, item_id, field_id, can_read, can_write, can_delete, can_manage_fields, can_manage_views, can_manage_permissions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+              [perm.id, perm.organization_id || null, perm.role_id, perm.collection_id, perm.item_id, perm.field_id, perm.can_read, perm.can_write, perm.can_delete, perm.can_manage_fields, perm.can_manage_views, perm.can_manage_permissions]
+            );
+          }
+          for (const row of app_state) {
+            await client.query(
+              'INSERT INTO app_state (id, user_id, organization_id, data) VALUES ($1, $2, $3, $4)',
+              [
+                row.id,
+                row.user_id || null,
+                row.organization_id || null,
+                JSON.stringify(encryptStateSecrets(typeof row.data === 'string' ? JSON.parse(row.data) : row.data)),
+              ]
+            );
+          }
+          await client.query(`SELECT setval(pg_get_serial_sequence('app_state', 'id'),
+            GREATEST(COALESCE((SELECT MAX(id) FROM app_state), 0) + 1, 1), false)`);
+          for (const ur of user_roles) {
+            await client.query(
+              'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3)',
+              [ur.organization_id || null, ur.user_id, ur.role_id]
+            );
+          }
+          await client.query('COMMIT');
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        } finally {
+          client.release();
         }
-      }
-      if (Array.isArray(organization_members)) {
-        for (const member of organization_members) {
-          await pool.query(
-            'INSERT INTO organization_members (organization_id, user_id) VALUES ($1, $2)',
-            [member.organization_id, member.user_id]
-          );
-        }
-      }
-      for (const role of roles) {
-        await pool.query(
-          'INSERT INTO roles (id, organization_id, name, description, is_system) VALUES ($1,$2,$3,$4,$5)',
-          [role.id, role.organization_id || null, role.name, role.description, role.is_system]
-        );
-      }
-      for (const perm of permissions) {
-        await pool.query(
-          'INSERT INTO permissions (id, organization_id, role_id, collection_id, item_id, field_id, can_read, can_write, can_delete, can_manage_fields, can_manage_views, can_manage_permissions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
-          [perm.id, perm.organization_id || null, perm.role_id, perm.collection_id, perm.item_id, perm.field_id, perm.can_read, perm.can_write, perm.can_delete, perm.can_manage_fields, perm.can_manage_views, perm.can_manage_permissions]
-        );
-      }
-      for (const row of app_state) {
-        await pool.query(
-          'INSERT INTO app_state (id, user_id, organization_id, data) VALUES ($1, $2, $3, $4)',
-          [
-            row.id,
-            row.user_id || null,
-            row.organization_id || null,
-            JSON.stringify(encryptStateSecrets(typeof row.data === 'string' ? JSON.parse(row.data) : row.data)),
-          ]
-        );
-      }
-      await syncAppStateIdSequence();
-      for (const ur of user_roles) {
-        await pool.query(
-          'INSERT INTO user_roles (organization_id, user_id, role_id) VALUES ($1, $2, $3)',
-          [ur.organization_id || null, ur.user_id, ur.role_id]
-        );
-      }
-      // Réactiver les contraintes FK
-      await pool.query('SET session_replication_role = DEFAULT;');
+      });
       res.json({ ok: true, scope });
     } catch (err) {
       logger.error('Failed to import app state', err);
-      if (scope === 'global') {
-        await pool.query('SET session_replication_role = DEFAULT;');
-      }
       res.status(500).json({ error: scope === 'organization'
         ? 'Échec de l’import. Les données locales n’ont pas été remplacées.'
         : 'Failed to import global state' });

@@ -2,7 +2,7 @@ import { databaseStorage } from '@/lib/databaseStorage';
 /** Organization item history: one baseline, followed by lossless field deltas. */
 export type HistoryPatch = { set: Record<string, any>; unset: string[]; deltas?: Record<string, [number, number, string]> };
 export type ItemHistory = { base: any; versions: any[] };
-const equal = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
+const equal = (a: any, b: any) => a === b || JSON.stringify(a) === JSON.stringify(b);
 export const historyKey = (organizationId: string, collectionId: string, itemId: string) =>
   `erp-item-versions:${organizationId}:${collectionId}:${itemId}`;
 
@@ -93,7 +93,9 @@ export function readItemHistory(organizationId: string, collection: any, itemId:
 export function recordCollectionHistory(previous: any[], next: any[], organizationId: string, user: any) {
   let changed = false;
   for (const collection of next) {
-    const before = new Map((previous.find(c => c.id === collection.id)?.items || []).map((item: any) => [item.id, item]));
+    const priorCollection = previous.find(c => c.id === collection.id);
+    if (priorCollection === collection || priorCollection?.items === collection.items) continue;
+    const before = new Map((priorCollection?.items || []).map((item: any) => [item.id, item]));
     for (const item of collection.items || []) {
       const old = before.get(item.id);
       if (old && equal(old, item)) continue;

@@ -1,3 +1,5 @@
+import { WindowedList } from '@/components/ui/windowed-list';
+import { groupCalendarMonth } from '@/lib/calendarMonthGroups';
 import { getItemColorValue } from '@/lib/utils/colorUtils';
 import React from 'react';
 import { cn } from '@/lib/utils';
@@ -60,6 +62,8 @@ const MonthView: React.FC<MonthViewProps> = ({
   onEdit,
   onRelationChange,
 }) => {
+  const month = currentDate.getMonth(), year = currentDate.getFullYear();
+  const groupedByDay = React.useMemo(() => groupCalendarMonth(items, year, month), [items, year, month]);
   const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -91,26 +95,7 @@ const MonthView: React.FC<MonthViewProps> = ({
         {days.map((day, idx) => {
           const date = day ? new Date(currentDate.getFullYear(), currentDate.getMonth(), day) : null;
           const isToday = date && date.toDateString() === new Date().toDateString();
-          // Récupérer toutes les plages horaires pour ce jour
-          let daySegments: Array<{ item: any; segment: any }> = [];
-          if (date) {
-            items.forEach(item => {
-              if (!item._eventSegments || !Array.isArray(item._eventSegments)) return;
-              item._eventSegments.forEach((segment: any) => {
-                const segStart = new Date(segment.start || segment.__eventStart);
-                if (segStart.toDateString() === date.toDateString()) {
-                  daySegments.push({ item, segment });
-                }
-              });
-            });
-          }
-          const groupedSegments = daySegments.reduce((acc, entry) => {
-            const key = `${entry.item.__collectionId || ''}:${entry.item.id || entry.item.__id || entry.item.name || JSON.stringify(entry.item)}`;
-            if (!acc[key]) acc[key] = { item: entry.item, segments: [] as any[] };
-            acc[key].segments.push(entry.segment);
-            return acc;
-          }, {} as Record<string, { item: any; segments: any[] }>);
-          const groupedList = Object.values(groupedSegments);
+          const groupedList = day ? groupedByDay.get(day) || [] : [];
           return (
             <div
               key={idx}
@@ -131,12 +116,11 @@ const MonthView: React.FC<MonthViewProps> = ({
                     {day}
                   </button>
                   {groupedList.length > 0 && (
-                    <div className="flex max-h-32 min-w-0 flex-col gap-1 overflow-y-auto">
-                      {groupedList.map(({ item, segments }, i) => (
-                        <MonthEvent key={item.id + '-' + i} item={item} segments={segments} collections={collections} source={collections.find((entry) => entry.id === item.__collectionId) || collection}
+                    <WindowedList className="max-h-32 min-w-0 overflow-y-auto" items={groupedList} estimatedHeight={32} gap={4}
+                      renderItem={({ item, segments }) => (
+                        <MonthEvent item={item} segments={segments} collections={collections} source={collections.find((entry) => entry.id === item.__collectionId) || collection}
                           getNameValue={getNameValue} onViewDetail={onViewDetail} onDelete={onDelete} onEdit={onEdit} onRelationChange={onRelationChange} />
-                      ))}
-                    </div>
+                      )} />
                   )}
                 </div>
               )}

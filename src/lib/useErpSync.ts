@@ -2,10 +2,10 @@ import { setBusinessPersistencePending } from './databaseStorage';
 import { recordCollectionHistory } from './itemHistory';
 import { v4 as uuidv4 } from 'uuid';
 import { buildItemChanges, applyItemChanges, isSyncableItemField } from '../../shared/itemChanges.js';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SaveQueue, SaveConflictError, SaveTooLargeError, type SaveStatus } from './saveQueue';
 import { mergeSavedCollections } from './mergeSavedCollections';
-import { cleanForSave } from '@/lib/utils/cleanUtils';
+import { createSaveCleaner } from '@/lib/utils/cleanUtils';
 
 // Types minimalistes pour éviter les erreurs TS
 type Collection = { id: string; items?: any[]; [key: string]: any };
@@ -90,6 +90,7 @@ function hasItemOrderChanged(prev: Collection[], next: Collection[]): boolean {
   for (const col of next) {
     const prevCol = prevMap.get(col.id);
     if (!prevCol) return true;
+    if (col === prevCol || col.items === prevCol.items) continue;
 
     const prevItems = prevCol.items || [];
     const nextItems = col.items || [];
@@ -149,6 +150,7 @@ export function useErpSync({
   API_URL,
   socket,
 }: UseErpSyncParams) {
+  const cleanForSave = useMemo(() => createSaveCleaner(), [organizationId]);
   const [itemConflicts, setItemConflicts] = useState<DisplayConflict[]>([]);
   const [conflictOpen, setConflictOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('loading');
@@ -224,7 +226,7 @@ export function useErpSync({
             stateVersionRef.current = Number(data.stateVersion) || 1;
             loadedOrganizationRef.current = organizationId;
             supportsItemChangesRef.current = data.supportsItemChanges === true;
-            lastSavedCollectionsRef.current = data.collections || [];
+            lastSavedCollectionsRef.current = cleanForSave(data.collections || []);
             lastSavedStructureRef.current = buildStructureSnapshot(
               data.views || {},
               data.dashboards || [],
@@ -327,7 +329,7 @@ export function useErpSync({
                 ...col, items: merged.find((entry) => entry.id === col.id)?.items || col.items,
               }));
             });
-            lastSavedCollectionsRef.current = serverCollections;
+            lastSavedCollectionsRef.current = cleanForSave(serverCollections);
             setViews(data.views || {});
             setDashboards(data.dashboards || []);
             setDashboardSort(data.dashboardSort || 'created');
@@ -395,7 +397,7 @@ export function useErpSync({
     recordCollectionHistory(pending.previous, applyItemChanges(pending.previous, pending.payload.itemChanges), organizationId!, user);
     latestCollectionsRef.current = mergeSavedCollections(pending.submitted, saved, latestCollectionsRef.current);
     setCollections((local) => mergeSavedCollections(pending.submitted, saved, local));
-    lastSavedCollectionsRef.current = saved;
+    lastSavedCollectionsRef.current = cleanForSave(saved);
     // A rebased response refreshes items only. Keep the version of the loaded structure.
     if (!rebased) stateVersionRef.current = result.stateVersion;
     pendingItemsRef.current = null;
@@ -537,7 +539,7 @@ export function useErpSync({
             // Conserver aussi les saisies récentes et les nouveaux objets des automations.
             latestCollectionsRef.current = mergeSavedCollections(cleanedCollections, serverCollections, latestCollectionsRef.current);
             setCollections((local) => mergeSavedCollections(cleanedCollections, serverCollections, local));
-            lastSavedCollectionsRef.current = serverCollections;
+            lastSavedCollectionsRef.current = cleanForSave(serverCollections);
           } else {
             lastSavedCollectionsRef.current = cleanedCollections;
           }

@@ -1129,12 +1129,16 @@ export const useAccessManagerController = ({
     return selectableUsers.filter((u) => {
       const roleIds = parseRoleIds(u.role_ids);
       const roleNames = roleIds
-        .map((id: string) => roleById.get(id)?.name || '')
+        .map((id: string) => {
+          const name = roleById.get(id)?.name || '';
+          return name === 'admin' ? 'admin administrateur' : name === 'viewer' ? 'viewer lecture seule' : name;
+        })
         .join(' ')
         .toLowerCase();
       const provider = String(u.provider || 'local').toLowerCase();
       const email = String(u.email || '').toLowerCase();
-      return email.includes(query) || provider.includes(query) || roleNames.includes(query);
+      const globalRole = u.is_site_owner ? 'super administrateur supadm compte principal' : '';
+      return email.includes(query) || provider.includes(query) || roleNames.includes(query) || globalRole.includes(query);
     });
   }, [selectableUsers, userQuery, roleById]);
 

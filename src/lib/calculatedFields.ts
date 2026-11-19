@@ -1,3 +1,6 @@
+// Inputs are immutable React snapshots: keep unchanged items/collections stable.
+const calculatedCollectionCache = new WeakMap<object, any>();
+const calculatedItemCaches = new WeakMap<object, WeakMap<object, any>>();
 export type NumberCalculationOperation = 'add' | 'subtract' | 'multiply' | 'divide';
 
 const parseNumberish = (value: any): number | null => {
@@ -45,13 +48,19 @@ export const applyCalculatedFieldsToCollection = (collection: any) => {
     return collection;
   }
 
+  const cachedCollection = calculatedCollectionCache.get(collection);
+  if (cachedCollection) return cachedCollection;
   const properties = collection.properties || [];
   const calculatedProps = properties.filter((p: any) => isCalculatedNumberProperty(p));
   if (calculatedProps.length === 0) return collection;
 
   const propMap = new Map<string, any>(properties.map((p: any) => [p.id, p]));
 
+  let itemCache = calculatedItemCaches.get(properties);
+  if (!itemCache) { itemCache = new WeakMap(); calculatedItemCaches.set(properties, itemCache); }
   const computedItems = collection.items.map((item: any) => {
+    const cached = itemCache!.get(item);
+    if (cached) return cached;
     const cache = new Map<string, number | null>();
     const inProgress = new Set<string>();
 
@@ -86,13 +95,13 @@ export const applyCalculatedFieldsToCollection = (collection: any) => {
       nextItem[prop.id] = resolveNumericField(prop.id);
     });
 
+    itemCache!.set(item, nextItem);
     return nextItem;
   });
 
-  return {
-    ...collection,
-    items: computedItems,
-  };
+  const result = { ...collection, items: computedItems };
+  calculatedCollectionCache.set(collection, result);
+  return result;
 };
 
 export const applyCalculatedFieldsToCollections = (collections: any[]) => {

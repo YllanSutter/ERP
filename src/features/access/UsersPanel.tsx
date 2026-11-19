@@ -1,6 +1,6 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import React from 'react';
-import { Clock3, KeyRound, Palette, Search, UserRound } from 'lucide-react';
+import { Clock3, KeyRound, Palette, Search, ShieldCheck, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,28 +20,48 @@ export const UsersPanel = ({ context }: { context: AccessContext }) => {
   const selected = context.selectedPreferencesUser;
   const preferences = context.selectedPreferencesDraft;
   const isMember = Boolean(selected && context.memberIds.has(selected.id));
+  const roleNamesFor = (entry: any): string[] => context.parseRoleIds(entry.role_ids)
+    .map((id: string) => context.roles.find(role => role.id === id)?.name)
+    .filter((name: unknown): name is string => typeof name === 'string');
+  const roleBadges = (entry: any) => (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {entry.is_site_owner && <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200"><ShieldCheck size={12} aria-hidden="true" />Super administrateur</span>}
+      {roleNamesFor(entry).map(name => <span key={name} className="rounded-full bg-brand-500/10 px-2 py-0.5 text-xs text-brand-700 dark:text-brand-300">{name === 'admin' ? 'Administrateur' : name === 'viewer' ? 'Lecture seule' : name}</span>)}
+      {context.memberIds.has(entry.id) && roleNamesFor(entry).length === 0 && <span className="text-xs text-muted-foreground">Aucun rôle attribué</span>}
+      {!context.memberIds.has(entry.id) && <span className="text-xs text-muted-foreground">Hors organisation</span>}
+    </div>
+  );
 
   return (
     <div className="space-y-2">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <label className={fieldClass}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label className="relative min-w-48 flex-1 sm:max-w-sm">
           <span className="sr-only">Rechercher un utilisateur</span>
-          <div className="relative">
-            <Search size={15} className="pointer-events-none absolute left-2 top-2 text-muted-foreground" aria-hidden="true" />
-            <Input className="h-8 pl-8" placeholder="E-mail, type de connexion ou rôle" value={context.userQuery} onChange={(event) => context.setUserQuery(event.target.value)} />
-          </div>
+          <Search size={15} className="pointer-events-none absolute left-2 top-2 text-muted-foreground" aria-hidden="true" />
+          <Input className="h-8 pl-8" placeholder="Rechercher par e-mail ou rôle…" value={context.userQuery} onChange={(event) => context.setUserQuery(event.target.value)} />
         </label>
-        <Select value={context.selectedPreferencesUserId} onValueChange={context.setSelectedPreferencesUserId} disabled={!context.filteredUsers.length}>
-          <SelectTrigger aria-label="Utilisateur" className={selectClass}>
-            <SelectValue placeholder="Sélectionner un utilisateur">{selected?.email}</SelectValue>
-          </SelectTrigger>
-          <SelectContent className="p-1">
-            {context.filteredUsers.map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.email}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <p className="text-xs text-muted-foreground">{context.members.length} membre(s) · {context.selectableUsers.length} compte(s)</p>
       </div>
-      <p className="text-xs text-muted-foreground">{context.members.length} membre(s) de l’organisation · {context.selectableUsers.length} utilisateur(s) au total</p>
-      {context.filteredUsers.length === 0 && <p className="text-sm text-muted-foreground">Aucun utilisateur ne correspond à la recherche.</p>}
+      <div className="overflow-hidden rounded-lg border border-border">
+        <div className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground sm:grid">
+          <span>Utilisateur</span><span>Rôles dans l’organisation active</span>
+        </div>
+        <div className="max-h-64 overflow-y-auto divide-y divide-border">
+          {context.filteredUsers.map(entry => (
+            <button key={entry.id} type="button" aria-pressed={context.selectedPreferencesUserId === entry.id}
+              onClick={() => context.setSelectedPreferencesUserId(entry.id)}
+              className={`grid w-full gap-2 px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-center sm:gap-3 ${context.selectedPreferencesUserId === entry.id ? 'bg-brand-500/10' : 'hover:bg-muted/50'}`}>
+              <span className="min-w-0">
+                <span className="flex items-center gap-2 text-sm font-medium"><span className="truncate">{entry.name || entry.email}</span>{entry.id === context.user?.id && <span className="shrink-0 text-xs text-brand-600 dark:text-brand-300">Vous</span>}</span>
+                {entry.name && <span className="block truncate text-xs text-muted-foreground">{entry.email}</span>}
+              </span>
+              {roleBadges(entry)}
+            </button>
+          ))}
+          {context.filteredUsers.length === 0 && <p className="px-3 py-5 text-sm text-muted-foreground">Aucun utilisateur ne correspond à la recherche.</p>}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">Sélectionnez un compte pour afficher ses préférences. Le super administrateur est le compte principal du site.</p>
       {selected && (
         <div className="space-y-2">
           <section className="rounded-lg border border-brand-500/25 bg-brand-500/5 px-3 py-2">
@@ -51,6 +71,8 @@ export const UsersPanel = ({ context }: { context: AccessContext }) => {
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{isMember ? 'Membre' : 'Hors organisation'}</span>
               {context.isSelf && <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-xs text-brand-700 dark:text-brand-300">Vous</span>}
             </div>
+            <div className="mt-2">{roleBadges(selected)}</div>
+            {selected.is_site_owner && <p className="mt-2 text-xs text-muted-foreground">Compte principal : import/export global et sauvegardes de la base complète.</p>}
           </section>
 
           <SettingsSection title="Sécurité du compte" icon={KeyRound}>

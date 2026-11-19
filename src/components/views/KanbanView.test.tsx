@@ -1,3 +1,4 @@
+import { WindowedList } from '@/components/ui/windowed-list';
 import React, * as ReactModule from 'react';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -40,6 +41,10 @@ describe('Kanban card presentation', () => {
       React.Children.forEach(node, (child) => {
         if (!React.isValidElement(child)) return;
         if (child.type === ItemContextMenu) menus.push(child);
+        if (child.type === WindowedList) {
+          const props = child.props as any;
+          props.items.forEach((item: any, index: number) => visit(props.renderItem(item, index)));
+        }
         visit((child.props as any).children);
       });
     };

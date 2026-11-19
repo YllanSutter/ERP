@@ -210,6 +210,32 @@ test('PostgreSQL backup/restore preserves data, upgrades old schemas and rolls b
       await request('patch',a,{entries: {'erp-theme':null}});
       assert.equal((await request('get',b)).entries['erp-theme'],undefined);
     });
+    await t.test('preference synchronization omits histories, returns 304 unchanged and only acknowledges touched keys', async () => {
+      const { registerBrowserStateRoutes } = await import('../routes/browserStateRoutes.js');
+      const routes = {};
+      const app = Object.fromEntries(['get','patch','post'].map(method=>[method,(url,...handlers)=>{routes[method+' '+url]=handlers.at(-1);} ]));
+      registerBrowserStateRoutes({app,appContext:{pool,requireAuth(){},hasPermission:()=>true,logger:{error(){}}}});
+      const org='00000000-0000-0000-0000-000000000002',user='00000000-0000-0000-0000-000000000001';
+      const historyKey=`erp-item-versions:${org}:c:i`;
+      const value=JSON.stringify({base:{notes:'x'.repeat(100000)},versions:[]});
+      await pool.query('INSERT INTO browser_state VALUES ($1,$2,$3,$4)',[org,'organization',historyKey,value]);
+      const call=async(method,query={},body={},headers={})=>{
+        const res={code:200,headers:{},setHeader(key,value){this.headers[key]=value;},status(code){this.code=code;return this;},json(body){this.body=body;return this;},end(){return this;}};
+        await routes[method+' /api/browser-state']({auth:{user:{id:user},activeOrganization:{id:org}},query,body,headers},res);
+        return res;
+      };
+      const summary=await call('get',{scope:'preferences',initialize:'1'});
+      assert.equal(summary.code,200);assert.equal(summary.body.entries[historyKey],undefined);
+      const unchanged=await call('get',{scope:'preferences'},{},{'if-none-match':summary.headers.ETag});
+      assert.equal(unchanged.code,304);assert.equal(unchanged.body,undefined);
+      const ack=await call('patch',{}, {delta:true,entries:{calendarViewMode:'day'}});
+      assert.equal(ack.code,200);assert.equal(ack.body.partial,true);
+      assert.deepEqual(ack.body.entries,{calendarViewMode:'day'});
+      const history=await call('get',{keys:JSON.stringify([historyKey])});
+      assert.deepEqual(history.body.entries,{[historyKey]:value});
+      const deleted=await call('patch',{}, {delta:true,entries:{calendarViewMode:null}});
+      assert.deepEqual(deleted.body.entries,{calendarViewMode:null});
+    });
     await t.test('a scheduled run creates both organization archives and the full database archive', async () => {
       const { createScopedBackupOperations } = await import('./backupScheduler.js');
       const { createOrganizationBackup } = await import('./organizationBackupService.js');

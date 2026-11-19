@@ -22,27 +22,16 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          react: ['react', 'react-dom'],
-          motion: ['framer-motion'],
-          tiptap: [
-            '@tiptap/core',
-            '@tiptap/react',
-            '@tiptap/starter-kit',
-          ],
-          charts: ['recharts'],
-          pdf: ['pdf-lib'],
-          icons: ['lucide-react'],
-          radix: [
-            '@radix-ui/react-alert-dialog',
-            '@radix-ui/react-context-menu',
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-popover',
-            '@radix-ui/react-select',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-tooltip',
-          ],
+        onlyExplicitManualChunks: true,
+        manualChunks(id) {
+          if (!id.includes('/node_modules/')) return;
+          if (/\/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react';
+          if (id.includes('/node_modules/lucide-react/')) return 'icons';
+          if (id.includes('/node_modules/recharts/')) return 'charts';
+          if (id.includes('/node_modules/pdf-lib/')) return 'pdf';
+          if (id.includes('/node_modules/@tiptap/')) return 'tiptap';
+          if (id.includes('/node_modules/framer-motion/') || id.includes('/node_modules/motion-')) return 'motion';
+          if (id.includes('/node_modules/@radix-ui/')) return 'radix';
         },
       },
     },

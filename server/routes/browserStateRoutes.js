@@ -44,13 +44,16 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
       return [...fields].every(field_id => hasPermission(req.auth, { collection_id, item_id, field_id }, 'can_write'));
     });
   };
-  const read = async (req) => {
-    await migrateAccountState(pool, req.auth.user.id, req.auth.activeOrganization.id);
+  const read = async (req, { keys = null, preferencesOnly = false, migrate = true } = {}) => {
+    if (migrate) await migrateAccountState(pool, req.auth.user.id, req.auth.activeOrganization.id);
     const result = await pool.query(
       `SELECT key, value FROM browser_state
        WHERE organization_id = $1 AND owner_key IN ($2, $3) AND NOT (key = ANY($4::text[]))
-       UNION ALL SELECT key, value FROM user_state WHERE user_id = $2::uuid AND key = ANY($4::text[]) AND value IS NOT NULL`,
-      [req.auth.activeOrganization.id, req.auth.user.id, 'organization', ACCOUNT_STORAGE_KEYS]);
+         AND ($5::text[] IS NULL OR key = ANY($5::text[]))
+         AND (NOT $6::boolean OR key NOT LIKE 'erp-item-versions:%')
+       UNION ALL SELECT key, value FROM user_state WHERE user_id = $2::uuid AND key = ANY($4::text[]) AND value IS NOT NULL
+         AND ($5::text[] IS NULL OR key = ANY($5::text[]))`,
+      [req.auth.activeOrganization.id, req.auth.user.id, 'organization', ACCOUNT_STORAGE_KEYS, keys, preferencesOnly]);
     return Object.fromEntries(result.rows.filter(row => allowed(req, row.key, row.value)).map(row => [row.key, row.value]));
   };
   const guard = (req, res) => {
@@ -65,7 +68,23 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
   };
   app.get('/api/browser-state', requireAuth, async (req, res) => {
     if (!guard(req, res)) return;
-    try { res.json({ entries: await read(req), organizationId: req.auth.activeOrganization.id, userId: req.auth.user.id }); }
+    let keys = null;
+    if (req.query?.keys) {
+      try { keys = JSON.parse(req.query.keys); } catch { return res.status(400).json({ error: 'Invalid keys' }); }
+      if (!Array.isArray(keys) || keys.length > 100 || !keys.every(key => typeof key === 'string' && key.length <= 2048)) return res.status(400).json({ error: 'Invalid keys' });
+    }
+    const preferencesOnly = req.query?.scope === 'preferences';
+    try {
+      const entries = await read(req, { keys, preferencesOnly, migrate: !preferencesOnly || req.query?.initialize === '1' });
+      const payload = { entries, organizationId: req.auth.activeOrganization.id, userId: req.auth.user.id };
+      if (preferencesOnly) {
+        const etag = `"${createHash('sha256').update(JSON.stringify({ ...payload, entries: Object.fromEntries(Object.entries(entries).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) })).digest('hex')}"`;
+        res.setHeader?.('ETag', etag);
+        res.setHeader?.('Cache-Control', 'private, no-cache');
+        if (req.headers?.['if-none-match'] === etag) return res.status(304).end();
+      }
+      res.json(payload);
+    }
     catch (error) { logger.error('Load browser state failed', error); res.status(500).json({ error: 'Load failed' }); }
   });
   const save = (importOnly) => async (req, res) => {
@@ -86,6 +105,7 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
       // Serialize organization history merges, including the first insertion.
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [req.auth.activeOrganization.id]);
       const importedKeys = [];
+      const touched = new Set();
       for (const [originalKey, incomingValue] of Object.entries(entries)) {
         // Old histories lacked the organization in their key. Normalize before
         // merging so imports from different browsers converge on one history.
@@ -102,6 +122,7 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
               ON CONFLICT (user_id, key) DO ${importOnly ? 'NOTHING' : 'UPDATE SET value=EXCLUDED.value'}`, [req.auth.user.id, key, value]);
           }
           importedKeys.push(originalKey);
+          touched.add(key);
           continue;
         }
         const owner = isSharedStorageKey(key) ? 'organization' : req.auth.user.id;
@@ -116,8 +137,10 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
               await client.query(`INSERT INTO browser_state (organization_id, owner_key, key, value) VALUES ($1,$2,$3,$4)
                 ON CONFLICT (organization_id, owner_key, key) DO NOTHING`,
                 [req.auth.activeOrganization.id, owner, recoveryKey, JSON.stringify({ draftKey: key, value, origin: importOnly ? 'legacy-import' : 'concurrent-edit', createdAt: new Date().toISOString() })]);
+              touched.add(recoveryKey);
             }
             importedKeys.push(originalKey);
+            touched.add(key);
             continue; // Preserve the canonical draft and the conflicting incoming version.
           }
         }
@@ -134,6 +157,7 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
           if (value !== null) value = mergePersistentHistory(existing.rows[0]?.value, value);
         }
         importedKeys.push(originalKey);
+        touched.add(key);
         if (value === null) {
           if (!importOnly) await client.query('DELETE FROM browser_state WHERE organization_id=$1 AND owner_key=$2 AND key=$3', [req.auth.activeOrganization.id, owner, key]);
         } else {
@@ -143,7 +167,10 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
         }
       }
       await client.query('COMMIT');
-      res.json({ entries: await read(req), ...(importOnly ? { importedKeys } : { ok: true }) });
+      const partial = req.body.delta === true;
+      const acknowledged = await read(req, partial ? { keys: [...touched], migrate: false } : undefined);
+      const responseEntries = partial ? Object.fromEntries([...touched].map(key => [key, acknowledged[key] ?? null])) : acknowledged;
+      res.json({ entries: responseEntries, ...(partial ? { partial: true } : {}), ...(importOnly ? { importedKeys } : { ok: true }) });
     } catch (error) {
       if (client) await client.query('ROLLBACK').catch(() => {});
       logger.error('Save browser state failed', error);

@@ -133,3 +133,19 @@ it('saves large item histories without the browser keepalive size limit', async 
   expect(options.keepalive).toBe(false);
   expect(JSON.parse(options.body).entries['erp-item-versions:org:c:i']).toBe(history);
 });
+it('applies a delta acknowledgement without discarding unrelated preferences', async () => {
+  request.mockResolvedValueOnce(ok({entries:{'erp-theme':'dark',calendarViewMode:'month'}}));
+  await initializeDatabaseStorage('u','org');databaseStorage.setItem('erp-theme','light');
+  request.mockResolvedValueOnce(ok({partial:true,entries:{'erp-theme':'light'}}));
+  await flushDatabaseStorage();
+  expect(databaseStorage.getItem('calendarViewMode')).toBe('month');
+  expect(JSON.parse(request.mock.calls[1][1].body).delta).toBe(true);
+});
+it('does not parse or reapply unchanged preference responses', async () => {
+  request.mockResolvedValueOnce({...ok({entries:{'erp-theme':'dark'}}),headers:{get:()=> 'version-1'}});
+  await initializeDatabaseStorage('u','org');
+  const json=vi.fn();request.mockResolvedValueOnce({ok:false,status:304,json});
+  await refreshDatabaseStorage();
+  expect(json).not.toHaveBeenCalled();
+  expect(request.mock.calls[1][1].headers['If-None-Match']).toBe('version-1');
+});

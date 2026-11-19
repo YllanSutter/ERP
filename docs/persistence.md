@@ -27,3 +27,10 @@ Le message de session expirée rappelle que les données confirmées sont en bas
 Les préférences globales du compte sont comprises dans les sauvegardes complètes PostgreSQL. Une restauration d’organisation ne les remplace pas. Les requêtes de sauvegarde vérifient aussi l’identifiant du compte afin qu’un changement de connexion dans un autre onglet n’attribue pas une écriture au mauvais utilisateur.
 
 La connexion temps réel privilégie WebSocket, avec repli sur le polling si nécessaire. Le serveur de développement relaie également `/socket.io`, y compris les connexions WebSocket.
+
+
+## Synchronisation allégée
+
+Le client actuel demande `scope=preferences` au chargement et lors des vérifications périodiques. Les historiques restent en BDD et sont chargés par clé lorsque la fiche est ouverte. Les réponses portent un ETag ; une vérification sans changement répond 304, sans corps de données. Les onglets masqués ne déclenchent pas ces vérifications et se resynchronisent au retour.
+
+Les sauvegardes demandant `delta: true` reçoivent uniquement les valeurs confirmées des clés concernées, dont les éventuelles copies de récupération. Une suppression est représentée par `null`. Les autres valeurs du cache restent intactes. Le chargement d’un historique ne remplace pas une écriture locale encore en attente. Les anciens clients conservent le protocole complet, afin de permettre un déploiement progressif.

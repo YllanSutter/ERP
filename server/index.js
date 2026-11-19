@@ -1,3 +1,4 @@
+import { registerStaticAssets } from './services/staticAssets.js';
 import { registerBrowserStateRoutes } from './routes/browserStateRoutes.js';
 import { isSiteCreator, ensureSiteCreator } from './services/siteOwnerAccess.js';
 import { createOrganizationBackup, restoreOrganizationBackup } from './services/organizationBackupService.js';
@@ -104,7 +105,8 @@ app.use(cors({
     if (!origin) return callback(null, true);
     callback(null, true);
   }, 
-  credentials: true 
+  credentials: true,
+  exposedHeaders: ['ETag'],
 }));
 app.use(cookieParser());
 app.use(compression());
@@ -396,7 +398,7 @@ registerBrowserStateRoutes({ app, appContext });
 registerAutomationRoutes({ app, appContext });
 
 // Serve static files from the dist folder
-app.use(express.static(path.join(__dirname, '../dist')));
+registerStaticAssets(app, path.join(__dirname, '../dist'));
 
 // --- Plugin Configuration Management -----------------------------------
 registerPluginConfigRoutes({ app, appContext });
@@ -410,6 +412,7 @@ mountServerPlugins({
 
 // Catch-all: serve index.html for any non-API routes (SPA routing)
 app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 

@@ -2,6 +2,7 @@ import { legacyStorageScope } from '../../shared/legacyStorageScope.js';
 /** PostgreSQL is authoritative; these maps only live for the current session. */
 const API = import.meta.env.VITE_API_URL || '/api';
 let context = '';
+let preferenceTag: string | null = null;
 let values = new Map<string, string>();
 let confirmed = new Map<string, string>();
 let pending = new Map<string, string | null>();
@@ -23,12 +24,13 @@ export const getLegacyClaims = () => legacyClaims;
 export const getDraftRecoveries = () => [...values].filter(([key]) => key.startsWith('erp-draft-recovery:')).flatMap(([key, value]) => {
   try { return [{ key, ...JSON.parse(value) }]; } catch { return []; }
 });
-function accept(entries: Record<string, string>, remote = false) {
+function accept(entries: Record<string, string | null>, remote = false, partial = false, preferencesOnly = false) {
   const changed: string[] = [];
-  confirmed = new Map(Object.entries(entries));
-  for (const key of new Set([...values.keys(), ...confirmed.keys()])) {
+  const keys = partial ? Object.keys(entries) : [...new Set([...values.keys(), ...Object.keys(entries)])].filter(key => !preferencesOnly || !key.startsWith('erp-item-versions:'));
+  for (const key of keys) {
+    const next = entries[key] ?? undefined;
+    if (next === undefined) confirmed.delete(key); else confirmed.set(key, next);
     if (pending.has(key) || sending.has(key)) continue;
-    const next = confirmed.get(key);
     if (values.get(key) === next) continue;
     if (next === undefined) values.delete(key); else values.set(key, next);
     changed.push(key);
@@ -60,7 +62,7 @@ export async function flushDatabaseStorage(): Promise<void> {
   sending = new Set(batch.keys());
   saving = (async () => {
     try {
-      const body = JSON.stringify({ entries: Object.fromEntries(batch), expected, organizationId, userId: context.split('/')[0] });
+      const body = JSON.stringify({ entries: Object.fromEntries(batch), expected, organizationId, delta: true, userId: context.split('/')[0] });
       const response = await fetch(`${API}/browser-state`, {
         method: 'PATCH', credentials: 'include', keepalive: new TextEncoder().encode(body).length < 60000, signal: AbortSignal.timeout(15000),
         headers: { 'Content-Type': 'application/json' },
@@ -70,7 +72,7 @@ export async function flushDatabaseStorage(): Promise<void> {
       const data = await response.json();
       if (currentGeneration !== generation) return;
       sending.clear();
-      if (data.entries) accept(data.entries, true);
+      if (data.entries) accept(data.entries, true, data.partial === true);
       else for (const [key, value] of batch) { if (value === null) confirmed.delete(key); else confirmed.set(key, value); }
       if (!pending.size) window.dispatchEvent(new Event('erp-persistence-saved'));
     } catch (error) {
@@ -86,7 +88,7 @@ export async function flushDatabaseStorage(): Promise<void> {
   try { await saving; } finally { saving = undefined; if (currentGeneration === generation) notify(); }
 }
 export function clearDatabaseStorage() {
-  generation++; mutation++;
+  generation++; mutation++; preferenceTag = null;
   businessPending = false;
   context = ''; values = new Map(); confirmed = new Map(); pending = new Map(); sending = new Set(); legacyClaims = {};
   clearTimeout(timer); notify();
@@ -96,12 +98,12 @@ async function importEntries(entries: Record<string, string>, claimUnscoped = fa
   const ownGeneration = generation;
   const result = await fetch(`${API}/browser-state/import`, {
     method: 'POST', credentials: 'include', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ entries, organizationId: organization(), userId: context.split('/')[0], claimUnscoped }),
+    body: JSON.stringify({ entries, organizationId: organization(), userId: context.split('/')[0], delta: true, claimUnscoped }),
   });
   if (!result.ok) throw new Error('Legacy import failed');
   const saved = await result.json();
   if (ownGeneration !== generation) throw new Error('Session changed during import');
-  accept(saved.entries, true);
+  accept(saved.entries, true, saved.partial === true);
   for (const key of saved.importedKeys) {
     const importedValue = entries[key];
     delete legacyClaims[key];
@@ -117,7 +119,7 @@ export async function initializeDatabaseStorage(userId: string, organizationId: 
   if (context === `${userId}/${organizationId}`) return;
   const startedGeneration = generation;
   await flushDatabaseStorage();
-  const response = await fetch(`${API}/browser-state?organizationId=${encodeURIComponent(organizationId)}`, { credentials: 'include', signal: AbortSignal.timeout(15000) });
+  const response = await fetch(`${API}/browser-state?scope=preferences&initialize=1&organizationId=${encodeURIComponent(organizationId)}`, { credentials: 'include', signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error('Impossible de charger les préférences et brouillons');
   const data = await response.json();
   if (startedGeneration !== generation) throw new Error('Session changed during hydration');
@@ -125,7 +127,8 @@ export async function initializeDatabaseStorage(userId: string, organizationId: 
   clearDatabaseStorage();
   context = `${userId}/${organizationId}`;
   const ownGeneration = generation;
-  accept(data.entries);
+  preferenceTag = response.headers?.get('ETag') ?? null;
+  accept(data.entries, false, false, true);
   const owned: Record<string, string> = {};
   try {
     for (let i = 0; i < window.localStorage.length; i++) {
@@ -144,20 +147,35 @@ export async function refreshDatabaseStorage() {
   if (!context || pending.size || saving) return;
   const currentGeneration = generation;
   const currentMutation = mutation;
-  const response = await fetch(`${API}/browser-state?organizationId=${encodeURIComponent(organization())}`, { credentials: 'include', signal: AbortSignal.timeout(15000) });
+  const response = await fetch(`${API}/browser-state?scope=preferences&organizationId=${encodeURIComponent(organization())}`, { headers: preferenceTag ? { 'If-None-Match': preferenceTag } : {}, credentials: 'include', signal: AbortSignal.timeout(15000) });
   if (!response.ok) return; // Session recovery is handled by AuthProvider.
   const data = await response.json();
   if (generation !== currentGeneration || mutation !== currentMutation || saving) return;
   if (data.userId && data.userId !== context.split('/')[0]) return;
-  accept(data.entries, true);
+  preferenceTag = response.headers?.get('ETag') ?? null;
+  accept(data.entries, true, false, true);
+}
+/** Load large histories only when the corresponding fiche is opened. */
+export async function loadDatabaseKeys(keys: string[]) {
+  if (!context) return;
+  const requested = keys.filter(key => !pending.has(key) && !sending.has(key));
+  if (!requested.length) return;
+  const currentGeneration = generation;
+  const response = await fetch(`${API}/browser-state?organizationId=${encodeURIComponent(organization())}&keys=${encodeURIComponent(JSON.stringify(requested))}`, { credentials: 'include', signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error('Chargement de l’historique impossible');
+  const data = await response.json();
+  if (generation !== currentGeneration) return;
+  const entries = Object.fromEntries(requested.filter(key => !pending.has(key) && !sending.has(key)).map(key => [key, data.entries[key] ?? null]));
+  accept(entries, true, true);
 }
 export function monitorDatabaseStorage() {
-  const refresh = () => { void refreshDatabaseStorage().catch(() => {}); };
+  const refresh = () => { if (typeof document === 'undefined' || document.visibilityState !== 'hidden') void refreshDatabaseStorage().catch(() => {}); };
   const interval = window.setInterval(refresh, 10000);
   const online = () => { void flushDatabaseStorage().then(refresh).catch(() => {}); };
   window.addEventListener('focus', refresh);
   window.addEventListener('online', online);
-  return () => { window.clearInterval(interval); window.removeEventListener('focus', refresh); window.removeEventListener('online', online); };
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', refresh);
+  return () => { window.clearInterval(interval); window.removeEventListener('focus', refresh); window.removeEventListener('online', online); if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', refresh); };
 }
 function schedule() { clearTimeout(timer); timer = setTimeout(() => { void flushDatabaseStorage().catch(() => {}); }, 150); }
 export const databaseStorage = {

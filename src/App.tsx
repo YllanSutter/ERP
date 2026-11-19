@@ -39,13 +39,13 @@ import type { CollectionFilter, Item, Property } from '@/lib/types';
 import ViewToolbar from '@/components/views/ViewToolbar';
 import ViewShell from '@/components/views/ViewShell';
 import { useAuth } from '@/auth/AuthProvider';
-import NewCollectionModal from '@/components/modals/NewCollectionModal';
-import EditCollectionModal from '@/components/modals/EditCollectionModal';
-import PropertyModal from '@/components/modals/PropertyModal';
-import NewItemModal from '@/components/modals/NewItemModal';
+const NewCollectionModal = React.lazy(() => import('@/components/modals/NewCollectionModal'));
+const EditCollectionModal = React.lazy(() => import('@/components/modals/EditCollectionModal'));
+const PropertyModal = React.lazy(() => import('@/components/modals/PropertyModal'));
+const NewItemModal = React.lazy(() => import('@/components/modals/NewItemModal'));
 import FilterModal from '@/components/modals/FilterModal';
 import GroupModal from '@/components/modals/GroupModal';
-import NewViewModal from '@/components/modals/NewViewModal';
+const NewViewModal = React.lazy(() => import('@/components/modals/NewViewModal'));
 import ViewVisibilityModal from '@/components/modals/ViewVisibilityModal';
 import { getDashboardRegistration } from '@/lib/dashboardRegistry';
 import { defaultDashboardRegistration } from '@/components/dashboard/DashboardRendererHost';
@@ -1341,16 +1341,16 @@ const App = () => {
       />
 
       {showNewCollectionModal && (
-        <NewCollectionModal
+        <Suspense fallback={<div role="status">Chargement…</div>}><NewCollectionModal
           onClose={() => setShowNewCollectionModal(false)}
           onSave={(name, icon, color) => {
             collectionHooks.addCollection(name, icon, color);
             setShowNewCollectionModal(false);
           }}
-        />
+        /></Suspense>
       )}
       {showEditCollectionModal && editingCollection && (
-        <EditCollectionModal
+        <Suspense fallback={<div role="status">Chargement…</div>}><EditCollectionModal
           onClose={() => {
             setShowEditCollectionModal(false);
             setEditingCollection(null);
@@ -1365,7 +1365,7 @@ const App = () => {
           }}
           renderPluginSettings={(collection, onChange) => <SteamCollectionSettings collection={collection} collections={collections} onChange={onChange} />}
           collection={editingCollection}
-        />
+        /></Suspense>
       )}
       {viewVisibilityTarget && (
         <ViewVisibilityModal
@@ -1384,7 +1384,7 @@ const App = () => {
         />
       )}
       {showPropertyModal && activeCollection && (
-        <PropertyModal
+        <Suspense fallback={<div role="status">Chargement…</div>}><PropertyModal
           nested={showViewSettings || showFilterModal || showGroupModal}
           onClose={() => {
             setShowPropertyModal(false);
@@ -1412,7 +1412,7 @@ const App = () => {
           property={editingProperty}
           collections={collections}
           currentCollectionId={activeCollection || ''}
-        />
+        /></Suspense>
       )}
       {steamExchangeTarget && (() => {
         const collection = collections.find((entry) => entry.id === steamExchangeTarget.collectionId);
@@ -1433,7 +1433,7 @@ const App = () => {
         />;
       })()}
       {showNewItemModal && (
-        <NewItemModal
+        <Suspense fallback={<div role="status">Chargement…</div>}><NewItemModal
           onNavigateToCollection={(collectionId, linkedIds) => {
             handleNavigateToCollection(collectionId, linkedIds);
             setShowNewItemModal(false);
@@ -1522,10 +1522,10 @@ const App = () => {
             setEditingItem(targetItem || null);
             setShowNewItemModal(true);
           }}
-        />
+        /></Suspense>
       )}
       {showNewViewModal && (
-        <NewViewModal
+        <Suspense fallback={<div role="status">Chargement…</div>}><NewViewModal
           collection={currentCollection}
           availableViews={currentCollection ? (views[currentCollection.id] || []) : []}
           collections={collections}
@@ -1537,10 +1537,10 @@ const App = () => {
             viewHooks.addView(name, type, config);
             setShowNewViewModal(false);
           }}
-        />
+        /></Suspense>
       )}
       {showEditViewModal && editingViewId && (
-        <NewViewModal
+        <Suspense fallback={<div role="status">Chargement…</div>}><NewViewModal
           collection={currentCollection}
           availableViews={currentCollection ? (views[currentCollection.id] || []) : []}
           collections={collections}
@@ -1557,7 +1557,7 @@ const App = () => {
             setShowEditViewModal(false);
             setEditingViewId(null);
           }}
-        />
+        /></Suspense>
       )}
       {viewVisibilityTarget && (
         <ViewVisibilityModal
