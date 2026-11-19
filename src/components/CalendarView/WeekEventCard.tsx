@@ -5,6 +5,7 @@ import { useCanEdit, useCanEditField, useCanEditFields, useCanViewFields } from 
 import type { OptionType } from '@/components/inputs/LightSelect';
 import { OptionTags } from '@/components/inputs/OptionTags';
 import EditableProperty from '@/components/fields/EditableProperty';
+import EditableFieldPreview from '@/components/fields/EditableFieldPreview';
 import { ArrowUpRight, Clock, Ellipsis, FileText, GripHorizontal, Trash2, Type, X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -214,6 +215,16 @@ const EventItem: React.FC<EventItemProps> = ({
     />
   );
 
+  const editablePreview = (prop: any, children: React.ReactNode) => (
+    <EditableFieldPreview property={prop} value={item[prop.id]}
+      onChange={(value) => onEditField?.({ ...item, [prop.id]: value })}
+      readOnly={!canEdit || !onEditField || !canEditFieldFn(prop.id)}
+      collections={collections} currentItem={item} onRelationChange={onRelationChange}
+      onNavigateToCollection={onNavigateToCollection} size="sm">
+      {children}
+    </EditableFieldPreview>
+  );
+
   // Calcul du feedback visuel pendant le resize
   const previewEndTime = isResizing && resizePreviewEndTime !== null ? resizePreviewEndTime : endTime;
   const previewHeightPx = isResizing && resizePreviewEndTime !== null
@@ -299,7 +310,7 @@ const EventItem: React.FC<EventItemProps> = ({
           <div className="flex h-4 min-w-0 shrink-0 items-center gap-1">
             {canEdit && <GripHorizontal size={12} aria-hidden="true" className="hidden shrink-0 text-muted-foreground md:block" />}
             <span className="min-w-0 flex-1 truncate font-semibold leading-4" title={`${title} · ${timeLabel}`}>
-              {title}
+              {titleProp ? editablePreview(titleProp, title) : title}
             </span>
             {links.length > 0 && (
               <TooltipProvider>
@@ -353,7 +364,7 @@ const EventItem: React.FC<EventItemProps> = ({
                   <Tooltip key={prop.id}>
                     <TooltipTrigger asChild>
                       <div className="min-w-0" tabIndex={0}>
-                        <OptionTags options={options} value={value} compact borderless />
+                        {editablePreview(prop, <OptionTags options={options} value={value} compact borderless />)}
                       </div>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs break-words border border-border bg-popover text-popover-foreground shadow-md">
@@ -373,7 +384,7 @@ const EventItem: React.FC<EventItemProps> = ({
                           {prop.type === 'text' && <Type size={11} />}
                           {prop.type === 'rich_text' && <FileText size={11} />}
                         </span>
-                        <div className="min-w-0 flex-1 overflow-hidden">{renderField(prop, true)}</div>
+                        <div className="min-w-0 flex-1 overflow-hidden">{editablePreview(prop, renderField(prop, true, true))}</div>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs border border-border bg-popover text-popover-foreground shadow-md">

@@ -9,6 +9,7 @@ import { Ellipsis, Trash2, GripHorizontal, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { OptionTags } from '@/components/inputs/OptionTags';
 import EditableProperty from '@/components/fields/EditableProperty';
+import EditableFieldPreview from '@/components/fields/EditableFieldPreview';
 import ItemContextMenu from '@/components/menus/ItemContextMenu';
 import { useCanEdit, useCanEditFields, useCanViewFields } from '@/lib/hooks/useCanEdit';
 import { getNameValue } from '@/lib/calendarUtils';
@@ -101,8 +102,24 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   const sharedGrouping = useViewGrouping(
     items,
     groupBy ? [groupBy] : [],
-    orderedProperties || collection.properties,
+    orderedProperties || collection?.properties || [],
     collections,
+  );
+
+  const allDisplayableProps = useMemo(
+    () =>
+      (orderedProperties || collection?.properties || []).filter(
+        (p: any) => !p.showContextMenu && canViewFieldFn(p.id)
+      ),
+    [orderedProperties, collection?.properties, canViewFieldFn]
+  );
+
+  const defaultVisibleFieldIds = useMemo(
+    () =>
+      allDisplayableProps
+        .filter((p: any) => !hiddenFields.includes(p.id))
+        .map((p: any) => p.id),
+    [allDisplayableProps, hiddenFields]
   );
 
   if (!collection) {
@@ -156,24 +173,8 @@ const KanbanView: React.FC<KanbanViewProps> = ({
 
   const columns = Object.keys(groupedItems).filter(col => shouldShowColumn(col, filters, groupByProp?.id ?? null));
 
-  const allDisplayableProps = useMemo(
-    () =>
-      (orderedProperties || collection.properties).filter(
-        (p: any) => !p.showContextMenu && canViewFieldFn(p.id)
-      ),
-    [orderedProperties, collection.properties, canViewFieldFn]
-  );
-
   const totalProperties = (orderedProperties || collection.properties).filter((property: any) => canViewFieldFn(property.id));
   const customTotalProperties = totalProperties.filter((property: any) => ['number', 'checkbox'].includes(property.type));
-
-  const defaultVisibleFieldIds = useMemo(
-    () =>
-      allDisplayableProps
-        .filter((p: any) => !hiddenFields.includes(p.id))
-        .map((p: any) => p.id),
-    [allDisplayableProps, hiddenFields]
-  );
 
   const settingsGroupKey = groupByProp?.id || '__all__';
   const columnSettingsForGroup = columnSettings?.[settingsGroupKey] || {};
@@ -388,6 +389,9 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                         return <div key={prop.id} title={prop.name} className="flex min-w-0 items-center gap-1.5 py-1 text-xs">
                           <Icon size={12} aria-hidden="true" className="shrink-0 text-muted-foreground" />
                           <div className="min-w-0 flex-1 overflow-hidden">
+                            <EditableFieldPreview property={prop} value={item[prop.id]} onChange={(value) => onEdit({ ...item, [prop.id]: value })}
+                              readOnly={!canEdit || !canEditFieldFn(prop.id)} collections={collections} currentItem={item}
+                              onRelationChange={onRelationChange} onNavigateToCollection={onNavigateToCollection} size="sm">
                             {['select', 'multiselect', 'multi_select'].includes(prop.type) ? (
                               <OptionTags options={prop.options || []} value={item[prop.id]} compact borderless />
                             ) : prop.type === 'number' ? (
@@ -396,6 +400,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                               size="xs" compactDate richTextPreviewLimit={80} collections={collections} currentItem={item}
                               onNavigateToCollection={onNavigateToCollection}
                               maxVisible={2} />}
+                            </EditableFieldPreview>
                           </div>
                         </div>;
                       })}
