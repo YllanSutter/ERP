@@ -47,3 +47,68 @@
     border-color: rgba(255, 255, 255, 0.1);
   }
 }
+
+/* The document structure, rather than persisted list flags, owns folding. */
+.tiptap.ProseMirror .rte-outline-hidden {
+  display: none !important;
+}
+
+.tiptap.ProseMirror .rte-movable-block {
+  position: relative;
+}
+
+.tiptap.ProseMirror .rte-block-handle {
+  position: absolute;
+  left: -1.25rem;
+  top: 0.15rem;
+  width: 1rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0;
+  cursor: grab;
+  user-select: none;
+  line-height: 1.5;
+  font-size: 1rem;
+}
+
+.tiptap.ProseMirror li > .tt-task-content .rte-block-handle,
+.tiptap.ProseMirror h1 > .tt-heading-content .rte-block-handle,
+.tiptap.ProseMirror h2 > .tt-heading-content .rte-block-handle,
+.tiptap.ProseMirror h3 > .tt-heading-content .rte-block-handle,
+.tiptap.ProseMirror h4 > .tt-heading-content .rte-block-handle {
+  left: -2.5rem;
+}
+
+.tiptap.ProseMirror .rte-movable-block:hover > .rte-block-handle,
+.tiptap.ProseMirror .rte-movable-block:hover > p > .rte-block-handle,
+.tiptap.ProseMirror .rte-movable-block:hover > .tt-task-content .rte-block-handle,
+.tiptap.ProseMirror .rte-movable-block:hover > .tt-heading-content .rte-block-handle,
+.tiptap.ProseMirror .rte-block-handle:focus-visible {
+  opacity: 0.6;
+}
+
+.rte-drop-marker {
+  position: fixed;
+  height: 2px;
+  background: #818cf8;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.rte-container .simple-editor-content .tiptap.ProseMirror.simple-editor {
+  padding-left: 2.5rem;
+}
+
+.tiptap.ProseMirror .rte-atom-handle {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 0;
+}
+
+.tiptap.ProseMirror .rte-atom-handle:hover .rte-block-handle,
+.tiptap.ProseMirror .rte-atom-handle:focus-within .rte-block-handle {
+  opacity: 0.6;
+}

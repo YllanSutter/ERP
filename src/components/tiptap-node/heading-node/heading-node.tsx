@@ -1,6 +1,7 @@
 import type { FC } from "react"
 import type { NodeViewProps } from "@tiptap/react"
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react"
+import { blockRange } from "@/components/tiptap-extension/block-hierarchy"
 import { ChevronDownIcon } from "@/components/tiptap-icons/chevron-down-icon"
 
 export const HeadingNode: FC<NodeViewProps> = ({
@@ -14,18 +15,9 @@ export const HeadingNode: FC<NodeViewProps> = ({
   const isCollapsed = Boolean(node.attrs?.collapsed)
   const isEditable = editor?.isEditable ?? true
 
-  const getNextTaskList = () => {
-    if (!editor || typeof getPos !== "function") return null
-    const pos = getPos()
-    if (typeof pos !== "number") return null
-    const nextPos = pos + node.nodeSize
-    const resolved = editor.state.doc.resolve(nextPos)
-    const nextNode = resolved.nodeAfter
-    if (!nextNode || nextNode.type.name !== "taskList") return null
-    return { nextNode, nextPos }
-  }
-
-  const hasFollowingTaskList = Boolean(getNextTaskList())
+  const position = typeof getPos === "function" ? getPos() : undefined
+  const range = typeof position === "number" ? blockRange(editor.state.doc, position) : null
+  const hasChildren = Boolean(range && range.to > range.from + node.nodeSize)
 
   return (
     <NodeViewWrapper
@@ -34,11 +26,11 @@ export const HeadingNode: FC<NodeViewProps> = ({
       data-level={level}
       data-collapsed={isCollapsed ? "true" : "false"}
     >
-      {hasFollowingTaskList && (
+      {hasChildren && (
         <button
           type="button"
           className="tt-heading-toggle"
-          aria-label={isCollapsed ? "Afficher les tâches" : "Masquer les tâches"}
+          aria-label={isCollapsed ? "Afficher les enfants" : "Masquer les enfants"}
           aria-pressed={isCollapsed}
           contentEditable={false}
           disabled={!isEditable}
@@ -46,23 +38,7 @@ export const HeadingNode: FC<NodeViewProps> = ({
             event.preventDefault()
             event.stopPropagation()
             if (!isEditable) return
-            const nextCollapsed = !isCollapsed
-            updateAttributes({ collapsed: nextCollapsed })
-
-            const next = getNextTaskList()
-            if (next && editor) {
-              const { nextNode, nextPos } = next
-              const attrs = {
-                ...nextNode.attrs,
-                collapsedByHeading: nextCollapsed,
-              }
-              const tr = editor.state.tr.setNodeMarkup(
-                nextPos,
-                nextNode.type,
-                attrs
-              )
-              editor.view.dispatch(tr)
-            }
+            updateAttributes({ collapsed: !isCollapsed })
           }}
         >
           <ChevronDownIcon />

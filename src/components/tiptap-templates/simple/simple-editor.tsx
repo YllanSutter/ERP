@@ -14,6 +14,7 @@ import { Highlight } from "@tiptap/extension-highlight"
 import { Subscript } from "@tiptap/extension-subscript"
 import { Superscript } from "@tiptap/extension-superscript"
 import { Selection } from "@tiptap/extensions"
+import { OutlineEditing } from "@/components/tiptap-extension/outline-editing"
 
 // --- UI Primitives ---
 import { Button } from "@/components/tiptap-ui-primitive/button"
@@ -296,6 +297,7 @@ export function SimpleEditor({
       Superscript,
       Subscript,
       Selection,
+      OutlineEditing,
       ImageUploadNode.configure({
         accept: "image/*",
         maxSize: MAX_FILE_SIZE,

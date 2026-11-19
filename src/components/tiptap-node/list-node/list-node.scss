@@ -79,10 +79,6 @@
   ul[data-type="taskList"] {
     padding-left: 0.25em;
 
-    &[data-collapsed-by-heading="true"] {
-      display: none;
-    }
-
     li {
       display: flex;
       flex-direction: row;
@@ -157,9 +153,16 @@
         }
       }
 
-      div {
+      > .tt-task-content {
         flex: 1 1 0%;
         min-width: 0;
+      }
+
+      .tt-task-content > ul,
+      .tt-task-content > ol,
+      .tt-task-content > [data-node-view-content-react] > ul,
+      .tt-task-content > [data-node-view-content-react] > ol {
+        padding-left: 2rem;
       }
 
       .tt-task-toggle {
@@ -201,8 +204,10 @@
           }
         }
 
-        .tt-task-content ul,
-        .tt-task-content ol {
+        > .tt-task-content > ul,
+        > .tt-task-content > ol,
+        > .tt-task-content > [data-node-view-content-react] > ul,
+        > .tt-task-content > [data-node-view-content-react] > ol {
           display: none;
         }
       }
