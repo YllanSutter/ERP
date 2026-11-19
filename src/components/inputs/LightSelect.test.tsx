@@ -25,3 +25,15 @@ it.each([
   const anchor = elements.find(element => element.type === PopoverAnchor)!;
   expect(descendants(anchor).some(element => element.type === PopoverTrigger)).toBe(true);
 });
+
+it('uses the card preview as the sole direct picker trigger', () => {
+  vi.mocked(ReactModule.useState).mockImplementation(((initial: unknown) => [initial, vi.fn()]) as unknown as typeof ReactModule.useState);
+  vi.mocked(ReactModule.useRef).mockReturnValue({ current: null });
+  const trigger = <div role="button" tabIndex={0}>Reçu</div>;
+  const tree = LightSelect({ options: ['Oui'], value: 'Oui', onChange: vi.fn(), trigger });
+  const elements = descendants(tree);
+  expect(elements.filter(element => element.type === PopoverAnchor)).toHaveLength(0);
+  const triggers = elements.filter(element => element.type === PopoverTrigger);
+  expect(triggers).toHaveLength(1);
+  expect(triggers[0].props.children).toBe(trigger);
+});

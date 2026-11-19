@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import EditableFieldPreview from './EditableFieldPreview';
 import EditableProperty from './EditableProperty';
+import { SelectPropertyField } from './SelectPropertyField';
 
 vi.mock('./EditableProperty', () => ({ default: () => null }));
 
@@ -38,4 +39,15 @@ describe('editable compact previews', () => {
     const html = renderToStaticMarkup(<EditableFieldPreview {...props} value="Valeur" onChange={vi.fn()}>Valeur</EditableFieldPreview>);
     expect(html).toBe('Valeur');
   });
+});
+
+it.each(['select', 'multi_select', 'multiselect'])('opens %s directly from the compact preview', type => {
+  const onChange = vi.fn();
+  const tree = EditableFieldPreview({ property: { id: 'status', name: 'Reçu ?', type },
+    value: 'Oui', onChange, collection: { id: 'purchases' } as any, children: 'Oui' });
+  expect(tree.type).toBe(SelectPropertyField);
+  expect(tree.props.collectionId).toBe('purchases');
+  expect(tree.props.onChange).toBe(onChange);
+  expect(tree.props.trigger.props['aria-label']).toBe('Modifier Reçu ?');
+  expect(renderToStaticMarkup(tree.props.trigger)).toContain('Oui');
 });

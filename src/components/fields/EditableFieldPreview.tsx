@@ -1,5 +1,6 @@
 import React from 'react';
 import EditableProperty from './EditableProperty';
+import { SelectPropertyField } from './SelectPropertyField';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 type Props = React.ComponentProps<typeof EditableProperty> & { children: React.ReactNode };
@@ -8,10 +9,8 @@ type Props = React.ComponentProps<typeof EditableProperty> & { children: React.R
 export default function EditableFieldPreview({ children, ...props }: Props) {
   const calculated = props.property.type === 'number' && (props.property.numberMode === 'calculated' || Boolean(props.property.calculation));
   if (props.readOnly || calculated) return <>{children}</>;
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <div role="button" tabIndex={0} aria-label={`Modifier ${props.property.name}`}
+  const trigger = (
+    <div role="button" tabIndex={0} aria-label={`Modifier ${props.property.name}`}
           className="min-w-0 cursor-pointer"
           draggable={false}
           onClick={(event) => event.stopPropagation()}
@@ -24,7 +23,17 @@ export default function EditableFieldPreview({ children, ...props }: Props) {
           }}>
           <div className="pointer-events-none">{children}</div>
         </div>
-      </PopoverTrigger>
+  );
+  if (['select', 'multi_select', 'multiselect'].includes(props.property.type)) {
+    const collectionId = props.collection?.id
+      || props.collections?.find((candidate: any) => candidate.properties?.includes(props.property))?.id
+      || props.currentItem?.__collectionId;
+    return <SelectPropertyField property={props.property} collectionId={collectionId} value={props.value}
+      onChange={props.onChange} trigger={trigger} />;
+  }
+  return (
+    <Popover>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent align="start" className="w-80 max-w-[calc(100vw-2rem)] p-3"
         onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
         <div className="mb-2 text-xs font-medium text-muted-foreground">{props.property.name}</div>

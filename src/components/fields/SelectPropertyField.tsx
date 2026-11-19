@@ -6,8 +6,9 @@ import { appendSelectOption, findMatchingOption, optionValue } from '@/lib/utils
 import { normalizeRelationIds } from '@/lib/utils/relationUtils';
 
 
-export function SelectPropertyField({ property, collectionId, value, onChange, readOnly, className, sizeClass, maxVisible }: {
+export function SelectPropertyField({ property, collectionId, value, onChange, readOnly, className, sizeClass, maxVisible, trigger }: {
   property: any; collectionId?: string; value: any; onChange: (value: any) => void;
+  trigger?: React.ReactElement;
   readOnly?: boolean; className?: string; sizeClass?: string; maxVisible?: number;
 }) {
   const context = React.useContext(SelectOptionsContext);
@@ -27,7 +28,7 @@ export function SelectPropertyField({ property, collectionId, value, onChange, r
     select(text);
     context.setCollections(previous => appendSelectOption(previous, owner.id, property.id, text, appearance));
   } : undefined;
-  const common = { options: field.options || [], onChange, onCreateOption, disabled: readOnly, className, sizeClass };
+  const common = { options: field.options || [], onChange, onCreateOption, disabled: readOnly, className, sizeClass, trigger };
   return property.type === 'select'
     ? <LightSelect {...common} value={value || ''} />
     : <LightSelect {...common} multiple values={normalizeRelationIds(value)} maxVisible={maxVisible} maxValues={property.maxValues} />;
