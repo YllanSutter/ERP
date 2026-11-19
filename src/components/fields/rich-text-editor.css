@@ -81,12 +81,19 @@
   left: -2.5rem;
 }
 
-.tiptap.ProseMirror .rte-movable-block:hover > .rte-block-handle,
-.tiptap.ProseMirror .rte-movable-block:hover > p > .rte-block-handle,
-.tiptap.ProseMirror .rte-movable-block:hover > .tt-task-content .rte-block-handle,
-.tiptap.ProseMirror .rte-movable-block:hover > .tt-heading-content .rte-block-handle,
+/* Node views add wrappers between blocks and their handles. Show the handle
+   of the deepest hovered block, without revealing its nested children's handles. */
+.tiptap.ProseMirror :where(.rte-movable-block:hover:not(:has(.rte-movable-block:hover))) .rte-block-handle {
+  opacity: 0.65;
+}
+
+.tiptap.ProseMirror :where(.rte-movable-block:hover .rte-movable-block:not(:hover)) .rte-block-handle {
+  opacity: 0;
+}
+
+.tiptap.ProseMirror .rte-block-handle:hover,
 .tiptap.ProseMirror .rte-block-handle:focus-visible {
-  opacity: 0.6;
+  opacity: 1;
 }
 
 .rte-drop-marker {
@@ -108,6 +115,7 @@
   height: 0;
 }
 
+.tiptap.ProseMirror .rte-atom-handle:has(+ .rte-movable-block:hover) .rte-block-handle,
 .tiptap.ProseMirror .rte-atom-handle:hover .rte-block-handle,
 .tiptap.ProseMirror .rte-atom-handle:focus-within .rte-block-handle {
   opacity: 0.6;

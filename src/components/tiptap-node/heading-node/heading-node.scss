@@ -1,4 +1,18 @@
 .tiptap.ProseMirror {
+  // React node views wrap each heading: spacing belongs to that wrapper,
+  // otherwise every heading matches :first-child and loses its top margin.
+  .node-heading {
+    margin-block: 1.25rem 0.5rem;
+
+    &:first-child {
+      margin-top: 0;
+    }
+
+    > :is(h1, h2, h3, h4) {
+      margin-block: 0;
+    }
+  }
+
   h1,
   h2,
   h3,
