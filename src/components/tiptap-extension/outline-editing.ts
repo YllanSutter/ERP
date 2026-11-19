@@ -1,8 +1,8 @@
 import { Extension } from '@tiptap/core'
-import { Fragment, Slice, type Node as PMNode } from '@tiptap/pm/model'
+import { Fragment, Slice, type Node as PMNode, type NodeType } from '@tiptap/pm/model'
 import { Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
-import { blockRange, enterAfterCollapsed, moveBlock, plainTaskList, selectedBlock, taskPasteSliceContent, type BlockRange } from './block-hierarchy'
+import { blockRange, enterAfterCollapsed, moveBlock, plainTaskList, selectedBlock, splitOutlineBoundaryLists, taskPasteSliceContent, type BlockRange } from './block-hierarchy'
 
 const key = new PluginKey('outlineEditing')
 const itemTypes = ['taskItem', 'listItem']
@@ -89,7 +89,24 @@ export function taskPaste(state: EditorState, slice: Slice, text: string, prefer
   return content ? Slice.maxOpen(content) : null
 }
 
-function dropDestination(view: EditorView, event: DragEvent, source: BlockRange): number | null {
+export type BlockDropTarget = { pos: number; wrapIn?: NodeType }
+
+export function headingDropTarget(state: EditorState, source: BlockRange, headingPos: number, after: boolean): BlockDropTarget | null {
+  const target = blockRange(state.doc, headingPos)
+  if (target?.node.type.name !== 'heading' || !itemTypes.includes(source.node.type.name)) return null
+  let offset = headingPos + target.node.nodeSize
+  while (offset < target.to) {
+    const node = state.doc.nodeAt(offset)!
+    if (node.type.name === (source.node.type.name === 'taskItem' ? 'taskList' : 'bulletList') ||
+        (source.node.type.name === 'listItem' && node.type.name === 'orderedList')) {
+      return { pos: after ? offset + node.nodeSize - 1 : offset + 1 }
+    }
+    offset += node.nodeSize
+  }
+  return { pos: headingPos + target.node.nodeSize, wrapIn: state.doc.resolve(source.from).parent.type }
+}
+
+function dropDestination(view: EditorView, event: DragEvent, source: BlockRange): BlockDropTarget | null {
   const element = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-rte-block]') : null
   if (!element || !view.dom.contains(element)) return null
   const pos = Number(element.dataset.rteBlock)
@@ -100,18 +117,9 @@ function dropDestination(view: EditorView, event: DragEvent, source: BlockRange)
   const after = event.clientY >= rect.top + rect.height / 2
   // Drop an item on a heading to put it at the beginning/end of that section's list.
   if (itemTypes.includes(source.node.type.name) && target.node.type.name === 'heading') {
-    let offset = pos + target.node.nodeSize
-    while (offset < target.to) {
-      const node = view.state.doc.nodeAt(offset)!
-      if (node.type.name === (source.node.type.name === 'taskItem' ? 'taskList' : 'bulletList') ||
-          (source.node.type.name === 'listItem' && node.type.name === 'orderedList')) {
-        return after ? offset + node.nodeSize - 1 : offset + 1
-      }
-      offset += node.nodeSize
-    }
-    return null
+    return headingDropTarget(view.state, source, pos, after)
   }
-  return after ? target.to : target.from
+  return { pos: after ? target.to : target.from }
 }
 
 export const OutlineEditing = Extension.create({
@@ -184,10 +192,9 @@ export const OutlineEditing = Extension.create({
       ArrowDown: () => {
         const block = selectedBlock(this.editor.state)
         if (!block?.node.attrs.collapsed) return false
-        if (block.to >= this.editor.state.doc.content.size) return true
-        const tr = this.editor.state.tr
-        tr.setSelection(TextSelection.near(tr.doc.resolve(block.to), 1))
-        this.editor.view.dispatch(tr.scrollIntoView())
+        const state = this.editor.state
+        const next = TextSelection.findFrom(state.doc.resolve(block.to), 1, true)
+        if (next) this.editor.view.dispatch(state.tr.setSelection(next).scrollIntoView())
         return true
       },
       'Alt-ArrowUp': () => move(false),
@@ -207,6 +214,8 @@ export const OutlineEditing = Extension.create({
         apply: (tr, previous) => tr.docChanged || previous.editable !== editable()
           ? { decorations: outlineDecorations(tr.doc, editable()), editable: editable() } : previous,
       },
+      appendTransaction: (transactions, _previous, state) => transactions.some(tr => tr.docChanged)
+        ? splitOutlineBoundaryLists(state) : null,
       props: {
         decorations: state => {
           const cached = key.getState(state)
@@ -239,10 +248,10 @@ export const OutlineEditing = Extension.create({
             if (!dragging) return false
             clearMarker()
             const destination = dropDestination(view, event, dragging)
-            if (destination !== null && moveBlock(view.state, dragging, destination)) {
+            if (destination !== null && moveBlock(view.state, dragging, destination.pos, destination.wrapIn)) {
               event.preventDefault()
               if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
-              const rect = view.coordsAtPos(destination)
+              const rect = view.coordsAtPos(destination.pos)
               dropMarker = document.createElement('div')
               dropMarker.className = 'rte-drop-marker'
               Object.assign(dropMarker.style, { top: `${rect.top}px`, left: `${rect.left}px`, width: `${Math.max(80, view.dom.getBoundingClientRect().right - rect.left)}px` })
@@ -254,7 +263,7 @@ export const OutlineEditing = Extension.create({
             if (!dragging) return false
             event.preventDefault()
             const destination = dropDestination(view, event, dragging)
-            const tr = destination === null ? null : moveBlock(view.state, dragging, destination)
+            const tr = destination === null ? null : moveBlock(view.state, dragging, destination.pos, destination.wrapIn)
             dragging = null
             clearMarker()
             if (tr) { view.dispatch(tr); view.focus() }

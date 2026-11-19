@@ -1,8 +1,34 @@
-import { Fragment, type Node as PMNode } from '@tiptap/pm/model'
+import { Fragment, type Node as PMNode, type NodeType } from '@tiptap/pm/model'
 import { TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
 
 export type BlockRange = { from: number; to: number; node: PMNode }
 const items = ['taskItem', 'listItem']
+const lists = ['taskList', 'bulletList', 'orderedList']
+
+// Wrapping a boundary paragraph in a list must not make it part of a folded section.
+export function startsOutlineBoundary(node: PMNode): boolean {
+  if (node.attrs.outlineBoundary) return true
+  return Boolean(node.firstChild?.isBlock && startsOutlineBoundary(node.firstChild))
+}
+
+// Tiptap joins adjacent lists on conversion. Split them back at explicit section boundaries.
+export function splitOutlineBoundaryLists(state: EditorState): Transaction | null {
+  const splits: { pos: number; type: NodeType; attrs: PMNode['attrs'] }[] = []
+  state.doc.forEach((node, pos) => {
+    if (!lists.includes(node.type.name)) return
+    node.forEach((child, offset, index) => {
+      if (index > 0 && startsOutlineBoundary(child)) {
+        const attrs = node.type.name === 'orderedList'
+          ? { ...node.attrs, start: (node.attrs.start ?? 1) + index } : node.attrs
+        splits.push({ pos: pos + offset + 1, type: node.type, attrs })
+      }
+    })
+  })
+  if (!splits.length) return null
+  const tr = state.tr
+  for (const split of splits.reverse()) tr.split(split.pos, 1, [{ type: split.type, attrs: split.attrs }])
+  return tr
+}
 
 // Headings own the following siblings up to the next heading of equal/higher level.
 export function blockRange(doc: PMNode, pos: number): BlockRange | null {
@@ -18,7 +44,7 @@ export function blockRange(doc: PMNode, pos: number): BlockRange | null {
     const parent = $pos.parent
     for (let index = $pos.index() + 1; index < parent.childCount; index++) {
       const next = parent.child(index)
-      if (next.attrs.outlineBoundary || (next.type.name === 'heading' && next.attrs.level <= node.attrs.level)) break
+      if (startsOutlineBoundary(next) || (next.type.name === 'heading' && next.attrs.level <= node.attrs.level)) break
       to += next.nodeSize
     }
   }
@@ -33,9 +59,10 @@ export function selectedBlock(state: EditorState): BlockRange | null {
   return blockRange(state.doc, $from.depth ? $from.before(1) : $from.pos)
 }
 
-export function moveBlock(state: EditorState, source: BlockRange, target: number): Transaction | null {
+export function moveBlock(state: EditorState, source: BlockRange, target: number, wrapIn?: NodeType): Transaction | null {
   if (target >= source.from && target <= source.to) return null
-  const content = state.doc.slice(source.from, source.to).content
+  const movedContent = state.doc.slice(source.from, source.to).content
+  const content = wrapIn ? Fragment.from(wrapIn.create(null, movedContent)) : movedContent
   const $source = state.doc.resolve(source.from)
   const removeList = items.includes(source.node.type.name) && $source.parent.childCount === 1
   const from = removeList ? $source.before() : source.from
@@ -51,7 +78,7 @@ export function moveBlock(state: EditorState, source: BlockRange, target: number
   const $selection = tr.selection.$from
   for (let depth = 1; depth <= $selection.depth; depth++) {
     const node = $selection.node(depth)
-    if (node.attrs.collapsed && $selection.before(depth) !== destination) {
+    if (node.attrs.collapsed && $selection.before(depth) !== destination + (wrapIn ? 1 : 0)) {
       tr.setNodeMarkup($selection.before(depth), undefined, { ...node.attrs, collapsed: false })
     }
   }

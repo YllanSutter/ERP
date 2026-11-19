@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { getSchema } from '@tiptap/core'
+import { Editor, getSchema } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { EditorState, TextSelection } from '@tiptap/pm/state'
-import { sinkListItem, liftListItem } from '@tiptap/pm/schema-list'
+import { sinkListItem, liftListItem, wrapInList } from '@tiptap/pm/schema-list'
 import { history, undo, redo } from '@tiptap/pm/history'
 import { Slice, Fragment } from '@tiptap/pm/model'
 import { CollapsibleHeading } from '@/components/tiptap-node/heading-node/heading-node-extension'
 import { blockRange, enterAfterCollapsed, moveBlock, plainTaskList } from './block-hierarchy'
-import { OutlineEditing, outlineDecorations, taskPaste } from './outline-editing'
+import { OutlineEditing, headingDropTarget, outlineDecorations, taskPaste } from './outline-editing'
 
 const schema = getSchema([OutlineEditing, StarterKit.configure({ heading: false }), CollapsibleHeading, TaskList,
   TaskItem.extend({ addAttributes() { return { ...this.parent?.(), collapsed: { default: false } } } }).configure({ nested: true })])
@@ -176,6 +176,19 @@ describe('list keyboard behavior', () => {
     const shortcuts = (OutlineEditing.config.addKeyboardShortcuts as any).call({ editor })
     return { editor, shortcuts }
   }
+  it('keeps Down out of hidden children when the folded task is last in the document', () => {
+    const initial = stateAt(doc(tasks(task('Parent', [tasks(task('Enfant caché'))], true))), 'Parent')
+    const { editor, shortcuts } = shortcutsFor(initial)
+    expect(shortcuts.ArrowDown()).toBe(true)
+    expect(editor.state.selection.eq(initial.selection)).toBe(true)
+    expect(editor.state.selection.$from.parent.textContent).toBe('Parent')
+  })
+  it('moves Down to the next visible paragraph after a folded task', () => {
+    const initial = stateAt(doc(tasks(task('Parent', [tasks(task('Enfant caché'))], true)), p('Visible')), 'Parent')
+    const { editor, shortcuts } = shortcutsFor(initial)
+    expect(shortcuts.ArrowDown()).toBe(true)
+    expect(editor.state.selection.$from.parent.textContent).toBe('Visible')
+  })
   it('consumes Tab on the first item so focus stays in the editor', () => {
     const initial = stateAt(doc(tasks(task('Première'))), 'Première')
     const { editor, shortcuts } = shortcutsFor(initial)
@@ -192,5 +205,70 @@ describe('list keyboard behavior', () => {
     expect(parent.child(1).child(1).textContent).toBe('À indenter')
     expect(shortcuts['Shift-Tab']()).toBe(true)
     expect(editor.state.doc.child(0).child(1).textContent).toBe('À indenter')
+  })
+})
+
+
+describe('folded section regressions', () => {
+  it.each(['taskList', 'bulletList', 'orderedList'])('keeps a new %s outside the folded section, even after lists join', (type) => {
+    const itemType = type === 'taskList' ? 'taskItem' : 'listItem'
+    const oldList = schema.nodes[type].create(null, schema.nodes[itemType].create(null, p('Ancien enfant')))
+    const title = heading('Titre', true)
+    const document = doc(title, oldList)
+    const plugins = (OutlineEditing.config.addProseMirrorPlugins as any).call({ editor: { isEditable: true } })
+    let state = stateAt(document, 'Titre').reconfigure({ plugins })
+    state = state.apply(enterAfterCollapsed(state)!)
+    expect(wrapInList(schema.nodes[type])(state, tr => { state = state.apply(tr) })).toBe(true)
+    const boundaryPos = title.nodeSize + oldList.nodeSize
+    expect(blockRange(state.doc, 0)!.to).toBe(boundaryPos)
+    // Reproduce the automatic adjacent-list join performed by Tiptap's toolbar.
+    state = state.apply(state.tr.join(boundaryPos))
+    expect(state.doc.childCount).toBe(3)
+    expect(state.doc.child(1).eq(oldList)).toBe(true)
+    expect(state.doc.child(2).type.name).toBe(type)
+    const hidden = outlineDecorations(state.doc, false).find().filter(d => d.spec.outlineHidden)
+    expect(hidden).toHaveLength(1)
+    expect(hidden[0].to).toBe(boundaryPos)
+    expect(state.selection.from).toBeGreaterThan(boundaryPos)
+    expect(blockRange(schema.nodeFromJSON(state.doc.toJSON()), 0)!.to).toBe(boundaryPos)
+    state.doc.check()
+  })
+
+  it('preserves the boundary through the real Tiptap list toggle command', () => {
+    const title = heading('Titre', true)
+    const oldList = tasks(task('Ancien enfant'))
+    const editor = new Editor({ element: null, content: doc(title, oldList).toJSON(), extensions: [
+      OutlineEditing, StarterKit.configure({ heading: false }), CollapsibleHeading, TaskList, TaskItem.configure({ nested: true }),
+    ] })
+    const plugins = (OutlineEditing.config.addProseMirrorPlugins as any).call({ editor })
+    for (const plugin of plugins) editor.registerPlugin(plugin)
+    editor.commands.setTextSelection(2)
+    editor.view.dispatch(enterAfterCollapsed(editor.state)!)
+    expect(editor.commands.toggleList('taskList', 'taskItem')).toBe(true)
+    expect(editor.state.doc.childCount).toBe(3)
+    expect(blockRange(editor.state.doc, 0)!.to).toBe(title.nodeSize + oldList.nodeSize)
+    expect(editor.state.selection.$from.parent.attrs.outlineBoundary).toBe(true)
+    editor.destroy()
+  })
+
+  it.each(['taskList', 'bulletList', 'orderedList'])('drops an item with children into an empty heading, creating a %s', (type) => {
+    const itemType = type === 'taskList' ? 'taskItem' : 'listItem'
+    const childList = schema.nodes[type].create(null, schema.nodes[itemType].create(null, p('Enfant')))
+    const moved = schema.nodes[itemType].create({ collapsed: true }, [p('À déplacer'), childList])
+    const title = heading('Destination', true)
+    const document = doc(title, p(), heading('Source'), schema.nodes[type].create(null, moved))
+    let state = stateAt(document, 'À déplacer').reconfigure({ plugins: [history()] })
+    const source = blockRange(document, state.selection.from)!
+    const target = headingDropTarget(state, source, 0, true)!
+    expect(target.wrapIn).toBe(schema.nodes[type])
+    state = state.apply(moveBlock(state, source, target.pos, target.wrapIn)!)
+    expect(state.doc.child(0).attrs.collapsed).toBe(false)
+    expect(state.doc.child(1).type.name).toBe(type)
+    expect(state.doc.child(1).child(0).eq(moved)).toBe(true)
+    expect(state.doc.child(2).eq(p())).toBe(true)
+    expect(state.selection.$from.parent.textContent).toBe('À déplacer')
+    state.doc.check()
+    undo(state, tr => { state = state.apply(tr) })
+    expect(state.doc.eq(document)).toBe(true)
   })
 })
