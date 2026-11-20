@@ -3,7 +3,7 @@ import { mergePreferences } from './routeHelpers.js';
 export const registerUserAccessRoutes = ({ app, appContext }) => {
   const {
     logger, pool, bcrypt, requireAuth, requirePermission, requireBaseAdminOrPermission,
-    logAudit, wouldRemoveLastOrganizationAdmin,
+    logAudit, wouldRemoveLastOrganizationAdmin, isSiteCreator, setSiteAdministrator,
   } = appContext;
   app.get('/api/organization/members', requireAuth, requireBaseAdminOrPermission('can_manage_permissions'), async (req, res) => {
     const organizationId = req.auth.activeOrganization?.id;
@@ -12,6 +12,7 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
     const members = await pool.query(
       `SELECT u.id, u.email, u.name, u.provider,
               EXISTS (SELECT 1 FROM site_settings ss WHERE ss.key = 'site_owner_user_id' AND ss.value = u.id::text) AS is_site_owner,
+              EXISTS (SELECT 1 FROM site_settings ss WHERE ss.key = 'site_admin_user_ids' AND ss.value::jsonb ? u.id::text) AS is_site_admin,
               COALESCE(json_agg(ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL), '[]') as role_ids
        FROM organization_members om
        INNER JOIN users u ON u.id = om.user_id
@@ -32,6 +33,7 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
     const candidates = await pool.query(
       `SELECT u.id, u.email, u.name, u.provider,
               EXISTS (SELECT 1 FROM site_settings ss WHERE ss.key = 'site_owner_user_id' AND ss.value = u.id::text) AS is_site_owner,
+              EXISTS (SELECT 1 FROM site_settings ss WHERE ss.key = 'site_admin_user_ids' AND ss.value::jsonb ? u.id::text) AS is_site_admin,
               ARRAY(
                 SELECT DISTINCT r.name
                 FROM user_roles ur
@@ -125,6 +127,7 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
     const users = await pool.query(
       `SELECT u.id, u.email, u.name, u.provider,
               EXISTS (SELECT 1 FROM site_settings ss WHERE ss.key = 'site_owner_user_id' AND ss.value = u.id::text) AS is_site_owner,
+              EXISTS (SELECT 1 FROM site_settings ss WHERE ss.key = 'site_admin_user_ids' AND ss.value::jsonb ? u.id::text) AS is_site_admin,
               COALESCE(u.user_preferences, '{}'::jsonb) AS user_preferences,
               COALESCE(json_agg(ur.role_id) FILTER (WHERE ur.role_id IS NOT NULL), '[]') as role_ids
        FROM users u
@@ -134,6 +137,24 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
       [organizationId]
     );
     res.json(users.rows);
+  });
+
+  app.patch('/api/users/:id/site-admin', requireAuth, async (req, res) => {
+    try {
+      if (!await isSiteCreator(req.auth?.user?.id)) return res.status(403).json({ error: 'Forbidden' });
+      const userId = String(req.params.id || '').trim();
+      const enabled = req.body?.enabled;
+      if (!userId || typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled boolean required' });
+      const user = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
+      if (!user.rowCount) return res.status(404).json({ error: 'user not found' });
+
+      await setSiteAdministrator(pool, userId, enabled);
+      await logAudit(req.auth.user.id, enabled ? 'user.site_admin.grant' : 'user.site_admin.revoke', 'user', userId, { userId });
+      return res.json({ ok: true });
+    } catch (err) {
+      logger.error('Update site administrator failed', err);
+      return res.status(400).json({ error: err.message || 'Update site administrator failed' });
+    }
   });
 
   app.patch('/api/users/:id/preferences', requireAuth, async (req, res) => {

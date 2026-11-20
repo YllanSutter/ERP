@@ -124,6 +124,7 @@ export const useAccessManagerController = ({
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [canManageSiteAdmins, setCanManageSiteAdmins] = useState(false);
   const [memberCandidates, setMemberCandidates] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any[]>([]);
@@ -162,12 +163,13 @@ export const useAccessManagerController = ({
   const loadAll = async () => {
     try {
       setLoading(true);
-      const [rRes, uRes, mRes, pRes, cRes] = await Promise.all([
+      const [rRes, uRes, mRes, pRes, cRes, globalAccessRes] = await Promise.all([
         fetch(`${API_URL}/roles`, { credentials: 'include' }),
         fetch(`${API_URL}/users`, { credentials: 'include' }),
         fetch(`${API_URL}/organization/members`, { credentials: 'include' }),
         fetch(`${API_URL}/permissions`, { credentials: 'include' }),
         fetch(`${API_URL}/organization/member-candidates`, { credentials: 'include' }),
+        fetch(`${API_URL}/appstate/access`, { credentials: 'include' }),
       ]);
       if (!rRes.ok || !uRes.ok || !mRes.ok || !pRes.ok || !cRes.ok) throw new Error('Erreur de chargement');
       const rolesData = await rRes.json();
@@ -180,6 +182,12 @@ export const useAccessManagerController = ({
       setMembers(Array.isArray(membersData) ? membersData : []);
       setPermissions(permsData);
       setMemberCandidates(Array.isArray(candidatesData) ? candidatesData : []);
+      if (globalAccessRes.ok) {
+        const access = await globalAccessRes.json();
+        setCanManageSiteAdmins(access?.canManageGlobalState === true);
+      } else {
+        setCanManageSiteAdmins(false);
+      }
       try {
         setBackupScope('organization');
         const bRes = await fetch(`${API_URL}/db/backups?scope=organization`, { credentials: 'include', headers: backupHeaders() });
@@ -1137,7 +1145,7 @@ export const useAccessManagerController = ({
         .toLowerCase();
       const provider = String(u.provider || 'local').toLowerCase();
       const email = String(u.email || '').toLowerCase();
-      const globalRole = u.is_site_owner ? 'super administrateur supadm compte principal' : '';
+      const globalRole = u.is_site_admin ? `super administrateur supadm${u.is_site_owner ? ' compte principal' : ''}` : '';
       return email.includes(query) || provider.includes(query) || roleNames.includes(query) || globalRole.includes(query);
     });
   }, [selectableUsers, userQuery, roleById]);
@@ -1382,8 +1390,34 @@ export const useAccessManagerController = ({
     }
   };
 
+  const updateUserSiteAdmin = async (userId: string, enabled: boolean) => {
+    const message = enabled
+      ? 'Accorder les droits de super administrateur à ce compte ?'
+      : 'Retirer les droits de super administrateur de ce compte ?';
+    if (!confirm(message)) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/users/${userId}/site-admin`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || 'Update site administrator failed');
+      }
+      await loadAll();
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'Impossible de modifier le statut de super administrateur.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  const panelContext = { API_URL, collections, onSaveSteamExchangeLabels, dashboards, dataTransferTab, setDataTransferTab, importOrganizationName, setImportOrganizationName, importBusy, importOrganizationsFromFiles, loadAll, activeOrganizationId, organizations, organizationNameEdits, organizationColorEdits, updateOrganizationDraft, pendingSettingsCount, savingSettings, settingsNotice, saveAllSettings, busy, deleteOrganization, backupStatus, backupScope, changeBackupScope, backups, backupLabel, setBackupLabel, reloadBackups, createBackup, backupBusy, visibleBackups, formatBytes, restoreBackup, downloadBackup, deleteBackup, sortedBackups, loading, roles, creatingRole, setCreatingRole, selectedRoleId, setSelectedRoleId, newRoleName, setNewRoleName, newRoleDesc, setNewRoleDesc, createRole, permissionsTab, setPermissionsTab, findPermission, toggleFlag, permissions, collectionsWithProps, flags, toggleDashboardVisibilityForRole, isDashboardVisibleForRole, importRelationSummary, patchImportPreviewOrganizations, IMPORT_PROPERTY_TYPE_OPTIONS, selectableUsers, filteredUsers, userQuery, setUserQuery, selectedPreferencesUserId, setSelectedPreferencesUserId, members, user, parseRoleIds, selectedPreferencesDraft, selectedPreferencesUser, memberIds, updateUserPreferencesDraft, passwordInputs, setPasswordInputs, updateUserPassword, deleteUser, isLocal, isSelf, relationChoiceFieldByKey, setRelationChoiceFieldByKey, updateImportOrganizationName, removeImportOrganization, updateImportCollectionName, removeImportCollection, updateImportProperty, removeImportProperty, convertRelationToChoiceField, pickDefaultChoiceFieldId, hydrateChoiceFieldOptions, deletedImportProperties, setDeletedImportProperties, importMapperTab, setImportMapperTab, importMappingDiagnostics, importPreviewOrganizations, importCommitBusy, autoFixImportMapping, importOrganizationsWithManualMapping, showImportMapper, setShowImportMapper };
+
+  const panelContext = { API_URL, collections, onSaveSteamExchangeLabels, dashboards, dataTransferTab, setDataTransferTab, importOrganizationName, setImportOrganizationName, importBusy, importOrganizationsFromFiles, loadAll, activeOrganizationId, organizations, organizationNameEdits, organizationColorEdits, updateOrganizationDraft, pendingSettingsCount, savingSettings, settingsNotice, saveAllSettings, busy, deleteOrganization, backupStatus, backupScope, changeBackupScope, backups, backupLabel, setBackupLabel, reloadBackups, createBackup, backupBusy, visibleBackups, formatBytes, restoreBackup, downloadBackup, deleteBackup, sortedBackups, loading, roles, creatingRole, setCreatingRole, selectedRoleId, setSelectedRoleId, newRoleName, setNewRoleName, newRoleDesc, setNewRoleDesc, createRole, permissionsTab, setPermissionsTab, findPermission, toggleFlag, permissions, collectionsWithProps, flags, toggleDashboardVisibilityForRole, isDashboardVisibleForRole, importRelationSummary, patchImportPreviewOrganizations, IMPORT_PROPERTY_TYPE_OPTIONS, selectableUsers, filteredUsers, userQuery, setUserQuery, selectedPreferencesUserId, setSelectedPreferencesUserId, members, user, parseRoleIds, selectedPreferencesDraft, selectedPreferencesUser, memberIds, updateUserPreferencesDraft, passwordInputs, setPasswordInputs, updateUserPassword, deleteUser, canManageSiteAdmins, updateUserSiteAdmin, isLocal, isSelf, relationChoiceFieldByKey, setRelationChoiceFieldByKey, updateImportOrganizationName, removeImportOrganization, updateImportCollectionName, removeImportCollection, updateImportProperty, removeImportProperty, convertRelationToChoiceField, pickDefaultChoiceFieldId, hydrateChoiceFieldOptions, deletedImportProperties, setDeletedImportProperties, importMapperTab, setImportMapperTab, importMappingDiagnostics, importPreviewOrganizations, importCommitBusy, autoFixImportMapping, importOrganizationsWithManualMapping, showImportMapper, setShowImportMapper };
 
 
   return { isAdmin, panelContext };

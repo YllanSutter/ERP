@@ -1,6 +1,6 @@
 import { registerStaticAssets } from './services/staticAssets.js';
 import { registerBrowserStateRoutes } from './routes/browserStateRoutes.js';
-import { isSiteCreator, ensureSiteCreator } from './services/siteOwnerAccess.js';
+import { isSiteCreator, ensureSiteCreator, setSiteAdministrator } from './services/siteOwnerAccess.js';
 import { createOrganizationBackup, restoreOrganizationBackup } from './services/organizationBackupService.js';
 import { createBackupScheduler, createScopedBackupOperations } from './services/backupScheduler.js';
 import { createDatabaseMaintenance } from './services/databaseMaintenance.js';
@@ -366,6 +366,7 @@ const appContext = {
   defaultCalendarConfig: DEFAULT_CALENDAR_CONFIG,
   withDatabaseMaintenance: databaseMaintenance.run,
   isSiteCreator: (userId) => isSiteCreator(pool, userId),
+  setSiteAdministrator: (userId, enabled) => setSiteAdministrator(pool, userId, enabled),
   backup: {
     getBackupStatus: () => backupScheduler.getStatus(),
     backupScope,

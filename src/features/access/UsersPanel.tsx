@@ -25,7 +25,7 @@ export const UsersPanel = ({ context }: { context: AccessContext }) => {
     .filter((name: unknown): name is string => typeof name === 'string');
   const roleBadges = (entry: any) => (
     <div className="flex flex-wrap items-center gap-1.5">
-      {entry.is_site_owner && <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200"><ShieldCheck size={12} aria-hidden="true" />Super administrateur</span>}
+      {entry.is_site_admin && <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200"><ShieldCheck size={12} aria-hidden="true" />Super administrateur</span>}
       {roleNamesFor(entry).map(name => <span key={name} className="rounded-full bg-brand-500/10 px-2 py-0.5 text-xs text-brand-700 dark:text-brand-300">{name === 'admin' ? 'Administrateur' : name === 'viewer' ? 'Lecture seule' : name}</span>)}
       {context.memberIds.has(entry.id) && roleNamesFor(entry).length === 0 && <span className="text-xs text-muted-foreground">Aucun rôle attribué</span>}
       {!context.memberIds.has(entry.id) && <span className="text-xs text-muted-foreground">Hors organisation</span>}
@@ -72,8 +72,24 @@ export const UsersPanel = ({ context }: { context: AccessContext }) => {
               {context.isSelf && <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-xs text-brand-700 dark:text-brand-300">Vous</span>}
             </div>
             <div className="mt-2">{roleBadges(selected)}</div>
-            {selected.is_site_owner && <p className="mt-2 text-xs text-muted-foreground">Compte principal : import/export global et sauvegardes de la base complète.</p>}
+            {selected.is_site_owner && <p className="mt-2 text-xs text-muted-foreground">Compte principal : ce statut ne peut pas être retiré.</p>}
+            {selected.is_site_admin && <p className="mt-2 text-xs text-muted-foreground">Super administrateur : import/export global et sauvegardes de la base complète.</p>}
           </section>
+
+          {context.canManageSiteAdmins && (
+            <SettingsSection title="Droits globaux" icon={ShieldCheck}>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  className="size-4 accent-brand-600"
+                  checked={Boolean(selected.is_site_admin)}
+                  disabled={context.busy || Boolean(selected.is_site_owner)}
+                  onChange={(event) => context.updateUserSiteAdmin(selected.id, event.target.checked)}
+                />
+                Super administrateur
+              </label>
+              <p className="mt-1 text-xs text-muted-foreground">Donne accès aux opérations globales du site. Seul un super administrateur peut modifier ce statut.</p>
+            </SettingsSection>
+          )}
 
           <SettingsSection title="Sécurité du compte" icon={KeyRound}>
             <div className="flex flex-wrap items-center gap-2">
