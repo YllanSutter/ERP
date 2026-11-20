@@ -955,23 +955,35 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     setFormDataRaw((prev: any) => ({ ...prev, ...updates }));
   }, [collections, editingItem?.id, selectedCollectionId, isReallyEditing]);
 
-  const historyProperties = selectedCollection?.properties;
+  const historySchema = JSON.stringify(selectedCollection?.properties || []);
   React.useEffect(() => {
-    const refresh = () => {
-      setHistoryData(historyItemId ? readItemHistory(activeOrganizationId || 'default',
-        { id: selectedCollectionId, properties: historyProperties }, historyItemId) : null);
-      setHistorySelectedIndex(null);
-      setHistoryPreview(null);
+    let active = true;
+    const refresh = (event?: Event) => {
+      if (!active) return;
+      if (event?.type === 'storage') {
+        const key = (event as StorageEvent).key;
+        if (key && key !== historyKey && key !== `erp-item-versions:${selectedCollectionId}:${historyItemId}`) return;
+      }
+      const next = historyItemId ? readItemHistory(activeOrganizationId || 'default',
+        { id: selectedCollectionId, properties: JSON.parse(historySchema) }, historyItemId) : null;
+      setHistoryData(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
     };
-    refresh();
-    if (historyKey) void loadDatabaseKeys([historyKey, `erp-item-versions:${selectedCollectionId}:${historyItemId}`]).catch(error => console.warn('Historique indisponible', error));
     window.addEventListener('erp-item-history-changed', refresh);
     window.addEventListener('storage', refresh);
+    refresh();
+    if (historyKey) void loadDatabaseKeys([historyKey, `erp-item-versions:${selectedCollectionId}:${historyItemId}`])
+      .then(() => refresh()).catch(error => console.warn('Historique indisponible', error));
     return () => {
+      active = false;
       window.removeEventListener('erp-item-history-changed', refresh);
       window.removeEventListener('storage', refresh);
     };
-  }, [historyKey, historyItemId, activeOrganizationId, selectedCollectionId, historyProperties]);
+  }, [historyKey, historyItemId, activeOrganizationId, selectedCollectionId, historySchema]);
+
+  React.useEffect(() => {
+    setHistorySelectedIndex(null);
+    setHistoryPreview(null);
+  }, [historyKey]);
 
   React.useEffect(() => {
     if (!historyOpen || !historyData || historyData.versions.length === 0) return;

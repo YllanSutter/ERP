@@ -78,14 +78,9 @@ export function readItemHistory(organizationId: string, collection: any, itemId:
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed?.base || !Array.isArray(parsed.versions)) return null;
-    const compact = compactHistory(parsed, collection.properties || []);
-    const encoded = JSON.stringify(compact);
-    try {
-      if (scoped !== encoded) databaseStorage.setItem(key, encoded);
-      // Remove only the duplicate legacy copy after verifying the new write.
-      if (!scoped && databaseStorage.getItem(key) === encoded) databaseStorage.removeItem(legacyKey);
-    } catch (error) { console.warn('Impossible de compacter l’historique', error); }
-    return compact;
+    // Reads must not enqueue writes: the server may re-encode equivalent deltas.
+    // Compact only the in-memory view; the next real edit persists it.
+    return compactHistory(parsed, collection.properties || []);
   } catch { return null; }
 }
 

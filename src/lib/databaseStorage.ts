@@ -161,11 +161,12 @@ export async function loadDatabaseKeys(keys: string[]) {
   const requested = keys.filter(key => !pending.has(key) && !sending.has(key));
   if (!requested.length) return;
   const currentGeneration = generation;
+  const initialValues = new Map(requested.map(key => [key, values.get(key)]));
   const response = await fetch(`${API}/browser-state?organizationId=${encodeURIComponent(organization())}&keys=${encodeURIComponent(JSON.stringify(requested))}`, { credentials: 'include', signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error('Chargement de l’historique impossible');
   const data = await response.json();
   if (generation !== currentGeneration) return;
-  const entries = Object.fromEntries(requested.filter(key => !pending.has(key) && !sending.has(key)).map(key => [key, data.entries[key] ?? null]));
+  const entries = Object.fromEntries(requested.filter(key => !pending.has(key) && !sending.has(key) && values.get(key) === initialValues.get(key)).map(key => [key, data.entries[key] ?? null]));
   accept(entries, true, true);
 }
 export function monitorDatabaseStorage() {

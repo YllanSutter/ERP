@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
-import { clearDatabaseStorage, databaseStorage, flushDatabaseStorage, initializeDatabaseStorage, claimLegacyStorage, getLegacyClaims, getDraftRecoveries, refreshDatabaseStorage } from './databaseStorage';
+import { clearDatabaseStorage, databaseStorage, flushDatabaseStorage, initializeDatabaseStorage, claimLegacyStorage, getLegacyClaims, getDraftRecoveries, refreshDatabaseStorage, loadDatabaseKeys } from './databaseStorage';
 let legacy: Map<string, string>;
 let request: ReturnType<typeof vi.fn>;
 const ok = (body: unknown) => ({ ok: true, json: async () => body });
@@ -148,4 +148,35 @@ it('does not parse or reapply unchanged preference responses', async () => {
   await refreshDatabaseStorage();
   expect(json).not.toHaveBeenCalled();
   expect(request.mock.calls[1][1].headers['If-None-Match']).toBe('version-1');
+});
+
+it('keeps an inline-edit history when an older lazy load arrives after its save acknowledgement', async () => {
+  request.mockResolvedValueOnce(ok({ entries: {} }));
+  await initializeDatabaseStorage('u', 'org');
+  let resolveLoad!: (value: any) => void;
+  request.mockImplementationOnce(() => new Promise(resolve => { resolveLoad = resolve; }));
+  const key = 'erp-item-versions:org:c:i';
+  const loading = loadDatabaseKeys([key]);
+  const history = JSON.stringify({ base: { price: 40 }, versions: [{ id: 'new', patch: { set: { price: 38 }, unset: [] } }] });
+  databaseStorage.setItem(key, history);
+  request.mockResolvedValueOnce(ok({ entries: { [key]: history }, partial: true }));
+  await flushDatabaseStorage();
+  resolveLoad(ok({ entries: {} }));
+  await loading;
+  expect(databaseStorage.getItem(key)).toBe(history);
+});
+
+it('still loads history if an unrelated draft changes during the request', async () => {
+  request.mockResolvedValueOnce(ok({ entries: {} }));
+  await initializeDatabaseStorage('u', 'org');
+  let resolveLoad!: (value: any) => void;
+  request.mockImplementationOnce(() => new Promise(resolve => { resolveLoad = resolve; }));
+  const key = 'erp-item-versions:org:c:i';
+  const loading = loadDatabaseKeys([key]);
+  databaseStorage.setItem('erp-item-draft:c:i', 'unsaved text');
+  const history = JSON.stringify({ base: { price: 40 }, versions: [] });
+  resolveLoad(ok({ entries: { [key]: history } }));
+  await loading;
+  expect(databaseStorage.getItem(key)).toBe(history);
+  expect(databaseStorage.getItem('erp-item-draft:c:i')).toBe('unsaved text');
 });

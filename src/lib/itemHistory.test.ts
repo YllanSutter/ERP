@@ -82,11 +82,11 @@ describe('compact item history', () => {
     expect(compactHistory(compact, properties)).toEqual(compact);
   });
 
-  it('migrates legacy keys without duplicate storage and isolates organizations', () => {
+  it('reads legacy history without writing and isolates scoped organizations', () => {
     storage.set('erp-item-versions:c:i', JSON.stringify({ base: { id: 'i' }, versions: [] }));
     expect(readItemHistory('org', col([])[0], 'i')!.base).toEqual({ id: 'i' });
-    expect(storage.has('erp-item-versions:c:i')).toBe(false);
-    expect(storage.has(historyKey('org', 'c', 'i'))).toBe(true);
+    expect(storage.has('erp-item-versions:c:i')).toBe(true);
+    expect(storage.has(historyKey('org', 'c', 'i'))).toBe(false);
     storage.delete('erp-item-versions:c:i');
     expect(readItemHistory('another-org', col([])[0], 'i')).toBeNull();
   });
@@ -115,6 +115,21 @@ it('preserves unreadable existing history rather than overwriting it', () => {
   storage.set(key, raw);
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   recordCollectionHistory(col([{ id: 'i', name: 'old' }]), col([{ id: 'i', name: 'new' }]), 'org', user);
+  expect(storage.get(key)).toBe(raw);
+  vi.restoreAllMocks();
+});
+
+it('does not rewrite server-expanded patches when opening or refreshing history', () => {
+  const notes = 'a'.repeat(1000);
+  const key = historyKey('org', 'c', 'i');
+  const raw = JSON.stringify({ base: { notes }, versions: [{ id: 'v', patch: { set: { notes: notes + '!' }, unset: [] } }] });
+  storage.set(key, raw);
+  const write = vi.spyOn(localStorage, 'setItem');
+  for (let i = 0; i < 3; i++) {
+    const history = readItemHistory('org', col([])[0], 'i')!;
+    expect(buildSnapshotAt(history.base, history.versions, 0).notes).toBe(notes + '!');
+  }
+  expect(write).not.toHaveBeenCalled();
   expect(storage.get(key)).toBe(raw);
   vi.restoreAllMocks();
 });
