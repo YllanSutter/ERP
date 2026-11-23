@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useAnimatedBackdrop } from '@/lib/hooks/useAnimatedBackdrop';
 
-// Fond animé : étoiles qui dérivent et grille qui s'allume au survol.
+// Fond interactif : étoiles fixes et grille qui s'allume au survol.
 // Remplit son parent positionné ; couleurs surchargeables par className via les variables --bd-*.
 const THEME =
   '[--bd-bg:#f6f7f9] [--bd-line:rgba(15,23,42,0.09)] [--bd-star:rgba(15,23,42,0.32)] [--bd-accent:#d9971f] [--bd-grid:rgba(15,23,42,0.02)] ' +
@@ -11,7 +11,7 @@ const FALLOFF = [1, 0.55, 0.25]; // intensité de la case survolée puis des ann
 const FADE_MS = 650;
 const FRAME_MS = 1000 / 30;
 
-type Star = { x: number; y: number; r: number; vx: number; vy: number; phase: number; accent: boolean };
+type Star = { x: number; y: number; r: number; accent: boolean };
 
 type BackdropProps = { className?: string; cellSize?: number };
 
@@ -39,16 +39,13 @@ function BackdropCanvas({ className, cellSize = 18 }: BackdropProps) {
 
     const resize = () => {
       rect = canvas.getBoundingClientRect();
-      ratio = Math.min(window.devicePixelRatio || 1, 2);
+      ratio = Math.min(window.devicePixelRatio || 1, 1.5);
       canvas.width = Math.round(rect.width * ratio);
       canvas.height = Math.round(rect.height * ratio);
       stars = Array.from({ length: Math.round((rect.width * rect.height) / 11000) }, () => ({
         x: Math.random() * rect.width,
         y: Math.random() * rect.height,
         r: 0.6 + Math.random() * 1.1,
-        vx: (Math.random() - 0.5) * 6,
-        vy: (Math.random() - 0.5) * 6,
-        phase: Math.random() * Math.PI * 2,
         accent: Math.random() < 0.03,
       }));
       cells.clear();
@@ -68,6 +65,11 @@ function BackdropCanvas({ className, cellSize = 18 }: BackdropProps) {
 
     const move = (e: PointerEvent) => {
       if (!animated() || e.pointerType === 'touch') return;
+      // Ignore interactions covered by another surface (notably modal portals).
+      if (e.target instanceof Node && !canvas.parentElement?.parentElement?.contains(e.target)) {
+        pointer = null;
+        return;
+      }
       rect = canvas.getBoundingClientRect();
       const to = { x: e.clientX - rect.left, y: e.clientY - rect.top };
       if (to.x < 0 || to.y < 0 || to.x > rect.width || to.y > rect.height) { pointer = null; return; }
@@ -99,7 +101,7 @@ function BackdropCanvas({ className, cellSize = 18 }: BackdropProps) {
       const starColor = css.getPropertyValue('--bd-star');
       const accent = css.getPropertyValue('--bd-accent');
       for (const s of stars) {
-        ctx.globalAlpha = animated() ? 0.55 + 0.45 * Math.sin(s.phase) ** 2 : 0.8;
+        ctx.globalAlpha = 0.8;
         ctx.fillStyle = s.accent ? accent : starColor;
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.accent ? s.r + 0.4 : s.r, 0, Math.PI * 2);
@@ -113,20 +115,27 @@ function BackdropCanvas({ className, cellSize = 18 }: BackdropProps) {
       if (last && now - last < FRAME_MS - 4) return schedule();
       const dt = last ? Math.min(100, now - last) : FRAME_MS;
       last = now;
-      for (const s of stars) {
-        s.x = (s.x + (s.vx * dt) / 1000 + rect.width) % rect.width;
-        s.y = (s.y + (s.vy * dt) / 1000 + rect.height) % rect.height;
-        s.phase += dt / 1400;
-      }
       const fade = Math.exp(-dt / FADE_MS);
-      for (const [key, a] of cells) a * fade < 0.02 ? cells.delete(key) : cells.set(key, a * fade);
+      for (const [key, a] of cells) {
+        if (a * fade < 0.02) cells.delete(key);
+        else cells.set(key, a * fade);
+      }
       draw();
       schedule();
     };
 
     function schedule() {
-      if (!frame && animated()) frame = requestAnimationFrame(tick);
-      else if (!animated()) { last = 0; draw(); }
+      // No full-surface redraws at rest; animate only the fading pointer trail.
+      if (animated() && cells.size > 0) {
+        if (!frame) frame = requestAnimationFrame(tick);
+      } else {
+        cancelAnimationFrame(frame);
+        frame = 0;
+        last = 0;
+        pointer = null;
+        cells.clear();
+        draw();
+      }
     }
 
     const observer = new ResizeObserver(resize);

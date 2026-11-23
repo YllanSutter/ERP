@@ -1284,7 +1284,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-[200]"
+        className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-[200]"
         onClick={onClose}
       >
       {/* Style global pour masquer les flèches des input[type=number] */}

@@ -35,7 +35,6 @@
   top: 0;
   z-index: 1;
   background: rgba(255, 255, 255);
-  backdrop-filter: blur(6px);
 }
 
 .dark .rte-container .tiptap-toolbar[data-variant="fixed"] {
