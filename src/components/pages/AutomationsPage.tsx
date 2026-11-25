@@ -62,6 +62,7 @@ interface AutomationTrigger {
   collectionId: string;
   conditions: Condition[];
   watchFields?: string[]; // pour item_updated uniquement
+  position?: { x: number; y: number };
 }
 
 interface ActionField {
@@ -97,6 +98,7 @@ interface AutomationAction {
   delaySeconds?: number;
   matchFieldId?: string;
   matchValue?: string;
+  position?: { x: number; y: number };
 }
 
 interface Automation {
@@ -214,6 +216,125 @@ const Input: React.FC<{
     className={`bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-neutral-800 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${className}`}
   />
 );
+
+const ACTION_TYPE_OPTIONS = Object.entries(ACTION_LABELS).map(([value, label]) => ({ value: value as ActionType, label }));
+
+const WorkflowCanvas: React.FC<{
+  trigger: AutomationTrigger;
+  triggerName: string;
+  collections: any[];
+  actions: AutomationAction[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+  onChangeTrigger: (trigger: AutomationTrigger) => void;
+  onChangeActions: (actions: AutomationAction[]) => void;
+}> = ({ trigger, triggerName, collections, actions, selectedId, onSelect, onChangeTrigger, onChangeActions }) => {
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [insertAt, setInsertAt] = useState<number | null>(null);
+  const nodePosition = (action: AutomationAction, index: number) => action.position || { x: 340, y: 190 + index * 175 };
+  const triggerPosition = trigger.position || { x: 340, y: 24 };
+  const allPositions = [triggerPosition, ...actions.map(nodePosition)];
+  const boardHeight = Math.max(330, ...allPositions.map((pos) => pos.y + 160));
+
+  const addBlock = (type: ActionType, index: number) => {
+    const action: AutomationAction = {
+      ...emptyAction(),
+      type,
+      position: { x: 340, y: 190 + index * 175 },
+      conditions: type === 'condition' ? [{ id: uuid(), fieldId: '', operator: 'is_not_empty', value: '' }] : undefined,
+      thenActions: type === 'condition' ? [emptyAction()] : undefined,
+      elseActions: type === 'condition' ? [] : undefined,
+      delaySeconds: type === 'delay' ? 1 : undefined,
+    };
+    const next = [...actions];
+    next.splice(index, 0, action);
+    onChangeActions(next);
+    setInsertAt(null);
+    onSelect(action.id);
+  };
+
+  const moveNode = (nodeId: string, event: React.DragEvent) => {
+    const bounds = boardRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const position = {
+      x: Math.max(12, Math.min(650, event.clientX - bounds.left - 140)),
+      y: Math.max(8, event.clientY - bounds.top - 26),
+    };
+    if (nodeId === 'workflow-trigger') onChangeTrigger({ ...trigger, position });
+    else onChangeActions(actions.map((action) => action.id === nodeId ? { ...action, position } : action));
+  };
+
+  const nodes = [
+    { id: 'workflow-trigger', kind: 'trigger' as const, title: 'Déclencheur', subtitle: `${TRIGGER_LABELS[trigger.type]}${triggerName ? ` · ${triggerName}` : ''}`, position: triggerPosition },
+    ...actions.map((action, index) => ({
+      id: action.id, kind: action.type as ActionType, title: ACTION_LABELS[action.type],
+      subtitle: action.type === 'condition'
+        ? `OUI : ${action.thenActions?.length || 0} bloc(s) · NON : ${action.elseActions?.length || 0} bloc(s)`
+        : action.type === 'delay' ? `Attendre ${action.delaySeconds || 0} seconde(s)`
+          : action.collectionId ? collections.find((collection) => collection.id === action.collectionId)?.name || 'À configurer' : 'À configurer',
+      position: nodePosition(action, index),
+    })),
+  ];
+
+  return (
+    <div className="rounded-xl border border-neutral-200 dark:border-white/10 bg-[#f7f8fa] dark:bg-[#111318] overflow-auto">
+      <div className="relative min-w-[960px]" ref={boardRef} style={{ height: boardHeight }}
+        onDragOver={(event) => event.preventDefault()} onDrop={(event) => { const id = event.dataTransfer.getData('application/x-automation-node'); if (id) moveNode(id, event); }}>
+        <svg className="absolute inset-0 h-full w-full pointer-events-none" aria-hidden="true">
+          {nodes.slice(0, -1).map((node, index) => {
+            const next = nodes[index + 1];
+            const startX = node.position.x + 140;
+            const startY = node.position.y + 112;
+            const endX = next.position.x + 140;
+            const endY = next.position.y;
+            const curve = Math.max(28, Math.abs(endY - startY) * 0.45);
+            return <path key={`${node.id}-${next.id}`} d={`M ${startX} ${startY} C ${startX} ${startY + curve}, ${endX} ${endY - curve}, ${endX} ${endY}`}
+              fill="none" stroke="currentColor" strokeWidth="2" className="text-neutral-300 dark:text-neutral-700" />;
+          })}
+        </svg>
+
+        {nodes.map((node, index) => (
+          <React.Fragment key={node.id}>
+            <button onClick={() => onSelect(node.id)}
+              className={`absolute z-10 w-[280px] min-h-[112px] rounded-xl border bg-white dark:bg-neutral-900 px-4 py-3 text-left shadow-sm transition-shadow hover:shadow-md ${selectedId === node.id ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-neutral-200 dark:border-white/10'}`}
+              style={{ left: node.position.x, top: node.position.y }}>
+              <span draggable onDragStart={(event) => { event.dataTransfer.setData('application/x-automation-node', node.id); event.dataTransfer.effectAllowed = 'move'; }}
+                onClick={(event) => event.stopPropagation()}
+                className="absolute right-3 top-3 cursor-grab text-neutral-300 active:cursor-grabbing" title="Déplacer le bloc"><GripVertical size={15} /></span>
+              <span className={`mb-2 inline-flex rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${node.kind === 'trigger' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : node.kind === 'condition' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' : 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300'}`}>
+                {node.kind === 'trigger' ? 'Déclencheur' : node.kind === 'condition' ? 'Branchement' : 'Action'}
+              </span>
+              <div className="pr-5 text-sm font-semibold text-neutral-800 dark:text-neutral-100">{node.title}</div>
+              <div className="mt-1 truncate text-xs text-neutral-500 dark:text-neutral-400">{node.subtitle}</div>
+            </button>
+            {index < nodes.length - 1 && (() => {
+              const next = nodes[index + 1];
+              const x = Math.round((node.position.x + next.position.x) / 2 + 128);
+              const y = Math.round((node.position.y + 112 + next.position.y) / 2 - 12);
+              return <div key={`insert-${node.id}`} className="absolute z-20" style={{ left: x, top: y }}>
+                <button onClick={() => setInsertAt(insertAt === index ? null : index)} className="flex h-7 w-7 items-center justify-center rounded-full border border-neutral-300 bg-white text-neutral-600 shadow hover:border-blue-500 hover:text-blue-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300" title="Ajouter un bloc"><Plus size={14} /></button>
+                {insertAt === index && <div className="absolute left-8 top-0 z-30 w-56 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-white/10 dark:bg-neutral-800">
+                  {ACTION_TYPE_OPTIONS.map((option) => <button key={option.value} onClick={() => addBlock(option.value, index)} className="block w-full rounded px-3 py-2 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-white/10">{option.label}</button>)}
+                </div>}
+              </div>;
+            })()}
+          </React.Fragment>
+        ))}
+        <button onClick={() => setInsertAt(insertAt === actions.length ? null : actions.length)}
+          className="absolute z-20 flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 bg-white text-neutral-600 shadow hover:border-blue-500 hover:text-blue-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+          style={{ left: 466, top: nodes[nodes.length - 1].position.y + 132 }} title="Ajouter un bloc"><Plus size={15} /></button>
+        {insertAt === actions.length && <div className="absolute left-[505px] z-30 w-56 rounded-lg border border-neutral-200 bg-white p-1 shadow-xl dark:border-white/10 dark:bg-neutral-800" style={{ top: nodes[nodes.length - 1].position.y + 132 }}>
+          {ACTION_TYPE_OPTIONS.map((option) => <button key={option.value} onClick={() => addBlock(option.value, actions.length)} className="block w-full rounded px-3 py-2 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-white/10">{option.label}</button>)}
+        </div>}
+        {actions.length === 0 && <div className="absolute left-[505px] top-[166px] rounded-md bg-neutral-100 px-2 py-1 text-[10px] text-neutral-500 dark:bg-white/5">Ajoute le premier bloc avec +</div>}
+      </div>
+      <div className="flex items-center justify-between border-t border-neutral-200 px-3 py-2 text-[10px] text-neutral-400 dark:border-white/10">
+        <span>Glisse les poignées pour déplacer les blocs · Clique sur + pour en ajouter</span>
+        <span>{actions.length} bloc(s) d’action</span>
+      </div>
+    </div>
+  );
+};
 
 // ─── FieldValuePicker ─────────────────────────────────────────────────────────
 // Select Radix contextuel + fallback "Autre" → input libre
@@ -401,6 +522,8 @@ const AutomationEditor: React.FC<{
   onDelete: () => void;
 }> = ({ automation, collections, onChange, onDelete }) => {
   const [expanded, setExpanded] = useState(false);
+  const [selectedStepId, setSelectedStepId] = useState('workflow-trigger');
+  const [showBlockSettings, setShowBlockSettings] = useState(false);
   const [showRuns, setShowRuns] = useState(false);
   const [runs, setRuns] = useState<AutomationRun[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
@@ -642,22 +765,23 @@ const AutomationEditor: React.FC<{
       {expanded && (
         <div className="px-4 pb-4 pt-2 border-t border-neutral-100 dark:border-white/5 space-y-5">
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-1" aria-label="Étapes de l’automatisation">
-            <div className="shrink-0 flex items-center gap-2 rounded-full border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/40 px-3 py-1.5 text-xs text-blue-700 dark:text-blue-300">
-              <Zap size={12} /> Déclencheur
-            </div>
-            <div className="h-px w-6 shrink-0 bg-neutral-300 dark:bg-neutral-700" />
-            <div className="shrink-0 rounded-full border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-300">
-              {automation.trigger.conditions?.length ? `${automation.trigger.conditions.length} condition${automation.trigger.conditions.length > 1 ? 's' : ''}` : 'Conditions'}
-            </div>
-            <div className="h-px w-6 shrink-0 bg-neutral-300 dark:bg-neutral-700" />
-            <div className="shrink-0 flex items-center gap-2 rounded-full border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-700 dark:text-emerald-300">
-              <ArrowRight size={12} /> {automation.actions.length} action{automation.actions.length !== 1 ? 's' : ''}
-            </div>
-          </div>
+          <WorkflowCanvas
+            trigger={automation.trigger}
+            triggerName={triggerCollection?.name || ''}
+            collections={collections}
+            actions={automation.actions}
+            selectedId={selectedStepId}
+            onSelect={(id) => { setSelectedStepId(id); setShowBlockSettings(true); }}
+            onChangeTrigger={(trigger) => update({ trigger })}
+            onChangeActions={(actions) => update({ actions })}
+          />
+
+          <details open={showBlockSettings} onToggle={(event) => setShowBlockSettings((event.currentTarget as HTMLDetailsElement).open)} className="rounded-xl border border-neutral-200 dark:border-white/10">
+            <summary className="cursor-pointer select-none px-4 py-3 text-xs font-medium text-neutral-600 dark:text-neutral-300">Réglages du bloc sélectionné</summary>
+            <div className="border-t border-neutral-100 p-3 dark:border-white/5">
 
           {/* ── TRIGGER ── */}
-          <div>
+          {selectedStepId === 'workflow-trigger' && <div>
             <SectionLabel>Déclencheur</SectionLabel>
             <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl p-4 space-y-3">
               <div className="flex flex-wrap gap-2 items-center">
@@ -759,36 +883,31 @@ const AutomationEditor: React.FC<{
                 </div>
               )}
             </div>
-          </div>
+          </div>}
 
           {/* ── ACTIONS ── */}
-          <div>
+          {selectedStepId !== 'workflow-trigger' && <div>
             <SectionLabel>Actions</SectionLabel>
             <div className="space-y-3">
-              {automation.actions.map((action, idx) => (
+              {automation.actions.map((action, idx) => action.id === selectedStepId ? (
                 <ActionEditor
                   key={action.id}
                   index={idx}
                   action={action}
                   collections={collections}
                   triggerCollectionId={automation.trigger.collectionId}
-                  previousCreateActions={automation.actions.slice(0, idx).filter((a) => a.type === 'create_item').map((a, i) => ({ id: a.id, label: collections.find((c) => c.id === a.collectionId)?.name || `Action ${i + 1}` }))}
+                  previousCreateActions={automation.actions.slice(0, idx).filter((a) => a.type === 'create_item' || a.type === 'find_or_create_item').map((a, i) => ({ id: a.id, label: collections.find((c) => c.id === a.collectionId)?.name || `Action ${i + 1}` }))}
                   onMoveUp={() => moveAction(idx, -1)}
                   onMoveDown={() => moveAction(idx, 1)}
                   onMoveToIndex={(toIndex) => moveActionToIndex(idx, toIndex)}
                   onChange={(patch) => updateAction(action.id, patch)}
-                  onRemove={() => removeAction(action.id)}
+                  onRemove={() => { removeAction(action.id); setSelectedStepId('workflow-trigger'); }}
                 />
-              ))}
+              ) : null)}
             </div>
-            <button
-              onClick={addAction}
-              className="mt-3 flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-            >
-              <Plus size={14} />
-              Ajouter une action
-            </button>
-          </div>
+          </div>}
+            </div>
+          </details>
         </div>
       )}
     </div>
@@ -1326,7 +1445,7 @@ const ActionEditor: React.FC<{
             return <div key={branchKey} className="rounded-lg border border-neutral-200 dark:border-white/10 p-3 space-y-2">
               <div className={`text-xs font-semibold ${isThen ? 'text-emerald-600' : 'text-amber-600'}`}>{isThen ? 'OUI — exécuter' : 'NON — sinon'}</div>
               {branch.map((nested, nestedIndex) => <ActionEditor key={nested.id} index={nestedIndex} action={nested} collections={collections}
-                triggerCollectionId={triggerCollectionId} previousCreateActions={[...previousCreateActions, ...branch.slice(0, nestedIndex).filter((entry) => entry.type === 'create_item').map((entry, i) => ({ id: entry.id, label: `Action créée ${i + 1}` }))]}
+                triggerCollectionId={triggerCollectionId} previousCreateActions={[...previousCreateActions, ...branch.slice(0, nestedIndex).filter((entry) => entry.type === 'create_item' || entry.type === 'find_or_create_item').map((entry, i) => ({ id: entry.id, label: `Action créée ${i + 1}` }))]}
                 onChange={(patch) => changeBranch(branch.map((entry) => entry.id === nested.id ? { ...entry, ...patch } : entry))}
                 onRemove={() => changeBranch(branch.filter((entry) => entry.id !== nested.id))}
                 onMoveToIndex={(toIndex) => { const next = [...branch]; const [moved] = next.splice(nestedIndex, 1); next.splice(toIndex, 0, moved); changeBranch(next); }} />)}
@@ -1476,7 +1595,7 @@ const AutomationsPage: React.FC<AutomationsPageProps> = ({ collections }) => {
         )}
 
         {!loading && automations.length > 0 && (
-          <div className="space-y-3 max-w-3xl">
+          <div className="space-y-3 max-w-6xl">
             {automations.map((auto) => (
               <div key={auto.id} className="relative">
                 {saving.has(auto.id) && (
