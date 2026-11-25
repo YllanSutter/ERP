@@ -100,6 +100,7 @@ export interface GroupTotalConfig {
 export interface TableViewProps {
   collection: Collection;
   items: Item[];
+  paginationStorageKey?: string;
   favoriteItemIds?: string[];
   onEdit: (item: Item) => void;
   onBulkUpdate?: (items: Item[], collectionId?: string) => void;

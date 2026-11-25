@@ -32,6 +32,7 @@ type CardsViewProps = Omit<TableViewProps, 'displayAsCards'> & {
 const CardsView: React.FC<CardsViewProps> = ({
   collection,
   items,
+  paginationStorageKey,
   orderedProperties,
   hiddenFields,
   collections,
@@ -181,7 +182,8 @@ const CardsView: React.FC<CardsViewProps> = ({
     items,
     groupedItemCount: items.length,
     hasGroups: groups.length > 0,
-    resetKey: `${collection.id}|${groups.join(',')}`,
+    storageKey: paginationStorageKey || `erp:view-pagination:${collection.id}:default`,
+    resetKey: groups.join(','),
   });
   const paginateItems = useCallback((groupItems: typeof items) => {
     const start = (page - 1) * rowsPerPage;

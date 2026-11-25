@@ -27,6 +27,7 @@ const TableRenderer: React.FC<TableRendererProps> = ({
     <TableView
       collection={collection}
       items={items}
+      paginationStorageKey={`erp:view-pagination:${collection.id}:${view.id}`}
       onEdit={onEdit}
       onDelete={onDelete}
       onViewDetail={onViewDetail}

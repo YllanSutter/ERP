@@ -116,25 +116,27 @@ const applyRelationChanges = (collections, sourceCollection, sourceItem, relatio
 // ─── Condition checker ────────────────────────────────────────────────────────
 // conditions : [{ fieldId, operator, value }]
 // operators  : equals, not_equals, contains, is_empty, is_not_empty, greater, less
-const checkCondition = (item, condition) => {
+const checkCondition = (item, condition, actionResults = {}) => {
   const { fieldId, operator, value } = condition;
-  const fieldVal = item?.[fieldId];
+  const match = String(fieldId || '').match(/^action\.([^.]+)\.(.+)$/);
+  const fieldVal = match ? actionResults?.[match[1]]?.[match[2]] : item?.[fieldId];
+  const resolvedValue = resolveTemplate(value ?? '', item, actionResults);
 
   switch (operator) {
-    case 'equals':       return String(fieldVal ?? '') === String(value ?? '');
-    case 'not_equals':   return String(fieldVal ?? '') !== String(value ?? '');
-    case 'contains':     return String(fieldVal ?? '').toLowerCase().includes(String(value ?? '').toLowerCase());
+    case 'equals':       return String(fieldVal ?? '') === String(resolvedValue ?? '');
+    case 'not_equals':   return String(fieldVal ?? '') !== String(resolvedValue ?? '');
+    case 'contains':     return String(fieldVal ?? '').toLowerCase().includes(String(resolvedValue ?? '').toLowerCase());
     case 'is_empty':     return fieldVal === null || fieldVal === undefined || fieldVal === '' || (Array.isArray(fieldVal) && fieldVal.length === 0);
     case 'is_not_empty': return !(fieldVal === null || fieldVal === undefined || fieldVal === '' || (Array.isArray(fieldVal) && fieldVal.length === 0));
-    case 'greater':      return Number(fieldVal) > Number(value);
-    case 'less':         return Number(fieldVal) < Number(value);
+    case 'greater':      return Number(fieldVal) > Number(resolvedValue);
+    case 'less':         return Number(fieldVal) < Number(resolvedValue);
     default:             return true;
   }
 };
 
-const checkConditions = (item, conditions) => {
+const checkConditions = (item, conditions, actionResults = {}) => {
   if (!Array.isArray(conditions) || conditions.length === 0) return true;
-  return conditions.every((c) => checkCondition(item, c));
+  return conditions.every((c) => checkCondition(item, c, actionResults));
 };
 
 // ─── Action executor ──────────────────────────────────────────────────────────
@@ -250,7 +252,7 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
     }
 
     case 'condition': {
-      const branch = checkConditions(triggerItem, action.conditions || []);
+      const branch = checkConditions(triggerItem, action.conditions || [], actionResults);
       const nestedActions = branch ? action.thenActions || [] : action.elseActions || [];
       let lastResult = null;
       for (const nestedAction of nestedActions) {
@@ -302,7 +304,7 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
  */
 export const loadAutomations = async (pool, organizationId) => {
   const result = await pool.query(
-    'SELECT id, name, enabled, trigger_data, actions_data FROM automations WHERE organization_id = $1 AND enabled = TRUE',
+    'SELECT id, name, enabled, trigger_data, actions_data, nodes_data, edges_data FROM automations WHERE organization_id = $1 AND enabled = TRUE',
     [organizationId]
   );
   return result.rows.map((row) => ({
@@ -311,6 +313,8 @@ export const loadAutomations = async (pool, organizationId) => {
     enabled: row.enabled,
     trigger: typeof row.trigger_data === 'string' ? JSON.parse(row.trigger_data) : row.trigger_data,
     actions: typeof row.actions_data === 'string' ? JSON.parse(row.actions_data) : row.actions_data,
+    nodes: typeof row.nodes_data === 'string' ? JSON.parse(row.nodes_data) : row.nodes_data || [],
+    edges: typeof row.edges_data === 'string' ? JSON.parse(row.edges_data) : row.edges_data || [],
   }));
 };
 
@@ -391,25 +395,58 @@ export const triggerAutomations = async ({
     const actions = Array.isArray(automation.actions) ? automation.actions : [];
     const actionResults = {};
     try {
-      for (const [index, action] of actions.entries()) {
+      const flowNodes = Array.isArray(automation.nodes) ? automation.nodes : [];
+      const flowEdges = Array.isArray(automation.edges) ? automation.edges : [];
+      const triggerNode = flowNodes.find((node) => node.type === 'trigger');
+      let sequencePosition = 0;
+      const executeNode = async (node, branch) => {
+        const action = { ...(node.data || {}), id: node.id, type: node.type };
         try {
-          const result = await executeAction(
-            action,
-            enrichedTriggerItem,
-            state,
-            pool,
-            organizationId,
-            calculateEventSegments,
-            getDefaultCalendarConfig,
-            actionResults,
-            dryRun,
-          );
-          if (result && action?.id) actionResults[action.id] = result;
-          eventDetails.steps.push({ actionId: action.id, type: action.type, status: 'success', position: index + 1 });
+          let result = null;
+          if (node.type === 'condition') {
+            const nestedActions = branch === 'true' ? node.data?.thenActions || [] : node.data?.elseActions || [];
+            for (const nestedAction of nestedActions) {
+              result = await executeAction(nestedAction, enrichedTriggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults, dryRun);
+              if (result && nestedAction.id) actionResults[nestedAction.id] = result;
+            }
+          } else {
+            result = await executeAction(action, enrichedTriggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults, dryRun);
+          }
+          if (result && action.id) actionResults[action.id] = result;
+          eventDetails.steps.push({ actionId: node.id, type: node.type, status: 'success', position: ++sequencePosition, ...(branch ? { branch } : {}) });
         } catch (error) {
-          eventDetails.steps.push({ actionId: action.id, type: action.type, status: 'error', position: index + 1, message: error?.message || 'Erreur inconnue' });
+          eventDetails.steps.push({ actionId: action.id, type: action.type, status: 'error', position: ++sequencePosition, message: error?.message || 'Erreur inconnue' });
           throw error;
         }
+      };
+      if (triggerNode && flowEdges.length) {
+        const outgoing = new Map();
+        flowEdges.forEach((edge) => outgoing.set(edge.source, [...(outgoing.get(edge.source) || []), edge]));
+        const queue = (outgoing.get(triggerNode.id) || [])
+          .filter((edge) => !edge.sourceHandle || edge.sourceHandle === 'default')
+          .map((edge) => edge.target);
+        const visited = new Set([triggerNode.id]);
+        while (queue.length && visited.size < 250) {
+          const nodeId = queue.shift();
+          if (visited.has(nodeId)) continue;
+          visited.add(nodeId);
+          const node = flowNodes.find((entry) => entry.id === nodeId);
+          if (!node) continue;
+          let branch;
+          if (node.type === 'condition') {
+            const passes = checkConditions(enrichedTriggerItem, node.data?.conditions || [], actionResults);
+            branch = passes ? 'true' : 'false';
+            const handles = passes ? ['true', 'yes'] : ['false', 'no'];
+            for (const edge of outgoing.get(nodeId) || []) {
+              if (handles.includes(edge.sourceHandle)) queue.push(edge.target);
+            }
+          } else {
+            for (const edge of outgoing.get(nodeId) || []) queue.push(edge.target);
+          }
+          await executeNode(node, branch);
+        }
+      } else {
+        for (const action of actions) await executeNode({ id: action.id, type: action.type, data: action });
       }
       await saveRun(pool, organizationId, automation.id, 'success', eventDetails);
     } catch (error) {

@@ -22,7 +22,7 @@ export const registerAutomationRoutes = ({ app, appContext }) => {
       const { itemId } = req.body || {};
       if (!itemId) return res.status(400).json({ error: 'Choisis un item de test.' });
       const autoResult = await pool.query(
-        'SELECT id, name, enabled, trigger_data, actions_data FROM automations WHERE id=$1 AND organization_id=$2',
+        'SELECT id, name, enabled, trigger_data, actions_data, nodes_data, edges_data FROM automations WHERE id=$1 AND organization_id=$2',
         [req.params.id, organizationId]
       );
       if (!autoResult.rowCount) return res.status(404).json({ error: 'Automation not found' });
@@ -33,6 +33,8 @@ export const registerAutomationRoutes = ({ app, appContext }) => {
         enabled: true,
         trigger: typeof row.trigger_data === 'string' ? JSON.parse(row.trigger_data) : row.trigger_data,
         actions: typeof row.actions_data === 'string' ? JSON.parse(row.actions_data) : row.actions_data,
+        nodes: typeof row.nodes_data === 'string' ? JSON.parse(row.nodes_data) : row.nodes_data || [],
+        edges: typeof row.edges_data === 'string' ? JSON.parse(row.edges_data) : row.edges_data || [],
       };
       const stateResult = await pool.query('SELECT data FROM app_state WHERE organization_id=$1 LIMIT 1', [organizationId]);
       if (!stateResult.rowCount) return res.status(404).json({ error: 'State not found' });
@@ -107,7 +109,7 @@ export const registerAutomationRoutes = ({ app, appContext }) => {
       if (!organizationId) return res.status(400).json({ error: 'No active organization' });
 
       const result = await pool.query(
-        `SELECT id, name, enabled, trigger_data, actions_data, created_at, updated_at
+        `SELECT id, name, enabled, trigger_data, actions_data, nodes_data, edges_data, created_at, updated_at
          FROM automations
          WHERE organization_id = $1
          ORDER BY created_at ASC`,
@@ -120,6 +122,8 @@ export const registerAutomationRoutes = ({ app, appContext }) => {
         enabled: row.enabled,
         trigger: typeof row.trigger_data === 'string' ? JSON.parse(row.trigger_data) : row.trigger_data,
         actions: typeof row.actions_data === 'string' ? JSON.parse(row.actions_data) : row.actions_data,
+        nodes: typeof row.nodes_data === 'string' ? JSON.parse(row.nodes_data) : row.nodes_data || [],
+        edges: typeof row.edges_data === 'string' ? JSON.parse(row.edges_data) : row.edges_data || [],
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }));
@@ -137,16 +141,16 @@ export const registerAutomationRoutes = ({ app, appContext }) => {
       const organizationId = req.auth.activeOrganization?.id;
       if (!organizationId) return res.status(400).json({ error: 'No active organization' });
 
-      const { name = 'Nouvelle automation', enabled = true, trigger = {}, actions = [] } = req.body ?? {};
+      const { name = 'Nouvelle automation', enabled = true, trigger = {}, actions = [], nodes = [], edges = [] } = req.body ?? {};
 
       const id = randomUUID();
       await pool.query(
-        `INSERT INTO automations (id, organization_id, name, enabled, trigger_data, actions_data)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [id, organizationId, name, enabled, JSON.stringify(trigger), JSON.stringify(actions)]
+        `INSERT INTO automations (id, organization_id, name, enabled, trigger_data, actions_data, nodes_data, edges_data)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [id, organizationId, name, enabled, JSON.stringify(trigger), JSON.stringify(actions), JSON.stringify(nodes), JSON.stringify(edges)]
       );
 
-      return res.status(201).json({ id, name, enabled, trigger, actions });
+      return res.status(201).json({ id, name, enabled, trigger, actions, nodes, edges });
     } catch (err) {
       logger.error('POST /api/automations error', err);
       return res.status(500).json({ error: 'Failed to create automation' });
@@ -172,6 +176,8 @@ export const registerAutomationRoutes = ({ app, appContext }) => {
         enabled: row.enabled,
         trigger: typeof row.trigger_data === 'string' ? JSON.parse(row.trigger_data) : row.trigger_data,
         actions: typeof row.actions_data === 'string' ? JSON.parse(row.actions_data) : row.actions_data,
+        nodes: typeof row.nodes_data === 'string' ? JSON.parse(row.nodes_data) : row.nodes_data || [],
+        edges: typeof row.edges_data === 'string' ? JSON.parse(row.edges_data) : row.edges_data || [],
       };
 
       const body = req.body ?? {};
@@ -180,13 +186,15 @@ export const registerAutomationRoutes = ({ app, appContext }) => {
         enabled: body.enabled !== undefined ? body.enabled : prev.enabled,
         trigger: body.trigger !== undefined ? body.trigger : prev.trigger,
         actions: body.actions !== undefined ? body.actions : prev.actions,
+        nodes: body.nodes !== undefined ? body.nodes : prev.nodes,
+        edges: body.edges !== undefined ? body.edges : prev.edges,
       };
 
       await pool.query(
         `UPDATE automations
-         SET name = $1, enabled = $2, trigger_data = $3, actions_data = $4, updated_at = NOW()
-         WHERE id = $5 AND organization_id = $6`,
-        [next.name, next.enabled, JSON.stringify(next.trigger), JSON.stringify(next.actions), id, organizationId]
+         SET name = $1, enabled = $2, trigger_data = $3, actions_data = $4, nodes_data = $5, edges_data = $6, updated_at = NOW()
+         WHERE id = $7 AND organization_id = $8`,
+        [next.name, next.enabled, JSON.stringify(next.trigger), JSON.stringify(next.actions), JSON.stringify(next.nodes), JSON.stringify(next.edges), id, organizationId]
       );
 
       return res.json({ id, ...next });

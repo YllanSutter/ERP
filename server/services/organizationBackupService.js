@@ -12,12 +12,12 @@ const tables = {
   permissions: ['id', 'organization_id', 'role_id', 'collection_id', 'item_id', 'field_id', 'can_read', 'can_write', 'can_delete', 'can_manage_fields', 'can_manage_views', 'can_manage_permissions'],
   user_roles: ['organization_id', 'user_id', 'role_id'],
   plugin_configs: ['organization_id', 'plugin_id', 'enabled', 'config', 'created_at', 'updated_at'],
-  automations: ['id', 'organization_id', 'name', 'enabled', 'trigger_data', 'actions_data', 'created_at', 'updated_at'],
+  automations: ['id', 'organization_id', 'name', 'enabled', 'trigger_data', 'actions_data', 'nodes_data', 'edges_data', 'created_at', 'updated_at'],
   automation_runs: ['id', 'organization_id', 'automation_id', 'status', 'details', 'created_at'],
   pdf_plugin_saved_pdfs: ['id', 'organization_id', 'collection_id', 'item_id', 'template_id', 'storage_key', 'values', 'created_at', 'updated_at'],
   steam_public_bundles: ['id', 'organization_id', 'bundle_id', 'snapshot', 'updated_at'],
 };
-const jsonColumns = new Set(['config', 'trigger_data', 'actions_data', 'details', 'values', 'snapshot']);
+const jsonColumns = new Set(['config', 'trigger_data', 'actions_data', 'nodes_data', 'edges_data', 'details', 'values', 'snapshot']);
 const isUuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value || '');
 const exists = file => fs.lstat(file).catch(error => { if (error.code !== 'ENOENT') throw error; return null; });
 
@@ -95,6 +95,7 @@ export const restoreOrganizationBackup = ({ pool, name, organizationId, actorUse
         snapshot.version !== 1 || snapshot.organizationId !== organizationId || snapshot.organization?.id !== organizationId) throw new Error('Périmètre de sauvegarde incompatible.');
     snapshot.tables.browser_state ??= []; // Archives created before database-backed UI state.
     snapshot.tables.automation_runs ??= []; // Archives created before execution history.
+    snapshot.tables.automations = (snapshot.tables.automations || []).map(row => ({ ...row, nodes_data: row.nodes_data || [], edges_data: row.edges_data || [] }));
     for (const table of [...Object.keys(tables), 'app_state']) {
       if (!Array.isArray(snapshot.tables?.[table]) || snapshot.tables[table].some(row => row.organization_id !== organizationId)) throw new Error('Données de sauvegarde hors organisation.');
     }

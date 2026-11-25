@@ -231,7 +231,12 @@ const App = () => {
     return stored ? stored === '1' : true;
   });
   const [showAccessManager, setShowAccessManager] = useState(false);
-  const [showAutomations, setShowAutomations] = useState(false);
+  const [showAutomations, setShowAutomations] = useState(
+    () => databaseStorage.getItem('erp:show-automations') === '1'
+  );
+  useEffect(() => {
+    databaseStorage.setItem('erp:show-automations', showAutomations ? '1' : '0');
+  }, [showAutomations]);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<any[]>([]);
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
@@ -796,6 +801,7 @@ const App = () => {
             }));
           }}
           onSelectView={(collectionId: string, viewId: string) => {
+            setShowAutomations(false);
             setActiveDashboard(null);
             setActiveCollection(collectionId);
             setActiveView(viewId);
@@ -803,6 +809,7 @@ const App = () => {
             setRelationFilter({ collectionId: null, ids: [] });
           }}
           onSelectItem={(collectionId: string, itemId: string) => {
+            setShowAutomations(false);
             setActiveDashboard(null);
             const collection = collections.find((c) => c.id === collectionId);
             const item = collection?.items.find((it: any) => it.id === itemId);
@@ -1304,6 +1311,7 @@ const App = () => {
           setRelationFilter({ collectionId: null, ids: [] });
         }}
         onSelectView={(collectionId, viewId) => {
+          setShowAutomations(false);
           setActiveDashboard(null);
           setActiveCollection(collectionId);
           setActiveView(viewId);

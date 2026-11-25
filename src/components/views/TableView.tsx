@@ -97,6 +97,7 @@ const normalizeTotalsWidgetPreferences = (value: any, hasGroups: boolean): Total
 const TableView: React.FC<TableViewProps> = ({
   collection,
   items,
+  paginationStorageKey,
   favoriteItemIds = [],
   onEdit,
   onDelete,
@@ -950,8 +951,8 @@ const TableView: React.FC<TableViewProps> = ({
     items: sortedFlatItems,
     groupedItemCount: maxGroupItemCount,
     hasGroups: groups.length > 0,
+    storageKey: paginationStorageKey || `erp:view-pagination:${collection.id}:default`,
     resetKey: [
-      collection.id,
       sortState.column || '',
       sortState.direction,
       groups.join(','),

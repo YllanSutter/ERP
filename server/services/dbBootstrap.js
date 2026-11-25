@@ -282,10 +282,14 @@ export const bootstrapDatabase = async ({ pool, ensureDefaultOrganization }) => 
       enabled BOOLEAN DEFAULT TRUE,
       trigger_data JSONB NOT NULL DEFAULT '{}',
       actions_data JSONB NOT NULL DEFAULT '[]',
+      nodes_data JSONB NOT NULL DEFAULT '[]',
+      edges_data JSONB NOT NULL DEFAULT '[]',
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
+  await pool.query('ALTER TABLE automations ADD COLUMN IF NOT EXISTS nodes_data JSONB NOT NULL DEFAULT \'[]\'::jsonb;');
+  await pool.query('ALTER TABLE automations ADD COLUMN IF NOT EXISTS edges_data JSONB NOT NULL DEFAULT \'[]\'::jsonb;');
   await pool.query('CREATE INDEX IF NOT EXISTS automations_org_idx ON automations (organization_id);');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS automation_runs (
