@@ -13,6 +13,7 @@ import {
   ContextMenuLabel,
 } from '@/components/ui/context-menu';
 import { Item, Property, Collection } from '@/lib/types';
+import { applyCollectionTemplateDateParts } from '@/lib/collectionTemplateDates';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -367,6 +368,10 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
             template.fieldIds.forEach((fieldId: string) => {
               const prop = collection?.properties?.find((candidate: any) => candidate.id === fieldId);
               if (!prop) return;
+              if (prop.type === 'date' && Object.prototype.hasOwnProperty.call(template.dateDefaults || {}, prop.id)) {
+                Object.assign(updated, applyCollectionTemplateDateParts(updated, prop.id, template.dateDefaults[prop.id]));
+                return;
+              }
               if (Object.prototype.hasOwnProperty.call(values, fieldId) && values[fieldId] !== '') {
                 let value: any = values[fieldId];
                 if (prop.type === 'number') value = Number(value);

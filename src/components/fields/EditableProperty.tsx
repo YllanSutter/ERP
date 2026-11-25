@@ -914,6 +914,33 @@ function areSegmentsEquivalent(left: any[], right: any[]) {
   return JSON.stringify(normalizeSegmentsForCompare(left || [])) === JSON.stringify(normalizeSegmentsForCompare(right || []));
 }
 
+const ScrollableDateOptionList: React.FC<{
+  options: Array<{ value: string; label: string }>;
+  value: string;
+  label: string;
+  onChange: (value: string) => void;
+}> = ({ options, value, label, onChange }) => {
+  const selectedRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => selectedRef.current?.scrollIntoView({ block: 'nearest' }), [value]);
+  return <div role="listbox" aria-label={label} tabIndex={0}
+    onWheel={event => event.stopPropagation()}
+    onKeyDown={event => {
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      event.preventDefault();
+      event.stopPropagation();
+      const index = Math.max(0, options.findIndex(option => option.value === value));
+      const next = Math.min(options.length - 1, Math.max(0, index + (event.key === 'ArrowDown' ? 1 : -1)));
+      if (options[next]) onChange(options[next].value);
+    }}
+    className="h-[234px] w-full overflow-y-auto overscroll-contain rounded-md border border-white/10 bg-background text-foreground">
+    {options.map(option => <button key={option.value} type="button" role="option" aria-selected={option.value === value}
+      ref={option.value === value ? selectedRef : undefined} onClick={() => onChange(option.value)}
+      className={cn('block h-[29px] w-full px-2 text-center text-base leading-[29px] hover:bg-accent hover:text-accent-foreground', option.value === value && 'bg-brand-500 text-white')}>
+      {option.label}
+    </button>)}
+  </div>;
+};
+
 const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
   property,
   value,
@@ -1090,23 +1117,15 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
             {includeDuration && onRelationChange && currentItem && dateGranularity === 'full' && (
               <div className="flex flex-col items-center justify-center min-w-[110px]">
                 <label className="block text-xs font-medium text-neutral-400 mb-1.5">Durée (H:M)</label>
-                <select
-                  value={currentDuration}
-                  onChange={e => {
-                    const duration = Number(e.target.value);
+                <ScrollableDateOptionList label="Durée" value={String(currentDuration)}
+                  onChange={raw => {
+                    const duration = Number(raw);
                     if (Number.isFinite(duration)) handleEventUpdate(durationKey, duration);
                   }}
-                  className="w-full h-50 text-center bg-background dark:bg-neutral-900 border-r border-white/10 text-black dark:text-white text-lg focus:border-brand-500 focus:outline-none overflow-y-scroll"
-                  size={9}
-                  style={{ WebkitAppearance: 'none', appearance: 'none' }}
-                >
-                  {Array.from({ length: 97 }, (_, i) => (i * 0.25)).map(dur => {
-                    let label = dur % 1 === 0 
-                      ? `${String(dur).padStart(2, '0')}:00`
-                      : `${String(Math.floor(dur)).padStart(2, '0')}:${String((dur % 1) * 60).padStart(2, '0')}`;
-                    return <option key={dur} value={dur}>{label}</option>;
-                  })}
-                </select>
+                  options={Array.from({ length: 97 }, (_, i) => i * 0.25).map(dur => ({
+                    value: String(dur),
+                    label: `${String(Math.floor(dur)).padStart(2, '0')}:${String((dur % 1) * 60).padStart(2, '0')}`,
+                  }))} />
               </div>
             )}
             {dateGranularity === 'month' ? (
@@ -1207,10 +1226,9 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                 />
                 <div className="flex flex-col items-center justify-center min-w-[110px]">
                   <label className="block text-xs font-medium text-neutral-400 mb-1.5">Heure (H:M)</label>
-                  <select
-                    value={currentTime}
-                    onChange={e => {
-                      const [hours, minutes] = e.target.value.split(':');
+                  <ScrollableDateOptionList label="Heure de départ" value={currentTime}
+                    onChange={timeValue => {
+                      const [hours, minutes] = timeValue.split(':');
                       const parsedHours = parseInt(hours);
                       const parsedMinutes = parseInt(minutes);
                       if (!Number.isFinite(parsedHours) || !Number.isFinite(parsedMinutes)) return;
@@ -1219,12 +1237,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                       if (!isValidDate(d)) return;
                       handleEventUpdate(property.id, d.toISOString());
                     }}
-                    className="w-full h-50 text-center bg-background text-black dark:bg-neutral-900 dark:text-white border-l border-white/10 text-lg focus:border-brand-500 focus:outline-none overflow-y-scroll"
-                    size={9}
-                    style={{ WebkitAppearance: 'none', appearance: 'none' }}
-                  >
-                    {timeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                  </select>
+                    options={timeOptions.map(time => ({ value: time, label: time }))} />
                 </div>
               </>
             )}

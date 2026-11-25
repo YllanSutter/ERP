@@ -7,6 +7,7 @@ import ColorPicker, { COLOR_PICKER_SURFACE_CLASS } from '@/components/inputs/Col
 import { SettingsDialog } from '@/components/ui/settings-panel';
 import { Button } from '@/components/ui/button';
 import { normalizeColor } from '@/lib/utils/colorUtils';
+import { applyCollectionTemplateDateParts } from '@/lib/collectionTemplateDates';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export interface ItemContextMenuProps {
@@ -120,6 +121,10 @@ const ItemContextMenu: React.FC<ItemContextMenuProps> = ({
             template.fieldIds.forEach((fieldId: string) => {
               const prop = activeCollection?.properties?.find((candidate: any) => candidate.id === fieldId);
               if (!prop) return;
+              if (prop.type === 'date' && Object.prototype.hasOwnProperty.call(template.dateDefaults || {}, prop.id)) {
+                Object.assign(nextItem, applyCollectionTemplateDateParts(nextItem, prop.id, template.dateDefaults[prop.id]));
+                return;
+              }
               if (Object.prototype.hasOwnProperty.call(updates, fieldId) && updates[fieldId] !== '') {
                 let value: any = updates[fieldId];
                 if (prop.type === 'number') value = Number(value);

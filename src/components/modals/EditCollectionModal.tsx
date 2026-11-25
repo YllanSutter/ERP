@@ -3,6 +3,7 @@ import { FormField, FormCheckbox, FormHint, FormInput, FormNameInput, DeleteConf
 import { Button } from '@/components/ui/button';
 import { SettingsSheet, SettingsTabs, SettingsTabContent, SettingsFooter } from '@/components/ui/settings-panel';
 import EditableProperty from '@/components/fields/EditableProperty';
+import { toLocalDateInputValue, toTimeInputValue } from '@/lib/collectionTemplateDates';
 import * as Icons from 'lucide-react';
 
 interface EditCollectionModalProps {
@@ -51,6 +52,13 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
   const updateTemplateValue = (index: number, fieldId: string, value: any) => {
     setCollectionTemplates(previous => previous.map((template, templateIndex) => templateIndex === index
       ? { ...template, values: { ...(template.values || {}), [fieldId]: value } }
+      : template
+    ));
+  };
+
+  const updateTemplateDateParts = (index: number, fieldId: string, parts: Record<string, any>) => {
+    setCollectionTemplates(previous => previous.map((template, templateIndex) => templateIndex === index
+      ? { ...template, dateDefaults: { ...(template.dateDefaults || {}), [fieldId]: parts } }
       : template
     ));
   };
@@ -142,21 +150,69 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
                           const updateFieldList = (checked: boolean) => {
                             const next = checked ? Array.from(new Set([...fieldIds, prop.id])) : fieldIds.filter((id: string) => id !== prop.id);
                             const nextValues = { ...values };
-                            if (!checked) delete nextValues[prop.id];
-                            updateTemplate(index, { fieldIds: next, values: nextValues });
+                            const nextDateDefaults = { ...(template.dateDefaults || {}) };
+                            if (!checked) {
+                              delete nextValues[prop.id];
+                              delete nextValues[`${prop.id}_duration`];
+                              delete nextDateDefaults[prop.id];
+                            }
+                            updateTemplate(index, { fieldIds: next, values: nextValues, dateDefaults: nextDateDefaults });
                           };
                           const currentValue = values[prop.id] ?? (['multiselect', 'multi_select'].includes(prop.type) ? [] : prop.type === 'checkbox' || prop.type === 'boolean' ? false : '');
+                          const savedDateParts = template.dateDefaults?.[prop.id];
+                          const dateParts = savedDateParts || {
+                            day: values[prop.id] === 'current_date' ? 'today' : values[prop.id] ? 'fixed' : 'none',
+                            fixedDate: toLocalDateInputValue(values[prop.id]),
+                            time: toTimeInputValue(values[prop.id]),
+                            duration: values[`${prop.id}_duration`] !== undefined && values[`${prop.id}_duration`] !== ''
+                              ? Number(values[`${prop.id}_duration`]) : null,
+                          };
                           return <div key={prop.id} className="rounded-lg border border-border/70 p-2.5">
                             <FormCheckbox label={<span className="flex items-center gap-2">{prop.name}<span className="text-[10px] text-muted-foreground">{prop.type === 'relation' ? 'Relation' : prop.type}</span></span>}
                               checked={included} onChange={updateFieldList} />
-                            {included && <div className="ml-6 mt-2">
+                            {included && prop.type === 'date' && <div className="ml-6 mt-3 space-y-3">
+                              <p className="text-xs text-muted-foreground">Choisis les éléments que le template doit préremplir.</p>
+                              <div className="grid gap-2 sm:grid-cols-3">
+                                <FormCheckbox label="Jour" checked={dateParts.day !== 'none'} onChange={checked => updateTemplateDateParts(index, prop.id, {
+                                  ...dateParts, day: checked ? (dateParts.day === 'none' ? 'today' : dateParts.day) : 'none',
+                                })} />
+                                <FormCheckbox label="Heure de départ" checked={Boolean(dateParts.time)} onChange={checked => updateTemplateDateParts(index, prop.id, {
+                                  ...dateParts, time: checked ? (dateParts.time || '09:00') : '',
+                                })} />
+                                <FormCheckbox label="Durée" checked={dateParts.duration !== null && dateParts.duration !== undefined} onChange={checked => updateTemplateDateParts(index, prop.id, {
+                                  ...dateParts, duration: checked ? (dateParts.duration ?? 1) : null,
+                                })} />
+                              </div>
+                              {dateParts.day !== 'none' && <div className="flex flex-wrap items-center gap-2">
+                                <Button type="button" size="sm" variant={dateParts.day === 'today' ? 'default' : 'outline'} onClick={() => updateTemplateDateParts(index, prop.id, { ...dateParts, day: 'today' })}>Aujourd'hui, à l'application</Button>
+                                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <span>Jour fixe</span>
+                                  <input type="date" value={dateParts.day === 'fixed' ? (dateParts.fixedDate || '') : ''}
+                                    onChange={event => updateTemplateDateParts(index, prop.id, { ...dateParts, day: 'fixed', fixedDate: event.target.value })}
+                                    className="rounded-md border border-border bg-background px-2 py-1.5 text-foreground" />
+                                </label>
+                              </div>}
+                              {Boolean(dateParts.time) && <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                                Heure de départ
+                                <input type="time" value={dateParts.time} onChange={event => updateTemplateDateParts(index, prop.id, { ...dateParts, time: event.target.value })}
+                                  className="rounded-md border border-border bg-background px-2 py-1.5 text-foreground" />
+                              </label>}
+                              {dateParts.duration !== null && dateParts.duration !== undefined && <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                                Durée
+                                <select value={String(dateParts.duration)} onChange={event => updateTemplateDateParts(index, prop.id, { ...dateParts, duration: Number(event.target.value) })}
+                                  className="max-h-40 overflow-y-auto rounded-md border border-border bg-background px-2 py-1.5 text-foreground">
+                                  {Array.from({ length: 97 }, (_, valueIndex) => valueIndex / 4).map(duration => {
+                                    const label = `${String(Math.floor(duration)).padStart(2, '0')}:${String((duration % 1) * 60).padStart(2, '0')}`;
+                                    return <option key={duration} value={duration}>{label}</option>;
+                                  })}
+                                </select>
+                              </label>}
+                            </div>}
+                            {included && prop.type !== 'date' && <div className="ml-6 mt-2">
                               <EditableProperty property={prop} value={currentValue}
                                 onChange={value => updateTemplateValue(index, prop.id, value)}
                                 onRelationChange={(_property: any, updatedItem: any, value: any) => {
                                   updateTemplateValue(index, prop.id, value);
-                                  if (prop.type === 'date' && updatedItem?.[`${prop.id}_duration`] !== undefined) {
-                                    updateTemplateValue(index, `${prop.id}_duration`, Number(updatedItem[`${prop.id}_duration`]) || 0);
-                                  }
                                 }}
                                 collections={collections} collection={collection} currentItem={values} size="sm" forceRichEditor />
                             </div>}

@@ -3,6 +3,7 @@ import { usePinnedItemFields } from '@/lib/hooks/usePinnedItemFields';
 import { PinnedFieldsSettings, PinnedFieldsHeader } from './PinnedItemFields';
 import { historyKey as buildScopedHistoryKey, readItemHistory, restoreHistorySnapshot } from '@/lib/itemHistory';
 import { generateId } from '@/lib/utils/id';
+import { applyCollectionTemplateDateParts } from '@/lib/collectionTemplateDates';
 import { getSteamBundleConfig } from '@/lib/plugins/steam/collectionRoles';
 import { SteamExchangeEditor } from '@/lib/plugins/steam/SteamExchangeEditor';
 import { STEAM_EXCHANGE_FIELD, canReceiveSteamGame, createSteamExchangeDraft, steamExchanges } from '@/lib/plugins/steam/exchanges';
@@ -1041,6 +1042,15 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     const templateFieldIds = new Set(Array.isArray(template.fieldIds) ? template.fieldIds : []);
     (selectedCollection.properties || []).forEach((prop: any) => {
       if (!templateFieldIds.has(prop.id)) return;
+      if (prop.type === 'date' && Object.prototype.hasOwnProperty.call(template.dateDefaults || {}, prop.id)) {
+        const parts = template.dateDefaults[prop.id];
+        nextData = applyCollectionTemplateDateParts(nextData, prop.id, parts);
+        if (parts.day !== 'none' || parts.time || parts.duration !== null && parts.duration !== undefined) {
+          nextAutoFilled[prop.id] = false;
+          nextAutoFilled[`${prop.id}_duration`] = false;
+        }
+        return;
+      }
       const hasFieldValue = Object.prototype.hasOwnProperty.call(values, prop.id) && values[prop.id] !== '';
       const durationKey = `${prop.id}_duration`;
       const hasDurationValue = prop.type === 'date' && Object.prototype.hasOwnProperty.call(values, durationKey) && values[durationKey] !== '';
@@ -1060,6 +1070,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     });
     const hasDateValues = (selectedCollection.properties || []).some((prop: any) =>
       prop.type === 'date' && templateFieldIds.has(prop.id) && (
+        (Object.prototype.hasOwnProperty.call(template.dateDefaults || {}, prop.id) && (() => {
+          const parts = template.dateDefaults[prop.id];
+          return parts.day !== 'none' || Boolean(parts.time) || (parts.duration !== null && parts.duration !== undefined);
+        })()) ||
         (Object.prototype.hasOwnProperty.call(values, prop.id) && values[prop.id] !== '') ||
         (Object.prototype.hasOwnProperty.call(values, `${prop.id}_duration`) && values[`${prop.id}_duration`] !== '')
       )
