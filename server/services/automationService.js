@@ -17,11 +17,14 @@ import { randomUUID } from 'crypto';
 
 // ─── Template resolver ────────────────────────────────────────────────────────
 // Remplace {{trigger.fieldId}} par la valeur correspondante dans l'item déclencheur
-const resolveTemplate = (value, triggerItem) => {
+const resolveTemplate = (value, triggerItem, actionResults = {}) => {
   if (typeof value !== 'string') return value;
-  return value.replace(/\{\{trigger\.([^}]+)\}\}/g, (_, fieldId) => {
-    const val = triggerItem?.[fieldId];
-    return val !== undefined && val !== null ? String(val) : '';
+  return value.replace(/\{\{(trigger|action)\.([^}]+)\}\}/g, (_, source, key) => {
+    const val = source === 'trigger'
+      ? triggerItem?.[key]
+      : actionResults?.[key.split('.')[0]]?.[key.split('.').slice(1).join('.')];
+    if (val === undefined || val === null) return '';
+    return Array.isArray(val) ? val.join(', ') : typeof val === 'object' ? JSON.stringify(val) : String(val);
   });
 };
 
@@ -41,11 +44,11 @@ const evalMathExpression = (expr) => {
   return cleaned;
 };
 
-const resolveFields = (fields, triggerItem, targetCollection) => {
+const resolveFields = (fields, triggerItem, targetCollection, actionResults = {}) => {
   if (!fields || typeof fields !== 'object') return {};
   return Object.fromEntries(
     Object.entries(fields).map(([k, v]) => {
-      const resolved = resolveTemplate(v, triggerItem);
+      const resolved = resolveTemplate(v, triggerItem, actionResults);
       // Pour les champs de type number, tenter d'évaluer l'expression mathématique
       const prop = (targetCollection?.properties || []).find((p) => p.id === k);
       if (prop?.type === 'number') {
@@ -135,7 +138,7 @@ const checkConditions = (item, conditions) => {
 };
 
 // ─── Action executor ──────────────────────────────────────────────────────────
-const executeAction = async (action, triggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig) => {
+const executeAction = async (action, triggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults = {}) => {
   const { type, collectionId, fields } = action;
 
   switch (type) {
@@ -152,7 +155,7 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
       // Quantité dynamique : count peut être un entier ou un template {{trigger.X}}
       let resolvedCount = null;
       if (action.count && String(action.count).trim() !== '') {
-        const raw = resolveTemplate(String(action.count), triggerItem);
+        const raw = resolveTemplate(String(action.count), triggerItem, actionResults);
         const n = parseInt(raw, 10);
         if (!isNaN(n) && n > 0) resolvedCount = Math.min(n, 500); // plafond de sécurité
       }
@@ -165,7 +168,7 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
 
       const calendarConfig = getDefaultCalendarConfig();
       const newItems = defsToCreate.map((def) => {
-        const resolvedFields = resolveFields(def.fields || {}, triggerItem, col);
+        const resolvedFields = resolveFields(def.fields || {}, triggerItem, col, actionResults);
         const raw = {
           id: randomUUID(),
           name: '',
@@ -190,8 +193,7 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
           state.collections = applyRelationChanges(state.collections, col, newItem, relationProps);
         }
       }
-
-      break;
+      return newItems[0] || null;
     }
 
     case 'update_item': {
@@ -200,7 +202,7 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
       if (!targetCollectionId || !triggerItem?.id) break;
 
       const targetCol = (state.collections || []).find((c) => c.id === targetCollectionId);
-      const resolvedFields = resolveFields(fields || {}, triggerItem, targetCol);
+      const resolvedFields = resolveFields(fields || {}, triggerItem, targetCol, actionResults);
 
       state.collections = (state.collections || []).map((c) => {
         if (c.id !== targetCollectionId) return c;
@@ -211,7 +213,14 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
           ),
         };
       });
-      break;
+      const updatedTrigger = { ...triggerItem, ...resolvedFields };
+      const changedRelationProps = (targetCol?.properties || []).filter(
+        (p) => p.type === 'relation' && Object.prototype.hasOwnProperty.call(resolvedFields, p.id)
+      );
+      if (changedRelationProps.length > 0) {
+        state.collections = applyRelationChanges(state.collections, targetCol, updatedTrigger, changedRelationProps);
+      }
+      return updatedTrigger;
     }
 
     case 'update_field': {
@@ -221,7 +230,7 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
       if (!targetCollectionId || !triggerItem?.id || !fieldId) break;
       const ufCol = (state.collections || []).find((c) => c.id === targetCollectionId);
       const ufProp = (ufCol?.properties || []).find((p) => p.id === fieldId);
-      const rawResolved = resolveTemplate(value, triggerItem);
+      const rawResolved = resolveTemplate(value, triggerItem, actionResults);
       const resolvedValue = ufProp?.type === 'number' ? evalMathExpression(rawResolved) : rawResolved;
 
       state.collections = (state.collections || []).map((c) => {
@@ -233,7 +242,11 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
           ),
         };
       });
-      break;
+      const updatedTrigger = { ...triggerItem, [fieldId]: resolvedValue };
+      if (ufProp?.type === 'relation') {
+        state.collections = applyRelationChanges(state.collections, ufCol, updatedTrigger, [ufProp]);
+      }
+      return updatedTrigger;
     }
 
     default:
@@ -310,8 +323,9 @@ export const triggerAutomations = async ({
 
     // Exécuter les actions en séquence
     const actions = Array.isArray(automation.actions) ? automation.actions : [];
+    const actionResults = {};
     for (const action of actions) {
-      await executeAction(
+      const result = await executeAction(
         action,
         enrichedTriggerItem,
         state,
@@ -319,7 +333,9 @@ export const triggerAutomations = async ({
         organizationId,
         calculateEventSegments,
         getDefaultCalendarConfig,
+        actionResults,
       );
+      if (result && action?.id) actionResults[action.id] = result;
     }
   }
 

@@ -204,8 +204,10 @@ const FieldValuePicker: React.FC<{
   targetProp?: any;
   /** Propriétés du déclencheur (pour les templates {{trigger.X}}) */
   triggerProps?: any[];
+  /** Résultats accessibles des actions create_item précédentes */
+  previousCreateActions?: { id: string; label: string }[];
   className?: string;
-}> = ({ value, onChange, targetProp, triggerProps = [], className = '' }) => {
+}> = ({ value, onChange, targetProp, triggerProps = [], previousCreateActions = [], className = '' }) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isRelationField = targetProp?.type === 'relation';
@@ -219,7 +221,10 @@ const FieldValuePicker: React.FC<{
 
   // Pour les champs relation, proposer {{trigger.id}} en raccourci
   const relationShortcuts: { value: string; label: string }[] = isRelationField
-    ? [{ value: '{{trigger.id}}', label: 'ID de l\'item déclencheur' }]
+    ? [
+        { value: '{{trigger.id}}', label: 'ID de l\'item déclencheur' },
+        ...previousCreateActions.map((a) => ({ value: `{{action.${a.id}.id}}`, label: `ID créé · ${a.label}` })),
+      ]
     : [];
 
   const fixedOptions: { value: string; label: string }[] =
@@ -287,7 +292,7 @@ const FieldValuePicker: React.FC<{
                 {relationShortcuts.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     <span className="flex items-center gap-1.5">
-                      <span className="font-mono text-[11px] text-purple-600 dark:text-purple-400">{'{{trigger.id}}'}</span>
+                      <span className="font-mono text-[11px] text-purple-600 dark:text-purple-400">{o.value}</span>
                       <span className="text-xs text-neutral-500">{o.label}</span>
                     </span>
                   </SelectItem>
@@ -338,7 +343,7 @@ const FieldValuePicker: React.FC<{
             type="text"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={isNumberField ? 'ex: {{trigger.prix}} / 3' : 'Valeur…'}
+            placeholder={isNumberField ? 'ex: {{trigger.prix}} / 3' : 'Texte + {{trigger.champ}} + …'}
             className="flex-1 min-w-0 h-9 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-white/10 rounded-lg px-3 text-sm text-neutral-800 dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
           />
         )}
@@ -354,8 +359,11 @@ const FieldValuePicker: React.FC<{
       {showManualInput && isRelationField && (
         <div className="flex items-center gap-1 text-[10px] text-purple-600 dark:text-purple-400">
           <Link2 size={10} />
-          <span>Utiliser <code className="font-mono">{'{{trigger.id}}'}</code> pour lier à l'item déclencheur — la relation sera synchronisée dans les deux sens.</span>
+          <span>Choisis l’ID d’une action précédente pour lier l’item créé, ou <code className="font-mono">{'{{trigger.id}}'}</code> pour l’item déclencheur.</span>
         </div>
+      )}
+      {showManualInput && !isRelationField && triggerProps.length > 0 && (
+        <div className="text-[10px] text-neutral-400">Tu peux combiner plusieurs champs, par exemple : <code className="font-mono">{'{{trigger.type}} · {{trigger.sites}}'}</code></div>
       )}
     </div>
   );
@@ -603,6 +611,7 @@ const AutomationEditor: React.FC<{
                   action={action}
                   collections={collections}
                   triggerCollectionId={automation.trigger.collectionId}
+                  previousCreateActions={automation.actions.slice(0, idx).filter((a) => a.type === 'create_item').map((a, i) => ({ id: a.id, label: collections.find((c) => c.id === a.collectionId)?.name || `Action ${i + 1}` }))}
                   onChange={(patch) => updateAction(action.id, patch)}
                   onRemove={() => removeAction(action.id)}
                 />
@@ -869,9 +878,10 @@ const ActionEditor: React.FC<{
   action: AutomationAction;
   collections: any[];
   triggerCollectionId: string;
+  previousCreateActions?: { id: string; label: string }[];
   onChange: (patch: Partial<AutomationAction>) => void;
   onRemove: () => void;
-}> = ({ index, action, collections, triggerCollectionId, onChange, onRemove }) => {
+}> = ({ index, action, collections, triggerCollectionId, previousCreateActions = [], onChange, onRemove }) => {
   const targetCollection = collections.find((c) => c.id === action.collectionId);
   const targetProps = targetCollection?.properties || [];
   const triggerCollection = collections.find((c) => c.id === triggerCollectionId);
@@ -1021,6 +1031,7 @@ const ActionEditor: React.FC<{
                   onChange={(v) => setFieldValue(fieldId, v)}
                   targetProp={triggerProps.find((p: any) => p.id === fieldId)}
                   triggerProps={triggerProps}
+                  previousCreateActions={previousCreateActions}
                   className="flex-1 min-w-0"
                 />
                 <button onClick={() => removeField(fieldId)} className="text-neutral-400 hover:text-red-500 transition-colors">
@@ -1064,6 +1075,7 @@ const ActionEditor: React.FC<{
             onChange={(v) => onChange({ value: v })}
             targetProp={triggerProps.find((p: any) => p.id === action.fieldId)}
             triggerProps={triggerProps}
+            previousCreateActions={previousCreateActions}
             className="flex-1 min-w-32"
           />
         </div>

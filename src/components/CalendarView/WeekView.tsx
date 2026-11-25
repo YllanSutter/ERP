@@ -244,14 +244,13 @@ const WeekView: React.FC<WeekViewProps> = ({
 
       const col = collectionsPool.find((c: any) => c.id === dragState.collectionId);
       const defaultItem = col ? findLastItemBefore(col, startDate) : null;
-      let defaultDurationMs = defaultDuration * 60 * 60 * 1000;
-      if (defaultItem && Array.isArray(defaultItem._eventSegments) && defaultItem._eventSegments.length > 0) {
-        const lastSeg = defaultItem._eventSegments[defaultItem._eventSegments.length - 1];
-        const lastStart = new Date(lastSeg.start || lastSeg.__eventStart);
-        const lastEnd = new Date(lastSeg.end || lastSeg.__eventEnd || lastSeg.start || lastSeg.__eventStart);
-        const lastMs = lastEnd.getTime() - lastStart.getTime();
-        if (Number.isFinite(lastMs) && lastMs > 0) defaultDurationMs = lastMs;
-      }
+      const dateFieldDefaultDuration = Number(
+        col?.properties?.find((property: any) => property.type === 'date')?.defaultDuration
+      );
+      const fallbackDurationHours = Number.isFinite(dateFieldDefaultDuration) && dateFieldDefaultDuration > 0
+        ? dateFieldDefaultDuration
+        : defaultDuration;
+      const defaultDurationMs = fallbackDurationHours * 60 * 60 * 1000;
 
       if (endDate.getTime() === startDate.getTime()) {
         endDate = new Date(startDate.getTime() + defaultDurationMs);
