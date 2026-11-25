@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
-import ModalWrapper, { FormField, FormCheckbox, FormHint, FormInput, FormNameInput, DeleteConfirmButton } from '@/components/ui/ModalWrapper';
+import { FormField, FormCheckbox, FormHint, FormInput, FormNameInput, DeleteConfirmButton } from '@/components/ui/ModalWrapper';
+import { Button } from '@/components/ui/button';
+import { SettingsSheet, SettingsTabs, SettingsTabContent, SettingsFooter } from '@/components/ui/settings-panel';
+import EditableProperty from '@/components/fields/EditableProperty';
+import * as Icons from 'lucide-react';
 
 interface EditCollectionModalProps {
   onClose: () => void;
   onSave: (collection: any) => void;
   onDelete: (collectionId: string) => void;
   collection: any;
+  collections?: any[];
   renderPluginSettings?: (collection: any, onChange: (changes: any) => void) => React.ReactNode;
 }
 
-const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSave, onDelete, collection, renderPluginSettings }) => {
+const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSave, onDelete, collection, collections = [], renderPluginSettings }) => {
   const [pluginChanges, setPluginChanges] = useState<Record<string, any>>({});
   const [name, setName] = useState(collection.name);
   const [icon, setIcon] = useState(collection.icon || 'Database');
@@ -25,6 +30,7 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
   const [collectionTemplates, setCollectionTemplates] = useState<any[]>(() =>
     Array.isArray(collection.collectionTemplates) ? collection.collectionTemplates : []
   );
+  const [activeTab, setActiveTab] = useState('general');
 
   const handleSave = () => {
     const props = collection.properties || [];
@@ -40,123 +46,112 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
     ));
   };
 
+  const updateTemplateValue = (index: number, fieldId: string, value: any) => {
+    setCollectionTemplates(previous => previous.map((template, templateIndex) => templateIndex === index
+      ? { ...template, values: { ...(template.values || {}), [fieldId]: value } }
+      : template
+    ));
+  };
+
   return (
-    <ModalWrapper
-      title="Modifier la collection"
-      onClose={onClose}
-      onSave={handleSave}
-      extraActions={<DeleteConfirmButton onDelete={() => onDelete(collection.id)} title="Supprimer la collection" />}
-    >
-      <div className="space-y-6">
-        {renderPluginSettings?.({ ...collection, ...pluginChanges }, changes => setPluginChanges(prev => ({ ...prev, ...changes })))}
-        <FormNameInput
-          label="Nom"
-          value={name}
-          onChange={setName}
-          icon={icon}
-          onIconChange={setIcon}
-          color={color}
-          onColorChange={setColor}
-          placeholder="Nom de la collection"
-        />
-        <div>
-          <FormCheckbox
-            label="Collection principale"
-            checked={isPrimary}
-            onChange={setIsPrimary}
-          />
-          <FormHint className="mt-1 ml-6">Utilisée en priorité pour les créations rapides (ex: clic droit calendrier).</FormHint>
-        </div>
-
-        <FormField
-          label="Champs visibles par défaut"
-          hint="Ces champs seront visibles lors de la création d'une nouvelle vue."
-        >
-          <div className="space-y-2 max-h-48 overflow-auto rounded-lg border border-black/10 dark:border-white/10 p-3">
-            {(collection.properties || []).map((prop: any, idx: number) => (
-              <FormCheckbox
-                key={prop.id}
-                label={<>{prop.name}{idx === 0 && <span className="text-xs text-neutral-500 ml-1">(par défaut)</span>}</>}
-                checked={defaultVisibleFieldIds.includes(prop.id)}
-                onChange={(checked) => {
-                  const next = checked
-                    ? Array.from(new Set([...defaultVisibleFieldIds, prop.id]))
-                    : defaultVisibleFieldIds.filter((id) => id !== prop.id);
-                  setDefaultVisibleFieldIds(next.length ? next : (collection.properties?.[0] ? [collection.properties[0].id] : []));
-                }}
-              />
-            ))}
-            {(collection.properties || []).length === 0 && (
-              <div className="text-xs text-neutral-500">Aucun champ.</div>
-            )}
+    <SettingsSheet open wide onOpenChange={open => { if (!open) onClose(); }}
+      title="Modifier la collection" description={name || collection.name} icon={Icons.Database}>
+      <SettingsTabs value={activeTab} onValueChange={setActiveTab} label="Paramètres de la collection" navigation="sidebar"
+        items={[
+          { id: 'general', label: 'Général', icon: Icons.Settings2 },
+          { id: 'fields', label: 'Champs', icon: Icons.List },
+          { id: 'templates', label: 'Templates', icon: Icons.Sparkles },
+          ...(renderPluginSettings ? [{ id: 'plugins', label: 'Plugins', icon: Icons.Plug }] : []),
+        ]}>
+        <SettingsTabContent value="general" scrollable>
+          <div className="space-y-5">
+            <FormNameInput label="Nom" value={name} onChange={setName} icon={icon} onIconChange={setIcon}
+              color={color} onColorChange={setColor} placeholder="Nom de la collection" />
+            <div>
+              <FormCheckbox label="Collection principale" checked={isPrimary} onChange={setIsPrimary} />
+              <FormHint className="mt-1 ml-6">Utilisée en priorité pour les créations rapides, par exemple depuis le calendrier.</FormHint>
+            </div>
           </div>
-        </FormField>
-
-        <FormField
-          label="Templates de collection"
-          hint="Un template choisit les champs affichés à la création et peut préremplir leurs valeurs."
-        >
-          <div className="space-y-3">
+        </SettingsTabContent>
+        <SettingsTabContent value="fields" scrollable>
+          <FormField label="Champs visibles par défaut" hint="Ces champs seront visibles lors de la création d'une nouvelle vue.">
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              {(collection.properties || []).map((prop: any, idx: number) => (
+                <FormCheckbox key={prop.id}
+                  label={<>{prop.name}{idx === 0 && <span className="ml-1 text-xs text-muted-foreground">(par défaut)</span>}</>}
+                  checked={defaultVisibleFieldIds.includes(prop.id)}
+                  onChange={checked => {
+                    const next = checked ? Array.from(new Set([...defaultVisibleFieldIds, prop.id])) : defaultVisibleFieldIds.filter(id => id !== prop.id);
+                    setDefaultVisibleFieldIds(next.length ? next : (collection.properties?.[0] ? [collection.properties[0].id] : []));
+                  }} />
+              ))}
+              {(collection.properties || []).length === 0 && <div className="text-xs text-muted-foreground">Aucun champ.</div>}
+            </div>
+          </FormField>
+        </SettingsTabContent>
+        <SettingsTabContent value="templates" scrollable>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm text-muted-foreground">Les champs cochés seront affichés dans la fiche. Leur valeur utilise l’éditeur correspondant au type du champ.</div>
+              <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setCollectionTemplates(previous => [...previous, { id: `collection_tpl_${Date.now()}`, name: '', fieldIds: [], values: {} }])}>
+                <Icons.Plus size={14} /> Ajouter
+              </Button>
+            </div>
             {collectionTemplates.map((template, index) => {
               const fieldIds = Array.isArray(template.fieldIds) ? template.fieldIds : [];
               const values = template.values && typeof template.values === 'object' ? template.values : {};
               return (
-                <div key={template.id || index} className="rounded-lg border border-black/10 dark:border-white/10 p-3 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <FormInput
-                      aria-label={`Nom du template ${index + 1}`}
-                      value={template.name || ''}
-                      placeholder={`Template ${index + 1}`}
-                      onChange={event => updateTemplate(index, { name: event.target.value })}
-                    />
-                    <button type="button" className="text-xs text-red-500 hover:text-red-600" onClick={() => setCollectionTemplates(previous => previous.filter((_, i) => i !== index))}>
+                <section key={template.id || index} className="overflow-hidden rounded-xl border border-border">
+                  <div className="flex items-center gap-2 border-b border-border p-3">
+                    <FormInput aria-label={`Nom du template ${index + 1}`} value={template.name || ''} placeholder={`Template ${index + 1}`}
+                      onChange={event => updateTemplate(index, { name: event.target.value })} />
+                    <Button type="button" variant="ghost" size="sm" className="shrink-0 text-destructive" onClick={() => setCollectionTemplates(previous => previous.filter((_, i) => i !== index))}>
                       Supprimer
-                    </button>
+                    </Button>
                   </div>
-                  <div className="space-y-2 max-h-64 overflow-auto rounded-md bg-black/[0.02] dark:bg-white/[0.02] p-2">
+                  <div className="max-h-[55vh] space-y-2 overflow-y-auto p-3">
                     {(collection.properties || []).map((prop: any) => {
                       const included = fieldIds.includes(prop.id);
+                      const updateFieldList = (checked: boolean) => {
+                        const next = checked ? Array.from(new Set([...fieldIds, prop.id])) : fieldIds.filter((id: string) => id !== prop.id);
+                        const nextValues = { ...values };
+                        if (!checked) delete nextValues[prop.id];
+                        updateTemplate(index, { fieldIds: next, values: nextValues });
+                      };
+                      const currentValue = values[prop.id] ?? (['multiselect', 'multi_select'].includes(prop.type) ? [] : prop.type === 'checkbox' || prop.type === 'boolean' ? false : '');
                       return (
-                        <div key={prop.id} className="space-y-1">
-                          <FormCheckbox
-                            label={prop.name}
-                            checked={included}
-                            onChange={checked => {
-                              const nextFieldIds = checked
-                                ? [...new Set([...fieldIds, prop.id])]
-                                : fieldIds.filter((id: string) => id !== prop.id);
-                              updateTemplate(index, { fieldIds: nextFieldIds });
-                            }}
-                          />
+                        <div key={prop.id} className="rounded-lg border border-border/70 p-2.5">
+                          <FormCheckbox label={<span className="flex items-center gap-2">{prop.name}<span className="text-[10px] text-muted-foreground">{prop.type === 'relation' ? 'Relation' : prop.type}</span></span>}
+                            checked={included} onChange={updateFieldList} />
                           {included && (
-                            <FormInput
-                              aria-label={`Valeur par défaut pour ${prop.name} dans ${template.name || `Template ${index + 1}`}`}
-                              value={values[prop.id] ?? ''}
-                              placeholder="Valeur par défaut (facultatif)"
-                              onChange={event => updateTemplate(index, { values: { ...values, [prop.id]: event.target.value } })}
-                              className="ml-6 w-[calc(100%-1.5rem)]"
-                            />
+                            <div className="ml-6 mt-2">
+                              <EditableProperty property={prop} value={currentValue}
+                                onChange={value => updateTemplateValue(index, prop.id, value)}
+                                onRelationChange={(_property: any, _item: any, value: any) => updateTemplateValue(index, prop.id, value)}
+                                collections={collections} collection={collection} currentItem={values} size="sm" forceRichEditor />
+                            </div>
                           )}
                         </div>
                       );
                     })}
-                    {(collection.properties || []).length === 0 && <div className="text-xs text-neutral-500">Ajoute d’abord des champs à cette collection.</div>}
+                    {(collection.properties || []).length === 0 && <div className="text-xs text-muted-foreground">Ajoute d’abord des champs à cette collection.</div>}
                   </div>
-                  <FormHint>Les champs cochés seront affichés. Valeurs multiples séparées par des virgules ; pour une date, utilise « current_date » ou une date ISO.</FormHint>
-                </div>
+                </section>
               );
             })}
-            <button
-              type="button"
-              className="w-full rounded-md border border-dashed border-black/20 dark:border-white/20 px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5"
-              onClick={() => setCollectionTemplates(previous => [...previous, { id: `collection_tpl_${Date.now()}`, name: '', fieldIds: [], values: {} }])}
-            >
-              + Ajouter un template
-            </button>
+            {collectionTemplates.length === 0 && <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">Aucun template. Ajoute un template pour définir les champs affichés et leurs valeurs.</div>}
           </div>
-        </FormField>
-      </div>
-    </ModalWrapper>
+        </SettingsTabContent>
+        {renderPluginSettings && <SettingsTabContent value="plugins" scrollable>
+          {renderPluginSettings({ ...collection, ...pluginChanges }, changes => setPluginChanges(previous => ({ ...previous, ...changes })))}
+        </SettingsTabContent>}
+      </SettingsTabs>
+      <SettingsFooter>
+        <Button type="button" variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
+        <DeleteConfirmButton onDelete={() => onDelete(collection.id)} title="Supprimer la collection" />
+        <Button type="button" size="sm" onClick={handleSave}>Enregistrer</Button>
+      </SettingsFooter>
+    </SettingsSheet>
   );
 };
 

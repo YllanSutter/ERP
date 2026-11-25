@@ -1372,6 +1372,7 @@ const App = () => {
             setShowEditCollectionModal(false);
           }}
           renderPluginSettings={(collection, onChange) => <SteamCollectionSettings collection={collection} collections={collections} onChange={onChange} />}
+          collections={collections}
           collection={editingCollection}
         /></Suspense>
       )}
