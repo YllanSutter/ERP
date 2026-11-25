@@ -522,6 +522,49 @@ const AutomationGraphCanvas: React.FC<{
 
 const MANUAL_SENTINEL = '__manual__';
 
+const TemplateValueEditor: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  triggerProps: any[];
+  triggerLabel: string;
+  previousCreateActions: { id: string; label: string; properties?: any[] }[];
+}> = ({ value, onChange, triggerProps, triggerLabel, previousCreateActions }) => {
+  const sourceOptions = [
+    ...triggerProps.map((property) => ({ value: `{{trigger.${property.id}}}`, label: `${triggerLabel} · ${property.name || property.id}` })),
+    ...previousCreateActions.flatMap((source) => (source.properties || []).map((property) => ({
+      value: `{{action.${source.id}.${property.id}}}`,
+      label: `${source.label} · ${property.name || property.id}`,
+    }))),
+  ];
+  const tokens = value.match(/\{\{(?:trigger|action)\.[^}]+\}\}/g) || [];
+
+  return <div className="min-w-0 flex-1 space-y-2">
+    <input
+      type="text"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder="Texte libre, puis ajoute des champs sources…"
+      className="h-10 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-white/10 dark:bg-neutral-900 dark:text-white"
+    />
+    <div className="flex flex-wrap items-center gap-1.5">
+      {tokens.length > 0 ? tokens.map((token, index) => {
+        const option = sourceOptions.find((item) => item.value === token);
+        return <span key={`${token}-${index}`} className="inline-flex max-w-full items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] text-blue-800 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-300">
+          <Braces size={11} className="shrink-0" />
+          <span className="truncate">{option?.label || token}</span>
+        </span>;
+      }) : <span className="text-[11px] text-neutral-500">La valeur saisie s’affiche ici. Les champs dynamiques apparaîtront en badges.</span>}
+      {sourceOptions.length > 0 && <Select
+        value=""
+        onChange={(token) => { if (token) onChange(`${value}${value && !/\s$/.test(value) ? ' ' : ''}${token}`); }}
+        options={sourceOptions}
+        placeholder="+ Insérer un champ"
+        className="h-7 rounded-full border-blue-200 py-0 text-[11px] dark:border-blue-400/20"
+      />}
+    </div>
+  </div>;
+};
+
 const FieldValuePicker: React.FC<{
   value: string;
   onChange: (v: string) => void;
@@ -1298,7 +1341,6 @@ const ActionEditor: React.FC<{
   onRemove: () => void;
 }> = ({ index, action, collections, triggerCollectionId, previousCreateActions = [], inSidebar = false, onMoveUp, onMoveDown, onMoveToIndex, onChange, onRemove }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [additionalValueToken, setAdditionalValueToken] = useState('');
   const targetCollection = collections.find((c) => c.id === action.collectionId);
   const targetProps = targetCollection?.properties || [];
   const triggerCollection = collections.find((c) => c.id === triggerCollectionId);
@@ -1412,34 +1454,29 @@ const ActionEditor: React.FC<{
           {fieldEntries.map(({ fieldId, value }) => {
             const prop = triggerProps.find((p: any) => p.id === fieldId);
             return (
-              <div key={fieldId} className="flex gap-2 items-center">
-                <Select
-                  value={fieldId}
-                  onChange={(newFId) => {
-                    const next = { ...(action.fields || {}) };
-                    const oldVal = next[fieldId];
-                    delete next[fieldId];
-                    next[newFId] = oldVal || '';
-                    onChange({ fields: next, collectionId: triggerCollectionId });
-                  }}
-                  options={[
-                    { value: fieldId, label: prop?.name || fieldId },
-                    ...triggerProps
-                      .filter((p: any) => !Object.keys(action.fields || {}).includes(p.id))
-                      .map((p: any) => ({ value: p.id, label: p.name })),
-                  ]}
-                  className="flex-1 min-w-0"
-                />
-                <FieldValuePicker
-                  value={value}
-                  onChange={(v) => setFieldValue(fieldId, v)}
-                  targetProp={triggerProps.find((p: any) => p.id === fieldId)}
-                  triggerProps={triggerProps}
-                  triggerLabel={triggerLabel}
-                  previousCreateActions={previousCreateActions}
-                  className="flex-1 min-w-0"
-                />
-                <IconButton label="Retirer ce champ" onClick={() => removeField(fieldId)} className="text-neutral-400 hover:text-red-500"><X size={14} /></IconButton>
+              <div key={fieldId} className="space-y-2 rounded-xl border border-neutral-200 bg-neutral-50/70 p-3 dark:border-white/10 dark:bg-neutral-900/50">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Champ à modifier</span>
+                  <Select
+                    value={fieldId}
+                    onChange={(newFId) => {
+                      const next = { ...(action.fields || {}) };
+                      const oldVal = next[fieldId];
+                      delete next[fieldId];
+                      next[newFId] = oldVal || '';
+                      onChange({ fields: next, collectionId: triggerCollectionId });
+                    }}
+                    options={[
+                      { value: fieldId, label: prop?.name || fieldId },
+                      ...triggerProps
+                        .filter((p: any) => !Object.keys(action.fields || {}).includes(p.id))
+                        .map((p: any) => ({ value: p.id, label: p.name })),
+                    ]}
+                    className="h-9 min-w-0 flex-1"
+                  />
+                  <IconButton label="Retirer ce champ" onClick={() => removeField(fieldId)} className="text-neutral-400 hover:text-red-500"><X size={14} /></IconButton>
+                </div>
+                <TemplateValueEditor value={value} onChange={(nextValue) => setFieldValue(fieldId, nextValue)} triggerProps={triggerProps} triggerLabel={triggerLabel} previousCreateActions={previousCreateActions} />
               </div>
             );
           })}
@@ -1465,42 +1502,18 @@ const ActionEditor: React.FC<{
       {/* update_field */}
       {action.type === 'update_field' && (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-neutral-500 dark:text-neutral-400">Champ</span>
-            <Select
-              value={action.fieldId || ''}
-              onChange={(v) => onChange({ fieldId: v, collectionId: triggerCollectionId })}
-              options={triggerProps.map((p: any) => ({ value: p.id, label: p.name }))}
-              placeholder="Choisir un champ…"
-            />
-            <span className="text-xs text-neutral-500 dark:text-neutral-400">→</span>
-            <FieldValuePicker
-              value={action.value || ''}
-              onChange={(v) => onChange({ value: v })}
-              targetProp={triggerProps.find((p: any) => p.id === action.fieldId)}
-              triggerProps={triggerProps}
-              triggerLabel={triggerLabel}
-              previousCreateActions={previousCreateActions}
-              className="flex-1 min-w-32"
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-2 pl-1">
-            <span className="text-xs text-muted-foreground">Ajouter une valeur</span>
-            <Select
-              value={additionalValueToken}
-              onChange={(token) => {
-                if (!token) return;
-                onChange({ value: [action.value?.trim(), token].filter(Boolean).join(' ') });
-                setAdditionalValueToken('');
-              }}
-              options={[
-                ...triggerProps.map((p: any) => ({ value: `{{trigger.${p.id}}}`, label: `${triggerLabel} · ${p.name || p.id}` })),
-                ...previousCreateActions.flatMap((source) => (source.properties || []).map((p: any) => ({ value: `{{action.${source.id}.${p.id}}}`, label: `${source.label} · ${p.name || p.id}` }))),
-              ]}
-              placeholder="Choisir un champ source…"
-              className="min-w-56 flex-1"
-            />
-            <span className="text-[11px] text-muted-foreground">La valeur est ajoutée à la suite, séparée par un espace.</span>
+          <div className="space-y-2 rounded-xl border border-neutral-200 bg-neutral-50/70 p-3 dark:border-white/10 dark:bg-neutral-900/50">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Champ à modifier</span>
+              <Select
+                value={action.fieldId || ''}
+                onChange={(v) => onChange({ fieldId: v, collectionId: triggerCollectionId })}
+                options={triggerProps.map((p: any) => ({ value: p.id, label: p.name || p.id }))}
+                placeholder="Choisir un champ…"
+                className="h-9 min-w-0 flex-1"
+              />
+            </div>
+            <TemplateValueEditor value={action.value || ''} onChange={(v) => onChange({ value: v })} triggerProps={triggerProps} triggerLabel={triggerLabel} previousCreateActions={previousCreateActions} />
           </div>
           {triggerProps.some((p: any) => p.id !== action.fieldId) && (
             <button
@@ -1516,9 +1529,9 @@ const ActionEditor: React.FC<{
                   value: undefined,
                 });
               }}
-              className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline dark:text-blue-400"
+              className="inline-flex items-center gap-2 rounded-lg border border-dashed border-blue-300 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
             >
-              <Plus size={13} /> Ajouter un autre champ à modifier
+              <Plus size={13} /> Ajouter un champ à modifier
             </button>
           )}
         </div>
