@@ -206,6 +206,7 @@ const CardsView: React.FC<CardsViewProps> = ({
       canEditField={canEditField}
       onViewDetail={onViewDetail}
       onEdit={onEdit}
+      onDelete={onDelete}
       onRelationChange={onRelationChange}
       onNavigateToCollection={onNavigateToCollection}
       selectedItemIds={selectedItemIds}

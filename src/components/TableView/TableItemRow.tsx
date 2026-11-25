@@ -1,5 +1,5 @@
 import { steamExchanges, steamExchangeLabelValue, steamGameName } from '@/lib/plugins/steam/exchanges';
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
 import { Check, GripVertical } from 'lucide-react';
@@ -13,6 +13,8 @@ import {
   ContextMenuLabel,
 } from '@/components/ui/context-menu';
 import { Item, Property, Collection } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export interface TableItemRowProps {
   item: Item;
@@ -69,6 +71,9 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
   onDrop,
   onDragEnd,
 }) => {
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const collectionTemplates = Array.isArray(collection?.collectionTemplates) ? collection.collectionTemplates.filter((template: any) => Array.isArray(template.fieldIds) && template.fieldIds.length > 0) : [];
   const RowComponent = animate ? motion.tr : 'tr';
   const motionProps = animate
     ? {
@@ -141,6 +146,7 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
   const exchangeParentName = exchangeParent && steamGameName(collection, exchangeParent);
 
   return (
+    <>
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <RowComponent
@@ -257,6 +263,15 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
             )}
           </div>
         </ContextMenuItem>
+        {canEdit && collectionTemplates.length > 0 && (
+          <ContextMenuItem onSelect={() => {
+            setSelectedTemplateId(collectionTemplates[0]?.id || '');
+            setTemplateDialogOpen(true);
+          }}>
+            <Icons.Sparkles size={14} className="mr-2" />
+            <span>Appliquer un template…</span>
+          </ContextMenuItem>
+        )}
         {canEdit && collection.plugins?.steam?.role === 'games' && (
           <ContextMenuItem onSelect={() => onViewDetail(item, 'steam-exchange')}>
             <Icons.ArrowRightLeft size={14} className="mr-2" />
@@ -320,6 +335,52 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
         )}
       </ContextMenuContent>
     </ContextMenu>
+    <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Appliquer un template à « {item.name || item.id} » ?</DialogTitle>
+          <DialogDescription>Choisis un template, puis confirme pour remplacer les valeurs correspondantes de cet item.</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[45vh] space-y-2 overflow-y-auto">
+          {collectionTemplates.map((template: any, index: number) => {
+            const names = template.fieldIds.map((id: string) => collection?.properties?.find((prop: any) => prop.id === id)?.name).filter(Boolean);
+            return (
+              <label key={template.id || index} className={`block cursor-pointer rounded-lg border p-3 ${selectedTemplateId === template.id ? 'border-brand-500 bg-brand-500/5' : 'border-border'}`}>
+                <span className="flex items-start gap-3">
+                  <input type="radio" name={`table-item-template-${item.id}`} className="mt-1" value={template.id} checked={selectedTemplateId === template.id} onChange={() => setSelectedTemplateId(template.id)} />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">{template.name?.trim() || `Template ${index + 1}`}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">{names.join(' · ') || 'Aucun champ'}</span>
+                  </span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" onClick={() => setTemplateDialogOpen(false)}>Annuler</Button>
+          <Button type="button" disabled={!selectedTemplateId} onClick={() => {
+            const template = collectionTemplates.find((candidate: any) => candidate.id === selectedTemplateId);
+            if (!template) return;
+            const values = template.values && typeof template.values === 'object' ? template.values : {};
+            const updated = { ...item } as Record<string, any>;
+            template.fieldIds.forEach((fieldId: string) => {
+              const prop = collection?.properties?.find((candidate: any) => candidate.id === fieldId);
+              if (!prop || !Object.prototype.hasOwnProperty.call(values, fieldId) || values[fieldId] === '') return;
+              let value: any = values[fieldId];
+              if (prop.type === 'number') value = Number(value);
+              else if (prop.type === 'checkbox' || prop.type === 'boolean') value = value === true || String(value).toLowerCase() === 'true';
+              else if (['multiselect', 'multi_select'].includes(prop.type)) value = Array.isArray(value) ? value : String(value).split(',').map((part: string) => part.trim()).filter(Boolean);
+              else if (prop.type === 'date' && value === 'current_date') value = new Date().toISOString();
+              updated[fieldId] = value;
+            });
+            onEdit(updated as Item);
+            setTemplateDialogOpen(false);
+          }}>Valider et appliquer</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };
 

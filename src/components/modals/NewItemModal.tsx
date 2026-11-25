@@ -217,6 +217,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   // Ajout d'un sélecteur de collection (pour création uniquement)
   const [selectedCollectionId, setSelectedCollectionId] = useState(collection.id);
+  const [activeCollectionTemplateId, setActiveCollectionTemplateId] = useState('');
+  const [collectionTemplateDialogOpen, setCollectionTemplateDialogOpen] = useState(false);
+  const [collectionTemplateSelection, setCollectionTemplateSelection] = useState('');
   const selectedCollection =
     readableCollections.find((c: any) => c.id === selectedCollectionId) ||
     readableCollections[0] ||
@@ -867,6 +870,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const [pendingDateValue, setPendingDateValue] = useState<string | undefined>(undefined);
 
   const handleCollectionChange = (newCollectionId: string) => {
+    setActiveCollectionTemplateId('');
+    setCollectionTemplateSelection('');
     if (!editingItem) {
       // Cherche la première valeur trouvée dans formData parmi tous les champs date de la collection courante
       let previousDateValue = undefined;
@@ -1005,19 +1010,58 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   );
   const readableBaseProps = (basePropsList || []).filter((p: any) => canReadField(selectedCollection?.id, p.id));
   const readableRichTextFallback = (richTextFallback || []).filter((p: any) => canReadField(selectedCollection?.id, p.id));
-  const propsList = readableRichTextFallback.reduce((acc: any[], prop: any) => {
+  const allPropsList = readableRichTextFallback.reduce((acc: any[], prop: any) => {
     if (acc.some((p) => p.id === prop.id)) return acc;
     return [...acc, prop];
   }, readableBaseProps as any[]);
+  const collectionTemplates = Array.isArray(selectedCollection.collectionTemplates)
+    ? selectedCollection.collectionTemplates
+    : [];
+  const activeCollectionTemplate = collectionTemplates.find((template: any) => template.id === activeCollectionTemplateId);
+  const configuredVisibleFieldIds = Array.isArray(activeCollectionTemplate?.fieldIds)
+    ? activeCollectionTemplate.fieldIds
+    : [];
+  const propsList = activeCollectionTemplate && configuredVisibleFieldIds.length > 0
+    ? allPropsList.filter((prop: any) => configuredVisibleFieldIds.includes(prop.id))
+    : allPropsList;
+  const titleCandidates = allPropsList.filter((prop: any) => prop.type !== 'relation' && prop.type !== 'rich_text');
+  const titleProperty = titleCandidates.find(
+    (prop: any) => prop.isNameField || prop.id === 'name' || prop.name === 'Nom'
+  ) || titleCandidates.find((prop: any) => prop.type !== 'image');
+
+  const applyCollectionTemplate = (templateId: string) => {
+    setActiveCollectionTemplateId(templateId);
+    const template = collectionTemplates.find((candidate: any) => candidate.id === templateId);
+    if (!template) return;
+
+    let nextData = { ...formData };
+    const nextAutoFilled = { ...templateAutoFilled };
+    const values = template.values && typeof template.values === 'object' ? template.values : {};
+    const templateFieldIds = new Set(Array.isArray(template.fieldIds) ? template.fieldIds : []);
+    (selectedCollection.properties || []).forEach((prop: any) => {
+      if (!templateFieldIds.has(prop.id) || !Object.prototype.hasOwnProperty.call(values, prop.id) || values[prop.id] === '') return;
+      let value: any = values[prop.id];
+      if (prop.type === 'number') value = Number(value);
+      else if (prop.type === 'checkbox' || prop.type === 'boolean') value = value === true || String(value).toLowerCase() === 'true';
+      else if (['multiselect', 'multi_select'].includes(prop.type)) value = Array.isArray(value) ? value : String(value).split(',').map((part: string) => part.trim()).filter(Boolean);
+      else if (prop.type === 'date' && value === 'current_date') value = new Date().toISOString();
+      nextData[prop.id] = value;
+      nextAutoFilled[prop.id] = false;
+    });
+    const hasDateValues = (selectedCollection.properties || []).some((prop: any) =>
+      prop.type === 'date' && templateFieldIds.has(prop.id) && Object.prototype.hasOwnProperty.call(values, prop.id) && values[prop.id] !== ''
+    );
+    if (hasDateValues) {
+      nextData = { ...nextData, _preserveEventSegments: false, _eventSegments: calculateSegmentsClient(nextData, selectedCollection) };
+    }
+    setTemplateAutoFilled(nextAutoFilled);
+    setFormData(nextData);
+  };
   const classicProps = propsList.filter((p: any) => p.type !== 'relation');
   const richTextProps = classicProps.filter((p: any) => p.type === 'rich_text');
   const classicPropsSansRichText = classicProps.filter((p: any) => p.type !== 'rich_text');
   const relationProps = propsList.filter((p: any) => p.type === 'relation');
   const dateProps = propsList.filter((p: any) => p.type === 'date');
-  const titleProperty = classicPropsSansRichText.find(
-    (prop: any) => prop.isNameField || prop.id === 'name' || prop.name === 'Nom'
-  ) || classicPropsSansRichText.find((prop: any) => prop.type !== 'image');
-
   const { fields: pinnedFields, update: updatePinnedField } = usePinnedItemFields(
     activeOrganizationId || 'default', user?.id || 'anonymous', selectedCollectionId);
   const pinnableProperties = (selectedCollection.properties || []).filter((prop: any) =>
@@ -1367,6 +1411,15 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           />
           {/* Actions droite */}
           <div className="flex flex-wrap items-center gap-1 shrink-0">
+            {collectionTemplates.length > 0 && (
+              <Button type="button" variant="outline" size="sm" onClick={() => {
+                setCollectionTemplateSelection(activeCollectionTemplateId || collectionTemplates.find((template: any) => template.fieldIds?.length)?.id || '');
+                setCollectionTemplateDialogOpen(true);
+              }}>
+                <Sparkles size={14} />
+                {activeCollectionTemplate?.name?.trim() || 'Choisir un template'}
+              </Button>
+            )}
             <PinnedFieldsSettings properties={pinnableProperties} fields={pinnedFields} onChange={updatePinnedField} />
             {titleProperty && renderTemplatePicker(titleProperty)}
             {renderPluginActions?.(selectedCollection, formData)}
@@ -2158,6 +2211,38 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={handleTemplateDialogCancel}>Annuler</Button>
             <Button onClick={handleTemplateDialogConfirm}>Appliquer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={collectionTemplateDialogOpen} onOpenChange={setCollectionTemplateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Choisir un template de collection</DialogTitle>
+            <DialogDescription>Le template affichera ses champs et préremplira ses valeurs. Vérifie ton choix puis confirme son application.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[50vh] space-y-2 overflow-y-auto">
+            {collectionTemplates.map((template: any, index: number) => {
+              const fieldIds = Array.isArray(template.fieldIds) ? template.fieldIds : [];
+              const names = fieldIds.map((id: string) => selectedCollection.properties?.find((prop: any) => prop.id === id)?.name).filter(Boolean);
+              return (
+                <label key={template.id || index} className={cn('block cursor-pointer rounded-lg border p-3', collectionTemplateSelection === template.id ? 'border-brand-500 bg-brand-500/5' : 'border-border')}>
+                  <span className="flex items-start gap-3">
+                    <input type="radio" name="collection-template" className="mt-1" value={template.id} checked={collectionTemplateSelection === template.id} disabled={!fieldIds.length} onChange={() => setCollectionTemplateSelection(template.id)} />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{template.name?.trim() || `Template ${index + 1}`}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">{names.join(' · ') || 'Aucun champ sélectionné'}</span>
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setCollectionTemplateDialogOpen(false)}>Annuler</Button>
+            <Button disabled={!collectionTemplateSelection} onClick={() => {
+              applyCollectionTemplate(collectionTemplateSelection);
+              setCollectionTemplateDialogOpen(false);
+            }}>Valider et appliquer</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

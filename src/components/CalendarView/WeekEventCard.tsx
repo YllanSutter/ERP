@@ -277,7 +277,7 @@ const EventItem: React.FC<EventItemProps> = ({
   );
 
   const menuProps = {
-    item, onViewDetail, canEdit, onEdit: onEditField, collections, onRelationChange, onNavigateToCollection,
+    item, collection: itemCollection, onViewDetail, canEdit, onEdit: onEditField, collections, onRelationChange, onNavigateToCollection,
     canEditField: canEditFieldFn,
     quickEditProperties: collectionProps.filter((property: any) => property.showContextMenu && canViewFieldFn(property.id)),
     extraActions: onReduceDuration ? [{ label: 'Supprimer le segment', onSelect: () => onReduceDuration(item, { type: 'delete', index: multiDayIndex }) }] : [],

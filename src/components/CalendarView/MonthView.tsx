@@ -32,7 +32,7 @@ function MonthEvent({ item, segments, source, collections, getNameValue, onViewD
   const canEditField = useCanEditFields(source?.id);
   const canViewField = useCanViewFields(source?.id);
   const colors = getCalendarEventColors(item.id, item.__collectionId || '', source?.color, getItemColorValue(item, source?.properties));
-  const menuProps = { item, onViewDetail, onDelete, canEdit, onEdit, collections, onRelationChange, canEditField,
+  const menuProps = { item, collection: source, onViewDetail, onDelete, canEdit, onEdit, collections, onRelationChange, canEditField,
     quickEditProperties: (source?.properties || []).filter((property: any) => property.showContextMenu && canViewField(property.id)) };
   return <ItemContextMenu {...menuProps}>
     <div className="flex min-w-0 items-center rounded border-l-2 text-[10px] text-foreground [--calendar-event-surface:white] dark:[--calendar-event-surface:#171717]"

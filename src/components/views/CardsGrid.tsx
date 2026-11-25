@@ -2,6 +2,7 @@ import { steamExchanges } from '@/lib/plugins/steam/exchanges';
 import React from 'react';
 import type { Collection, Item, Property } from '@/lib/types';
 import SteamCardFullArt from '@/components/views/SteamCardFullArt';
+import ItemContextMenu from '@/components/menus/ItemContextMenu';
 
 interface CardsGridProps {
   items: Item[];
@@ -19,6 +20,7 @@ interface CardsGridProps {
   canEditField: (fieldId: string) => boolean;
   onViewDetail: (item: Item) => void;
   onEdit: (item: Item) => void;
+  onDelete: (id: string) => void;
   onRelationChange: (property: Property, item: Item, value: unknown) => void;
   onNavigateToCollection: (collectionId: string, linkedIds?: string[]) => void;
   selectedItemIds: Set<string>;
@@ -46,6 +48,7 @@ const CardsGrid: React.FC<CardsGridProps> = ({
   canEditField,
   onViewDetail,
   onEdit,
+  onDelete,
   onRelationChange,
   onNavigateToCollection,
   selectedItemIds,
@@ -105,13 +108,20 @@ const CardsGrid: React.FC<CardsGridProps> = ({
         onDropOnItem={onDropOnItem}
       />
     );
-    if (!parent && !exchanged) return card;
+    const contextualCard = (
+      <ItemContextMenu key={`context-${item.id}`} item={item} collection={collection} onViewDetail={onViewDetail} onDelete={onDelete}
+        canEdit={canEdit} onEdit={onEdit} collections={collections} onRelationChange={onRelationChange}
+        onNavigateToCollection={onNavigateToCollection} canEditField={canEditField}>
+        <div className="min-w-0">{card}</div>
+      </ItemContextMenu>
+    );
+    if (!parent && !exchanged) return contextualCard;
     return (
       <div key={item.id} className="min-w-0 space-y-2">
         <div className="text-xs font-medium text-brand-600 dark:text-brand-300">
           {parent && '↳ Reçu en échange'}{parent && exchanged && ' · '}{exchanged && 'Échangé'}
         </div>
-        {card}
+        {contextualCard}
         {received.length > 0 && <div className="space-y-2 border-l border-brand-500/40 pl-3">{received.map(renderGame)}</div>}
       </div>
     );

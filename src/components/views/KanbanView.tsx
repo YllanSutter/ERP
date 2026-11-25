@@ -323,6 +323,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                   <ItemContextMenu
                     key={item.id}
                     item={item}
+                    collection={collection}
                     onViewDetail={onViewDetail}
                     onDelete={onDelete}
                     canEdit={canEdit}
@@ -358,6 +359,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                       <ItemContextMenu
                         triggerMode="button"
                         item={item}
+                        collection={collection}
                         onViewDetail={onViewDetail}
                         onDelete={onDelete}
                         canEdit={canEdit}
