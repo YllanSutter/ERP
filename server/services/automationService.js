@@ -16,15 +16,77 @@
 import { randomUUID } from 'crypto';
 
 // ─── Template resolver ────────────────────────────────────────────────────────
-// Remplace {{trigger.fieldId}} par la valeur correspondante dans l'item déclencheur
-const resolveTemplate = (value, triggerItem, actionResults = {}) => {
+const relationIds = (value) => {
+  const values = Array.isArray(value) ? value : value == null || value === '' ? [] : [value];
+  return values.map((entry) => typeof entry === 'object' && entry !== null ? entry.id || entry.value : entry)
+    .filter((entry) => entry != null && entry !== '')
+    .map(String);
+};
+
+const getItemLabel = (item, collection, displayFieldIds = []) => {
+  if (!item) return '';
+  const properties = collection?.properties || [];
+  const fieldIds = displayFieldIds.length ? displayFieldIds : [
+    properties.find((property) => property.isNameField || property.id === 'name' || property.name === 'Nom')?.id,
+  ].filter(Boolean);
+  const values = fieldIds.map((fieldId) => item?.[fieldId])
+    .filter((value) => value !== null && value !== undefined && value !== '')
+    .map((value) => Array.isArray(value) ? value.join(', ') : String(value));
+  return values.join(' · ') || String(item.name || item.title || item.label || item.id || '');
+};
+
+const formatPropertyValue = (value, property, state, useDisplayLabels = true) => {
+  if (value == null) return '';
+  if (!useDisplayLabels) {
+    return Array.isArray(value)
+      ? value.map((entry) => typeof entry === 'object' && entry !== null ? entry.id ?? entry.value ?? JSON.stringify(entry) : String(entry)).join(', ')
+      : typeof value === 'object' ? String(value.id ?? value.value ?? JSON.stringify(value)) : String(value);
+  }
+  if (property?.type === 'select' || property?.type === 'multiselect' || property?.type === 'multi_select') {
+    const formatOption = (entry) => {
+      if (entry == null) return '';
+      const raw = typeof entry === 'object' ? entry.value ?? entry.id ?? entry.label : entry;
+      const option = (property.options || []).find((candidate) => {
+        if (typeof candidate === 'string') return candidate === String(raw) || candidate === String(entry);
+        return [candidate.value, candidate.id, candidate.label].some((part) => part != null && String(part) === String(raw));
+      });
+      return typeof option === 'string' ? option : option?.label || option?.value || String(raw ?? '');
+    };
+    return Array.isArray(value) ? value.map(formatOption).filter(Boolean).join(', ') : formatOption(value);
+  }
+  if (property?.type === 'relation') {
+    const target = (state?.collections || []).find((collection) => collection.id === property.relation?.targetCollectionId);
+    if (!target) return relationIds(value).join(', ');
+    const ids = relationIds(value);
+    return ids.map((id) => getItemLabel(
+      (target.items || []).find((item) => String(item.id) === id),
+      target,
+      property.relation?.displayFieldIds || [],
+    ) || id).join(', ');
+  }
+  if (Array.isArray(value)) return value.map((entry) => typeof entry === 'object' ? JSON.stringify(entry) : String(entry)).join(', ');
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+};
+
+// Remplace les variables par leurs valeurs affichables (labels de select et relations inclus).
+const resolveTemplate = (value, triggerItem, actionResults = {}, state, actionCollectionIds = {}, useDisplayLabels = true) => {
   if (typeof value !== 'string') return value;
   return value.replace(/\{\{(trigger|action)\.([^}]+)\}\}/g, (_, source, key) => {
-    const val = source === 'trigger'
-      ? triggerItem?.[key]
-      : actionResults?.[key.split('.')[0]]?.[key.split('.').slice(1).join('.')];
-    if (val === undefined || val === null) return '';
-    return Array.isArray(val) ? val.join(', ') : typeof val === 'object' ? JSON.stringify(val) : String(val);
+    let val;
+    let property;
+    if (source === 'trigger') {
+      val = triggerItem?.[key];
+      const collection = (state?.collections || []).find((entry) => entry.id === triggerItem?.__collectionId);
+      property = (collection?.properties || []).find((entry) => entry.id === key);
+    } else {
+      const [actionId, ...fieldParts] = key.split('.');
+      val = actionResults?.[actionId]?.[fieldParts.join('.')];
+      const collectionId = actionResults?.[actionId]?.__collectionId || actionCollectionIds[actionId];
+      const collection = (state?.collections || []).find((entry) => entry.id === collectionId);
+      property = (collection?.properties || []).find((entry) => entry.id === fieldParts.join('.'));
+    }
+    return formatPropertyValue(val, property, state, useDisplayLabels);
   });
 };
 
@@ -44,13 +106,14 @@ const evalMathExpression = (expr) => {
   return cleaned;
 };
 
-const resolveFields = (fields, triggerItem, targetCollection, actionResults = {}) => {
+const resolveFields = (fields, triggerItem, targetCollection, actionResults = {}, state, actionCollectionIds = {}) => {
   if (!fields || typeof fields !== 'object') return {};
   return Object.fromEntries(
     Object.entries(fields).map(([k, v]) => {
-      const resolved = resolveTemplate(v, triggerItem, actionResults);
       // Pour les champs de type number, tenter d'évaluer l'expression mathématique
       const prop = (targetCollection?.properties || []).find((p) => p.id === k);
+      const keepIdentifiers = ['relation', 'select', 'multiselect', 'multi_select'].includes(prop?.type);
+      const resolved = resolveTemplate(v, triggerItem, actionResults, state, actionCollectionIds, !keepIdentifiers);
       if (prop?.type === 'number') {
         return [k, evalMathExpression(resolved)];
       }
@@ -116,11 +179,11 @@ const applyRelationChanges = (collections, sourceCollection, sourceItem, relatio
 // ─── Condition checker ────────────────────────────────────────────────────────
 // conditions : [{ fieldId, operator, value }]
 // operators  : equals, not_equals, contains, is_empty, is_not_empty, greater, less
-const checkCondition = (item, condition, actionResults = {}) => {
+const checkCondition = (item, condition, actionResults = {}, state, actionCollectionIds = {}) => {
   const { fieldId, operator, value } = condition;
   const match = String(fieldId || '').match(/^action\.([^.]+)\.(.+)$/);
   const fieldVal = match ? actionResults?.[match[1]]?.[match[2]] : item?.[fieldId];
-  const resolvedValue = resolveTemplate(value ?? '', item, actionResults);
+  const resolvedValue = resolveTemplate(value ?? '', item, actionResults, state, actionCollectionIds);
 
   switch (operator) {
     case 'equals':       return String(fieldVal ?? '') === String(resolvedValue ?? '');
@@ -134,13 +197,13 @@ const checkCondition = (item, condition, actionResults = {}) => {
   }
 };
 
-const checkConditions = (item, conditions, actionResults = {}) => {
+const checkConditions = (item, conditions, actionResults = {}, state, actionCollectionIds = {}) => {
   if (!Array.isArray(conditions) || conditions.length === 0) return true;
-  return conditions.every((c) => checkCondition(item, c, actionResults));
+  return conditions.every((c) => checkCondition(item, c, actionResults, state, actionCollectionIds));
 };
 
 // ─── Action executor ──────────────────────────────────────────────────────────
-const executeAction = async (action, triggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults = {}, dryRun = false) => {
+const executeAction = async (action, triggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults = {}, actionCollectionIds = {}, dryRun = false) => {
   const { type, collectionId, fields } = action;
 
   switch (type) {
@@ -157,7 +220,7 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
       // Quantité dynamique : count peut être un entier ou un template {{trigger.X}}
       let resolvedCount = null;
       if (action.count && String(action.count).trim() !== '') {
-        const raw = resolveTemplate(String(action.count), triggerItem, actionResults);
+        const raw = resolveTemplate(String(action.count), triggerItem, actionResults, state, actionCollectionIds);
         const n = parseInt(raw, 10);
         if (!isNaN(n) && n > 0) resolvedCount = Math.min(n, 500); // plafond de sécurité
       }
@@ -170,7 +233,7 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
 
       const calendarConfig = getDefaultCalendarConfig();
       const newItems = defsToCreate.map((def) => {
-        const resolvedFields = resolveFields(def.fields || {}, triggerItem, col, actionResults);
+        const resolvedFields = resolveFields(def.fields || {}, triggerItem, col, actionResults, state, actionCollectionIds);
         const raw = {
           id: randomUUID(),
           name: '',
@@ -204,7 +267,7 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
       if (!targetCollectionId || !triggerItem?.id) break;
 
       const targetCol = (state.collections || []).find((c) => c.id === targetCollectionId);
-      const resolvedFields = resolveFields(fields || {}, triggerItem, targetCol, actionResults);
+      const resolvedFields = resolveFields(fields || {}, triggerItem, targetCol, actionResults, state, actionCollectionIds);
 
       state.collections = (state.collections || []).map((c) => {
         if (c.id !== targetCollectionId) return c;
@@ -232,7 +295,8 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
       if (!targetCollectionId || !triggerItem?.id || !fieldId) break;
       const ufCol = (state.collections || []).find((c) => c.id === targetCollectionId);
       const ufProp = (ufCol?.properties || []).find((p) => p.id === fieldId);
-      const rawResolved = resolveTemplate(value, triggerItem, actionResults);
+      const keepIdentifiers = ['relation', 'select', 'multiselect', 'multi_select'].includes(ufProp?.type);
+      const rawResolved = resolveTemplate(value, triggerItem, actionResults, state, actionCollectionIds, !keepIdentifiers);
       const resolvedValue = ufProp?.type === 'number' ? evalMathExpression(rawResolved) : rawResolved;
 
       state.collections = (state.collections || []).map((c) => {
@@ -252,12 +316,12 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
     }
 
     case 'condition': {
-      const branch = checkConditions(triggerItem, action.conditions || [], actionResults);
+      const branch = checkConditions(triggerItem, action.conditions || [], actionResults, state, actionCollectionIds);
       const nestedActions = branch ? action.thenActions || [] : action.elseActions || [];
       let lastResult = null;
       for (const nestedAction of nestedActions) {
-        lastResult = await executeAction(nestedAction, triggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults, dryRun);
-        if (lastResult && nestedAction?.id) actionResults[nestedAction.id] = lastResult;
+        lastResult = await executeAction(nestedAction, triggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults, actionCollectionIds, dryRun);
+        if (lastResult && nestedAction?.id) actionResults[nestedAction.id] = { ...lastResult, __collectionId: nestedAction.collectionId };
       }
       return lastResult;
     }
@@ -271,9 +335,9 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
     case 'find_or_create_item': {
       const col = (state.collections || []).find((c) => c.id === collectionId);
       if (!col || !action.matchFieldId) break;
-      const matchValue = resolveTemplate(action.matchValue || '', triggerItem, actionResults);
+      const matchValue = resolveTemplate(action.matchValue || '', triggerItem, actionResults, state, actionCollectionIds);
       const existing = (col.items || []).find((item) => String(item[action.matchFieldId] ?? '') === String(matchValue));
-      const resolvedFields = resolveFields(fields || {}, triggerItem, col, actionResults);
+      const resolvedFields = resolveFields(fields || {}, triggerItem, col, actionResults, state, actionCollectionIds);
       if (existing) {
         const updated = { ...existing, ...resolvedFields };
         state.collections = state.collections.map((entry) => entry.id === collectionId
@@ -371,7 +435,7 @@ export const triggerAutomations = async ({
     if (trigger.type !== eventType || (trigger.collectionId && trigger.collectionId !== collectionId)) continue;
 
     // Vérification des conditions du trigger
-    if (!checkConditions(enrichedTriggerItem, trigger.conditions || [])) {
+    if (!checkConditions(enrichedTriggerItem, trigger.conditions || [], {}, state)) {
       await saveRun(pool, organizationId, automation.id, 'ignored', {
         ...eventDetails, reason: 'Les conditions du déclencheur ne sont pas remplies.',
       });
@@ -397,6 +461,13 @@ export const triggerAutomations = async ({
     try {
       const flowNodes = Array.isArray(automation.nodes) ? automation.nodes : [];
       const flowEdges = Array.isArray(automation.edges) ? automation.edges : [];
+      const actionCollectionIds = Object.fromEntries(
+        [
+          ...flowNodes.map((node) => ({ id: node.id, collectionId: node.data?.collectionId })),
+          ...(automation.actions || []),
+        ].filter((entry) => entry?.id && entry?.collectionId)
+          .map((entry) => [entry.id, entry.collectionId])
+      );
       const triggerNode = flowNodes.find((node) => node.type === 'trigger');
       let sequencePosition = 0;
       const executeNode = async (node, branch) => {
@@ -406,13 +477,13 @@ export const triggerAutomations = async ({
           if (node.type === 'condition') {
             const nestedActions = branch === 'true' ? node.data?.thenActions || [] : node.data?.elseActions || [];
             for (const nestedAction of nestedActions) {
-              result = await executeAction(nestedAction, enrichedTriggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults, dryRun);
-              if (result && nestedAction.id) actionResults[nestedAction.id] = result;
+              result = await executeAction(nestedAction, enrichedTriggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults, actionCollectionIds, dryRun);
+              if (result && nestedAction.id) actionResults[nestedAction.id] = { ...result, __collectionId: nestedAction.collectionId };
             }
           } else {
-            result = await executeAction(action, enrichedTriggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults, dryRun);
+            result = await executeAction(action, enrichedTriggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults, actionCollectionIds, dryRun);
           }
-          if (result && action.id) actionResults[action.id] = result;
+          if (result && action.id) actionResults[action.id] = { ...result, __collectionId: action.collectionId };
           eventDetails.steps.push({ actionId: node.id, type: node.type, status: 'success', position: ++sequencePosition, ...(branch ? { branch } : {}) });
         } catch (error) {
           eventDetails.steps.push({ actionId: action.id, type: action.type, status: 'error', position: ++sequencePosition, message: error?.message || 'Erreur inconnue' });
@@ -434,7 +505,7 @@ export const triggerAutomations = async ({
           if (!node) continue;
           let branch;
           if (node.type === 'condition') {
-            const passes = checkConditions(enrichedTriggerItem, node.data?.conditions || [], actionResults);
+            const passes = checkConditions(enrichedTriggerItem, node.data?.conditions || [], actionResults, state, actionCollectionIds);
             branch = passes ? 'true' : 'false';
             const handles = passes ? ['true', 'yes'] : ['false', 'no'];
             for (const edge of outgoing.get(nodeId) || []) {
