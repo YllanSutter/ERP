@@ -791,7 +791,7 @@ const AutomationEditor: React.FC<{
   };
 
   const updateAction = (actionId: string, patch: Partial<AutomationAction>) => {
-    const nodes = graphNodes.map((node) => node.id === actionId ? { ...node, data: { ...(node.data || {}), ...patch } } : node);
+    const nodes = graphNodes.map((node) => node.id === actionId ? { ...node, ...(patch.type ? { type: patch.type } : {}), data: { ...(node.data || {}), ...patch } } : node);
     saveGraph(nodes, graphEdges);
   };
 
@@ -1004,7 +1004,6 @@ const AutomationEditor: React.FC<{
             onOpenChange={setShowBlockSettings}
             title="Configurer le bloc"
             description={selectedStepId === triggerNodeId ? `Déclencheur · ${triggerCollection?.name || 'Choisir une collection'}` : selectedAction ? ACTION_LABELS[selectedAction.type] : 'Paramètres du bloc'}
-            actions={<IconButton label="Fermer les réglages" onClick={() => setShowBlockSettings(false)}><X size={16} /></IconButton>}
           >
             <SettingsTabs
               value={blockSettingsTab}
@@ -1299,6 +1298,7 @@ const ActionEditor: React.FC<{
   onRemove: () => void;
 }> = ({ index, action, collections, triggerCollectionId, previousCreateActions = [], inSidebar = false, onMoveUp, onMoveDown, onMoveToIndex, onChange, onRemove }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [additionalValueToken, setAdditionalValueToken] = useState('');
   const targetCollection = collections.find((c) => c.id === action.collectionId);
   const targetProps = targetCollection?.properties || [];
   const triggerCollection = collections.find((c) => c.id === triggerCollectionId);
@@ -1464,24 +1464,63 @@ const ActionEditor: React.FC<{
 
       {/* update_field */}
       {action.type === 'update_field' && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-neutral-500 dark:text-neutral-400">Champ</span>
-          <Select
-            value={action.fieldId || ''}
-            onChange={(v) => onChange({ fieldId: v, collectionId: triggerCollectionId })}
-            options={triggerProps.map((p: any) => ({ value: p.id, label: p.name }))}
-            placeholder="Choisir un champ…"
-          />
-          <span className="text-xs text-neutral-500 dark:text-neutral-400">→</span>
-          <FieldValuePicker
-            value={action.value || ''}
-            onChange={(v) => onChange({ value: v })}
-            targetProp={triggerProps.find((p: any) => p.id === action.fieldId)}
-            triggerProps={triggerProps}
-            triggerLabel={triggerLabel}
-            previousCreateActions={previousCreateActions}
-            className="flex-1 min-w-32"
-          />
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">Champ</span>
+            <Select
+              value={action.fieldId || ''}
+              onChange={(v) => onChange({ fieldId: v, collectionId: triggerCollectionId })}
+              options={triggerProps.map((p: any) => ({ value: p.id, label: p.name }))}
+              placeholder="Choisir un champ…"
+            />
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">→</span>
+            <FieldValuePicker
+              value={action.value || ''}
+              onChange={(v) => onChange({ value: v })}
+              targetProp={triggerProps.find((p: any) => p.id === action.fieldId)}
+              triggerProps={triggerProps}
+              triggerLabel={triggerLabel}
+              previousCreateActions={previousCreateActions}
+              className="flex-1 min-w-32"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pl-1">
+            <span className="text-xs text-muted-foreground">Ajouter une valeur</span>
+            <Select
+              value={additionalValueToken}
+              onChange={(token) => {
+                if (!token) return;
+                onChange({ value: [action.value?.trim(), token].filter(Boolean).join(' ') });
+                setAdditionalValueToken('');
+              }}
+              options={[
+                ...triggerProps.map((p: any) => ({ value: `{{trigger.${p.id}}}`, label: `${triggerLabel} · ${p.name || p.id}` })),
+                ...previousCreateActions.flatMap((source) => (source.properties || []).map((p: any) => ({ value: `{{action.${source.id}.${p.id}}}`, label: `${source.label} · ${p.name || p.id}` }))),
+              ]}
+              placeholder="Choisir un champ source…"
+              className="min-w-56 flex-1"
+            />
+            <span className="text-[11px] text-muted-foreground">La valeur est ajoutée à la suite, séparée par un espace.</span>
+          </div>
+          {triggerProps.some((p: any) => p.id !== action.fieldId) && (
+            <button
+              type="button"
+              onClick={() => {
+                const nextField = triggerProps.find((p: any) => p.id !== action.fieldId);
+                if (!nextField) return;
+                onChange({
+                  type: 'update_item',
+                  collectionId: triggerCollectionId,
+                  fields: { ...(action.fieldId ? { [action.fieldId]: action.value || '' } : {}), [nextField.id]: '' },
+                  fieldId: undefined,
+                  value: undefined,
+                });
+              }}
+              className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline dark:text-blue-400"
+            >
+              <Plus size={13} /> Ajouter un autre champ à modifier
+            </button>
+          )}
         </div>
       )}
 
