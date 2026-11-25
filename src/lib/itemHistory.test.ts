@@ -54,6 +54,19 @@ describe('compact item history', () => {
     expect(buildSnapshotAt(history.base, history.versions, 2)).toEqual(moved);
   });
 
+  it('versions collection template changes and date duration companions', () => {
+    const original = { id: 'i', date: '2026-11-19', date_duration: 1, collectionTemplateId: 'template-a' };
+    const updated = { ...original, date_duration: 2.75, collectionTemplateId: 'template-b' };
+    recordCollectionHistory(col([original]), col([updated]), 'org', user);
+
+    const history = readItemHistory('org', col([])[0], 'i')!;
+    expect(history.versions.at(-1)?.patch.set).toMatchObject({
+      date_duration: 2.75,
+      collectionTemplateId: 'template-b',
+    });
+    expect(buildSnapshotAt(history.base, history.versions, history.versions.length - 1)).toEqual(updated);
+  });
+
   it('ignores derived data and strips passwords and plugin drafts', () => {
     const old = { id: 'i', name: 'old', secret: 'password', _eventSegments: [{ large: 'x'.repeat(10000) }] };
     const next = { ...old, name: 'new', __steamExchangeDrafts: [old] };

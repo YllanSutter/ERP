@@ -116,18 +116,24 @@ const ItemContextMenu: React.FC<ItemContextMenuProps> = ({
             const template = collectionTemplates.find((candidate: any) => candidate.id === selectedTemplateId);
             if (!template) return;
             const updates = template.values && typeof template.values === 'object' ? template.values : {};
-            const nextItem = { ...item };
+            const nextItem = { ...item, collectionTemplateId: template.id };
             template.fieldIds.forEach((fieldId: string) => {
               const prop = activeCollection?.properties?.find((candidate: any) => candidate.id === fieldId);
-              if (!prop || !Object.prototype.hasOwnProperty.call(updates, fieldId) || updates[fieldId] === '') return;
-              let value: any = updates[fieldId];
-              if (prop.type === 'number') value = Number(value);
-              else if (prop.type === 'checkbox' || prop.type === 'boolean') value = value === true || String(value).toLowerCase() === 'true';
-              else if (['multiselect', 'multi_select'].includes(prop.type)) value = Array.isArray(value) ? value : String(value).split(',').map((part: string) => part.trim()).filter(Boolean);
-              else if (prop.type === 'date' && value === 'current_date') value = new Date().toISOString();
-              nextItem[fieldId] = value;
+              if (!prop) return;
+              if (Object.prototype.hasOwnProperty.call(updates, fieldId) && updates[fieldId] !== '') {
+                let value: any = updates[fieldId];
+                if (prop.type === 'number') value = Number(value);
+                else if (prop.type === 'checkbox' || prop.type === 'boolean') value = value === true || String(value).toLowerCase() === 'true';
+                else if (['multiselect', 'multi_select'].includes(prop.type)) value = Array.isArray(value) ? value : String(value).split(',').map((part: string) => part.trim()).filter(Boolean);
+                else if (prop.type === 'date' && value === 'current_date') value = new Date().toISOString();
+                nextItem[fieldId] = value;
+              }
+              const durationKey = `${fieldId}_duration`;
+              if (prop.type === 'date' && Object.prototype.hasOwnProperty.call(updates, durationKey) && updates[durationKey] !== '') {
+                nextItem[durationKey] = Number(updates[durationKey]);
+              }
             });
-            onEdit(nextItem);
+            onEdit?.(nextItem);
             setTemplateDialogOpen(false);
           }}>Valider et appliquer</Button>
         </DialogFooter>

@@ -363,16 +363,22 @@ const TableItemRow: React.FC<TableItemRowProps> = ({
             const template = collectionTemplates.find((candidate: any) => candidate.id === selectedTemplateId);
             if (!template) return;
             const values = template.values && typeof template.values === 'object' ? template.values : {};
-            const updated = { ...item } as Record<string, any>;
+            const updated = { ...item, collectionTemplateId: template.id } as Record<string, any>;
             template.fieldIds.forEach((fieldId: string) => {
               const prop = collection?.properties?.find((candidate: any) => candidate.id === fieldId);
-              if (!prop || !Object.prototype.hasOwnProperty.call(values, fieldId) || values[fieldId] === '') return;
-              let value: any = values[fieldId];
-              if (prop.type === 'number') value = Number(value);
-              else if (prop.type === 'checkbox' || prop.type === 'boolean') value = value === true || String(value).toLowerCase() === 'true';
-              else if (['multiselect', 'multi_select'].includes(prop.type)) value = Array.isArray(value) ? value : String(value).split(',').map((part: string) => part.trim()).filter(Boolean);
-              else if (prop.type === 'date' && value === 'current_date') value = new Date().toISOString();
-              updated[fieldId] = value;
+              if (!prop) return;
+              if (Object.prototype.hasOwnProperty.call(values, fieldId) && values[fieldId] !== '') {
+                let value: any = values[fieldId];
+                if (prop.type === 'number') value = Number(value);
+                else if (prop.type === 'checkbox' || prop.type === 'boolean') value = value === true || String(value).toLowerCase() === 'true';
+                else if (['multiselect', 'multi_select'].includes(prop.type)) value = Array.isArray(value) ? value : String(value).split(',').map((part: string) => part.trim()).filter(Boolean);
+                else if (prop.type === 'date' && value === 'current_date') value = new Date().toISOString();
+                updated[fieldId] = value;
+              }
+              const durationKey = `${fieldId}_duration`;
+              if (prop.type === 'date' && Object.prototype.hasOwnProperty.call(values, durationKey) && values[durationKey] !== '') {
+                updated[durationKey] = Number(values[durationKey]);
+              }
             });
             onEdit(updated as Item);
             setTemplateDialogOpen(false);

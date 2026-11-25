@@ -217,7 +217,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   // Ajout d'un sélecteur de collection (pour création uniquement)
   const [selectedCollectionId, setSelectedCollectionId] = useState(collection.id);
-  const [activeCollectionTemplateId, setActiveCollectionTemplateId] = useState('');
+  const [activeCollectionTemplateId, setActiveCollectionTemplateId] = useState(() => editingItem?.collectionTemplateId || '');
   const [collectionTemplateDialogOpen, setCollectionTemplateDialogOpen] = useState(false);
   const [collectionTemplateSelection, setCollectionTemplateSelection] = useState('');
   const selectedCollection =
@@ -913,6 +913,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   // Quand la modal reçoit un nouvel editingItem (préremplissage), on met à jour le formData
   React.useEffect(() => {
     if (!editingItem || draftAppliedRef.current) return;
+    setActiveCollectionTemplateId(editingItem.collectionTemplateId || '');
     // On force la réinitialisation du formData à partir de l'editingItem reçu (qui doit contenir les _eventSegments à jour)
     const next = getInitialFormData(selectedCollection, editingItem);
     initialDataRef.current = next.data;
@@ -1034,22 +1035,34 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     const template = collectionTemplates.find((candidate: any) => candidate.id === templateId);
     if (!template) return;
 
-    let nextData = { ...formData };
+    let nextData = { ...formData, collectionTemplateId: template.id };
     const nextAutoFilled = { ...templateAutoFilled };
     const values = template.values && typeof template.values === 'object' ? template.values : {};
     const templateFieldIds = new Set(Array.isArray(template.fieldIds) ? template.fieldIds : []);
     (selectedCollection.properties || []).forEach((prop: any) => {
-      if (!templateFieldIds.has(prop.id) || !Object.prototype.hasOwnProperty.call(values, prop.id) || values[prop.id] === '') return;
-      let value: any = values[prop.id];
-      if (prop.type === 'number') value = Number(value);
-      else if (prop.type === 'checkbox' || prop.type === 'boolean') value = value === true || String(value).toLowerCase() === 'true';
-      else if (['multiselect', 'multi_select'].includes(prop.type)) value = Array.isArray(value) ? value : String(value).split(',').map((part: string) => part.trim()).filter(Boolean);
-      else if (prop.type === 'date' && value === 'current_date') value = new Date().toISOString();
-      nextData[prop.id] = value;
-      nextAutoFilled[prop.id] = false;
+      if (!templateFieldIds.has(prop.id)) return;
+      const hasFieldValue = Object.prototype.hasOwnProperty.call(values, prop.id) && values[prop.id] !== '';
+      const durationKey = `${prop.id}_duration`;
+      const hasDurationValue = prop.type === 'date' && Object.prototype.hasOwnProperty.call(values, durationKey) && values[durationKey] !== '';
+      if (hasFieldValue) {
+        let value: any = values[prop.id];
+        if (prop.type === 'number') value = Number(value);
+        else if (prop.type === 'checkbox' || prop.type === 'boolean') value = value === true || String(value).toLowerCase() === 'true';
+        else if (['multiselect', 'multi_select'].includes(prop.type)) value = Array.isArray(value) ? value : String(value).split(',').map((part: string) => part.trim()).filter(Boolean);
+        else if (prop.type === 'date' && value === 'current_date') value = new Date().toISOString();
+        nextData[prop.id] = value;
+        nextAutoFilled[prop.id] = false;
+      }
+      if (hasDurationValue) {
+        nextData[durationKey] = Number(values[durationKey]);
+        nextAutoFilled[durationKey] = false;
+      }
     });
     const hasDateValues = (selectedCollection.properties || []).some((prop: any) =>
-      prop.type === 'date' && templateFieldIds.has(prop.id) && Object.prototype.hasOwnProperty.call(values, prop.id) && values[prop.id] !== ''
+      prop.type === 'date' && templateFieldIds.has(prop.id) && (
+        (Object.prototype.hasOwnProperty.call(values, prop.id) && values[prop.id] !== '') ||
+        (Object.prototype.hasOwnProperty.call(values, `${prop.id}_duration`) && values[`${prop.id}_duration`] !== '')
+      )
     );
     if (hasDateValues) {
       nextData = { ...nextData, _preserveEventSegments: false, _eventSegments: calculateSegmentsClient(nextData, selectedCollection) };

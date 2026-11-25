@@ -220,6 +220,7 @@ const App = () => {
   const [editingProperty, setEditingProperty] = useState<any>(null);
   const [editingCollection, setEditingCollection] = useState<any>(null);
   const [showEditCollectionModal, setShowEditCollectionModal] = useState(false);
+  const [reopenCollectionSettingsId, setReopenCollectionSettingsId] = useState<string | null>(null);
   const [relationFilter, setRelationFilter] = useState<{ collectionId: string | null; ids: string[] }>({
     collectionId: null,
     ids: []
@@ -319,6 +320,14 @@ const App = () => {
     () => applyCalculatedFieldsToCollections(visibleCollections(collections)),
     [collections]
   );
+  useEffect(() => {
+    if (!reopenCollectionSettingsId || showPropertyModal) return;
+    const updatedCollection = collections.find((entry) => entry.id === reopenCollectionSettingsId);
+    if (!updatedCollection) return;
+    setEditingCollection(updatedCollection);
+    setShowEditCollectionModal(true);
+    setReopenCollectionSettingsId(null);
+  }, [collections, reopenCollectionSettingsId, showPropertyModal]);
   const currentCollection = collectionsWithCalculatedFields.find((c) => c.id === activeCollection);
   const isSteamPluginActive = Boolean(
     activeOrganizationId && pluginManager.isPluginActive(activeOrganizationId, 'steam')
@@ -1366,6 +1375,12 @@ const App = () => {
           onSave={(updatedCollection) => {
             collectionHooks.updateCollection(updatedCollection);
             setShowEditCollectionModal(false);
+          }}
+          onAddField={(collectionId) => {
+            setReopenCollectionSettingsId(collectionId);
+            setActiveCollection(collectionId);
+            setEditingProperty(null);
+            setShowPropertyModal(true);
           }}
           onDelete={(collectionId) => {
             collectionHooks.deleteCollection(collectionId);

@@ -978,7 +978,7 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
     const latestItemRef = useRef<any>(null);
     const selectedDate = value && !isNaN(new Date(value).getTime()) ? new Date(value) : undefined;
     const durationKey = `${property.id}_duration`;
-    const currentDuration = currentItem?.[durationKey] || property.defaultDuration || 1;
+    const currentDuration = currentItem?.[durationKey] ?? property.defaultDuration ?? 1;
     const dateGranularity = property.dateGranularity || 'full';
     const includeDuration = property.includeDuration !== false;
 
@@ -1092,7 +1092,10 @@ const EditableProperty: React.FC<EditablePropertyProps> = React.memo(({
                 <label className="block text-xs font-medium text-neutral-400 mb-1.5">Durée (H:M)</label>
                 <select
                   value={currentDuration}
-                  onChange={e => handleEventUpdate(durationKey, parseFloat(e.target.value) || 1)}
+                  onChange={e => {
+                    const duration = Number(e.target.value);
+                    if (Number.isFinite(duration)) handleEventUpdate(durationKey, duration);
+                  }}
                   className="w-full h-50 text-center bg-background dark:bg-neutral-900 border-r border-white/10 text-black dark:text-white text-lg focus:border-brand-500 focus:outline-none overflow-y-scroll"
                   size={9}
                   style={{ WebkitAppearance: 'none', appearance: 'none' }}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import ModalWrapper, { FormSelect } from '@/components/ui/ModalWrapper';
 import {
   type TableGroupDisplayMode, type TableGroupColumnCount,
@@ -74,6 +74,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
   const [groupDisplayColumnCounts, setGroupDisplayColumnCounts] = useState<Record<string, TableGroupColumnCount>>(
     initialGroupDisplayColumnCounts || {}
   );
+  const groupDisplayColumnCountsRef = useRef<Record<string, TableGroupColumnCount>>(
+    initialGroupDisplayColumnCounts || {}
+  );
   const [groupTabStyleFieldIds, setGroupTabStyleFieldIds] = useState<Record<string, string>>(
     initialGroupTabStyleFieldIds || {}
   );
@@ -121,7 +124,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
   };
 
   const updateGroupColumnCount = (groupId: string, count: TableGroupColumnCount) => {
-    setGroupDisplayColumnCounts((prev) => ({ ...prev, [groupId]: normalizeColumnCount(count) }));
+    const normalizedCount = normalizeColumnCount(count);
+    groupDisplayColumnCountsRef.current = { ...groupDisplayColumnCountsRef.current, [groupId]: normalizedCount };
+    setGroupDisplayColumnCounts((prev) => ({ ...prev, [groupId]: normalizedCount }));
   };
 
   const handleSave = () => {
@@ -146,7 +151,9 @@ const GroupModal: React.FC<GroupModalProps> = ({
       };
       const index = uniqueGroups.indexOf(groupId);
       nextDisplayModes[groupId] = getGroupMode(groupId, index);
-      nextDisplayColumnCounts[groupId] = getGroupColumnCount(groupId);
+      nextDisplayColumnCounts[groupId] = normalizeColumnCount(
+        groupDisplayColumnCountsRef.current[groupId] ?? initialDefaultGroupDisplayColumnCount
+      );
       const configuredStyleField = groupTabStyleFieldIds[groupId];
       if (configuredStyleField) nextTabStyleFieldIds[groupId] = configuredStyleField;
     });
