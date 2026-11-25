@@ -138,7 +138,7 @@ const checkConditions = (item, conditions) => {
 };
 
 // ─── Action executor ──────────────────────────────────────────────────────────
-const executeAction = async (action, triggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults = {}) => {
+const executeAction = async (action, triggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults = {}, dryRun = false) => {
   const { type, collectionId, fields } = action;
 
   switch (type) {
@@ -249,6 +249,47 @@ const executeAction = async (action, triggerItem, state, pool, organizationId, c
       return updatedTrigger;
     }
 
+    case 'condition': {
+      const branch = checkConditions(triggerItem, action.conditions || []);
+      const nestedActions = branch ? action.thenActions || [] : action.elseActions || [];
+      let lastResult = null;
+      for (const nestedAction of nestedActions) {
+        lastResult = await executeAction(nestedAction, triggerItem, state, pool, organizationId, calculateEventSegments, getDefaultCalendarConfig, actionResults, dryRun);
+        if (lastResult && nestedAction?.id) actionResults[nestedAction.id] = lastResult;
+      }
+      return lastResult;
+    }
+
+    case 'delay': {
+      const seconds = Math.max(0, Math.min(60, Number(action.delaySeconds) || 0));
+      if (seconds > 0 && !dryRun) await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+      return { delayedSeconds: seconds };
+    }
+
+    case 'find_or_create_item': {
+      const col = (state.collections || []).find((c) => c.id === collectionId);
+      if (!col || !action.matchFieldId) break;
+      const matchValue = resolveTemplate(action.matchValue || '', triggerItem, actionResults);
+      const existing = (col.items || []).find((item) => String(item[action.matchFieldId] ?? '') === String(matchValue));
+      const resolvedFields = resolveFields(fields || {}, triggerItem, col, actionResults);
+      if (existing) {
+        const updated = { ...existing, ...resolvedFields };
+        state.collections = state.collections.map((entry) => entry.id === collectionId
+          ? { ...entry, items: entry.items.map((item) => item.id === existing.id ? updated : item) }
+          : entry);
+        const relationProps = (col.properties || []).filter((p) => p.type === 'relation' && Object.hasOwn(resolvedFields, p.id));
+        if (relationProps.length) state.collections = applyRelationChanges(state.collections, col, updated, relationProps);
+        return updated;
+      }
+      const created = { id: randomUUID(), name: '', ...resolvedFields, [action.matchFieldId]: matchValue, _createdByAutomation: true };
+      state.collections = state.collections.map((entry) => entry.id === collectionId
+        ? { ...entry, items: [...(entry.items || []), created] }
+        : entry);
+      const relationProps = (col.properties || []).filter((p) => p.type === 'relation');
+      if (relationProps.length) state.collections = applyRelationChanges(state.collections, col, created, relationProps);
+      return created;
+    }
+
     default:
       break;
   }
@@ -271,6 +312,19 @@ export const loadAutomations = async (pool, organizationId) => {
     trigger: typeof row.trigger_data === 'string' ? JSON.parse(row.trigger_data) : row.trigger_data,
     actions: typeof row.actions_data === 'string' ? JSON.parse(row.actions_data) : row.actions_data,
   }));
+};
+
+const persistAutomationRun = async (pool, organizationId, automationId, status, details) => {
+  try {
+    await pool.query(
+      `INSERT INTO automation_runs (id, organization_id, automation_id, status, details)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [randomUUID(), organizationId, automationId, status, JSON.stringify(details)]
+    );
+  } catch (err) {
+    // Journal indisponible ne doit pas empêcher l'automatisation de fonctionner.
+    console.error('[Automation] impossible d’enregistrer l’exécution', err);
+  }
 };
 
 /**
@@ -300,42 +354,67 @@ export const triggerAutomations = async ({
   organizationId,
   calculateEventSegments,
   getDefaultCalendarConfig,
+  dryRun = false,
 }) => {
   if (!Array.isArray(automations) || automations.length === 0) return state;
+  const saveRun = (...args) => dryRun ? Promise.resolve() : persistAutomationRun(...args);
 
   const enrichedTriggerItem = { ...triggerItem, __collectionId: collectionId };
 
   for (const automation of automations) {
     const trigger = automation.trigger || {};
-    if (trigger.type !== eventType) continue;
-    if (trigger.collectionId && trigger.collectionId !== collectionId) continue;
+    const eventDetails = { eventType, collectionId, itemId: triggerItem?.id, steps: [] };
+    if (trigger.type !== eventType || (trigger.collectionId && trigger.collectionId !== collectionId)) continue;
 
     // Vérification des conditions du trigger
-    if (!checkConditions(enrichedTriggerItem, trigger.conditions || [])) continue;
+    if (!checkConditions(enrichedTriggerItem, trigger.conditions || [])) {
+      await saveRun(pool, organizationId, automation.id, 'ignored', {
+        ...eventDetails, reason: 'Les conditions du déclencheur ne sont pas remplies.',
+      });
+      continue;
+    }
 
     // Pour item_updated : vérifier que les champs surveillés ont changé
     if (eventType === 'item_updated' && Array.isArray(trigger.watchFields) && trigger.watchFields.length > 0) {
       const hasChange = trigger.watchFields.some(
         (fId) => JSON.stringify(enrichedTriggerItem[fId]) !== JSON.stringify(prevItem?.[fId])
       );
-      if (!hasChange) continue;
+      if (!hasChange) {
+        await saveRun(pool, organizationId, automation.id, 'ignored', {
+          ...eventDetails, reason: 'Aucun champ surveillé n’a changé.',
+        });
+        continue;
+      }
     }
 
     // Exécuter les actions en séquence
     const actions = Array.isArray(automation.actions) ? automation.actions : [];
     const actionResults = {};
-    for (const action of actions) {
-      const result = await executeAction(
-        action,
-        enrichedTriggerItem,
-        state,
-        pool,
-        organizationId,
-        calculateEventSegments,
-        getDefaultCalendarConfig,
-        actionResults,
-      );
-      if (result && action?.id) actionResults[action.id] = result;
+    try {
+      for (const [index, action] of actions.entries()) {
+        try {
+          const result = await executeAction(
+            action,
+            enrichedTriggerItem,
+            state,
+            pool,
+            organizationId,
+            calculateEventSegments,
+            getDefaultCalendarConfig,
+            actionResults,
+            dryRun,
+          );
+          if (result && action?.id) actionResults[action.id] = result;
+          eventDetails.steps.push({ actionId: action.id, type: action.type, status: 'success', position: index + 1 });
+        } catch (error) {
+          eventDetails.steps.push({ actionId: action.id, type: action.type, status: 'error', position: index + 1, message: error?.message || 'Erreur inconnue' });
+          throw error;
+        }
+      }
+      await saveRun(pool, organizationId, automation.id, 'success', eventDetails);
+    } catch (error) {
+      await saveRun(pool, organizationId, automation.id, 'error', { ...eventDetails, error: error?.message || 'Erreur inconnue' });
+      throw error;
     }
   }
 

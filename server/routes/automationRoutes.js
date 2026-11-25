@@ -9,9 +9,96 @@
  */
 
 import { randomUUID } from 'crypto';
+import { triggerAutomations } from '../services/automationService.js';
+import { decryptStateSecrets } from '../services/secretFieldService.js';
 
 export const registerAutomationRoutes = ({ app, appContext }) => {
-  const { logger, requireAuth, requirePermission, pool } = appContext;
+  const { logger, requireAuth, requirePermission, pool, calculateEventSegments, defaultCalendarConfig } = appContext;
+
+  app.post('/api/automations/:id/preview', requireAuth, requirePermission('can_write'), async (req, res) => {
+    try {
+      const organizationId = req.auth.activeOrganization?.id;
+      if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+      const { itemId } = req.body || {};
+      if (!itemId) return res.status(400).json({ error: 'Choisis un item de test.' });
+      const autoResult = await pool.query(
+        'SELECT id, name, enabled, trigger_data, actions_data FROM automations WHERE id=$1 AND organization_id=$2',
+        [req.params.id, organizationId]
+      );
+      if (!autoResult.rowCount) return res.status(404).json({ error: 'Automation not found' });
+      const row = autoResult.rows[0];
+      const automation = {
+        id: row.id,
+        name: row.name,
+        enabled: true,
+        trigger: typeof row.trigger_data === 'string' ? JSON.parse(row.trigger_data) : row.trigger_data,
+        actions: typeof row.actions_data === 'string' ? JSON.parse(row.actions_data) : row.actions_data,
+      };
+      const stateResult = await pool.query('SELECT data FROM app_state WHERE organization_id=$1 LIMIT 1', [organizationId]);
+      if (!stateResult.rowCount) return res.status(404).json({ error: 'State not found' });
+      const original = decryptStateSecrets(JSON.parse(stateResult.rows[0].data), { preserveUnreadable: true });
+      const collection = original.collections?.find((entry) => entry.id === automation.trigger.collectionId);
+      const sample = collection?.items?.find((item) => item.id === itemId);
+      if (!sample) return res.status(404).json({ error: 'Item de test introuvable.' });
+      const simulated = structuredClone(original);
+      let previous = structuredClone(sample);
+      if (automation.trigger.type === 'item_updated' && automation.trigger.watchFields?.length) {
+        const watchedField = automation.trigger.watchFields[0];
+        previous[watchedField] = `__preview_previous_${randomUUID()}__`;
+      }
+      await triggerAutomations({
+        eventType: automation.trigger.type,
+        collectionId: automation.trigger.collectionId,
+        triggerItem: structuredClone(sample),
+        prevItem: previous,
+        state: simulated,
+        automations: [automation],
+        pool,
+        organizationId,
+        calculateEventSegments,
+        getDefaultCalendarConfig: () => defaultCalendarConfig,
+        dryRun: true,
+      });
+      const changes = [];
+      for (const nextCollection of simulated.collections || []) {
+        const beforeCollection = original.collections?.find((entry) => entry.id === nextCollection.id);
+        const beforeIds = new Set((beforeCollection?.items || []).map((item) => item.id));
+        for (const item of nextCollection.items || []) {
+          if (!beforeIds.has(item.id)) changes.push({ type: 'created', collection: nextCollection.name, item: item.name || item.id });
+          else {
+            const before = beforeCollection.items.find((entry) => entry.id === item.id);
+            if (JSON.stringify(before) !== JSON.stringify(item)) changes.push({ type: 'updated', collection: nextCollection.name, item: item.name || item.id });
+          }
+        }
+      }
+      return res.json({ changes, matched: changes.length > 0, message: changes.length ? null : 'Aucun changement simulé. Vérifie les conditions et les valeurs des actions.' });
+    } catch (err) {
+      logger.error('POST /api/automations/:id/preview error', err);
+      return res.status(500).json({ error: err.message || 'Échec de la simulation' });
+    }
+  });
+
+  app.get('/api/automations/:id/runs', requireAuth, async (req, res) => {
+    try {
+      const organizationId = req.auth.activeOrganization?.id;
+      if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+      const result = await pool.query(
+        `SELECT id, status, details, created_at FROM automation_runs
+         WHERE organization_id = $1 AND automation_id = $2
+         ORDER BY created_at DESC LIMIT 30`,
+        [organizationId, req.params.id]
+      );
+      return res.json(result.rows.map((row) => ({
+        id: row.id,
+        status: row.status,
+        details: typeof row.details === 'string' ? JSON.parse(row.details) : row.details,
+        createdAt: row.created_at,
+      })));
+    } catch (err) {
+      logger.error('GET /api/automations/:id/runs error', err);
+      return res.status(500).json({ error: 'Failed to load automation runs' });
+    }
+  });
 
   // ── GET /api/automations ───────────────────────────────────────────────────
   app.get('/api/automations', requireAuth, async (req, res) => {

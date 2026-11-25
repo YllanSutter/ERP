@@ -24,6 +24,13 @@ import {
   Settings2,
   Link2,
   Calculator,
+  History,
+  CheckCircle2,
+  AlertCircle,
+  CircleDashed,
+  ChevronUp,
+  ChevronDown as ChevronDownIcon,
+  Play,
 } from 'lucide-react';
 import {
   Select as RadixSelect,
@@ -40,7 +47,7 @@ import ModalWrapper from '@/components/ui/ModalWrapper';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type TriggerType = 'item_created' | 'item_updated' | 'item_deleted';
-type ActionType = 'create_item' | 'update_item' | 'update_field';
+type ActionType = 'create_item' | 'update_item' | 'update_field' | 'condition' | 'delay' | 'find_or_create_item';
 type ConditionOperator = 'equals' | 'not_equals' | 'contains' | 'is_empty' | 'is_not_empty' | 'greater' | 'less';
 
 interface Condition {
@@ -84,6 +91,12 @@ interface AutomationAction {
   fields?: Record<string, string>;
   fieldId?: string; // pour update_field
   value?: string;   // pour update_field
+  conditions?: Condition[];
+  thenActions?: AutomationAction[];
+  elseActions?: AutomationAction[];
+  delaySeconds?: number;
+  matchFieldId?: string;
+  matchValue?: string;
 }
 
 interface Automation {
@@ -92,6 +105,13 @@ interface Automation {
   enabled: boolean;
   trigger: AutomationTrigger;
   actions: AutomationAction[];
+}
+
+interface AutomationRun {
+  id: string;
+  status: 'success' | 'error' | 'ignored';
+  details: { eventType?: string; collectionId?: string; itemId?: string; reason?: string; error?: string; steps?: { type: string; status: string; position: number; message?: string }[] };
+  createdAt: string;
 }
 
 interface AutomationsPageProps {
@@ -110,6 +130,9 @@ const ACTION_LABELS: Record<ActionType, string> = {
   create_item: 'Créer un ou plusieurs items',
   update_item: "Mettre à jour l'item déclencheur",
   update_field: "Modifier un champ de l'item déclencheur",
+  condition: 'Si / sinon',
+  delay: 'Attendre',
+  find_or_create_item: 'Rechercher ou créer un item',
 };
 
 const OPERATOR_LABELS: Record<ConditionOperator, string> = {
@@ -378,6 +401,14 @@ const AutomationEditor: React.FC<{
   onDelete: () => void;
 }> = ({ automation, collections, onChange, onDelete }) => {
   const [expanded, setExpanded] = useState(false);
+  const [showRuns, setShowRuns] = useState(false);
+  const [runs, setRuns] = useState<AutomationRun[]>([]);
+  const [runsLoading, setRunsLoading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewItemId, setPreviewItemId] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewResult, setPreviewResult] = useState<{ changes: { type: string; collection: string; item: string }[]; message?: string } | null>(null);
+  const [previewError, setPreviewError] = useState('');
 
   const update = useCallback((patch: Partial<Automation>) => {
     onChange({ ...automation, ...patch });
@@ -399,6 +430,22 @@ const AutomationEditor: React.FC<{
 
   const removeAction = (actionId: string) =>
     update({ actions: automation.actions.filter((a) => a.id !== actionId) });
+
+  const moveAction = (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= automation.actions.length) return;
+    const actions = [...automation.actions];
+    [actions[index], actions[nextIndex]] = [actions[nextIndex], actions[index]];
+    update({ actions });
+  };
+
+  const moveActionToIndex = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || toIndex < 0 || toIndex >= automation.actions.length) return;
+    const actions = [...automation.actions];
+    const [moved] = actions.splice(fromIndex, 1);
+    actions.splice(toIndex, 0, moved);
+    update({ actions });
+  };
 
   const addCondition = () =>
     updateTrigger({
@@ -422,6 +469,43 @@ const AutomationEditor: React.FC<{
 
   const triggerCollection = collections.find((c) => c.id === automation.trigger.collectionId);
   const triggerProps = triggerCollection?.properties || [];
+  const sampleItems = triggerCollection?.items || [];
+
+  const runPreview = async () => {
+    if (!previewItemId) return;
+    setPreviewLoading(true);
+    setPreviewError('');
+    setPreviewResult(null);
+    try {
+      const response = await fetch(`/api/automations/${automation.id}/preview`, {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: previewItemId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Échec de la simulation');
+      setPreviewResult(result);
+    } catch (err: any) {
+      setPreviewError(err.message || 'Échec de la simulation');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const toggleRuns = async () => {
+    const next = !showRuns;
+    setShowRuns(next);
+    if (!next) return;
+    setRunsLoading(true);
+    try {
+      const response = await fetch(`/api/automations/${automation.id}/runs`, { credentials: 'include' });
+      if (response.ok) setRuns(await response.json());
+      else setRuns([]);
+    } catch {
+      setRuns([]);
+    } finally {
+      setRunsLoading(false);
+    }
+  };
 
   const collectionOptions = collections.map((c) => ({ value: c.id, label: c.name || 'Sans nom' }));
 
@@ -460,6 +544,22 @@ const AutomationEditor: React.FC<{
           {automation.enabled ? 'Active' : 'Inactive'}
         </span>
 
+        <button
+          onClick={(e) => { e.stopPropagation(); setPreviewOpen((value) => !value); setPreviewResult(null); setPreviewError(''); }}
+          className={`flex-shrink-0 flex items-center gap-1 text-xs transition-colors ${previewOpen ? 'text-blue-500' : 'text-neutral-400 hover:text-blue-500'}`}
+          title="Simuler cette automatisation sans enregistrer les changements"
+        >
+          <Play size={13} /> Tester
+        </button>
+
+        <button
+          onClick={(e) => { e.stopPropagation(); void toggleRuns(); }}
+          className={`flex-shrink-0 flex items-center gap-1 text-xs transition-colors ${showRuns ? 'text-blue-500' : 'text-neutral-400 hover:text-blue-500'}`}
+          title="Historique des exécutions"
+        >
+          <History size={14} /> Historique
+        </button>
+
         {/* Expand/collapse */}
         {expanded
           ? <ChevronDown size={16} className="text-neutral-400 flex-shrink-0" />
@@ -492,8 +592,69 @@ const AutomationEditor: React.FC<{
       )}
 
       {/* Expanded body */}
+      {showRuns && (
+        <div className="px-4 py-3 border-t border-neutral-100 dark:border-white/5 bg-neutral-50/70 dark:bg-black/10">
+          <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 mb-2">Dernières exécutions</div>
+          {runsLoading ? <div className="text-xs text-neutral-400">Chargement…</div> : runs.length === 0 ? (
+            <div className="text-xs text-neutral-400">Aucune exécution enregistrée.</div>
+          ) : (
+            <div className="space-y-2 max-h-56 overflow-y-auto">
+              {runs.map((run) => {
+                const Icon = run.status === 'success' ? CheckCircle2 : run.status === 'error' ? AlertCircle : CircleDashed;
+                const label = run.status === 'success' ? 'Réussie' : run.status === 'error' ? 'Erreur' : 'Ignorée';
+                return <div key={run.id} className="flex items-start gap-2 text-xs">
+                  <Icon size={14} className={run.status === 'success' ? 'text-emerald-500 mt-0.5' : run.status === 'error' ? 'text-red-500 mt-0.5' : 'text-neutral-400 mt-0.5'} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex gap-2 text-neutral-600 dark:text-neutral-300"><span>{label}</span><span className="text-neutral-400">{new Date(run.createdAt).toLocaleString()}</span></div>
+                    {run.details.reason && <div className="text-neutral-400 mt-0.5">{run.details.reason}</div>}
+                    {run.details.error && <div className="text-red-500 mt-0.5">{run.details.error}</div>}
+                    {!!run.details.steps?.length && <div className="text-neutral-400 mt-0.5">{run.details.steps.map((step) => `Action ${step.position} : ${step.status === 'success' ? 'OK' : step.message || 'erreur'}`).join(' · ')}</div>}
+                  </div>
+                </div>;
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {previewOpen && (
+        <div className="px-4 py-3 border-t border-neutral-100 dark:border-white/5 bg-blue-50/50 dark:bg-blue-950/10 space-y-2">
+          <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Simulation sans sauvegarde</div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <Select value={previewItemId} onChange={(v) => { setPreviewItemId(v); setPreviewResult(null); }}
+              options={sampleItems.map((item: any) => ({ value: item.id, label: item.name || item.title || item.id }))}
+              placeholder="Choisir un item de test…" />
+            <button onClick={() => void runPreview()} disabled={!previewItemId || previewLoading}
+              className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50">
+              <Play size={12} /> {previewLoading ? 'Simulation…' : 'Lancer le test'}
+            </button>
+          </div>
+          {previewError && <div className="text-xs text-red-500">{previewError}</div>}
+          {previewResult && <div className="text-xs text-neutral-600 dark:text-neutral-300">
+            {previewResult.changes.length ? <div className="space-y-1">{previewResult.changes.map((change, i) => <div key={`${change.type}-${i}`}>
+              {change.type === 'created' ? 'Créerait' : 'Modifierait'} « {change.item} » dans {change.collection}.
+            </div>)}</div> : <div>{previewResult.message}</div>}
+          </div>}
+          <div className="text-[10px] text-neutral-400">Les changements affichés sont simulés et ne sont pas enregistrés.</div>
+        </div>
+      )}
+
       {expanded && (
         <div className="px-4 pb-4 pt-2 border-t border-neutral-100 dark:border-white/5 space-y-5">
+
+          <div className="flex items-center gap-2 overflow-x-auto pb-1" aria-label="Étapes de l’automatisation">
+            <div className="shrink-0 flex items-center gap-2 rounded-full border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/40 px-3 py-1.5 text-xs text-blue-700 dark:text-blue-300">
+              <Zap size={12} /> Déclencheur
+            </div>
+            <div className="h-px w-6 shrink-0 bg-neutral-300 dark:bg-neutral-700" />
+            <div className="shrink-0 rounded-full border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-300">
+              {automation.trigger.conditions?.length ? `${automation.trigger.conditions.length} condition${automation.trigger.conditions.length > 1 ? 's' : ''}` : 'Conditions'}
+            </div>
+            <div className="h-px w-6 shrink-0 bg-neutral-300 dark:bg-neutral-700" />
+            <div className="shrink-0 flex items-center gap-2 rounded-full border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-700 dark:text-emerald-300">
+              <ArrowRight size={12} /> {automation.actions.length} action{automation.actions.length !== 1 ? 's' : ''}
+            </div>
+          </div>
 
           {/* ── TRIGGER ── */}
           <div>
@@ -612,6 +773,9 @@ const AutomationEditor: React.FC<{
                   collections={collections}
                   triggerCollectionId={automation.trigger.collectionId}
                   previousCreateActions={automation.actions.slice(0, idx).filter((a) => a.type === 'create_item').map((a, i) => ({ id: a.id, label: collections.find((c) => c.id === a.collectionId)?.name || `Action ${i + 1}` }))}
+                  onMoveUp={() => moveAction(idx, -1)}
+                  onMoveDown={() => moveAction(idx, 1)}
+                  onMoveToIndex={(toIndex) => moveActionToIndex(idx, toIndex)}
                   onChange={(patch) => updateAction(action.id, patch)}
                   onRemove={() => removeAction(action.id)}
                 />
@@ -879,9 +1043,13 @@ const ActionEditor: React.FC<{
   collections: any[];
   triggerCollectionId: string;
   previousCreateActions?: { id: string; label: string }[];
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onMoveToIndex?: (toIndex: number) => void;
   onChange: (patch: Partial<AutomationAction>) => void;
   onRemove: () => void;
-}> = ({ index, action, collections, triggerCollectionId, previousCreateActions = [], onChange, onRemove }) => {
+}> = ({ index, action, collections, triggerCollectionId, previousCreateActions = [], onMoveUp, onMoveDown, onMoveToIndex, onChange, onRemove }) => {
+  const [isDragging, setIsDragging] = useState(false);
   const targetCollection = collections.find((c) => c.id === action.collectionId);
   const targetProps = targetCollection?.properties || [];
   const triggerCollection = collections.find((c) => c.id === triggerCollectionId);
@@ -923,13 +1091,21 @@ const ActionEditor: React.FC<{
   const unusedProps = targetProps.filter((p: any) => !Object.keys(action.fields || {}).includes(p.id));
 
   return (
-    <div className="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-white/10 rounded-xl p-3 space-y-3">
+    <div
+      onDragOver={(event) => { if (onMoveToIndex) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } }}
+      onDrop={(event) => { if (!onMoveToIndex) return; event.preventDefault(); const from = Number(event.dataTransfer.getData('text/plain')); if (Number.isInteger(from)) onMoveToIndex(from); setIsDragging(false); }}
+      className={`bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-white/10 rounded-xl p-3 space-y-3 ${isDragging ? 'opacity-50' : ''}`}
+    >
       {/* Header action */}
       <div className="flex items-center gap-2">
-        <GripVertical size={14} className="text-neutral-300 dark:text-neutral-600 flex-shrink-0" />
-        <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 w-16 flex-shrink-0">
-          Action {index + 1}
+        <span draggable={!!onMoveToIndex} onDragStart={(event) => { event.dataTransfer.setData('text/plain', String(index)); event.dataTransfer.effectAllowed = 'move'; setIsDragging(true); }} onDragEnd={() => setIsDragging(false)} className="cursor-grab active:cursor-grabbing">
+          <GripVertical size={14} className="text-neutral-300 dark:text-neutral-600 flex-shrink-0" />
         </span>
+        <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 w-16 flex-shrink-0">
+          Étape {index + 1}
+        </span>
+        {onMoveUp && <button onClick={onMoveUp} disabled={index === 0} className="text-neutral-400 disabled:opacity-30" title="Monter l’étape"><ChevronUp size={14} /></button>}
+        {onMoveDown && <button onClick={onMoveDown} className="text-neutral-400" title="Descendre l’étape"><ChevronDownIcon size={14} /></button>}
         <Select
           value={action.type}
           onChange={(v) => onChange({
@@ -938,6 +1114,10 @@ const ActionEditor: React.FC<{
             items: v === 'create_item' ? [emptyItemDef()] : undefined,
             fieldId: '',
             value: '',
+            conditions: v === 'condition' ? [{ id: uuid(), fieldId: '', operator: 'is_not_empty', value: '' }] : undefined,
+            thenActions: v === 'condition' ? [emptyAction()] : undefined,
+            elseActions: v === 'condition' ? [] : undefined,
+            delaySeconds: v === 'delay' ? 1 : undefined,
           })}
           options={Object.entries(ACTION_LABELS).map(([k, v]) => ({ value: k, label: v }))}
           className="flex-1"
@@ -1078,6 +1258,81 @@ const ActionEditor: React.FC<{
             previousCreateActions={previousCreateActions}
             className="flex-1 min-w-32"
           />
+        </div>
+      )}
+
+      {action.type === 'delay' && (
+        <div className="flex items-center gap-2 pl-5 text-sm text-neutral-600 dark:text-neutral-300">
+          <span>Attendre</span>
+          <input type="number" min={0} max={60} value={action.delaySeconds ?? 1}
+            onChange={(e) => onChange({ delaySeconds: Math.max(0, Math.min(60, Number(e.target.value) || 0)) })}
+            className="w-20 h-9 rounded-lg border border-neutral-200 dark:border-white/10 bg-white dark:bg-neutral-800 px-2" />
+          <span>secondes (maximum 60)</span>
+        </div>
+      )}
+
+      {action.type === 'find_or_create_item' && (
+        <div className="space-y-3 pl-5">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+            <span>Dans</span>
+            <Select value={action.collectionId} onChange={(v) => onChange({ collectionId: v, matchFieldId: '', fields: {} })}
+              options={collectionOptions} placeholder="Choisir une collection…" />
+            <span>chercher un item où</span>
+            <Select value={action.matchFieldId || ''} onChange={(v) => onChange({ matchFieldId: v })}
+              options={targetProps.map((p: any) => ({ value: p.id, label: p.name }))} placeholder="Champ…" />
+            <span>vaut</span>
+          </div>
+          {action.matchFieldId && <FieldValuePicker value={action.matchValue || ''} onChange={(v) => onChange({ matchValue: v })}
+            targetProp={targetProps.find((p: any) => p.id === action.matchFieldId)} triggerProps={triggerProps}
+            previousCreateActions={previousCreateActions} />}
+          <div className="text-xs text-neutral-500">S’il existe, l’item est mis à jour. Sinon, il est créé.</div>
+          {Object.entries(action.fields || {}).map(([fieldId, value]) => (
+            <div key={fieldId} className="flex gap-2 items-center">
+              <Select value={fieldId} onChange={(nextId) => {
+                const next = { ...(action.fields || {}) }; const old = next[fieldId]; delete next[fieldId]; next[nextId] = old;
+                onChange({ fields: next });
+              }} options={targetProps.map((p: any) => ({ value: p.id, label: p.name }))} />
+              <FieldValuePicker value={String(value)} onChange={(v) => onChange({ fields: { ...(action.fields || {}), [fieldId]: v } })}
+                targetProp={targetProps.find((p: any) => p.id === fieldId)} triggerProps={triggerProps}
+                previousCreateActions={previousCreateActions} className="flex-1" />
+              <button onClick={() => { const next = { ...(action.fields || {}) }; delete next[fieldId]; onChange({ fields: next }); }}><X size={14} /></button>
+            </div>
+          ))}
+          {targetProps.some((p: any) => !Object.hasOwn(action.fields || {}, p.id)) && <button className="text-xs text-blue-500"
+            onClick={() => { const prop = targetProps.find((p: any) => !Object.hasOwn(action.fields || {}, p.id)); if (prop) onChange({ fields: { ...(action.fields || {}), [prop.id]: '' } }); }}>
+            <Plus size={12} /> Ajouter un champ à remplir
+          </button>}
+        </div>
+      )}
+
+      {action.type === 'condition' && (
+        <div className="space-y-3 pl-5">
+          <div className="text-xs text-neutral-500">Si toutes ces conditions sont vraies :</div>
+          {(action.conditions || []).map((condition, conditionIndex) => (
+            <div key={condition.id} className="flex flex-wrap items-center gap-2">
+              <Select value={condition.fieldId} onChange={(fieldId) => onChange({ conditions: action.conditions!.map((c, i) => i === conditionIndex ? { ...c, fieldId } : c) })}
+                options={triggerProps.map((p: any) => ({ value: p.id, label: p.name }))} placeholder="Champ…" />
+              <Select value={condition.operator} onChange={(operator) => onChange({ conditions: action.conditions!.map((c, i) => i === conditionIndex ? { ...c, operator: operator as ConditionOperator } : c) })}
+                options={Object.entries(OPERATOR_LABELS).map(([value, label]) => ({ value, label }))} />
+              {OPERATOR_HAS_VALUE.has(condition.operator) && <Input value={condition.value} onChange={(value) => onChange({ conditions: action.conditions!.map((c, i) => i === conditionIndex ? { ...c, value } : c) })} placeholder="Valeur…" />}
+              <button onClick={() => onChange({ conditions: (action.conditions || []).filter((c) => c.id !== condition.id) })}><X size={14} /></button>
+            </div>
+          ))}
+          <button className="text-xs text-blue-500" onClick={() => onChange({ conditions: [...(action.conditions || []), { id: uuid(), fieldId: '', operator: 'is_not_empty', value: '' }] })}><Plus size={12} /> Ajouter une condition</button>
+          {(['thenActions', 'elseActions'] as const).map((branchKey) => {
+            const branch = action[branchKey] || [];
+            const isThen = branchKey === 'thenActions';
+            const changeBranch = (next: AutomationAction[]) => onChange({ [branchKey]: next } as Partial<AutomationAction>);
+            return <div key={branchKey} className="rounded-lg border border-neutral-200 dark:border-white/10 p-3 space-y-2">
+              <div className={`text-xs font-semibold ${isThen ? 'text-emerald-600' : 'text-amber-600'}`}>{isThen ? 'OUI — exécuter' : 'NON — sinon'}</div>
+              {branch.map((nested, nestedIndex) => <ActionEditor key={nested.id} index={nestedIndex} action={nested} collections={collections}
+                triggerCollectionId={triggerCollectionId} previousCreateActions={[...previousCreateActions, ...branch.slice(0, nestedIndex).filter((entry) => entry.type === 'create_item').map((entry, i) => ({ id: entry.id, label: `Action créée ${i + 1}` }))]}
+                onChange={(patch) => changeBranch(branch.map((entry) => entry.id === nested.id ? { ...entry, ...patch } : entry))}
+                onRemove={() => changeBranch(branch.filter((entry) => entry.id !== nested.id))}
+                onMoveToIndex={(toIndex) => { const next = [...branch]; const [moved] = next.splice(nestedIndex, 1); next.splice(toIndex, 0, moved); changeBranch(next); }} />)}
+              <button className="text-xs text-blue-500" onClick={() => changeBranch([...branch, emptyAction()])}><Plus size={12} /> Ajouter une action</button>
+            </div>;
+          })}
         </div>
       )}
     </div>

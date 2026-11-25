@@ -287,6 +287,17 @@ export const bootstrapDatabase = async ({ pool, ensureDefaultOrganization }) => 
     );
   `);
   await pool.query('CREATE INDEX IF NOT EXISTS automations_org_idx ON automations (organization_id);');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS automation_runs (
+      id UUID PRIMARY KEY,
+      organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      automation_id UUID NOT NULL REFERENCES automations(id) ON DELETE CASCADE,
+      status TEXT NOT NULL,
+      details JSONB NOT NULL DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS automation_runs_org_created_idx ON automation_runs (organization_id, created_at DESC);');
 
   // Plugin PDF : index des PDFs sauvegardés par item (binaires stockés sur disque)
   await pool.query(`

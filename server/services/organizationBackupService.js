@@ -13,10 +13,11 @@ const tables = {
   user_roles: ['organization_id', 'user_id', 'role_id'],
   plugin_configs: ['organization_id', 'plugin_id', 'enabled', 'config', 'created_at', 'updated_at'],
   automations: ['id', 'organization_id', 'name', 'enabled', 'trigger_data', 'actions_data', 'created_at', 'updated_at'],
+  automation_runs: ['id', 'organization_id', 'automation_id', 'status', 'details', 'created_at'],
   pdf_plugin_saved_pdfs: ['id', 'organization_id', 'collection_id', 'item_id', 'template_id', 'storage_key', 'values', 'created_at', 'updated_at'],
   steam_public_bundles: ['id', 'organization_id', 'bundle_id', 'snapshot', 'updated_at'],
 };
-const jsonColumns = new Set(['config', 'trigger_data', 'actions_data', 'values', 'snapshot']);
+const jsonColumns = new Set(['config', 'trigger_data', 'actions_data', 'details', 'values', 'snapshot']);
 const isUuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value || '');
 const exists = file => fs.lstat(file).catch(error => { if (error.code !== 'ENOENT') throw error; return null; });
 
@@ -93,6 +94,7 @@ export const restoreOrganizationBackup = ({ pool, name, organizationId, actorUse
     if (manifest.scope !== 'organization' || manifest.organizationId !== organizationId || snapshot.scope !== 'organization' ||
         snapshot.version !== 1 || snapshot.organizationId !== organizationId || snapshot.organization?.id !== organizationId) throw new Error('Périmètre de sauvegarde incompatible.');
     snapshot.tables.browser_state ??= []; // Archives created before database-backed UI state.
+    snapshot.tables.automation_runs ??= []; // Archives created before execution history.
     for (const table of [...Object.keys(tables), 'app_state']) {
       if (!Array.isArray(snapshot.tables?.[table]) || snapshot.tables[table].some(row => row.organization_id !== organizationId)) throw new Error('Données de sauvegarde hors organisation.');
     }
@@ -114,7 +116,7 @@ export const restoreOrganizationBackup = ({ pool, name, organizationId, actorUse
     if (!organization.rowCount) throw new Error('Organisation introuvable.');
     const users = new Set((await client.query('SELECT id FROM users')).rows.map(user => user.id));
     if (!users.has(actorUserId)) throw new Error('Compte administrateur introuvable.');
-    for (const table of ['browser_state', 'permissions', 'user_roles', 'roles', 'organization_members', 'plugin_configs', 'automations', 'pdf_plugin_saved_pdfs', 'steam_public_bundles']) {
+    for (const table of ['browser_state', 'permissions', 'user_roles', 'roles', 'organization_members', 'plugin_configs', 'automation_runs', 'automations', 'pdf_plugin_saved_pdfs', 'steam_public_bundles']) {
       await client.query(`DELETE FROM ${table} WHERE organization_id=$1`, [organizationId]);
     }
     for (const [table, columns] of Object.entries(tables)) {
