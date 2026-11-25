@@ -2,7 +2,7 @@ import { migrateViewConfig } from '@/lib/views';
 
 export const useViews = (
   views: Record<string, any[]>,
-  setViews: (views: Record<string, any[]>) => void,
+  setViews: (views: Record<string, any[]> | ((previous: Record<string, any[]>) => Record<string, any[]>)) => void,
   activeCollection: string | null,
   activeView: string | null,
   setActiveView: (id: string) => void
@@ -146,14 +146,17 @@ export const useViews = (
 
   const updateView = (viewId: string, updates: Record<string, any>) => {
     if (!activeCollection) return;
-    const updatedViews = { ...views } as Record<string, any[]>;
-    const viewIndex = updatedViews[activeCollection].findIndex((v: any) => v.id === viewId);
-    if (viewIndex === -1) return;
-    updatedViews[activeCollection][viewIndex] = migrateViewConfig({
-      ...updatedViews[activeCollection][viewIndex],
-      ...updates,
-    } as any);
-    setViews(updatedViews);
+    setViews((previous) => {
+      const collectionViews = previous[activeCollection] || [];
+      const viewIndex = collectionViews.findIndex((view: any) => view.id === viewId);
+      if (viewIndex === -1) return previous;
+      const nextCollectionViews = [...collectionViews];
+      nextCollectionViews[viewIndex] = migrateViewConfig({
+        ...collectionViews[viewIndex],
+        ...updates,
+      } as any);
+      return { ...previous, [activeCollection]: nextCollectionViews };
+    });
   };
 
   const duplicateView = (viewId: string) => {

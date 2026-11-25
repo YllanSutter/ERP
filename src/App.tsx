@@ -309,7 +309,8 @@ const App = () => {
     ...views,
     [sessionView.collectionId]: [...(views[sessionView.collectionId] || []), sessionView.view],
   } : views;
-  const updateSessionViews = (nextViews: Record<string, any[]>) => {
+  const updateSessionViews = (nextViewsOrUpdater: Record<string, any[]> | ((previous: Record<string, any[]>) => Record<string, any[]>)) => {
+    const nextViews = typeof nextViewsOrUpdater === 'function' ? nextViewsOrUpdater(sessionViews) : nextViewsOrUpdater;
     if (!sessionView) { setViews(nextViews); return; }
     const { temporary, saved } = splitTemporaryView(nextViews, sessionView.collectionId, sessionView.view.id);
     setTemporaryRelationView(temporary ? { ...sessionView, view: temporary } : null);
@@ -996,6 +997,7 @@ const App = () => {
                 )}
                 groupEditor={showGroupModal && (
                   <GroupModal
+                    key={`${activeCollection || ''}:${activeView || ''}`}
                     embedded
                     properties={orderedProperties || []}
                     collections={collectionsWithCalculatedFields || []}
