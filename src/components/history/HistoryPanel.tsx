@@ -78,7 +78,7 @@ export default function HistoryPanel({ collectionId, itemId, title }: HistoryPan
 
   const load = useCallback(async (nextCursor?: string | null, append = false) => {
     const params = new URLSearchParams({ limit: '30' });
-    if (!itemId) params.set('collectionId', collectionId);
+    params.set('collectionId', collectionId);
     if (nextCursor) params.set('cursor', nextCursor);
     const path = itemId
       ? `${API_URL}/history/items/${encodeURIComponent(itemId)}?${params}`
@@ -87,7 +87,10 @@ export default function HistoryPanel({ collectionId, itemId, title }: HistoryPan
       setError('');
       if (append) setLoadingMore(true); else setLoading(true);
       const response = await fetch(path, { credentials: 'include' });
-      if (!response.ok) throw new Error('Impossible de charger l’historique.');
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(`${body.error || 'Impossible de charger l’historique.'} (HTTP ${response.status})`);
+      }
       const result = await response.json();
       setEvents(previous => append ? [...previous, ...(result.events || [])] : (result.events || []));
       setCursor(result.nextCursor || null);
