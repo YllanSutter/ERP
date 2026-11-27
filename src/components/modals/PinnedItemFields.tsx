@@ -39,11 +39,10 @@ export function PinnedFieldsHeader({ properties, onUnpin, renderField }: {
   properties: any[]; onUnpin: (id: string) => void; renderField: (property: any) => React.ReactNode;
 }) {
   if (!properties.length) return null;
-  return <div aria-label="Champs épinglés" className="flex min-w-0 flex-wrap items-start gap-2">
-    {properties.map(property => <div key={property.id} className="flex min-w-40 max-w-full flex-1 items-center gap-2 rounded-lg border border-border bg-background/70 px-2.5 py-1.5 sm:max-w-80">
-      <span className="max-w-24 shrink-0 truncate text-[10px] font-medium text-muted-foreground">{property.name}</span>
-      <div className="min-w-0 flex-1 overflow-hidden whitespace-nowrap">{renderField(property)}</div>
-      <button type="button" aria-label={`Désépingler ${property.name}`} title="Désépingler" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={() => onUnpin(property.id)}><PinOff size={11} /></button>
+  return <div aria-label="Champs épinglés" className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] items-center gap-x-2 gap-y-1">
+    {properties.map(property => <div key={property.id} className="flex h-9 min-w-0 items-center gap-1 rounded-md px-1 whitespace-nowrap">
+      <div className="min-w-0 flex-1 overflow-hidden [&_label]:sr-only [&_input]:min-w-0 [&_input]:text-xs [&_button]:min-w-0">{renderField(property)}</div>
+      <button type="button" aria-label={`Désépingler ${property.name}`} title={`Désépingler ${property.name}`} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground" onClick={() => onUnpin(property.id)}><PinOff size={12} /></button>
     </div>)}
   </div>;
 }

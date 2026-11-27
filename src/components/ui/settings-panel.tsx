@@ -102,6 +102,7 @@ export interface SettingsTab {
   id: string;
   label: string;
   icon?: React.ElementType;
+  bottom?: boolean;
 }
 
 export function SettingsTabs({ items, value, onValueChange, children, navigation = 'top', label = 'Sections des paramètres', inline = false, defaultValue, appearance = 'default' }: {
@@ -123,11 +124,11 @@ export function SettingsTabs({ items, value, onValueChange, children, navigation
         <SidebarProvider persistState={false} shortcutEnabled={false} className="relative !min-h-0 min-w-0 flex-1 overflow-hidden" style={{ '--sidebar-width': '11rem' } as React.CSSProperties}>
           <Sidebar collapsible="icon" className="!absolute !h-full">
             <SidebarHeader><SidebarTrigger title="Réduire ou déployer les onglets" aria-label="Réduire ou déployer les onglets" /></SidebarHeader>
-            <SidebarContent>
+            <SidebarContent className={items.some(item => item.bottom) ? 'flex-1' : undefined}>
               <TabsList asChild>
-                <SidebarMenu aria-label={label} className="!h-auto !items-stretch !justify-start !rounded-none !border-0 !bg-transparent !p-2">
-                  {items.map(({ id, label: title, icon: Icon }) => (
-                    <SidebarMenuItem key={id}>
+                <SidebarMenu aria-label={label} className={cn('!items-stretch !justify-start !rounded-none !border-0 !bg-transparent !p-2', items.some(item => item.bottom) && '!h-full !flex-1')}>
+                  {items.map(({ id, label: title, icon: Icon, bottom }) => (
+                    <SidebarMenuItem key={id} className={bottom ? 'mt-auto border-t border-sidebar-border pt-2' : undefined}>
                       <TabsTrigger value={id} asChild>
                         <SidebarMenuButton tooltip={{ children: title, className: 'z-[450]' }} isActive={value === id} className="!justify-start data-[state=active]:bg-sidebar-accent data-[state=active]:text-sidebar-accent-foreground">
                           {Icon && <Icon size={14} aria-hidden="true" />}<span>{title}</span>

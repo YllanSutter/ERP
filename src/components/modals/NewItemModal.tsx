@@ -245,8 +245,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   const [itemTab, setItemTab] = useState('general');
   const [activeFieldGroupId, setActiveFieldGroupId] = useState('');
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [historyData, setHistoryData] = useState<{ base: any; versions: any[] } | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [historySelectedIndex, setHistorySelectedIndex] = useState<number | null>(null);
   const [historyPreview, setHistoryPreview] = useState<any | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -974,12 +974,20 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       const next = historyItemId ? readItemHistory(activeOrganizationId || 'default',
         { id: selectedCollectionId, properties: JSON.parse(historySchema) }, historyItemId) : null;
       setHistoryData(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
+      if (event) setHistoryLoading(false);
     };
     window.addEventListener('erp-item-history-changed', refresh);
     window.addEventListener('storage', refresh);
     refresh();
-    if (historyKey) void loadDatabaseKeys([historyKey, `erp-item-versions:${selectedCollectionId}:${historyItemId}`])
-      .then(() => refresh()).catch(error => console.warn('Historique indisponible', error));
+    if (!historyKey) {
+      setHistoryData(null);
+      setHistoryLoading(false);
+    } else {
+      setHistoryLoading(true);
+      void loadDatabaseKeys([historyKey, `erp-item-versions:${selectedCollectionId}:${historyItemId}`])
+        .then(() => { if (active) { refresh(); setHistoryLoading(false); } })
+        .catch(error => { if (active) setHistoryLoading(false); console.warn('Historique indisponible', error); });
+    }
     return () => {
       active = false;
       window.removeEventListener('erp-item-history-changed', refresh);
@@ -993,11 +1001,26 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   }, [historyKey]);
 
   React.useEffect(() => {
-    if (!historyOpen || !historyData || historyData.versions.length === 0) return;
+    if (itemTab !== 'history' || !historyKey || !historyItemId) return;
+    let active = true;
+    setHistoryLoading(true);
+    void loadDatabaseKeys([historyKey, `erp-item-versions:${selectedCollectionId}:${historyItemId}`])
+      .catch(error => console.warn('Historique indisponible', error))
+      .finally(() => {
+        if (!active) return;
+        setHistoryData(readItemHistory(activeOrganizationId || 'default',
+          { id: selectedCollectionId, properties: JSON.parse(historySchema) }, historyItemId));
+        setHistoryLoading(false);
+      });
+    return () => { active = false; };
+  }, [itemTab, historyKey, historyItemId, activeOrganizationId, selectedCollectionId, historySchema]);
+
+  React.useEffect(() => {
+    if (itemTab !== 'history' || !historyData || historyData.versions.length === 0) return;
     const lastIndex = historyData.versions.length - 1;
     setHistorySelectedIndex(lastIndex);
     setHistoryPreview(buildSnapshotAt(historyData.base, historyData.versions, lastIndex));
-  }, [historyOpen, historyData]);
+  }, [itemTab, historyData]);
 
   const isFavorite = favorites && editingItem ? favorites.items.includes(editingItem.id) : false;
 
@@ -1350,7 +1373,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     saveFn(dataToSave);
   };
 
-  const activeItemTab = ['general', 'details', ...(relationPropsForDisplay.length ? ['relations'] : []), ...(datePropsForDisplay.length ? ['hours'] : []), ...richTextTabs.map((tab: { id: string; label: string }) => `text:${tab.id}`), ...fieldGroups.map(group => `group:${group.id}`)].includes(itemTab) ? itemTab : 'general';
+  const activeItemTab = ['general', 'details', ...(relationPropsForDisplay.length ? ['relations'] : []), ...(datePropsForDisplay.length ? ['hours'] : []), ...richTextTabs.map((tab: { id: string; label: string }) => `text:${tab.id}`), ...fieldGroups.map(group => `group:${group.id}`), ...(historyItemId ? ['history'] : [])].includes(itemTab) ? itemTab : 'general';
 
   return (
     <>
@@ -1455,16 +1478,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 Brouillon
               </div>
             )}
-            {historyData?.versions?.length ? (
-              <button
-                onClick={() => setHistoryOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-muted/50 text-muted-foreground border border-border hover:text-foreground hover:border-border/80 transition-all"
-                title="Historique des versions"
-              >
-                <History size={11} />
-                {historyData.versions.length}v
-              </button>
-            ) : null}
             {editingItem && onToggleFavoriteItem && (
               <button
                 onClick={() => onToggleFavoriteItem(editingItem.id)}
@@ -1608,6 +1621,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               ...(datePropsForDisplay.length ? [{ id: 'hours', label: 'Horaires', icon: Clock }] : []),
               ...fieldGroups.filter(group => group.fieldIds.some(id => detailsPropsForDisplay.some((prop: any) => prop.id === id))).map(group => ({ id: `group:${group.id}`, label: group.label, icon: getFieldIcon(detailsPropsForDisplay.find((prop: any) => group.fieldIds.includes(prop.id))) })),
               ...richTextTabs.map((tab: { id: string; label: string }) => ({ id: `text:${tab.id}`, label: tab.label, icon: getFieldIcon(richTextPropsForDisplay.find((prop: any) => prop.id === tab.id)) })),
+              ...(historyItemId ? [{ id: 'history', label: 'Historique', icon: History, bottom: true }] : []),
             ]}
           >
             <SettingsTabContent value={activeItemTab} scrollable forceMount className={activeItemTab.startsWith('text:') ? 'item-rich-tab' : undefined}>
@@ -1907,6 +1921,171 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             </div>
               </div>
             </SettingsTabContent>
+            {historyItemId && (
+              <SettingsTabContent value="history" scrollable className="p-4 sm:p-6">
+          <div className="mb-1">
+            <h2 className="text-base font-semibold">Historique des versions</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Versions locales avec auteur et changements.</p>
+          </div>
+          <div className="flex min-h-0 flex-col gap-4">
+            {(!historyData || historyData.versions.length === 0) && (
+              <div className="text-xs text-muted-foreground">{historyLoading ? 'Chargement de l’historique…' : 'Aucune version enregistrée pour cet élément.'}</div>
+            )}
+            {historyData && historyData.versions.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>
+                    {new Date(historyData.versions[0].ts).toLocaleString('fr-FR')}
+                  </span>
+                  <span>
+                    {new Date(historyData.versions[historyData.versions.length - 1].ts).toLocaleString('fr-FR')}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={historyData.versions.length - 1}
+                  value={historySelectedIndex ?? historyData.versions.length - 1}
+                  onChange={(e) => {
+                    const idx = Number(e.target.value);
+                    setHistorySelectedIndex(idx);
+                    const snapshot = buildSnapshotAt(historyData.base, historyData.versions, idx);
+                    setHistoryPreview(snapshot);
+                  }}
+                  className="w-full"
+                />
+                {historySelectedIndex !== null && (
+                  <div className="text-xs text-muted-foreground">
+                    Version {historySelectedIndex + 1} / {historyData.versions.length}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="border border-border rounded-lg p-3 overflow-y-auto max-h-[45vh] bg-background">
+              {historySelectedIndex === null || !historyData || !historyPreview ? (
+                <div className="text-sm text-muted-foreground">Sélectionne une version pour voir le détail.</div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">Changements</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(historyData.versions[historySelectedIndex].ts).toLocaleString('fr-FR')} · {historyData.versions[historySelectedIndex].userName || 'Utilisateur'}
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setFormData(restoreHistorySnapshot(formData, historyPreview, selectedCollection.properties || [],
+                          id => canWriteField(selectedCollection.id, id)));
+                        setItemTab('general');
+                      }}
+                    >
+                      Restaurer cette version
+                    </Button>
+                  </div>
+                  {(() => {
+                    const ver = historyData.versions[historySelectedIndex];
+                    const prevSnapshot = historySelectedIndex > 0
+                      ? buildSnapshotAt(historyData.base, historyData.versions, historySelectedIndex - 1)
+                      : historyData.base;
+                    const currSnapshot = historyPreview;
+                    const keys = Array.from(
+                      new Set([
+                        ...Object.keys(prevSnapshot || {}),
+                        ...Object.keys(currSnapshot || {}),
+                      ])
+                    );
+                    const changes = keys
+                      .map((key) => ({
+                        key,
+                        before: prevSnapshot ? prevSnapshot[key] : undefined,
+                        after: currSnapshot ? currSnapshot[key] : undefined,
+                      }))
+                      .filter(({ before, after }) => !areValuesEqual(before, after));
+
+                    if (changes.length === 0) {
+                      return <div className="text-xs text-muted-foreground">Aucun changement enregistré.</div>;
+                    }
+
+                    return (
+                      <div className="space-y-3 text-xs">
+                        <div className="text-[11px] text-muted-foreground">
+                          {ver.action === 'create' ? 'Diff initial' : 'Diff vs version précédente'}
+                        </div>
+                        {changes.map(({ key, before, after }) => {
+                          const isRich = isRichTextValue(before) || isRichTextValue(after);
+                          if (isRich) {
+                            let beforeDoc = before;
+                            let afterDoc = after;
+                            try {
+                              if (typeof before === 'string') beforeDoc = JSON.parse(before);
+                            } catch {
+                              beforeDoc = before;
+                            }
+                            try {
+                              if (typeof after === 'string') afterDoc = JSON.parse(after);
+                            } catch {
+                              afterDoc = after;
+                            }
+                            const beforeText = serializeTiptapLines(beforeDoc) || extractTextFromTiptap(beforeDoc);
+                            const afterText = serializeTiptapLines(afterDoc) || extractTextFromTiptap(afterDoc);
+                            const lineDiff = diffLines(beforeText, afterText);
+                            return (
+                              <div key={key} className="rounded-md border border-border p-2 bg-muted/20">
+                                <div className="font-semibold text-foreground mb-1">{key}</div>
+                                {lineDiff.length === 0 ? (
+                                  <div className="text-xs text-muted-foreground">Aucun changement de lignes.</div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    {lineDiff.map((entry, idx) => (
+                                      <div
+                                        key={`${key}-${idx}`}
+                                        className={cn(
+                                          'rounded px-2 py-1 border text-xs',
+                                          entry.type === 'add'
+                                            ? 'bg-green-500/10 border-green-500/20 text-green-600'
+                                            : 'bg-red-500/10 border-red-500/20 text-red-600'
+                                        )}
+                                      >
+                                        {entry.type === 'add' ? '+' : '-'} {entry.text}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div key={key} className="rounded-md border border-border p-2 bg-muted/20">
+                              <div className="font-semibold text-foreground mb-1">{key}</div>
+                              <div className="grid grid-cols-1 gap-2">
+                                <div className="bg-red-500/10 border border-red-500/20 rounded px-2 py-1">
+                                  <div className="text-[10px] uppercase text-red-500 mb-1">Avant</div>
+                                  <div className="text-muted-foreground">
+                                    {formatValueForDisplay(before)}
+                                  </div>
+                                </div>
+                                <div className="bg-green-500/10 border border-green-500/20 rounded px-2 py-1">
+                                  <div className="text-[10px] uppercase text-green-500 mb-1">Après</div>
+                                  <div className="text-muted-foreground">
+                                    {formatValueForDisplay(after)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+
+              </SettingsTabContent>
+            )}
           </SettingsTabs>
           </div>
         </div>
@@ -2287,172 +2466,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Historique des versions</DialogTitle>
-            <DialogDescription>
-              Versions locales avec auteur et changements.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 max-h-[60vh]">
-            {(!historyData || historyData.versions.length === 0) && (
-              <div className="text-xs text-muted-foreground">Aucune version disponible.</div>
-            )}
-            {historyData && historyData.versions.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>
-                    {new Date(historyData.versions[0].ts).toLocaleString('fr-FR')}
-                  </span>
-                  <span>
-                    {new Date(historyData.versions[historyData.versions.length - 1].ts).toLocaleString('fr-FR')}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={historyData.versions.length - 1}
-                  value={historySelectedIndex ?? historyData.versions.length - 1}
-                  onChange={(e) => {
-                    const idx = Number(e.target.value);
-                    setHistorySelectedIndex(idx);
-                    const snapshot = buildSnapshotAt(historyData.base, historyData.versions, idx);
-                    setHistoryPreview(snapshot);
-                  }}
-                  className="w-full"
-                />
-                {historySelectedIndex !== null && (
-                  <div className="text-xs text-muted-foreground">
-                    Version {historySelectedIndex + 1} / {historyData.versions.length}
-                  </div>
-                )}
-              </div>
-            )}
-            <div className="border border-border rounded-lg p-3 overflow-y-auto max-h-[45vh] bg-background">
-              {historySelectedIndex === null || !historyData || !historyPreview ? (
-                <div className="text-sm text-muted-foreground">Sélectionne une version pour voir le détail.</div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-semibold text-foreground">Changements</div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(historyData.versions[historySelectedIndex].ts).toLocaleString('fr-FR')} · {historyData.versions[historySelectedIndex].userName || 'Utilisateur'}
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => {
-                        setFormData(restoreHistorySnapshot(formData, historyPreview, selectedCollection.properties || [],
-                          id => canWriteField(selectedCollection.id, id)));
-                        setHistoryOpen(false);
-                      }}
-                    >
-                      Restaurer cette version
-                    </Button>
-                  </div>
-                  {(() => {
-                    const ver = historyData.versions[historySelectedIndex];
-                    const prevSnapshot = historySelectedIndex > 0
-                      ? buildSnapshotAt(historyData.base, historyData.versions, historySelectedIndex - 1)
-                      : historyData.base;
-                    const currSnapshot = historyPreview;
-                    const keys = Array.from(
-                      new Set([
-                        ...Object.keys(prevSnapshot || {}),
-                        ...Object.keys(currSnapshot || {}),
-                      ])
-                    );
-                    const changes = keys
-                      .map((key) => ({
-                        key,
-                        before: prevSnapshot ? prevSnapshot[key] : undefined,
-                        after: currSnapshot ? currSnapshot[key] : undefined,
-                      }))
-                      .filter(({ before, after }) => !areValuesEqual(before, after));
 
-                    if (changes.length === 0) {
-                      return <div className="text-xs text-muted-foreground">Aucun changement enregistré.</div>;
-                    }
-
-                    return (
-                      <div className="space-y-3 text-xs">
-                        <div className="text-[11px] text-muted-foreground">
-                          {ver.action === 'create' ? 'Diff initial' : 'Diff vs version précédente'}
-                        </div>
-                        {changes.map(({ key, before, after }) => {
-                          const isRich = isRichTextValue(before) || isRichTextValue(after);
-                          if (isRich) {
-                            let beforeDoc = before;
-                            let afterDoc = after;
-                            try {
-                              if (typeof before === 'string') beforeDoc = JSON.parse(before);
-                            } catch {
-                              beforeDoc = before;
-                            }
-                            try {
-                              if (typeof after === 'string') afterDoc = JSON.parse(after);
-                            } catch {
-                              afterDoc = after;
-                            }
-                            const beforeText = serializeTiptapLines(beforeDoc) || extractTextFromTiptap(beforeDoc);
-                            const afterText = serializeTiptapLines(afterDoc) || extractTextFromTiptap(afterDoc);
-                            const lineDiff = diffLines(beforeText, afterText);
-                            return (
-                              <div key={key} className="rounded-md border border-border p-2 bg-muted/20">
-                                <div className="font-semibold text-foreground mb-1">{key}</div>
-                                {lineDiff.length === 0 ? (
-                                  <div className="text-xs text-muted-foreground">Aucun changement de lignes.</div>
-                                ) : (
-                                  <div className="space-y-1">
-                                    {lineDiff.map((entry, idx) => (
-                                      <div
-                                        key={`${key}-${idx}`}
-                                        className={cn(
-                                          'rounded px-2 py-1 border text-xs',
-                                          entry.type === 'add'
-                                            ? 'bg-green-500/10 border-green-500/20 text-green-600'
-                                            : 'bg-red-500/10 border-red-500/20 text-red-600'
-                                        )}
-                                      >
-                                        {entry.type === 'add' ? '+' : '-'} {entry.text}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <div key={key} className="rounded-md border border-border p-2 bg-muted/20">
-                              <div className="font-semibold text-foreground mb-1">{key}</div>
-                              <div className="grid grid-cols-1 gap-2">
-                                <div className="bg-red-500/10 border border-red-500/20 rounded px-2 py-1">
-                                  <div className="text-[10px] uppercase text-red-500 mb-1">Avant</div>
-                                  <div className="text-muted-foreground">
-                                    {formatValueForDisplay(before)}
-                                  </div>
-                                </div>
-                                <div className="bg-green-500/10 border border-green-500/20 rounded px-2 py-1">
-                                  <div className="text-[10px] uppercase text-green-500 mb-1">Après</div>
-                                  <div className="text-muted-foreground">
-                                    {formatValueForDisplay(after)}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 };
