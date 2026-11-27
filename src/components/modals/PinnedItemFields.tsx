@@ -5,7 +5,7 @@ import type { PinnedItemField } from '@/lib/hooks/usePinnedItemFields';
 
 export function PinnedFieldsSettings({ properties, fields, onChange }: {
   properties: any[]; fields: PinnedItemField[];
-  onChange: (id: string, pinned: boolean, keepOriginal?: boolean) => void;
+  onChange: (id: string, pinned: boolean, keepOriginal?: boolean, showLabel?: boolean) => void;
 }) {
   return <Popover>
     <PopoverTrigger asChild>
@@ -19,15 +19,21 @@ export function PinnedFieldsSettings({ properties, fields, onChange }: {
         {!properties.length && <p className="text-xs text-muted-foreground">Aucun champ supplémentaire.</p>}
         {properties.map(property => {
           const pinned = fields.find(field => field.id === property.id);
-          return <div key={property.id} className="rounded-md border border-border p-2">
+          return <div key={property.id} className="rounded-md px-1 py-1.5">
             <label className="flex cursor-pointer items-center gap-2 text-xs">
               <input type="checkbox" checked={Boolean(pinned)} onChange={event => onChange(property.id, event.target.checked)} />
               <span className="min-w-0 truncate">{property.name}</span>
             </label>
-            {pinned && <label className="mt-2 flex cursor-pointer items-center gap-2 pl-5 text-[11px] text-muted-foreground">
-              <input type="checkbox" checked={pinned.keepOriginal} onChange={event => onChange(property.id, true, event.target.checked)} />
-              Garder aussi à l’emplacement d’origine
-            </label>}
+            {pinned && <div className="ml-5 mt-1.5 space-y-1.5 text-[11px] text-muted-foreground">
+              <label className="flex cursor-pointer items-center gap-2">
+                <input type="checkbox" checked={pinned.showLabel === true} onChange={event => onChange(property.id, true, pinned.keepOriginal, event.target.checked)} />
+                Afficher le label
+              </label>
+              <label className="flex cursor-pointer items-center gap-2">
+                <input type="checkbox" checked={pinned.keepOriginal} onChange={event => onChange(property.id, true, event.target.checked, pinned.showLabel)} />
+                Garder à l’emplacement d’origine
+              </label>
+            </div>}
           </div>;
         })}
       </div>
@@ -39,9 +45,9 @@ export function PinnedFieldsHeader({ properties, onUnpin, renderField }: {
   properties: any[]; onUnpin: (id: string) => void; renderField: (property: any) => React.ReactNode;
 }) {
   if (!properties.length) return null;
-  return <div aria-label="Champs épinglés" className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] items-center gap-x-2 gap-y-1">
-    {properties.map(property => <div key={property.id} className="flex h-9 min-w-0 items-center gap-1 rounded-md px-1 whitespace-nowrap">
-      <div className="min-w-0 flex-1 overflow-hidden [&_label]:sr-only [&_input]:min-w-0 [&_input]:text-xs [&_button]:min-w-0">{renderField(property)}</div>
+  return <div aria-label="Champs épinglés" className="pinned-fields-header grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] items-center gap-x-1 gap-y-0.5">
+    {properties.map(property => <div key={property.id} className={property.showPinnedLabel ? 'pinned-field with-label flex min-w-0 items-center gap-1' : 'pinned-field flex h-8 min-w-0 items-center gap-1'}>
+      <div className="min-w-0 flex-1 overflow-hidden [&_input]:min-w-0 [&_input]:text-xs [&_button]:min-w-0">{renderField(property)}</div>
       <button type="button" aria-label={`Désépingler ${property.name}`} title={`Désépingler ${property.name}`} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground" onClick={() => onUnpin(property.id)}><PinOff size={12} /></button>
     </div>)}
   </div>;

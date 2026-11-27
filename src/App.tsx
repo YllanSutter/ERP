@@ -722,6 +722,15 @@ const App = () => {
     return <LoginPage onLogin={login} onRegister={register} loading={authLoading} />;
   }
 
+  // Les groupes et leur disposition sont partagés entre les vues d'une même
+  // collection. Le formulaire ne dépend donc pas de la vue qui l'a ouvert.
+  const newItemCollection = modalCollection || currentCollection;
+  const newItemCollectionViews = newItemCollection ? (views[newItemCollection.id] || []) : [];
+  const newItemFieldGroupView = newItemCollectionViews.find((view: any) => Array.isArray(view.fieldGroups) && view.fieldGroups.length > 0)
+    || newItemCollectionViews.find((view: any) => view.id === activeView);
+  const newItemFieldGroups = newItemFieldGroupView?.fieldGroups || [];
+  const newItemFieldGroupsLayout = newItemFieldGroupView?.fieldGroupsLayout === 'tabs' ? 'tabs' : 'stacked';
+
   return (
     <SelectOptionsContext.Provider value={{ collections, setCollections }}>
     <ItemImageRendererProvider value={(image, props) => image.source === 'steam' && activeOrganizationId && pluginManager.isPluginActive(activeOrganizationId, 'steam')
@@ -1519,22 +1528,8 @@ const App = () => {
           }}
           editingItem={editingItem}
           groupContext={groupContext}
-          fieldGroups={(() => {
-            const col = modalCollection || currentCollection;
-            if (!col) return [];
-            const collectionViews = views[col.id] || [];
-            const view = collectionViews.find((v: any) => Array.isArray(v.fieldGroups) && v.fieldGroups.length > 0)
-              || collectionViews.find((v: any) => v.id === activeView);
-            return view?.fieldGroups || [];
-          })()}
-          fieldGroupsLayout={(() => {
-            const col = modalCollection || currentCollection;
-            if (!col) return 'stacked' as const;
-            const collectionViews = views[col.id] || [];
-            const view = collectionViews.find((v: any) => Array.isArray(v.fieldGroups) && v.fieldGroups.length > 0)
-              || collectionViews.find((v: any) => v.id === activeView);
-            return view?.fieldGroupsLayout === 'tabs' ? 'tabs' as const : 'stacked' as const;
-          })()}
+          fieldGroups={newItemFieldGroups}
+          fieldGroupsLayout={newItemFieldGroupsLayout}
           onToggleFavoriteItem={(itemId: string) => {
             setFavorites((prev) => ({
               ...prev,

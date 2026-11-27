@@ -14,6 +14,7 @@ let mutation = 0;
 let revision = 0;
 let businessPending = false;
 export const hasUnsavedDatabaseChanges = () => pending.size > 0 || sending.size > 0 || businessPending;
+export const isDatabaseStorageReady = () => Boolean(context);
 export function setBusinessPersistencePending(value: boolean) { if (businessPending !== value) { businessPending = value; notify(); } }
 const listeners = new Set<() => void>();
 let legacyClaims: Record<string, string> = {};

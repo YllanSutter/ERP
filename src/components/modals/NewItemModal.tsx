@@ -1,4 +1,4 @@
-import { databaseStorage, loadDatabaseKeys } from '@/lib/databaseStorage';
+import { databaseStorage, isDatabaseStorageReady, loadDatabaseKeys, subscribeDatabaseStorage } from '@/lib/databaseStorage';
 import { usePinnedItemFields } from '@/lib/hooks/usePinnedItemFields';
 import { PinnedFieldsSettings, PinnedFieldsHeader } from './PinnedItemFields';
 import { historyKey as buildScopedHistoryKey, readItemHistory, restoreHistorySnapshot } from '@/lib/itemHistory';
@@ -245,14 +245,23 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
   const [itemTab, setItemTab] = useState('general');
   const [activeFieldGroupId, setActiveFieldGroupId] = useState('');
+  const [fieldSearch, setFieldSearch] = useState('');
   const [historyData, setHistoryData] = useState<{ base: any; versions: any[] } | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyLoadError, setHistoryLoadError] = useState(false);
+  const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const [historySelectedIndex, setHistorySelectedIndex] = useState<number | null>(null);
   const [historyPreview, setHistoryPreview] = useState<any | null>(null);
+  const [validationAttempted, setValidationAttempted] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pdfPopoverOpen, setPdfPopoverOpen] = useState(false);
   const [actionToast, setActionToast] = useState<string | null>(null);
   const actionToastTimeoutRef = useRef<number | null>(null);
+
+  React.useEffect(() => {
+    setFieldSearch('');
+    setValidationAttempted(false);
+  }, [selectedCollectionId]);
 
   const showActionToast = React.useCallback((message: string) => {
     if (actionToastTimeoutRef.current !== null) {
@@ -965,6 +974,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const historySchema = JSON.stringify(selectedCollection?.properties || []);
   React.useEffect(() => {
     let active = true;
+    let requested = false;
+    setHistoryLoadError(false);
     const refresh = (event?: Event) => {
       if (!active) return;
       if (event?.type === 'storage') {
@@ -974,46 +985,43 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       const next = historyItemId ? readItemHistory(activeOrganizationId || 'default',
         { id: selectedCollectionId, properties: JSON.parse(historySchema) }, historyItemId) : null;
       setHistoryData(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
-      if (event) setHistoryLoading(false);
+      if (event) { setHistoryLoading(false); setHistoryLoadError(false); }
+    };
+    const load = () => {
+      if (!historyKey || requested || !isDatabaseStorageReady()) return;
+      requested = true;
+      setHistoryLoading(true);
+      void loadDatabaseKeys([historyKey, `erp-item-versions:${selectedCollectionId}:${historyItemId}`])
+        .then(() => { if (active) { refresh(); setHistoryLoading(false); setHistoryLoadError(false); } })
+        .catch(error => { if (active) { setHistoryLoading(false); setHistoryLoadError(true); } console.warn('Historique indisponible', error); });
+    };
+    const onDatabaseStorageChange = () => {
+      refresh();
+      load();
     };
     window.addEventListener('erp-item-history-changed', refresh);
     window.addEventListener('storage', refresh);
+    const unsubscribeStorage = subscribeDatabaseStorage(onDatabaseStorageChange);
     refresh();
     if (!historyKey) {
       setHistoryData(null);
       setHistoryLoading(false);
     } else {
       setHistoryLoading(true);
-      void loadDatabaseKeys([historyKey, `erp-item-versions:${selectedCollectionId}:${historyItemId}`])
-        .then(() => { if (active) { refresh(); setHistoryLoading(false); } })
-        .catch(error => { if (active) setHistoryLoading(false); console.warn('Historique indisponible', error); });
+      load();
     }
     return () => {
       active = false;
       window.removeEventListener('erp-item-history-changed', refresh);
       window.removeEventListener('storage', refresh);
+      unsubscribeStorage();
     };
-  }, [historyKey, historyItemId, activeOrganizationId, selectedCollectionId, historySchema]);
+  }, [historyKey, historyItemId, activeOrganizationId, selectedCollectionId, historySchema, historyReloadToken]);
 
   React.useEffect(() => {
     setHistorySelectedIndex(null);
     setHistoryPreview(null);
   }, [historyKey]);
-
-  React.useEffect(() => {
-    if (itemTab !== 'history' || !historyKey || !historyItemId) return;
-    let active = true;
-    setHistoryLoading(true);
-    void loadDatabaseKeys([historyKey, `erp-item-versions:${selectedCollectionId}:${historyItemId}`])
-      .catch(error => console.warn('Historique indisponible', error))
-      .finally(() => {
-        if (!active) return;
-        setHistoryData(readItemHistory(activeOrganizationId || 'default',
-          { id: selectedCollectionId, properties: JSON.parse(historySchema) }, historyItemId));
-        setHistoryLoading(false);
-      });
-    return () => { active = false; };
-  }, [itemTab, historyKey, historyItemId, activeOrganizationId, selectedCollectionId, historySchema]);
 
   React.useEffect(() => {
     if (itemTab !== 'history' || !historyData || historyData.versions.length === 0) return;
@@ -1118,7 +1126,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     prop.id !== titleProperty?.id && canReadField(selectedCollection.id, prop.id));
   const pinnedProperties = pinnedFields.flatMap(field => {
     const prop = pinnableProperties.find((candidate: any) => candidate.id === field.id);
-    return prop ? [prop] : [];
+    return prop ? [{ ...prop, showPinnedLabel: field.showLabel === true }] : [];
   });
   const showAtOriginal = (prop: any) => !pinnedFields.some(field => field.id === prop.id && !field.keepOriginal);
 
@@ -1127,6 +1135,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const detailsPropsForDisplay = classicPropsSansRichText.filter(
     (prop: any) => prop.id !== titleProperty?.id && showAtOriginal(prop)
   );
+  const normalizedFieldSearch = fieldSearch.trim().toLocaleLowerCase('fr');
+  const matchingDetailsProps = normalizedFieldSearch
+    ? detailsPropsForDisplay.filter((prop: any) => String(prop.name || '').toLocaleLowerCase('fr').includes(normalizedFieldSearch))
+    : detailsPropsForDisplay;
   const relationPropsForDisplay = relationProps.filter(showAtOriginal);
 
   // Calcule les segments prégénérés côté client (pour aperçu dans le modal)
@@ -1304,6 +1316,28 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
       alert('Vous n\'avez pas les droits pour modifier cette collection.');
       return;
     }
+    const requiredCandidates = [...new Map([...propsList, ...(titleProperty ? [titleProperty] : [])]
+      .filter((prop: any) => prop.required && canWriteField(selectedCollectionId, prop.id))
+      .map((prop: any) => [prop.id, prop] as const)).values()];
+    const missingRequired = requiredCandidates.filter((prop: any) => isEmptyValue(formData[prop.id]));
+    if (missingRequired.length) {
+      setValidationAttempted(true);
+      setFieldSearch('');
+      const first = missingRequired[0];
+      if (first.id === titleProperty?.id) setItemTab('general');
+      else if (first.type === 'rich_text') setItemTab(`text:${first.id}`);
+      else if (first.type === 'date') setItemTab('hours');
+      else if (first.type === 'relation') setItemTab('relations');
+      else {
+        const group = fieldGroups.find(candidate => candidate.fieldIds.includes(first.id));
+        if (group) {
+          setActiveFieldGroupId(group.id);
+          setItemTab(`group:${group.id}`);
+        } else setItemTab('details');
+      }
+      return;
+    }
+    setValidationAttempted(false);
     if (selectedCollection?.plugins?.steam?.role === 'games' && isReallyEditing) {
       const ids = formData[STEAM_EXCHANGE_FIELD];
       const live = collections.find((entry: any) => entry.id === selectedCollectionId) || selectedCollection;
@@ -1374,6 +1408,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   };
 
   const activeItemTab = ['general', 'details', ...(relationPropsForDisplay.length ? ['relations'] : []), ...(datePropsForDisplay.length ? ['hours'] : []), ...richTextTabs.map((tab: { id: string; label: string }) => `text:${tab.id}`), ...fieldGroups.map(group => `group:${group.id}`), ...(historyItemId ? ['history'] : [])].includes(itemTab) ? itemTab : 'general';
+  const missingRequiredFields = [...new Map([...propsList, ...(titleProperty ? [titleProperty] : [])]
+    .filter((prop: any) => prop.required && canWriteField(selectedCollectionId, prop.id))
+    .map((prop: any) => [prop.id, prop] as const)).values()]
+    .filter((prop: any) => isEmptyValue(formData[prop.id]));
+  const missingRequiredIds = new Set(missingRequiredFields.map((prop: any) => prop.id));
 
   return (
     <>
@@ -1420,7 +1459,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               )}
             </div>
             {titleProperty && (
-              <div className="flex-1 min-w-0 [&_input]:text-lg [&_input]:font-semibold [&_input]:tracking-tight [&_input]:text-foreground [&_input]:placeholder:text-muted-foreground [&_input]:bg-transparent [&_input]:border-0 [&_input]:outline-none [&_input]:w-full [&_input]:p-0 [&_textarea]:text-lg [&_textarea]:font-semibold [&_textarea]:text-foreground">
+              <div className={cn("flex-1 min-w-0 [&_input]:text-lg [&_input]:font-semibold [&_input]:tracking-tight [&_input]:text-foreground [&_input]:placeholder:text-muted-foreground [&_input]:bg-transparent [&_input]:border-0 [&_input]:outline-none [&_input]:w-full [&_input]:p-0 [&_textarea]:text-lg [&_textarea]:font-semibold [&_textarea]:text-foreground", validationAttempted && missingRequiredIds.has(titleProperty.id) && "rounded-md ring-1 ring-rose-500/60 px-2")}>
                 <EditableProperty
                   property={titleProperty}
                   value={formData[titleProperty.id]}
@@ -1645,7 +1684,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               const renderFieldRow = (prop: any) => (
                 <FieldRow key={prop.id} label={prop.name} required={prop.required}
                   icon={<FieldLabelIcon property={prop} />} actions={renderTemplatePicker(prop)}
-                  labelId={`label-${prop.id}`} htmlFor={`field-${prop.id}`} className="item-fields-plain">
+                  labelId={`label-${prop.id}`} htmlFor={`field-${prop.id}`} className={cn("item-fields-plain", validationAttempted && missingRequiredIds.has(prop.id) && "ring-1 ring-inset ring-rose-500/60 bg-rose-500/[0.035]")}>
                     <EditableProperty
                       property={prop}
                       value={formData[prop.id]}
@@ -1669,14 +1708,16 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                 </FieldRow>
               );
 
+              const searchedProps = matchingDetailsProps;
+
               // IDs de tous les champs affectés à au moins un groupe
               const allGroupedIds = new Set(fieldGroups.flatMap((g) => g.fieldIds));
-              const ungroupedProps = detailsPropsForDisplay.filter((p: any) => !allGroupedIds.has(p.id));
+              const ungroupedProps = searchedProps.filter((p: any) => !allGroupedIds.has(p.id));
               const groupsWithProps = fieldGroups
                 .map((group) => ({
                   group,
                   props: group.fieldIds
-                    .map((fid) => detailsPropsForDisplay.find((p: any) => p.id === fid))
+                    .map((fid) => searchedProps.find((p: any) => p.id === fid))
                     .filter(Boolean),
                 }))
                 .filter(({ props }) => props.length > 0);
@@ -1691,6 +1732,17 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
 
               return (
                 <div className="grid grid-cols-1 items-start gap-6">
+                  <label className="relative block max-w-md">
+                    <Icons.Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                    <input
+                      type="search"
+                      value={fieldSearch}
+                      onChange={event => setFieldSearch(event.target.value)}
+                      placeholder="Rechercher un champ…"
+                      aria-label="Rechercher un champ"
+                      className="w-full rounded-lg border border-border bg-background/70 py-2 pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+                    />
+                  </label>
                   {/* Champs non-groupés */}
                   {ungroupedProps.length > 0 && !activeItemTab.startsWith('group:') && (
                     <SettingsSection ruled appearance="plain" icon={Icons.List} title={activeItemTab === 'details' ? 'Général' : 'Informations'}>
@@ -1716,6 +1768,9 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
                       </SettingsSection>
                     );
                   })}
+                  {normalizedFieldSearch && searchedProps.length === 0 && (
+                    <p className="text-sm text-muted-foreground">Aucun champ ne correspond à « {fieldSearch.trim()} ».</p>
+                  )}
                 </div>
               );
             })()}
@@ -1929,7 +1984,17 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           </div>
           <div className="flex min-h-0 flex-col gap-4">
             {(!historyData || historyData.versions.length === 0) && (
-              <div className="text-xs text-muted-foreground">{historyLoading ? 'Chargement de l’historique…' : 'Aucune version enregistrée pour cet élément.'}</div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground" role="status" aria-live="polite">
+                <span>{historyLoading ? 'Chargement de l’historique…' : historyLoadError ? 'Impossible de charger l’historique.' : 'Aucune version enregistrée pour cet élément.'}</span>
+                {historyLoadError && !historyLoading && <Button type="button" variant="outline" size="sm" onClick={() => setHistoryReloadToken(token => token + 1)}>Réessayer</Button>}
+              </div>
+            )}
+            {historyData && historyData.versions.length > 0 && historyLoading && <p className="text-xs text-muted-foreground" role="status">Actualisation de l’historique…</p>}
+            {historyLoadError && historyData && historyData.versions.length > 0 && (
+              <div role="status" className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+                <span>La dernière actualisation a échoué. Les versions déjà chargées restent disponibles.</span>
+                <Button type="button" variant="outline" size="sm" onClick={() => setHistoryReloadToken(token => token + 1)}>Réessayer</Button>
+              </div>
             )}
             {historyData && historyData.versions.length > 0 && (
               <div className="space-y-2">
@@ -2091,6 +2156,11 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         </div>
         <SettingsFooter spread className="flex-wrap">
           <div className="flex items-center gap-3">
+            {isDraftDirty && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400" role="status">
+                <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" />Modifications non enregistrées
+              </span>
+            )}
             {isReallyEditing && onDelete && editingItem?.id && (
               <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogTrigger asChild>
@@ -2124,6 +2194,13 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             )}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
+            {validationAttempted && missingRequiredFields.length > 0 && (
+              <p role="alert" aria-live="polite" className="mr-2 max-w-sm text-xs text-rose-600 dark:text-rose-400">
+                {missingRequiredFields.length === 1
+                  ? `Le champ « ${missingRequiredFields[0].name} » est requis.`
+                  : `${missingRequiredFields.length} champs requis restent à remplir.`}
+              </p>
+            )}
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-all"
@@ -2429,14 +2506,26 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
           <div className="max-h-[50vh] space-y-2 overflow-y-auto">
             {collectionTemplates.map((template: any, index: number) => {
               const fieldIds = Array.isArray(template.fieldIds) ? template.fieldIds : [];
-              const names = fieldIds.map((id: string) => selectedCollection.properties?.find((prop: any) => prop.id === id)?.name).filter(Boolean);
+              const templateFields = fieldIds.map((id: string) => selectedCollection.properties?.find((prop: any) => prop.id === id)).filter(Boolean);
               return (
-                <label key={template.id || index} className={cn('block cursor-pointer rounded-lg border p-3', collectionTemplateSelection === template.id ? 'border-brand-500 bg-brand-500/5' : 'border-border')}>
+                <label key={template.id || index} className={cn('block cursor-pointer rounded-lg border p-3 transition-colors', collectionTemplateSelection === template.id ? 'border-brand-500 bg-brand-500/5' : 'border-border hover:bg-muted/30')}>
                   <span className="flex items-start gap-3">
                     <input type="radio" name="collection-template" className="mt-1" value={template.id} checked={collectionTemplateSelection === template.id} disabled={!fieldIds.length} onChange={() => setCollectionTemplateSelection(template.id)} />
                     <span className="min-w-0">
                       <span className="block text-sm font-medium">{template.name?.trim() || `Template ${index + 1}`}</span>
-                      <span className="mt-1 block text-xs text-muted-foreground">{names.join(' · ') || 'Aucun champ sélectionné'}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">{templateFields.length} champ{templateFields.length > 1 ? 's' : ''} affiché{templateFields.length > 1 ? 's' : ''}</span>
+                      {templateFields.length > 0 && (
+                        <span className="mt-2 flex flex-wrap gap-1.5">
+                          {templateFields.slice(0, 8).map((prop: any) => {
+                            const hasValue = Object.prototype.hasOwnProperty.call(template.values || {}, prop.id) && template.values[prop.id] !== '';
+                            return <span key={prop.id} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-[11px] text-muted-foreground">
+                              <span className="max-w-36 truncate font-medium text-foreground">{prop.name}</span>
+                              {hasValue && <span className="max-w-32 truncate">· {formatValueForDisplay(template.values[prop.id])}</span>}
+                            </span>;
+                          })}
+                          {templateFields.length > 8 && <span className="self-center text-[11px] text-muted-foreground">+{templateFields.length - 8} autres</span>}
+                        </span>
+                      )}
                     </span>
                   </span>
                 </label>
