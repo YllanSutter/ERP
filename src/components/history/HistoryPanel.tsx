@@ -141,26 +141,35 @@ export default function HistoryPanel({ collectionId, itemId, title }: HistoryPan
     {notice && <p role="status" className="text-xs text-muted-foreground">{notice}</p>}
     {!error && events.length === 0 && <div className="flex items-center gap-2 py-5 text-sm text-muted-foreground"><History size={16} />Aucune modification enregistrée depuis l’activation du nouvel historique.</div>}
     <ol className="space-y-2">
-      {events.map(event => <li key={event.id} className="rounded-lg border border-border/70 p-3">
+      {events.map(event => <li key={event.id} className="rounded-lg border border-border/70 bg-card/40 p-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="text-sm font-medium">
               <span>{event.actorName}</span> {actionLabel[event.action]} <span className="break-words">{event.entityLabel || 'la collection'}</span>
             </div>
-            <time className="text-[11px] text-muted-foreground" dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString('fr-FR')}</time>
+            <time className="text-[11px] text-muted-foreground" dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })}</time>
             {sourceLabel[event.source] && <span className="ml-2 text-[11px] text-muted-foreground">· {sourceLabel[event.source]}</span>}
           </div>
           {event.canUndo && <Button size="sm" variant="outline" disabled={undoingId === event.id} onClick={() => void undo(event)}>
             {undoingId === event.id ? <LoaderCircle size={13} className="animate-spin" /> : <RotateCcw size={13} />}
-            Annuler cet objet
+            Annuler
           </Button>}
         </div>
-        {event.changes.length > 0 && <ul className="mt-3 space-y-1.5">
-          {event.changes.map(change => <li key={change.fieldId} className="grid gap-1 text-xs sm:grid-cols-[minmax(100px,0.6fr)_1fr]">
-            <span className="font-medium text-muted-foreground">{change.label}</span>
-            <span className="break-words"><span className="text-muted-foreground">{displayChangeValue(change, change.beforeExists, change.before)}</span><span className="px-1.5 text-muted-foreground">→</span><span>{displayChangeValue(change, change.afterExists, change.after)}</span></span>
-          </li>)}
-        </ul>}
+        {event.changes.length > 0 && <details className="group mt-2 border-t border-border/50 pt-2">
+          <summary className="cursor-pointer list-none text-xs text-muted-foreground marker:hidden">
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+              {event.changes.length} champ{event.changes.length > 1 ? 's' : ''} modifié{event.changes.length > 1 ? 's' : ''}
+              <span className="text-foreground/70">· {event.changes.slice(0, 3).map(change => change.label).join(', ')}{event.changes.length > 3 ? ', …' : ''}</span>
+            </span>
+          </summary>
+          <ul className="mt-2 space-y-2 border-l border-border pl-3">
+            {event.changes.map(change => <li key={change.fieldId} className="grid gap-0.5 text-xs sm:grid-cols-[minmax(100px,0.35fr)_1fr] sm:gap-2">
+              <span className="font-medium text-muted-foreground">{change.label}</span>
+              <span className="break-words"><span className="text-muted-foreground">{displayChangeValue(change, change.beforeExists, change.before)}</span><span className="px-1.5 text-muted-foreground">→</span><span>{displayChangeValue(change, change.afterExists, change.after)}</span></span>
+            </li>)}
+          </ul>
+        </details>}
       </li>)}
     </ol>
     {cursor && <div className="flex justify-center"><Button variant="outline" size="sm" disabled={loadingMore} onClick={() => void load(cursor, true)}>

@@ -32,6 +32,16 @@ const viewFields = (view) => Object.fromEntries(
   ].includes(key))
 );
 
+function compactUpdatedValues(before = {}, after = {}) {
+  const changedIds = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+    .filter(fieldId => Object.hasOwn(before, fieldId) !== Object.hasOwn(after, fieldId) ||
+      (Object.hasOwn(before, fieldId) && !isDeepStrictEqual(before[fieldId], after[fieldId])));
+  return {
+    before: Object.fromEntries(changedIds.filter(id => Object.hasOwn(before, id)).map(id => [id, before[id]])),
+    after: Object.fromEntries(changedIds.filter(id => Object.hasOwn(after, id)).map(id => [id, after[id]])),
+  };
+}
+
 const itemLabel = (item, collection) => {
   const titleProperty = (collection?.properties || []).find(property => property.isTitle || property.id === 'name' || property.id === 'title');
   if (titleProperty?.type === 'password') return String(item?.id || 'Objet');
@@ -46,6 +56,9 @@ const itemLabelFieldId = (collection) => {
 };
 
 function makeEvent({ entityType, collectionId, entityId, entityLabel, entityLabelFieldId = null, action, before, after, actor, source, mutationId }) {
+  // Updates store only changed fields. Creation/deletion events retain the
+  // full object snapshot because undo needs it to remove or recreate the item.
+  const values = action === 'updated' ? compactUpdatedValues(before, after) : { before, after };
   return {
     id: randomUUID(),
     entityType,
@@ -54,8 +67,8 @@ function makeEvent({ entityType, collectionId, entityId, entityLabel, entityLabe
     entityLabel,
     entityLabelFieldId,
     action,
-    beforeValues: before,
-    afterValues: after,
+    beforeValues: values.before,
+    afterValues: values.after,
     actorId: actor?.id || null,
     actorName: actor?.name || actor?.email || 'Utilisateur',
     source: source || 'user',

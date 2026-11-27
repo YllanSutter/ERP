@@ -715,7 +715,11 @@ export const registerStateRoutes = ({ app, appContext }) => {
   const historyResponse = (row, req, collection) => {
     const before = row.before_values || {};
     const after = row.after_values || {};
-    const fieldIds = new Set([...Object.keys(before), ...Object.keys(after)]);
+    // History rows keep snapshots so undo can restore the event. Only expose
+    // fields whose value or presence actually changed in this event.
+    const fieldIds = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+      .filter(fieldId => Object.hasOwn(before, fieldId) !== Object.hasOwn(after, fieldId) ||
+        (Object.hasOwn(before, fieldId) && !isDeepStrictEqual(before[fieldId], after[fieldId])));
     const systemFields = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']);
     const canUndo = row.entity_type === 'item' && Boolean(collection) && hasPermission(req.auth, {
       collection_id: row.collection_id, item_id: row.entity_id,
@@ -893,7 +897,9 @@ export const registerStateRoutes = ({ app, appContext }) => {
       }
       const before = event.before_values || {};
       const after = event.after_values || {};
-      const fieldIds = new Set([...Object.keys(before), ...Object.keys(after)]);
+      const fieldIds = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+        .filter(fieldId => Object.hasOwn(before, fieldId) !== Object.hasOwn(after, fieldId) ||
+          (Object.hasOwn(before, fieldId) && !isDeepStrictEqual(before[fieldId], after[fieldId])));
       const systemFields = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']);
       if ([...fieldIds].some(fieldId => !systemFields.has(fieldId) && (
         !hasPermission(req.auth, { ...scope, field_id: fieldId }, 'can_read') ||
