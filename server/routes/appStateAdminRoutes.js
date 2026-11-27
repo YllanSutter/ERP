@@ -1,4 +1,6 @@
 import { encryptStateSecrets } from '../services/secretFieldService.js';
+import { buildHistoryEvents, insertHistoryEvents } from '../services/historyService.js';
+import { organizationRoom } from '../services/socketPresence.js';
 
 export const registerAppStateAdminRoutes = ({ app, appContext }) => {
   const {
@@ -132,10 +134,12 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
           return res.status(400).json({ error: 'Le fichier doit contenir les données d’une seule organisation.' });
         }
         let importedState;
+        let importedStateObject;
         try {
           const raw = app_state[0]?.data;
           const state = typeof raw === 'string' ? JSON.parse(raw) : raw;
           if (!Array.isArray(state?.collections)) throw new Error('Missing collections');
+          importedStateObject = state;
           importedState = JSON.stringify(encryptStateSecrets(state));
         } catch {
           return res.status(400).json({ error: 'Les données de l’organisation sont invalides.' });
@@ -145,6 +149,11 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
         try {
           await client.query('BEGIN');
           await client.query('SELECT id FROM organizations WHERE id = $1 FOR UPDATE', [organizationId]);
+          const existingStateResult = await client.query('SELECT data FROM app_state WHERE organization_id = $1 FOR UPDATE', [organizationId]);
+          const previousState = existingStateResult.rows[0]?.data ? JSON.parse(existingStateResult.rows[0].data) : { collections: [], views: {} };
+          const historyEvents = buildHistoryEvents(previousState, importedStateObject, {
+            actor: req.auth.user, source: 'import', mutationId: uuidv4(),
+          });
           const userIdMap = new Map();
           const roleIdMap = new Map();
 
@@ -239,6 +248,7 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
                version = app_state.version + 1`,
             [req.auth.user.id, organizationId, importedState]
           );
+          await insertHistoryEvents(client, organizationId, historyEvents);
 
           for (const ur of user_roles) {
             await client.query(
@@ -262,6 +272,9 @@ export const registerAppStateAdminRoutes = ({ app, appContext }) => {
         } finally {
           client.release();
         }
+        if (global.io) global.io.to(organizationRoom(organizationId)).emit('stateUpdated', {
+          organizationId, source: 'history.updated',
+        });
         return res.json({ ok: true, scope });
       }
 

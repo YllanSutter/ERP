@@ -13,6 +13,7 @@ import {
   encryptStateSecrets,
   prepareStateForStorage,
 } from '../services/secretFieldService.js';
+import { buildHistoryEvents, insertHistoryEvents } from '../services/historyService.js';
 
 const filterStateForUser = (data, ctx, hasPermission) => {
   if (!data || !data.collections) return data;
@@ -99,19 +100,41 @@ export const registerStateRoutes = ({ app, appContext }) => {
   } = appContext;
   const stateConflict = (res) => res.status(409).json({ error: 'State changed since it was loaded' });
 
-  const writeStatePatch = async (organizationId, previousRow, data) => {
-    if (previousRow) {
-      return pool.query(
-        'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3 AND data = $4 RETURNING version',
-        [data, organizationId, previousRow.version, previousRow.data]
-      );
+  const writeStatePatch = async (organizationId, previousRow, data, historyEvents = []) => {
+    if (!previousRow) await syncAppStateIdSequence();
+    // Query-only adapters are used by isolated route tests; production pg Pool supports connect().
+    if (typeof pool.connect !== 'function') {
+      return previousRow
+        ? pool.query(
+          'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3 AND data = $4 RETURNING version',
+          [data, organizationId, previousRow.version, previousRow.data]
+        )
+        : pool.query(
+          'INSERT INTO app_state (organization_id, data, version) VALUES ($1, $2, 2) ON CONFLICT (organization_id) DO NOTHING RETURNING version',
+          [organizationId, data]
+        );
     }
-
-    await syncAppStateIdSequence();
-    return pool.query(
-      'INSERT INTO app_state (organization_id, data, version) VALUES ($1, $2, 2) ON CONFLICT (organization_id) DO NOTHING RETURNING version',
-      [organizationId, data]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = previousRow
+        ? await client.query(
+          'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3 AND data = $4 RETURNING version',
+          [data, organizationId, previousRow.version, previousRow.data]
+        )
+        : await client.query(
+          'INSERT INTO app_state (organization_id, data, version) VALUES ($1, $2, 2) ON CONFLICT (organization_id) DO NOTHING RETURNING version',
+          [organizationId, data]
+        );
+      if (result.rowCount) await insertHistoryEvents(client, organizationId, historyEvents);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
   };
 
   // PATCH /api/state/item
@@ -190,7 +213,11 @@ export const registerStateRoutes = ({ app, appContext }) => {
 
       const stateStr = JSON.stringify(prepareStateForStorage(newState, state));
 
-      const updateRes = await writeStatePatch(organizationId, previousRow, stateStr);
+      const historyEvents = buildHistoryEvents(state, newState, {
+        actor: req.auth.user,
+        mutationId: req.body?.mutationId,
+      });
+      const updateRes = await writeStatePatch(organizationId, previousRow, stateStr, historyEvents);
       if (updateRes.rowCount === 0) return stateConflict(res);
 
       await notifyServerPluginsStateSaved({ appContext, auth: req.auth, previousState: state, state: newState });
@@ -261,7 +288,11 @@ export const registerStateRoutes = ({ app, appContext }) => {
       }
 
       const stateStr = JSON.stringify(prepareStateForStorage(newState, existingState));
-      const updateRes = await writeStatePatch(organizationId, previousRow, stateStr);
+      const historyEvents = buildHistoryEvents(existingState, newState, {
+        actor: req.auth.user,
+        mutationId: req.body?.mutationId,
+      });
+      const updateRes = await writeStatePatch(organizationId, previousRow, stateStr, historyEvents);
       if (updateRes.rowCount === 0) return stateConflict(res);
 
       await notifyServerPluginsStateSaved({ appContext, auth: req.auth, previousState: existingState, state: newState });
@@ -586,12 +617,47 @@ export const registerStateRoutes = ({ app, appContext }) => {
         delete stateDataWithSegments._lastItemMutation;
       }
       const stateStr = JSON.stringify(prepareStateForStorage(stateDataWithSegments, prevState));
-
-      const updateRes = await pool.query(
-        'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3 AND data = $4',
-        [stateStr, organizationId, currentVersion, prevStateResult.rows[0]?.data]
-      );
       const nextVersion = currentVersion + 1;
+      const historyEvents = buildHistoryEvents(prevState, stateDataWithSegments, {
+        actor: req.auth.user,
+        source: 'user',
+        mutationId: payload.mutationId,
+      });
+      let updateRes;
+      if (typeof pool.connect !== 'function') {
+        updateRes = await pool.query(
+          'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3 AND data = $4',
+          [stateStr, organizationId, currentVersion, prevStateResult.rows[0]?.data]
+        );
+      } else {
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          if (prevStateResult.rows.length > 0) {
+            updateRes = await client.query(
+              'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3 AND data = $4',
+              [stateStr, organizationId, currentVersion, prevStateResult.rows[0].data]
+            );
+          } else {
+            await syncAppStateIdSequence();
+            updateRes = await client.query(
+              'INSERT INTO app_state (organization_id, data, version) VALUES ($1, $2, $3) ON CONFLICT (organization_id) DO NOTHING',
+              [organizationId, stateStr, nextVersion]
+            );
+          }
+          if (updateRes.rowCount > 0) {
+            await insertHistoryEvents(client, organizationId, historyEvents);
+            await client.query('COMMIT');
+          } else {
+            await client.query('ROLLBACK');
+          }
+        } catch (error) {
+          await client.query('ROLLBACK').catch(() => {});
+          throw error;
+        } finally {
+          client.release();
+        }
+      }
       if (updateRes.rowCount === 0) {
         const latestState = await pool.query('SELECT data, version FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
         if (latestState.rowCount > 0) {
@@ -606,11 +672,7 @@ export const registerStateRoutes = ({ app, appContext }) => {
           if (conflicts?.length === 0 && attempt < 2) return saveState(req, res, attempt + 1);
           return conflictReply(Number(latestState.rows[0].version) || expectedVersion, conflicts);
         }
-        await syncAppStateIdSequence();
-        await pool.query(
-          'INSERT INTO app_state (organization_id, data, version) VALUES ($1, $2, $3)',
-          [organizationId, stateStr, nextVersion]
-        );
+        return conflictReply(Number(latestState.rows[0]?.version) || expectedVersion, null);
       }
 
       await notifyServerPluginsStateSaved({ appContext, auth: req.auth, previousState: prevState, state: stateDataWithSegments });
@@ -649,6 +711,303 @@ export const registerStateRoutes = ({ app, appContext }) => {
   };
   app.post('/api/state', requireAuth, (req, res) => saveState(req, res));
   app.patch('/api/state/items', requireAuth, (req, res) => saveState(req, res));
+
+  const historyResponse = (row, req, collection) => {
+    const before = row.before_values || {};
+    const after = row.after_values || {};
+    const fieldIds = new Set([...Object.keys(before), ...Object.keys(after)]);
+    const systemFields = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']);
+    const canUndo = row.entity_type === 'item' && Boolean(collection) && hasPermission(req.auth, {
+      collection_id: row.collection_id, item_id: row.entity_id,
+    }, 'can_write') && ![...fieldIds].some(fieldId => collection?.properties?.some(property => property.id === fieldId && property.type === 'password')) && [...fieldIds].every(fieldId => systemFields.has(fieldId) || (
+      hasPermission(req.auth, { collection_id: row.collection_id, item_id: row.entity_id, field_id: fieldId }, 'can_read') &&
+      hasPermission(req.auth, { collection_id: row.collection_id, item_id: row.entity_id, field_id: fieldId }, 'can_write')
+    ));
+    const changes = [];
+    const labels = {
+      name: 'Nom', icon: 'Icône', color: 'Couleur', isPrimary: 'Collection principale',
+      defaultVisibleFieldIds: 'Champs visibles par défaut', properties: 'Champs',
+      collectionTemplates: 'Templates', fieldGroups: 'Groupes de champs',
+      fieldGroupsLayout: 'Affichage des groupes', hiddenFields: 'Champs masqués',
+      fieldOrder: 'Ordre des champs',
+    };
+    for (const fieldId of fieldIds) {
+      const property = (collection?.properties || []).find(entry => entry.id === fieldId);
+      if (row.entity_type === 'item' && property?.type === 'password') continue;
+      if (row.entity_type === 'item' && !hasPermission(req.auth, {
+        collection_id: row.collection_id, item_id: row.entity_id, field_id: fieldId,
+      }, 'can_read')) continue;
+      const filterViewFields = value => {
+        if (row.entity_type !== 'view' || !collection) return value;
+        const readable = fieldId => {
+          const field = collection.properties?.find(property => property.id === fieldId);
+          return field?.type !== 'password' && hasPermission(req.auth, { collection_id: row.collection_id, field_id }, 'can_read');
+        };
+        if (['fieldOrder', 'hiddenFields', 'visibleFields', 'visibleProperties'].includes(fieldId) && Array.isArray(value)) {
+          const ids = value.filter(readable);
+          return ids.map(id => (collection.properties || []).find(property => property.id === id)?.name || id);
+        }
+        if (fieldId === 'fieldGroups' && Array.isArray(value)) {
+          return value.map(group => {
+            const fieldIds = (group.fieldIds || []).filter(readable);
+            return {
+              ...group,
+              fieldIds,
+              fieldNames: fieldIds.map(id => (collection.properties || []).find(property => property.id === id)?.name || id),
+            };
+          });
+        }
+        return value;
+      };
+      const filterCollectionTemplates = value => {
+        if (row.entity_type === 'collection' && fieldId === 'defaultVisibleFieldIds' && Array.isArray(value)) {
+          return value.filter(id => hasPermission(req.auth, { collection_id: row.collection_id, field_id: id }, 'can_read'))
+            .map(id => (collection?.properties || []).find(property => property.id === id)?.name || id);
+        }
+        if (row.entity_type !== 'collection' || fieldId !== 'collectionTemplates' || !Array.isArray(value)) return value;
+        return value.map(template => {
+          const readableIds = (template.fieldIds || []).filter(id => {
+            const property = collection?.properties?.find(entry => entry.id === id);
+            return property?.type !== 'password' && hasPermission(req.auth, {
+              collection_id: row.collection_id, field_id: id,
+            }, 'can_read');
+          });
+          const readable = new Set(readableIds);
+          const filterValues = source => Object.fromEntries(Object.entries(source || {}).filter(([id]) => readable.has(id)));
+          return {
+            ...template,
+            fieldIds: readableIds,
+            fieldNames: readableIds.map(id => (collection?.properties || []).find(property => property.id === id)?.name || id),
+            values: filterValues(template.values),
+            dateDefaults: filterValues(template.dateDefaults),
+          };
+        });
+      };
+      changes.push({
+        fieldId,
+        label: property?.name || labels[fieldId] || fieldId,
+        beforeExists: Object.hasOwn(before, fieldId),
+        before: filterCollectionTemplates(filterViewFields(before[fieldId])),
+        afterExists: Object.hasOwn(after, fieldId),
+        after: filterCollectionTemplates(filterViewFields(after[fieldId])),
+      });
+    }
+    return {
+      id: row.id,
+      entityType: row.entity_type,
+      collectionId: row.collection_id,
+      entityId: row.entity_id,
+      entityLabel: row.entity_label,
+      action: row.action,
+      actorId: row.actor_id,
+      actorName: row.actor_name,
+      source: row.source,
+      createdAt: row.created_at,
+      changes,
+      canUndo,
+    };
+  };
+
+  const listHistory = (scope) => async (req, res) => {
+    const organizationId = req.auth.activeOrganization?.id;
+    if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+    const collectionId = scope === 'collection' ? req.params.collectionId : req.query.collectionId;
+    const itemId = scope === 'item' ? req.params.itemId : null;
+    if (!collectionId || !hasPermission(req.auth, { collection_id: collectionId }, 'can_read')) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (itemId && !hasPermission(req.auth, { collection_id: collectionId, item_id: itemId }, 'can_read')) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    let cursor = null;
+    if (req.query.cursor) {
+      try { cursor = JSON.parse(Buffer.from(String(req.query.cursor), 'base64url').toString('utf8')); }
+      catch { return res.status(400).json({ error: 'Invalid history cursor' }); }
+      if (!cursor?.createdAt || !Number.isFinite(Date.parse(cursor.createdAt)) ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cursor.id || '')) {
+        return res.status(400).json({ error: 'Invalid history cursor' });
+      }
+    }
+    const limit = Math.max(1, Math.min(Number(req.query.limit) || 30, 100));
+    try {
+      const result = await pool.query(`SELECT * FROM history_events
+        WHERE organization_id = $1 AND collection_id = $2
+          AND ($3::text IS NULL OR entity_type = 'item' AND entity_id = $3)
+          AND ($4::timestamptz IS NULL OR (created_at, id) < ($4::timestamptz, $5::uuid))
+        ORDER BY created_at DESC, id DESC LIMIT $6`,
+      [organizationId, collectionId, itemId, cursor?.createdAt || null, cursor?.id || null, limit + 1]);
+      const hasMore = result.rows.length > limit;
+      const page = result.rows.slice(0, limit);
+      const stateResult = await pool.query('SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1', [organizationId]);
+      const storedState = stateResult.rows[0]?.data ? JSON.parse(stateResult.rows[0].data) : {};
+      const collection = (storedState.collections || []).find(entry => entry.id === collectionId);
+      const events = page.filter(row => {
+        if (row.entity_type === 'item') return hasPermission(req.auth, { collection_id: collectionId, item_id: row.entity_id }, 'can_read');
+        if (row.entity_type === 'view') return hasPermission(req.auth, { collection_id: collectionId }, 'can_manage_views');
+        return hasPermission(req.auth, { collection_id: collectionId }, 'can_manage_fields');
+      }).map(row => {
+        const event = historyResponse(row, req, collection);
+        if (row.entity_type === 'item') {
+          const titleProperty = (collection?.properties || []).find(property => property.isTitle || property.id === 'name' || property.id === 'title');
+          const labelFieldId = row.entity_label_field_id || titleProperty?.id;
+          if (labelFieldId && !hasPermission(req.auth, { collection_id: collectionId, item_id: row.entity_id, field_id: labelFieldId }, 'can_read')) {
+            event.entityLabel = 'Objet';
+          }
+        }
+        return event;
+      });
+      const last = page.at(-1);
+      return res.json({ events, nextCursor: hasMore && last
+        ? Buffer.from(JSON.stringify({ createdAt: last.created_at, id: last.id })).toString('base64url')
+        : null });
+    } catch (error) {
+      logger.error('Failed to load history', error);
+      return res.status(500).json({ error: 'History load failed' });
+    }
+  };
+  app.get('/api/history/collections/:collectionId', requireAuth, listHistory('collection'));
+  app.get('/api/history/items/:itemId', requireAuth, listHistory('item'));
+
+  app.post('/api/history/events/:eventId/undo', requireAuth, async (req, res) => {
+    const organizationId = req.auth.activeOrganization?.id;
+    if (!organizationId) return res.status(400).json({ error: 'No active organization' });
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.params.eventId || '')) {
+      return res.status(400).json({ error: 'Invalid history event id' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const eventResult = await client.query(
+        'SELECT * FROM history_events WHERE organization_id = $1 AND id = $2 FOR SHARE',
+        [organizationId, req.params.eventId]
+      );
+      const event = eventResult.rows[0];
+      if (!event || event.entity_type !== 'item') {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Undoable item history not found' });
+      }
+      const scope = { collection_id: event.collection_id, item_id: event.entity_id };
+      if (!hasPermission(req.auth, scope, 'can_read') || !hasPermission(req.auth, scope, 'can_write')) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      const before = event.before_values || {};
+      const after = event.after_values || {};
+      const fieldIds = new Set([...Object.keys(before), ...Object.keys(after)]);
+      const systemFields = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']);
+      if ([...fieldIds].some(fieldId => !systemFields.has(fieldId) && (
+        !hasPermission(req.auth, { ...scope, field_id: fieldId }, 'can_read') ||
+        !hasPermission(req.auth, { ...scope, field_id: fieldId }, 'can_write')
+      ))) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Cannot undo fields without write permission' });
+      }
+
+      const stateResult = await client.query('SELECT data, version FROM app_state WHERE organization_id = $1 FOR UPDATE', [organizationId]);
+      if (!stateResult.rows[0]) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'State not found' });
+      }
+      const rawState = JSON.parse(stateResult.rows[0].data);
+      const previousState = decryptStateSecrets(rawState, { preserveUnreadable: true });
+      const collections = previousState.collections || [];
+      const collection = collections.find(entry => entry.id === event.collection_id);
+      if (!collection) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Collection not found' });
+      }
+      const liveItem = (collection.items || []).find(entry => entry.id === event.entity_id);
+      if ([...fieldIds].some(fieldId => collection.properties?.some(property => property.id === fieldId && property.type === 'password'))) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'Password fields cannot be restored from history' });
+      }
+      const matches = (item, values) => [...fieldIds].every(fieldId =>
+        Object.hasOwn(item || {}, fieldId) === Object.hasOwn(values, fieldId) &&
+        (!Object.hasOwn(values, fieldId) || isDeepStrictEqual(item[fieldId], values[fieldId])));
+      let nextItem;
+      let nextItems;
+      if (event.action === 'deleted') {
+        if (liveItem) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: 'Item already exists; history cannot be restored safely' });
+        }
+        nextItem = { ...before };
+        if (!nextItem.id) nextItem.id = event.entity_id;
+        nextItems = [...(collection.items || []), nextItem];
+      } else {
+        if (!liveItem || !matches(liveItem, after)) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: 'The item has changed since this history entry' });
+        }
+        if (event.action === 'created') {
+          nextItems = collection.items.filter(entry => entry.id !== event.entity_id);
+          nextItem = null;
+        } else {
+          nextItem = { ...liveItem };
+          for (const fieldId of fieldIds) {
+            if (Object.hasOwn(before, fieldId)) nextItem[fieldId] = before[fieldId];
+            else delete nextItem[fieldId];
+          }
+          nextItems = collection.items.map(entry => entry.id === event.entity_id ? nextItem : entry);
+        }
+      }
+
+      const calendarConfig = getCalendarConfigForUser(req.auth.user);
+      if (nextItem && shouldRecalculateSegments(liveItem, nextItem, collection, collection)) {
+        nextItem = calculateEventSegments(nextItem, collection, calendarConfig);
+        nextItems = nextItems.map(entry => entry.id === event.entity_id ? nextItem : entry);
+      }
+      let nextState = {
+        ...previousState,
+        collections: collections.map(entry => entry.id === event.collection_id ? { ...entry, items: nextItems } : entry),
+      };
+      try {
+        const automations = await loadAutomations(pool, organizationId);
+        const eventType = event.action === 'created' ? 'item_deleted' : event.action === 'deleted' ? 'item_created' : 'item_updated';
+        if (automations.length) nextState = await triggerAutomations({
+          eventType, collectionId: event.collection_id, triggerItem: liveItem || nextItem,
+          prevItem: liveItem || null, state: nextState, automations, pool, organizationId,
+          calculateEventSegments, getDefaultCalendarConfig: () => calendarConfig,
+        });
+      } catch (automationError) {
+        logger.error('History undo automation failed', automationError);
+      }
+      delete nextState._lastItemMutation;
+      const historyEvents = buildHistoryEvents(previousState, nextState, {
+        actor: req.auth.user, source: 'undo', mutationId: `undo:${event.id}:${randomUUID()}`,
+      });
+      for (const historyEvent of historyEvents) {
+        if (historyEvent.entityType === 'item' && historyEvent.entityId === event.entity_id) historyEvent.action = 'restored';
+      }
+      const version = Number(stateResult.rows[0].version) || 1;
+      const serialized = JSON.stringify(prepareStateForStorage(nextState, previousState));
+      const updated = await client.query(
+        'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3 RETURNING version',
+        [serialized, organizationId, version]
+      );
+      if (!updated.rowCount) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'State changed since it was loaded' });
+      }
+      await insertHistoryEvents(client, organizationId, historyEvents);
+      await client.query('COMMIT');
+      try {
+        await notifyServerPluginsStateSaved({ appContext, auth: req.auth, previousState, state: nextState });
+      } catch (pluginError) {
+        logger.error('History undo post-save notification failed', pluginError);
+      }
+      try { await logAudit(req.auth.user.id, 'history.undo', 'item', event.entity_id, { collectionId: event.collection_id, eventId: event.id }); }
+      catch (auditError) { logger.error('History undo audit log failed', auditError); }
+      if (global.io) global.io.to(organizationRoom(organizationId)).emit('stateUpdated', { organizationId, source: 'history.undo' });
+      return res.json({ ok: true, stateVersion: updated.rows[0].version });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      logger.error('Failed to undo item history', error);
+      return res.status(500).json({ error: 'History undo failed' });
+    } finally {
+      client.release();
+    }
+  });
 
   app.get('/api/audit', requireAuth, requirePermission('can_manage_permissions'), async (_req, res) => {
     const logs = await pool.query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 200');

@@ -9,7 +9,7 @@ import { STEAM_EXCHANGE_FIELD, canReceiveSteamGame, createSteamExchangeDraft, st
 import React, { useState, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
-import { Star, Trash2, Clock, Edit2, ChevronLeft, FileText, ChevronDown, Sparkles, Link2, LayoutGrid } from 'lucide-react';
+import { Star, Trash2, Clock, Edit2, History, ChevronLeft, FileText, ChevronDown, Sparkles, Link2, LayoutGrid } from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
 import EditableFieldPreview from '@/components/fields/EditableFieldPreview';
 import { ItemBanner } from '@/components/fields/ItemBanner';
@@ -42,12 +42,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useAuth } from '@/auth/AuthProvider';
 const ItemPdfBlock = React.lazy(() => import('@/components/fields/ItemPdfBlock').then(module => ({ default: module.ItemPdfBlock })));
 import { usePdfPluginConfig } from '@/lib/plugins/pdf/usePdfPlugin';
+import HistoryPanel from '@/components/history/HistoryPanel';
 import {
   getRoundedNow, workDayStart, workDayEnd,
   calculateSegmentsClient, formatSegmentDisplay,
   isEmptyValue,
-  extractTextFromTiptap, serializeTiptapLines, isRichTextValue,
-  diffLines, areValuesEqual,
+  areValuesEqual,
   formatValueForDisplay,
   type FieldGroup,
   type FieldGroupsLayout,
@@ -959,65 +959,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     setFormDataRaw((prev: any) => ({ ...prev, ...updates }));
   }, [collections, editingItem?.id, selectedCollectionId, isReallyEditing]);
 
-  const historySchema = JSON.stringify(selectedCollection?.properties || []);
-  React.useEffect(() => {
-    let active = true;
-    let requested = false;
-    setHistoryLoadError(false);
-    const refresh = (event?: Event) => {
-      if (!active) return;
-      if (event?.type === 'storage') {
-        const key = (event as StorageEvent).key;
-        if (key && key !== historyKey && key !== `erp-item-versions:${selectedCollectionId}:${historyItemId}`) return;
-      }
-      const next = historyItemId ? readItemHistory(activeOrganizationId || 'default',
-        { id: selectedCollectionId, properties: JSON.parse(historySchema) }, historyItemId) : null;
-      setHistoryData(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
-      if (event) { setHistoryLoading(false); setHistoryLoadError(false); }
-    };
-    const load = () => {
-      if (!historyKey || requested || !isDatabaseStorageReady()) return;
-      requested = true;
-      setHistoryLoading(true);
-      void loadDatabaseKeys([historyKey, `erp-item-versions:${selectedCollectionId}:${historyItemId}`])
-        .then(() => { if (active) { refresh(); setHistoryLoading(false); setHistoryLoadError(false); } })
-        .catch(error => { if (active) { setHistoryLoading(false); setHistoryLoadError(true); } console.warn('Historique indisponible', error); });
-    };
-    const onDatabaseStorageChange = () => {
-      refresh();
-      load();
-    };
-    window.addEventListener('erp-item-history-changed', refresh);
-    window.addEventListener('storage', refresh);
-    const unsubscribeStorage = subscribeDatabaseStorage(onDatabaseStorageChange);
-    refresh();
-    if (!historyKey) {
-      setHistoryData(null);
-      setHistoryLoading(false);
-    } else {
-      setHistoryLoading(true);
-      load();
-    }
-    return () => {
-      active = false;
-      window.removeEventListener('erp-item-history-changed', refresh);
-      window.removeEventListener('storage', refresh);
-      unsubscribeStorage();
-    };
-  }, [historyKey, historyItemId, activeOrganizationId, selectedCollectionId, historySchema, historyReloadToken]);
-
-  React.useEffect(() => {
-    setHistorySelectedIndex(null);
-    setHistoryPreview(null);
-  }, [historyKey]);
-
-  React.useEffect(() => {
-    if (itemTab !== 'history' || !historyData || historyData.versions.length === 0) return;
-    const lastIndex = historyData.versions.length - 1;
-    setHistorySelectedIndex(lastIndex);
-    setHistoryPreview(buildSnapshotAt(historyData.base, historyData.versions, lastIndex));
-  }, [itemTab, historyData]);
-
   const isFavorite = favorites && editingItem ? favorites.items.includes(editingItem.id) : false;
 
   // Pour la création, on recalcule dynamiquement les champs selon la collection sélectionnée
@@ -1395,6 +1336,7 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     saveFn(dataToSave);
   };
 
+  const historyItemId = isReallyEditing ? editingItem?.id : null;
   const activeItemTab = ['general', 'details', ...(relationPropsForDisplay.length ? ['relations'] : []), ...(datePropsForDisplay.length ? ['hours'] : []), ...richTextTabs.map((tab: { id: string; label: string }) => `text:${tab.id}`), ...fieldGroups.map(group => `group:${group.id}`), ...(historyItemId ? ['history'] : [])].includes(itemTab) ? itemTab : 'general';
   const missingRequiredFields = [...new Map([...propsList, ...(titleProperty ? [titleProperty] : [])]
     .filter((prop: any) => prop.required && canWriteField(selectedCollectionId, prop.id))
@@ -1966,181 +1908,10 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             </div>
               </div>
             </SettingsTabContent>
-            {historyItemId && (
-              <SettingsTabContent value="history" scrollable className="p-4 sm:p-6">
-          <div className="mb-1">
-            <h2 className="text-base font-semibold">Historique des versions</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Versions locales avec auteur et changements.</p>
-          </div>
-          <div className="flex min-h-0 flex-col gap-4">
-            {(!historyData || historyData.versions.length === 0) && (
-              <div className="flex items-center gap-3 text-xs text-muted-foreground" role="status" aria-live="polite">
-                <span>{historyLoading ? 'Chargement de l’historique…' : historyLoadError ? 'Impossible de charger l’historique.' : 'Aucune version enregistrée pour cet élément.'}</span>
-                {historyLoadError && !historyLoading && <Button type="button" variant="outline" size="sm" onClick={() => setHistoryReloadToken(token => token + 1)}>Réessayer</Button>}
-              </div>
-            )}
-            {historyData && historyData.versions.length > 0 && historyLoading && <p className="text-xs text-muted-foreground" role="status">Actualisation de l’historique…</p>}
-            {historyLoadError && historyData && historyData.versions.length > 0 && (
-              <div role="status" className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
-                <span>La dernière actualisation a échoué. Les versions déjà chargées restent disponibles.</span>
-                <Button type="button" variant="outline" size="sm" onClick={() => setHistoryReloadToken(token => token + 1)}>Réessayer</Button>
-              </div>
-            )}
-            {historyData && historyData.versions.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>
-                    {new Date(historyData.versions[0].ts).toLocaleString('fr-FR')}
-                  </span>
-                  <span>
-                    {new Date(historyData.versions[historyData.versions.length - 1].ts).toLocaleString('fr-FR')}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={historyData.versions.length - 1}
-                  value={historySelectedIndex ?? historyData.versions.length - 1}
-                  onChange={(e) => {
-                    const idx = Number(e.target.value);
-                    setHistorySelectedIndex(idx);
-                    const snapshot = buildSnapshotAt(historyData.base, historyData.versions, idx);
-                    setHistoryPreview(snapshot);
-                  }}
-                  className="w-full"
-                />
-                {historySelectedIndex !== null && (
-                  <div className="text-xs text-muted-foreground">
-                    Version {historySelectedIndex + 1} / {historyData.versions.length}
-                  </div>
-                )}
-              </div>
-            )}
-            <div className="border border-border rounded-lg p-3 overflow-y-auto max-h-[45vh] bg-background">
-              {historySelectedIndex === null || !historyData || !historyPreview ? (
-                <div className="text-sm text-muted-foreground">Sélectionne une version pour voir le détail.</div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-semibold text-foreground">Changements</div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(historyData.versions[historySelectedIndex].ts).toLocaleString('fr-FR')} · {historyData.versions[historySelectedIndex].userName || 'Utilisateur'}
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => {
-                        setFormData(restoreHistorySnapshot(formData, historyPreview, selectedCollection.properties || [],
-                          id => canWriteField(selectedCollection.id, id)));
-                        setItemTab('general');
-                      }}
-                    >
-                      Restaurer cette version
-                    </Button>
-                  </div>
-                  {(() => {
-                    const ver = historyData.versions[historySelectedIndex];
-                    const prevSnapshot = historySelectedIndex > 0
-                      ? buildSnapshotAt(historyData.base, historyData.versions, historySelectedIndex - 1)
-                      : historyData.base;
-                    const currSnapshot = historyPreview;
-                    const keys = Array.from(
-                      new Set([
-                        ...Object.keys(prevSnapshot || {}),
-                        ...Object.keys(currSnapshot || {}),
-                      ])
-                    );
-                    const changes = keys
-                      .map((key) => ({
-                        key,
-                        before: prevSnapshot ? prevSnapshot[key] : undefined,
-                        after: currSnapshot ? currSnapshot[key] : undefined,
-                      }))
-                      .filter(({ before, after }) => !areValuesEqual(before, after));
+            {historyItemId && <SettingsTabContent value="history" scrollable className="p-0">
+              <HistoryPanel collectionId={selectedCollectionId} itemId={historyItemId} title="Historique de l’objet" />
+            </SettingsTabContent>}
 
-                    if (changes.length === 0) {
-                      return <div className="text-xs text-muted-foreground">Aucun changement enregistré.</div>;
-                    }
-
-                    return (
-                      <div className="space-y-3 text-xs">
-                        <div className="text-[11px] text-muted-foreground">
-                          {ver.action === 'create' ? 'Diff initial' : 'Diff vs version précédente'}
-                        </div>
-                        {changes.map(({ key, before, after }) => {
-                          const isRich = isRichTextValue(before) || isRichTextValue(after);
-                          if (isRich) {
-                            let beforeDoc = before;
-                            let afterDoc = after;
-                            try {
-                              if (typeof before === 'string') beforeDoc = JSON.parse(before);
-                            } catch {
-                              beforeDoc = before;
-                            }
-                            try {
-                              if (typeof after === 'string') afterDoc = JSON.parse(after);
-                            } catch {
-                              afterDoc = after;
-                            }
-                            const beforeText = serializeTiptapLines(beforeDoc) || extractTextFromTiptap(beforeDoc);
-                            const afterText = serializeTiptapLines(afterDoc) || extractTextFromTiptap(afterDoc);
-                            const lineDiff = diffLines(beforeText, afterText);
-                            return (
-                              <div key={key} className="rounded-md border border-border p-2 bg-muted/20">
-                                <div className="font-semibold text-foreground mb-1">{key}</div>
-                                {lineDiff.length === 0 ? (
-                                  <div className="text-xs text-muted-foreground">Aucun changement de lignes.</div>
-                                ) : (
-                                  <div className="space-y-1">
-                                    {lineDiff.map((entry, idx) => (
-                                      <div
-                                        key={`${key}-${idx}`}
-                                        className={cn(
-                                          'rounded px-2 py-1 border text-xs',
-                                          entry.type === 'add'
-                                            ? 'bg-green-500/10 border-green-500/20 text-green-600'
-                                            : 'bg-red-500/10 border-red-500/20 text-red-600'
-                                        )}
-                                      >
-                                        {entry.type === 'add' ? '+' : '-'} {entry.text}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <div key={key} className="rounded-md border border-border p-2 bg-muted/20">
-                              <div className="font-semibold text-foreground mb-1">{key}</div>
-                              <div className="grid grid-cols-1 gap-2">
-                                <div className="bg-red-500/10 border border-red-500/20 rounded px-2 py-1">
-                                  <div className="text-[10px] uppercase text-red-500 mb-1">Avant</div>
-                                  <div className="text-muted-foreground">
-                                    {formatValueForDisplay(before)}
-                                  </div>
-                                </div>
-                                <div className="bg-green-500/10 border border-green-500/20 rounded px-2 py-1">
-                                  <div className="text-[10px] uppercase text-green-500 mb-1">Après</div>
-                                  <div className="text-muted-foreground">
-                                    {formatValueForDisplay(after)}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-          </div>
-
-              </SettingsTabContent>
-            )}
           </SettingsTabs>
           </div>
         </div>

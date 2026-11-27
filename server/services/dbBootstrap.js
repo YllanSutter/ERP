@@ -56,6 +56,33 @@ export const bootstrapDatabase = async ({ pool, ensureDefaultOrganization }) => 
     PRIMARY KEY (organization_id, owner_key, key)
   )`);
 
+  await pool.query(`CREATE TABLE IF NOT EXISTS history_events (
+    id UUID PRIMARY KEY,
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('collection', 'item', 'view')),
+    collection_id TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    entity_label TEXT NOT NULL DEFAULT '',
+    entity_label_field_id TEXT,
+    action TEXT NOT NULL CHECK (action IN ('created', 'updated', 'deleted', 'restored')),
+    before_values JSONB NOT NULL DEFAULT '{}'::jsonb,
+    after_values JSONB NOT NULL DEFAULT '{}'::jsonb,
+    actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    actor_name TEXT NOT NULL DEFAULT 'Utilisateur',
+    source TEXT NOT NULL DEFAULT 'user',
+    mutation_id TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (organization_id, mutation_id, entity_type, entity_id)
+  )`);
+  await pool.query('ALTER TABLE history_events ADD COLUMN IF NOT EXISTS entity_label_field_id TEXT');
+  await pool.query(`ALTER TABLE history_events DROP CONSTRAINT IF EXISTS history_events_entity_type_check`);
+  await pool.query(`ALTER TABLE history_events ADD CONSTRAINT history_events_entity_type_check
+    CHECK (entity_type IN ('collection', 'item', 'view'))`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS history_events_collection_idx
+    ON history_events (organization_id, collection_id, created_at DESC, id DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS history_events_entity_idx
+    ON history_events (organization_id, entity_type, entity_id, created_at DESC, id DESC)`);
+
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS organization_members (

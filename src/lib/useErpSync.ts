@@ -1,5 +1,4 @@
 import { setBusinessPersistencePending } from './databaseStorage';
-import { recordCollectionHistory } from './itemHistory';
 import { v4 as uuidv4 } from 'uuid';
 import { buildItemChanges, applyItemChanges, isSyncableItemField } from '../../shared/itemChanges.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -235,6 +234,7 @@ export function useErpSync({
               data.favorites || { views: [], items: [] },
               data.collections || []
             );
+            window.dispatchEvent(new Event('erp-history-updated'));
             setIsLoaded(true);
           }
         }
@@ -307,7 +307,7 @@ export function useErpSync({
       // Une notification distante ne doit pas remplacer une sauvegarde locale en attente.
       if (saveQueueRef.current?.hasPending) return;
       const now = Date.now();
-      if (now - lastReloadRef.current < 2000) return;
+      if (!payload?.source?.startsWith('history.') && now - lastReloadRef.current < 2000) return;
       lastReloadRef.current = now;
 
       try {
@@ -394,10 +394,10 @@ export function useErpSync({
         items: result.rebasedCollections.find((remote: Collection) => remote.id === collection.id)?.items || [],
       }))
       : applyItemChanges(pending.previous, result.itemChanges);
-    recordCollectionHistory(pending.previous, applyItemChanges(pending.previous, pending.payload.itemChanges), organizationId!, user);
     latestCollectionsRef.current = mergeSavedCollections(pending.submitted, saved, latestCollectionsRef.current);
     setCollections((local) => mergeSavedCollections(pending.submitted, saved, local));
     lastSavedCollectionsRef.current = cleanForSave(saved);
+    window.dispatchEvent(new Event('erp-history-updated'));
     // A rebased response refreshes items only. Keep the version of the loaded structure.
     if (!rebased) stateVersionRef.current = result.stateVersion;
     pendingItemsRef.current = null;
@@ -492,8 +492,8 @@ export function useErpSync({
           if (allOk) {
             console.log(`[useErpSync] All ${patches.length} patches succeeded, snapshot updated`);
             if (!isActive()) return;
-            recordCollectionHistory(prevCollections, cleanedCollections, organizationId, user);
             lastSavedCollectionsRef.current = cleanedCollections;
+            window.dispatchEvent(new Event('erp-history-updated'));
             if (!needsFullPost) return; // tout est sauve via les patches
           } else {
             console.warn(`[useErpSync] Some patches failed, falling back to full POST`);
@@ -532,7 +532,6 @@ export function useErpSync({
           if (!isActive()) return;
           stateVersionRef.current = Number(result?.stateVersion) || stateVersionRef.current;
 
-          recordCollectionHistory(prevCollections, cleanedCollections, organizationId, user);
           const serverCollections = result?.collections || result?.automationCollections || null;
           if (serverCollections) {
             console.log(`[useErpSync] Applying server-returned collections after save`);
@@ -543,6 +542,7 @@ export function useErpSync({
           } else {
             lastSavedCollectionsRef.current = cleanedCollections;
           }
+          window.dispatchEvent(new Event('erp-history-updated'));
           lastSavedStructureRef.current = currentStructureStr;
         } else {
           if (res.status === 413) throw new SaveTooLargeError('Les données dépassent la limite du serveur.');

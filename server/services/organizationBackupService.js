@@ -7,6 +7,7 @@ import { backupScope, getBackupDirectory, resolveBackupPath, serializeBackupOper
 
 const tables = {
   browser_state: ['organization_id', 'owner_key', 'key', 'value'],
+  history_events: ['id', 'organization_id', 'entity_type', 'collection_id', 'entity_id', 'entity_label', 'entity_label_field_id', 'action', 'before_values', 'after_values', 'actor_id', 'actor_name', 'source', 'mutation_id', 'created_at'],
   organization_members: ['organization_id', 'user_id'],
   roles: ['id', 'organization_id', 'name', 'description', 'is_system'],
   permissions: ['id', 'organization_id', 'role_id', 'collection_id', 'item_id', 'field_id', 'can_read', 'can_write', 'can_delete', 'can_manage_fields', 'can_manage_views', 'can_manage_permissions'],
@@ -17,7 +18,7 @@ const tables = {
   pdf_plugin_saved_pdfs: ['id', 'organization_id', 'collection_id', 'item_id', 'template_id', 'storage_key', 'values', 'created_at', 'updated_at'],
   steam_public_bundles: ['id', 'organization_id', 'bundle_id', 'snapshot', 'updated_at'],
 };
-const jsonColumns = new Set(['config', 'trigger_data', 'actions_data', 'nodes_data', 'edges_data', 'details', 'values', 'snapshot']);
+const jsonColumns = new Set(['config', 'trigger_data', 'actions_data', 'nodes_data', 'edges_data', 'details', 'values', 'snapshot', 'before_values', 'after_values']);
 const isUuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value || '');
 const exists = file => fs.lstat(file).catch(error => { if (error.code !== 'ENOENT') throw error; return null; });
 
@@ -94,6 +95,7 @@ export const restoreOrganizationBackup = ({ pool, name, organizationId, actorUse
     if (manifest.scope !== 'organization' || manifest.organizationId !== organizationId || snapshot.scope !== 'organization' ||
         snapshot.version !== 1 || snapshot.organizationId !== organizationId || snapshot.organization?.id !== organizationId) throw new Error('Périmètre de sauvegarde incompatible.');
     snapshot.tables.browser_state ??= []; // Archives created before database-backed UI state.
+    snapshot.tables.history_events ??= []; // Archives created before item and collection history.
     snapshot.tables.automation_runs ??= []; // Archives created before execution history.
     snapshot.tables.automations = (snapshot.tables.automations || []).map(row => ({ ...row, nodes_data: row.nodes_data || [], edges_data: row.edges_data || [] }));
     for (const table of [...Object.keys(tables), 'app_state']) {
@@ -117,13 +119,14 @@ export const restoreOrganizationBackup = ({ pool, name, organizationId, actorUse
     if (!organization.rowCount) throw new Error('Organisation introuvable.');
     const users = new Set((await client.query('SELECT id FROM users')).rows.map(user => user.id));
     if (!users.has(actorUserId)) throw new Error('Compte administrateur introuvable.');
-    for (const table of ['browser_state', 'permissions', 'user_roles', 'roles', 'organization_members', 'plugin_configs', 'automation_runs', 'automations', 'pdf_plugin_saved_pdfs', 'steam_public_bundles']) {
+    for (const table of ['browser_state', 'history_events', 'permissions', 'user_roles', 'roles', 'organization_members', 'plugin_configs', 'automation_runs', 'automations', 'pdf_plugin_saved_pdfs', 'steam_public_bundles']) {
       await client.query(`DELETE FROM ${table} WHERE organization_id=$1`, [organizationId]);
     }
     for (const [table, columns] of Object.entries(tables)) {
       for (const row of snapshot.tables[table]) {
         if (row.user_id && !users.has(row.user_id)) continue;
-        const values = columns.map(column => jsonColumns.has(column) ? JSON.stringify(row[column] ?? null) : row[column] ?? null);
+        const safeRow = table === 'history_events' && row.actor_id && !users.has(row.actor_id) ? { ...row, actor_id: null } : row;
+        const values = columns.map(column => jsonColumns.has(column) ? JSON.stringify(safeRow[column] ?? null) : safeRow[column] ?? null);
         await client.query(`INSERT INTO ${table} (${columns.map(column => `"${column}"`).join(',')}) VALUES (${values.map((_, index) => `$${index + 1}`).join(',')})`, values);
       }
     }

@@ -241,29 +241,6 @@ export const isRichTextValue = (val: any): boolean => {
   return typeof val === 'object' && val.type === 'doc';
 };
 
-export const diffLines = (before: string, after: string): { type: 'add' | 'remove'; text: string }[] => {
-  const a = (before || '').split('\n');
-  const b = (after || '').split('\n');
-  const m = a.length;
-  const n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
-  for (let i = 1; i <= m; i += 1) {
-    for (let j = 1; j <= n; j += 1) {
-      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
-    }
-  }
-  const result: { type: 'add' | 'remove'; text: string }[] = [];
-  let i = m; let j = n;
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) { i -= 1; j -= 1; }
-    else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) { result.push({ type: 'add', text: b[j - 1] }); j -= 1; }
-    else if (i > 0) { result.push({ type: 'remove', text: a[i - 1] }); i -= 1; }
-  }
-  return result.reverse().filter((entry) => entry.text.trim() !== '');
-};
-
-export { computePatch, applyPatch, buildSnapshotAt } from '@/lib/itemHistory';
-
 /** Formate une valeur quelconque en texte lisible pour les dialogues de comparaison */
 export const formatValueForDisplay = (val: any): string => {
   if (val === null || val === undefined) return '—';

@@ -5,6 +5,7 @@ import { SettingsSheet, SettingsTabs, SettingsTabContent, SettingsFooter } from 
 import EditableProperty from '@/components/fields/EditableProperty';
 import { toLocalDateInputValue, toTimeInputValue } from '@/lib/collectionTemplateDates';
 import * as Icons from 'lucide-react';
+import HistoryPanel from '@/components/history/HistoryPanel';
 
 interface EditCollectionModalProps {
   onClose: () => void;
@@ -83,6 +84,7 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
           { id: 'fields', label: 'Champs', icon: Icons.List },
           { id: 'templates', label: 'Templates', icon: Icons.Sparkles },
           ...(renderPluginSettings ? [{ id: 'plugins', label: 'Plugins', icon: Icons.Plug }] : []),
+          { id: 'history', label: 'Historique', icon: Icons.History, bottom: true },
         ]}>
         <SettingsTabContent value="general" scrollable>
           <div className="space-y-5">
@@ -230,6 +232,9 @@ const EditCollectionModal: React.FC<EditCollectionModalProps> = ({ onClose, onSa
         {renderPluginSettings && <SettingsTabContent value="plugins" scrollable>
           {renderPluginSettings({ ...collection, ...pluginChanges }, changes => setPluginChanges(previous => ({ ...previous, ...changes })))}
         </SettingsTabContent>}
+        <SettingsTabContent value="history" scrollable className="p-0">
+          <HistoryPanel collectionId={collection.id} title={`Historique · ${collection.name || 'Collection'}`} />
+        </SettingsTabContent>
       </SettingsTabs>
       <SettingsFooter>
         <Button type="button" variant="ghost" size="sm" onClick={onClose}>Annuler</Button>

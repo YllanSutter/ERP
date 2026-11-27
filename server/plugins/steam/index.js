@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { encryptStateSecrets } from '../../services/secretFieldService.js';
+import { buildHistoryEvents, insertHistoryEvents } from '../../services/historyService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,7 +19,7 @@ export const steamServerPlugin = {
   onStateSaved: syncPublicBundlesAfterSave,
   register: ({ app, appContext }) => {
     registerBundleRoutes({ app, appContext });
-    const { logger, requireAuth, hasPermission, pool, syncAppStateIdSequence } = appContext;
+    const { logger, requireAuth, hasPermission, pool } = appContext;
 
     registerCatalogueRoutes({ app, appContext });
     registerSteamImageRoutes({ app, appContext });
@@ -61,7 +62,7 @@ export const steamServerPlugin = {
 
         // Step 1: Load organization state
         const stateResult = await pool.query(
-          'SELECT data FROM app_state WHERE organization_id = $1 LIMIT 1',
+          'SELECT data, version FROM app_state WHERE organization_id = $1 LIMIT 1',
           [activeOrganizationId]
         );
         if (stateResult.rows.length === 0) {
@@ -77,6 +78,7 @@ export const steamServerPlugin = {
           logger.error('[ITAD Plugin] Failed to parse app state:', e);
           return res.status(500).json({ error: 'Failed to parse organization state' });
         }
+        const originalState = structuredClone(state);
 
         const collections = Array.isArray(state?.collections) ? state.collections : [];
         const itemRefs = new Map();
@@ -353,22 +355,33 @@ export const steamServerPlugin = {
 
         if (persist !== false && updates.length > 0) {
           const stateStr = JSON.stringify(encryptStateSecrets(state));
-          const updateRes = await pool.query(
-            'UPDATE app_state SET data = $1 WHERE organization_id = $2',
-            [stateStr, activeOrganizationId]
-          );
-          if (updateRes.rowCount === 0) {
-            await syncAppStateIdSequence();
-            await pool.query(
-              'INSERT INTO app_state (organization_id, data) VALUES ($1, $2)',
-              [activeOrganizationId, stateStr]
+          const historyEvents = buildHistoryEvents(originalState, state, {
+            actor: req.auth.user, source: 'steam', mutationId: req.body?.mutationId,
+          });
+          const client = await pool.connect();
+          try {
+            await client.query('BEGIN');
+            const updateRes = await client.query(
+              'UPDATE app_state SET data = $1, version = version + 1 WHERE organization_id = $2 AND version = $3 AND data = $4',
+              [stateStr, activeOrganizationId, stateResult.rows[0].version, stateResult.rows[0].data]
             );
+            if (!updateRes.rowCount) {
+              await client.query('ROLLBACK');
+              return res.status(409).json({ error: 'State changed while importing prices. Reload and retry.' });
+            }
+            await insertHistoryEvents(client, activeOrganizationId, historyEvents);
+            await client.query('COMMIT');
+          } catch (error) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw error;
+          } finally {
+            client.release();
           }
 
           if (global.io) {
             global.io.to(organizationRoom(activeOrganizationId)).emit('stateUpdated', {
-              userId: req.auth.user.id,
               organizationId: activeOrganizationId,
+              source: 'history.updated',
             });
           }
         }
