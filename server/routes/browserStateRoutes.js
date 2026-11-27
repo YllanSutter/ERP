@@ -22,7 +22,10 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
     if (!value) return true;
     try {
       const history = JSON.parse(value);
-      if (!history.base || !Array.isArray(history.versions)) return false;
+      if (!history.base || typeof history.base !== 'object' || !Array.isArray(history.versions)) return false;
+      // New patches are checked by canAppendHistory. Older entries may contain
+      // fields the current editor is no longer allowed to read.
+      if (write) return true;
       const fields = new Set(Object.keys(history.base));
       for (const version of history.versions) {
         for (const key of Object.keys(version.patch?.set || {})) fields.add(key);
@@ -32,6 +35,34 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
       return [...fields].filter(key => !['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'].includes(key))
         .every(field_id => hasPermission(req.auth, { collection_id, item_id, field_id }, 'can_read'));
     } catch { return false; }
+  };
+  const readableHistoryValue = (req, key, value) => {
+    if (!key.startsWith('erp-item-versions:') || !value) return null;
+    const parts = key.slice('erp-item-versions:'.length).split(':');
+    if (parts.length === 3 && parts.shift() !== req.auth.activeOrganization.id) return null;
+    if (parts.length !== 2) return null;
+    const [collection_id, item_id] = parts;
+    if (!hasPermission(req.auth, { collection_id, item_id }, 'can_read')) return null;
+    try {
+      const history = JSON.parse(value);
+      if (!history?.base || typeof history.base !== 'object' || !Array.isArray(history.versions)) return null;
+      const visible = fieldId => ['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'].includes(fieldId) ||
+        hasPermission(req.auth, { collection_id, item_id, field_id: fieldId }, 'can_read');
+      const base = Object.fromEntries(Object.entries(history.base).filter(([fieldId]) => visible(fieldId)));
+      const versions = history.versions.map(version => {
+        const patch = version.patch || {};
+        return {
+          ...version,
+          patch: {
+            ...patch,
+            set: Object.fromEntries(Object.entries(patch.set || {}).filter(([fieldId]) => visible(fieldId))),
+            deltas: Object.fromEntries(Object.entries(patch.deltas || {}).filter(([fieldId]) => visible(fieldId))),
+            unset: (patch.unset || []).filter(visible),
+          },
+        };
+      });
+      return JSON.stringify({ ...history, base, versions });
+    } catch { return null; }
   };
   const canAppendHistory = (req, key, incomingValue, currentValue) => {
     if (incomingValue === null) return true;
@@ -54,7 +85,14 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
        UNION ALL SELECT key, value FROM user_state WHERE user_id = $2::uuid AND key = ANY($4::text[]) AND value IS NOT NULL
          AND ($5::text[] IS NULL OR key = ANY($5::text[]))`,
       [req.auth.activeOrganization.id, req.auth.user.id, 'organization', ACCOUNT_STORAGE_KEYS, keys, preferencesOnly]);
-    return Object.fromEntries(result.rows.filter(row => allowed(req, row.key, row.value)).map(row => [row.key, row.value]));
+    const entries = {};
+    for (const row of result.rows) {
+      if (row.key.startsWith('erp-item-versions:')) {
+        const history = readableHistoryValue(req, row.key, row.value);
+        if (history !== null) entries[row.key] = history;
+      } else if (allowed(req, row.key, row.value)) entries[row.key] = row.value;
+    }
+    return entries;
   };
   const guard = (req, res) => {
     if (req.body?.userId && req.body.userId !== req.auth.user.id) {
@@ -147,7 +185,7 @@ export function registerBrowserStateRoutes({ app, appContext: { pool, requireAut
         if (key.startsWith('erp-item-versions:')) {
           const existing = await client.query('SELECT value FROM browser_state WHERE organization_id=$1 AND owner_key=$2 AND key=$3',
             [req.auth.activeOrganization.id, owner, key]);
-          if ((existing.rows[0] && !allowed(req, key, existing.rows[0].value)) ||
+          if ((existing.rows[0] && !allowed(req, key, null)) ||
               !canAppendHistory(req, key, value, existing.rows[0]?.value)) {
             if (importOnly) continue;
             const error = new Error('Forbidden history changes');

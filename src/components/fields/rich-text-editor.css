@@ -35,9 +35,13 @@
 }
 
 .rte-outline-sidebar {
+  position: sticky;
+  top: 0.5rem;
+  align-self: flex-start;
   flex: 0 0 220px;
   min-width: 0;
   overflow-y: auto;
+  max-height: calc(100dvh - 10rem);
   padding: 0.85rem 0.5rem 1rem 0.75rem;
   border-left: 1px solid rgba(0, 0, 0, 0.08);
   color: #52525b;
@@ -198,6 +202,11 @@
 
 .rte-container.context-rich-editor .rte-outline-sidebar {
   flex-basis: 180px;
+}
+
+.item-modal .rte-outline-sidebar {
+  top: 0.75rem;
+  max-height: calc(100dvh - 12rem);
 }
 
 @media (max-width: 640px) {

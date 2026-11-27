@@ -19,14 +19,31 @@ function setup(rows = [], checkPermission = (_ctx, scope) => scope.field_id !== 
   const res = { code: 200, status(code) { this.code = code; return this; }, json(value) { this.body = value; return this; } };
   return { routes, calls, req, res };
 }
-test('reads only current user and organization state and hides restricted history', async () => {
+test('reads only current user and organization state and filters restricted history fields', async () => {
   const { routes, calls, req, res } = setup([
     { key: 'erp-theme', value: 'dark' },
     { key: 'erp-item-versions:org:c:i', value: JSON.stringify({ base: { secret: 'hidden' }, versions: [] }) },
   ]);
   await routes['get /api/browser-state'](req, res);
   assert.deepEqual(calls.find(([sql]) => sql.startsWith('SELECT key, value'))[1].slice(0, 3), ['org', 'alice', 'organization']);
-  assert.deepEqual(res.body.entries, { 'erp-theme': 'dark' });
+  assert.deepEqual(res.body.entries, {
+    'erp-theme': 'dark',
+    'erp-item-versions:org:c:i': JSON.stringify({ base: {}, versions: [] }),
+  });
+});
+test('returns accessible item history versions without exposing unreadable fields', async () => {
+  const history = { base: { name: 'Item', secret: 'hidden' }, versions: [
+    { id: 'v1', ts: '2026-01-01', userName: 'Alice', patch: { set: { name: 'Updated', secret: 'private' }, unset: [] } },
+  ] };
+  const { routes, req, res } = setup([{ key: 'erp-item-versions:org:c:i', value: JSON.stringify(history) }],
+    (_ctx, scope) => scope.field_id !== 'secret');
+  await routes['get /api/browser-state'](req, res);
+  const visibleHistory = JSON.parse(res.body.entries['erp-item-versions:org:c:i']);
+  assert.deepEqual(visibleHistory.base, { name: 'Item' });
+  assert.equal(visibleHistory.versions.length, 1);
+  assert.deepEqual(visibleHistory.versions[0].patch.set, { name: 'Updated' });
+  assert.equal(JSON.stringify(visibleHistory).includes('hidden'), false);
+  assert.equal(JSON.stringify(visibleHistory).includes('private'), false);
 });
 test('rejects writes after an organization switch', async () => {
   const { routes, calls, req, res } = setup();

@@ -1438,7 +1438,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
         className="item-modal settings-surface w-full h-[100dvh] sm:w-[calc(100%_-_2rem)] sm:h-[90dvh] sm:max-w-6xl sm:rounded-2xl border border-border shadow-2xl overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className="group/template flex flex-wrap items-center gap-2 px-[var(--settings-padding)] py-2 border-b border-border shrink-0">
+        <div className="group/template flex shrink-0 flex-col gap-2 border-b border-border px-[var(--settings-padding)] py-2">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           {/* Titre + badge collection */}
           <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
             <div className="flex items-center gap-3">
@@ -1483,23 +1484,8 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               </div>
             )}
           </div>
-          <PinnedFieldsHeader properties={pinnedProperties} onUnpin={id => updatePinnedField(id, false)}
-            renderField={prop => <EditableFieldPreview property={prop} value={formData[prop.id]}
-              onChange={value => handleChange(prop.id, value)} size="sm"
-              collection={selectedCollection} collections={readableCollections} currentItem={formData}
-              readOnly={!canWriteField(selectedCollection.id, prop.id)}
-              onNavigateToCollection={onNavigateToCollection}
-              onRelationChange={(property, item, value) => {
-                if (!canWriteField(selectedCollection.id, property.id)) return;
-                if (property.type === 'relation' || property.type === 'multi_select') handleChange(property.id, value);
-                else setFormData(item);
-              }}>
-                <EditableProperty property={prop} value={formData[prop.id]} onChange={() => {}} readOnly size="sm"
-                  collection={selectedCollection} collections={readableCollections} currentItem={formData} richTextPreviewLimit={80} compactDate />
-              </EditableFieldPreview>}
-          />
           {/* Actions droite */}
-          <div className="flex flex-wrap items-center gap-1 shrink-0">
+          <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-1">
             {collectionTemplates.length > 0 && (
               <Button type="button" variant="outline" size="sm" onClick={() => {
                 setCollectionTemplateSelection(activeCollectionTemplateId || collectionTemplates.find((template: any) => template.fieldIds?.length)?.id || '');
@@ -1580,6 +1566,22 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               </svg>
             </button>
           </div>
+          </div>
+          <PinnedFieldsHeader properties={pinnedProperties} onUnpin={id => updatePinnedField(id, false)}
+            renderField={prop => <EditableFieldPreview property={prop} value={formData[prop.id]}
+              onChange={value => handleChange(prop.id, value)} size="sm"
+              collection={selectedCollection} collections={readableCollections} currentItem={formData}
+              readOnly={!canWriteField(selectedCollection.id, prop.id)}
+              onNavigateToCollection={onNavigateToCollection}
+              onRelationChange={(property, item, value) => {
+                if (!canWriteField(selectedCollection.id, property.id)) return;
+                if (property.type === 'relation' || property.type === 'multi_select') handleChange(property.id, value);
+                else setFormData(item);
+              }}>
+                <EditableProperty property={prop} value={formData[prop.id]} onChange={() => {}} readOnly size="sm"
+                  collection={selectedCollection} collections={readableCollections} currentItem={formData} richTextPreviewLimit={80} compactDate />
+              </EditableFieldPreview>}
+          />
         </div>
         <div className="item-modal-content z-10 relative isolate flex min-h-0 flex-1 flex-col">
           <InteractiveBackdrop className="opacity-50 [--bd-bg:transparent] dark:[--bd-bg:transparent] [--bd-accent:rgb(var(--brand-500))] dark:[--bd-accent:rgb(var(--brand-500))]" />
