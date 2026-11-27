@@ -76,6 +76,7 @@ import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils"
 // --- Styles ---
 import "@/components/tiptap-templates/simple/simple-editor.scss"
 import { cn } from "@/lib/utils"
+import { ListTree } from "lucide-react"
 
 type SimpleEditorProps = {
   value: any
@@ -147,10 +148,16 @@ const parseIncomingValue = (value: any): string | Record<string, any> => {
 const MainToolbarContent = ({
   onHighlighterClick,
   onLinkClick,
+  onOutlineClick,
+  outlineOpen,
+  hasHeadings,
   isMobile,
 }: {
   onHighlighterClick: () => void
   onLinkClick: () => void
+  onOutlineClick: () => void
+  outlineOpen: boolean
+  hasHeadings: boolean
   isMobile: boolean
 }) => {
   return (
@@ -216,7 +223,19 @@ const MainToolbarContent = ({
 
       {isMobile && <ToolbarSeparator />}
 
-      <ToolbarGroup />
+      {hasHeadings && (
+        <ToolbarGroup>
+          <Button
+            data-style="ghost"
+            aria-label={outlineOpen ? "Fermer le sommaire" : "Ouvrir le sommaire"}
+            aria-pressed={outlineOpen}
+            tooltip={outlineOpen ? "Fermer le sommaire" : "Sommaire"}
+            onClick={onOutlineClick}
+          >
+            <ListTree className="tiptap-button-icon" />
+          </Button>
+        </ToolbarGroup>
+      )}
     </>
   )
 }
@@ -262,6 +281,8 @@ export function SimpleEditor({
   const [mobileView, setMobileView] = useState<"main" | "highlighter" | "link">(
     "main"
   )
+  const [outlineOpen, setOutlineOpen] = useState(false)
+  const [headings, setHeadings] = useState<Array<{ pos: number; level: number; text: string }>>([])
   const toolbarRef = useRef<HTMLDivElement>(null)
   const lastValueRef = useRef<string | null>(null)
   const initialContent = useMemo(() => parseIncomingValue(value), [])
@@ -333,6 +354,23 @@ export function SimpleEditor({
 
   useEffect(() => {
     if (!editor) return
+    const updateHeadings = () => {
+      const next: Array<{ pos: number; level: number; text: string }> = []
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === "heading" && node.textContent.trim()) {
+          next.push({ pos, level: Number(node.attrs.level) || 1, text: node.textContent.trim() })
+        }
+      })
+      setHeadings(next)
+      if (!next.length) setOutlineOpen(false)
+    }
+    updateHeadings()
+    editor.on("transaction", updateHeadings)
+    return () => { editor.off("transaction", updateHeadings) }
+  }, [editor])
+
+  useEffect(() => {
+    if (!editor) return
     if (typeof value === "string" && lastValueRef.current === value) return
     const nextContent = parseIncomingValue(value)
     editor.commands.setContent(nextContent, { emitUpdate: false })
@@ -356,6 +394,9 @@ export function SimpleEditor({
               <MainToolbarContent
                 onHighlighterClick={() => setMobileView("highlighter")}
                 onLinkClick={() => setMobileView("link")}
+                onOutlineClick={() => setOutlineOpen((open) => !open)}
+                outlineOpen={outlineOpen}
+                hasHeadings={headings.length > 0}
                 isMobile={isMobile}
               />
             ) : (
@@ -367,11 +408,35 @@ export function SimpleEditor({
           </Toolbar>
         )}
 
-        <EditorContent
-          editor={editor}
-          role="presentation"
-          className="simple-editor-content"
-        />
+        <div className={cn("simple-editor-layout", outlineOpen && "has-outline")}>
+          <EditorContent
+            editor={editor}
+            role="presentation"
+            className="simple-editor-content"
+          />
+          {outlineOpen && headings.length > 0 && (
+            <aside className="rte-outline-sidebar" aria-label="Sommaire du document">
+              <div className="rte-outline-heading">Sommaire</div>
+              <nav>
+                {headings.map((heading, index) => (
+                  <button
+                    type="button"
+                    key={`${heading.pos}-${index}`}
+                    className="rte-outline-entry"
+                    style={{ paddingLeft: `${0.65 + (heading.level - 1) * 0.7}rem` }}
+                    onClick={() => {
+                      const element = editor?.view.nodeDOM(heading.pos) as HTMLElement | null
+                      element?.scrollIntoView({ behavior: "smooth", block: "start" })
+                    }}
+                    title={heading.text}
+                  >
+                    {heading.text}
+                  </button>
+                ))}
+              </nav>
+            </aside>
+          )}
+        </div>
       </EditorContext.Provider>
     </div>
   )
