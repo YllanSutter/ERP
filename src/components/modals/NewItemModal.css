@@ -76,9 +76,9 @@
   padding-bottom: 0.15rem;
 }
 .item-modal .pinned-fields-header {
-  width: 100%;
-  flex: 0 0 100%;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  width: auto;
+  max-width: min(42vw, 34rem);
+  flex: 0 1 auto;
 }
 .item-modal .pinned-field {
   max-width: 100%;

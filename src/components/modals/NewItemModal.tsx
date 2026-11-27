@@ -1496,6 +1496,21 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
               </Button>
             )}
             <PinnedFieldsSettings properties={pinnableProperties} fields={pinnedFields} onChange={updatePinnedField} />
+            <PinnedFieldsHeader properties={pinnedProperties} onUnpin={id => updatePinnedField(id, false)}
+              renderField={prop => <EditableFieldPreview property={prop} value={formData[prop.id]}
+                onChange={value => handleChange(prop.id, value)} size="sm"
+                collection={selectedCollection} collections={readableCollections} currentItem={formData}
+                readOnly={!canWriteField(selectedCollection.id, prop.id)}
+                onNavigateToCollection={onNavigateToCollection}
+                onRelationChange={(property, item, value) => {
+                  if (!canWriteField(selectedCollection.id, property.id)) return;
+                  if (property.type === 'relation' || property.type === 'multi_select') handleChange(property.id, value);
+                  else setFormData(item);
+                }}>
+                  <EditableProperty property={prop} value={formData[prop.id]} onChange={() => {}} readOnly size="sm"
+                    collection={selectedCollection} collections={readableCollections} currentItem={formData} richTextPreviewLimit={80} compactDate />
+                </EditableFieldPreview>}
+            />
             {titleProperty && renderTemplatePicker(titleProperty)}
             {renderPluginActions?.(selectedCollection, formData)}
             {hasLocalDraft && (
@@ -1567,21 +1582,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
             </button>
           </div>
           </div>
-          <PinnedFieldsHeader properties={pinnedProperties} onUnpin={id => updatePinnedField(id, false)}
-            renderField={prop => <EditableFieldPreview property={prop} value={formData[prop.id]}
-              onChange={value => handleChange(prop.id, value)} size="sm"
-              collection={selectedCollection} collections={readableCollections} currentItem={formData}
-              readOnly={!canWriteField(selectedCollection.id, prop.id)}
-              onNavigateToCollection={onNavigateToCollection}
-              onRelationChange={(property, item, value) => {
-                if (!canWriteField(selectedCollection.id, property.id)) return;
-                if (property.type === 'relation' || property.type === 'multi_select') handleChange(property.id, value);
-                else setFormData(item);
-              }}>
-                <EditableProperty property={prop} value={formData[prop.id]} onChange={() => {}} readOnly size="sm"
-                  collection={selectedCollection} collections={readableCollections} currentItem={formData} richTextPreviewLimit={80} compactDate />
-              </EditableFieldPreview>}
-          />
         </div>
         <div className="item-modal-content z-10 relative isolate flex min-h-0 flex-1 flex-col">
           <InteractiveBackdrop className="opacity-50 [--bd-bg:transparent] dark:[--bd-bg:transparent] [--bd-accent:rgb(var(--brand-500))] dark:[--bd-accent:rgb(var(--brand-500))]" />

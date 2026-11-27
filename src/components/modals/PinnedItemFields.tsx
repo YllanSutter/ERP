@@ -45,8 +45,8 @@ export function PinnedFieldsHeader({ properties, onUnpin, renderField }: {
   properties: any[]; onUnpin: (id: string) => void; renderField: (property: any) => React.ReactNode;
 }) {
   if (!properties.length) return null;
-  return <div aria-label="Champs épinglés" className="pinned-fields-header grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] items-center gap-x-1 gap-y-0.5">
-    {properties.map(property => <div key={property.id} className={property.showPinnedLabel ? 'pinned-field with-label flex min-w-0 items-center gap-1' : 'pinned-field flex h-8 min-w-0 items-center gap-1'}>
+  return <div aria-label="Champs épinglés" className="pinned-fields-header inline-flex min-w-0 items-center gap-1 overflow-x-auto">
+    {properties.map(property => <div key={property.id} className={property.showPinnedLabel ? 'pinned-field with-label flex w-32 min-w-[6.5rem] shrink-0 items-center gap-1' : 'pinned-field flex h-8 w-32 min-w-[6.5rem] shrink-0 items-center gap-1'}>
       <div className="min-w-0 flex-1 overflow-hidden [&_input]:min-w-0 [&_input]:text-xs [&_button]:min-w-0">{renderField(property)}</div>
       <button type="button" aria-label={`Désépingler ${property.name}`} title={`Désépingler ${property.name}`} className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground" onClick={() => onUnpin(property.id)}><PinOff size={12} /></button>
     </div>)}
