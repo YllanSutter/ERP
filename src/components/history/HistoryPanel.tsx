@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, History, LoaderCircle, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { formatValueForDisplay } from '@/components/modals/modalLib';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -74,7 +78,9 @@ export default function HistoryPanel({ collectionId, itemId, title }: HistoryPan
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [undoingId, setUndoingId] = useState('');
+  const [pendingUndo, setPendingUndo] = useState<HistoryEvent | null>(null);
   const [notice, setNotice] = useState('');
+  const [noticeIsError, setNoticeIsError] = useState(false);
 
   const load = useCallback(async (nextCursor?: string | null, append = false) => {
     const params = new URLSearchParams({ limit: '30' });
@@ -110,21 +116,24 @@ export default function HistoryPanel({ collectionId, itemId, title }: HistoryPan
   }, [load]);
 
   const undo = async (event: HistoryEvent) => {
-    if (!window.confirm(`Annuler cette modification de « ${event.entityLabel} » ?`)) return;
+    setPendingUndo(null);
     setUndoingId(event.id);
     setNotice('');
+    setNoticeIsError(false);
     try {
       const response = await fetch(`${API_URL}/history/events/${encodeURIComponent(event.id)}/undo`, {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}',
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(response.status === 409
-        ? 'Cet objet a changé depuis cette version. Annule d’abord ses modifications plus récentes.'
-        : result.error || 'Annulation impossible.');
-      setNotice(`Modification de « ${event.entityLabel} » annulée.`);
+        ? 'Cet objet a changé dans le même champ depuis cette version. Cette annulation risquerait d’écraser une modification plus récente.'
+        : `${result.error || 'Annulation impossible.'} (HTTP ${response.status}${result.reference ? ` · réf. ${result.reference}` : ''})`);
+      setNotice(`Modification annulée. « ${event.entityLabel} » est en cours de mise à jour.`);
+      window.dispatchEvent(new Event('erp-state-updated'));
       await load();
     } catch (undoError: any) {
       setNotice(undoError?.message || 'Annulation impossible.');
+      setNoticeIsError(true);
     } finally {
       setUndoingId('');
     }
@@ -137,8 +146,24 @@ export default function HistoryPanel({ collectionId, itemId, title }: HistoryPan
       <h2 className="text-base font-semibold">{title || 'Historique'}</h2>
       <p className="mt-1 text-xs text-muted-foreground">Modifications enregistrées sur le serveur.</p>
     </header>
+    <AlertDialog open={Boolean(pendingUndo)} onOpenChange={(open) => { if (!open && !undoingId) setPendingUndo(null); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Annuler cette modification ?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Seuls les champs modifiés dans cette entrée seront restaurés pour « {pendingUndo?.entityLabel} ».
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Retour</AlertDialogCancel>
+          <AlertDialogAction onClick={() => { if (pendingUndo) void undo(pendingUndo); }}>
+            Confirmer l’annulation
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     {error && <div role="alert" className="flex items-center gap-2 text-sm text-destructive"><AlertCircle size={15} />{error}<Button size="sm" variant="outline" onClick={() => void load()}>Réessayer</Button></div>}
-    {notice && <p role="status" className="text-xs text-muted-foreground">{notice}</p>}
+    {notice && <p role={noticeIsError ? 'alert' : 'status'} className={`rounded-md border px-3 py-2 text-sm ${noticeIsError ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'}`}>{notice}</p>}
     {!error && events.length === 0 && <div className="flex items-center gap-2 py-5 text-sm text-muted-foreground"><History size={16} />Aucune modification enregistrée depuis l’activation du nouvel historique.</div>}
     <ol className="space-y-2">
       {events.map(event => <li key={event.id} className="rounded-lg border border-border/70 bg-card/40 p-3">
@@ -150,7 +175,7 @@ export default function HistoryPanel({ collectionId, itemId, title }: HistoryPan
             <time className="text-[11px] text-muted-foreground" dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })}</time>
             {sourceLabel[event.source] && <span className="ml-2 text-[11px] text-muted-foreground">· {sourceLabel[event.source]}</span>}
           </div>
-          {event.canUndo && <Button size="sm" variant="outline" disabled={undoingId === event.id} onClick={() => void undo(event)}>
+          {event.canUndo && <Button size="sm" variant="outline" disabled={undoingId === event.id} onClick={() => { setNotice(''); setPendingUndo(event); }}>
             {undoingId === event.id ? <LoaderCircle size={13} className="animate-spin" /> : <RotateCcw size={13} />}
             Annuler
           </Button>}

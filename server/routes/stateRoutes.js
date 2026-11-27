@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { validateSteamExchanges } from '../plugins/steam/exchanges.js';
 import { organizationRoom } from '../services/socketPresence.js';
 import { isDeepStrictEqual } from 'node:util';

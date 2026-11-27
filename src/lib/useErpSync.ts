@@ -294,7 +294,7 @@ export function useErpSync({
 
   // --- Reception temps reel : structure modifiee ------------------------
   useEffect(() => {
-    if (!socket || !organizationId) return;
+    if (!organizationId) return;
 
     const handleStructureUpdated = async (payload?: { userId?: string; organizationId?: string; source?: string }) => {
       if (payload?.source === 'db.restore' && (!payload.organizationId || payload.organizationId === organizationId)) {
@@ -349,13 +349,16 @@ export function useErpSync({
         console.error('Impossible de recharger la structure', err);
       }
     };
+    const handleLocalStateUpdated = () => { void handleStructureUpdated({ source: 'history.undo' }); };
 
-    socket.on('structureUpdated', handleStructureUpdated);
+    socket?.on('structureUpdated', handleStructureUpdated);
     // Compatibilite ascendante
-    socket.on('stateUpdated', handleStructureUpdated);
+    socket?.on('stateUpdated', handleStructureUpdated);
+    window.addEventListener('erp-state-updated', handleLocalStateUpdated);
     return () => {
-      socket.off('structureUpdated', handleStructureUpdated);
-      socket.off('stateUpdated', handleStructureUpdated);
+      socket?.off('structureUpdated', handleStructureUpdated);
+      socket?.off('stateUpdated', handleStructureUpdated);
+      window.removeEventListener('erp-state-updated', handleLocalStateUpdated);
     };
   }, [socket, organizationId, user, API_URL]);
 
