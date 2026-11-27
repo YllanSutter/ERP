@@ -25,7 +25,7 @@ export async function isSiteCreator(pool, userId) {
   if (!userId) return false;
   const result = await pool.query('SELECT key, value FROM site_settings WHERE key = ANY($1)', [[SITE_OWNER_KEY, SITE_ADMINS_KEY]]);
   const settings = new Map(result.rows.map((row) => [row.key, row.value]));
-  return settings.get(SITE_OWNER_KEY) === userId || parseUserIds(settings.get(SITE_ADMINS_KEY)).includes(userId);
+  return parseUserIds(settings.get(SITE_ADMINS_KEY)).includes(userId);
 }
 
 export async function setSiteAdministrator(pool, userId, enabled) {
@@ -36,10 +36,7 @@ export async function setSiteAdministrator(pool, userId, enabled) {
     const settings = new Map(result.rows.map((row) => [row.key, row.value]));
     const ownerId = settings.get(SITE_OWNER_KEY);
     if (!ownerId) throw new Error('Compte principal introuvable');
-    if (userId === ownerId && !enabled) throw new Error('Le compte principal doit rester super administrateur');
-
     const adminIds = new Set(parseUserIds(settings.get(SITE_ADMINS_KEY)));
-    adminIds.add(ownerId);
     if (enabled) adminIds.add(userId);
     else adminIds.delete(userId);
 

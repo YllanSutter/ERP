@@ -145,6 +145,9 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
       const userId = String(req.params.id || '').trim();
       const enabled = req.body?.enabled;
       if (!userId || typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled boolean required' });
+      if (!enabled && userId === req.auth?.user?.id) {
+        return res.status(400).json({ error: 'Vous ne pouvez pas retirer votre propre statut de super administrateur.' });
+      }
       const user = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
       if (!user.rowCount) return res.status(404).json({ error: 'user not found' });
 
@@ -152,8 +155,8 @@ export const registerUserAccessRoutes = ({ app, appContext }) => {
       await logAudit(req.auth.user.id, enabled ? 'user.site_admin.grant' : 'user.site_admin.revoke', 'user', userId, { userId });
       return res.json({ ok: true });
     } catch (err) {
-      logger.error('Update site administrator failed', err);
-      return res.status(400).json({ error: err.message || 'Update site administrator failed' });
+      logger.error({ error: err instanceof Error ? { message: err.message, stack: err.stack } : String(err) }, 'Update site administrator failed');
+      return res.status(400).json({ error: err instanceof Error ? err.message : 'Update site administrator failed' });
     }
   });
 

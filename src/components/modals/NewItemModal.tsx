@@ -1,7 +1,6 @@
 import { databaseStorage, isDatabaseStorageReady, loadDatabaseKeys, subscribeDatabaseStorage } from '@/lib/databaseStorage';
 import { usePinnedItemFields } from '@/lib/hooks/usePinnedItemFields';
 import { PinnedFieldsSettings, PinnedFieldsHeader } from './PinnedItemFields';
-import { historyKey as buildScopedHistoryKey, readItemHistory, restoreHistorySnapshot } from '@/lib/itemHistory';
 import { generateId } from '@/lib/utils/id';
 import { applyCollectionTemplateDateParts } from '@/lib/collectionTemplateDates';
 import { getSteamBundleConfig } from '@/lib/plugins/steam/collectionRoles';
@@ -10,7 +9,7 @@ import { STEAM_EXCHANGE_FIELD, canReceiveSteamGame, createSteamExchangeDraft, st
 import React, { useState, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import * as Icons from 'lucide-react';
-import { Star, Trash2, Clock, Edit2, History, ChevronLeft, FileText, ChevronDown, Sparkles, Link2, LayoutGrid } from 'lucide-react';
+import { Star, Trash2, Clock, Edit2, ChevronLeft, FileText, ChevronDown, Sparkles, Link2, LayoutGrid } from 'lucide-react';
 import EditableProperty from '@/components/fields/EditableProperty';
 import EditableFieldPreview from '@/components/fields/EditableFieldPreview';
 import { ItemBanner } from '@/components/fields/ItemBanner';
@@ -48,7 +47,7 @@ import {
   calculateSegmentsClient, formatSegmentDisplay,
   isEmptyValue,
   extractTextFromTiptap, serializeTiptapLines, isRichTextValue,
-  diffLines, areValuesEqual, buildSnapshotAt,
+  diffLines, areValuesEqual,
   formatValueForDisplay,
   type FieldGroup,
   type FieldGroupsLayout,
@@ -246,12 +245,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
   const [itemTab, setItemTab] = useState('general');
   const [activeFieldGroupId, setActiveFieldGroupId] = useState('');
   const [fieldSearch, setFieldSearch] = useState('');
-  const [historyData, setHistoryData] = useState<{ base: any; versions: any[] } | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyLoadError, setHistoryLoadError] = useState(false);
-  const [historyReloadToken, setHistoryReloadToken] = useState(0);
-  const [historySelectedIndex, setHistorySelectedIndex] = useState<number | null>(null);
-  const [historyPreview, setHistoryPreview] = useState<any | null>(null);
   const [validationAttempted, setValidationAttempted] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pdfPopoverOpen, setPdfPopoverOpen] = useState(false);
@@ -580,11 +573,6 @@ const NewItemModal: React.FC<NewItemModalProps> = ({
     () => buildDraftKey(selectedCollectionId, isReallyEditing ? editingItem?.id : undefined),
     [selectedCollectionId, isReallyEditing, editingItem?.id]
   );
-  const historyItemId = editingItem?.id || formData?.id;
-  const historyKey = historyItemId
-    ? buildScopedHistoryKey(activeOrganizationId || 'default', selectedCollectionId, historyItemId)
-    : null;
-
   React.useEffect(() => {
     draftAppliedRef.current = false;
     draftDecisionPendingRef.current = false;

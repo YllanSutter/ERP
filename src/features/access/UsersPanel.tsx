@@ -72,7 +72,7 @@ export const UsersPanel = ({ context }: { context: AccessContext }) => {
               {context.isSelf && <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-xs text-brand-700 dark:text-brand-300">Vous</span>}
             </div>
             <div className="mt-2">{roleBadges(selected)}</div>
-            {selected.is_site_owner && <p className="mt-2 text-xs text-muted-foreground">Compte principal : ce statut ne peut pas être retiré.</p>}
+            {selected.is_site_owner && <p className="mt-2 text-xs text-muted-foreground">Compte principal du site.</p>}
             {selected.is_site_admin && <p className="mt-2 text-xs text-muted-foreground">Super administrateur : import/export global et sauvegardes de la base complète.</p>}
           </section>
 
@@ -82,8 +82,11 @@ export const UsersPanel = ({ context }: { context: AccessContext }) => {
                 <Checkbox
                   className="size-4 accent-brand-600"
                   checked={Boolean(selected.is_site_admin)}
-                  disabled={context.busy || Boolean(selected.is_site_owner)}
-                  onChange={(event) => context.updateUserSiteAdmin(selected.id, event.target.checked)}
+                  disabled={context.busy || selected.id === context.user?.id}
+                  onChange={(event) => {
+                    const enabled = event.currentTarget.checked;
+                    void context.updateUserSiteAdmin(selected.id, enabled);
+                  }}
                 />
                 Super administrateur
               </label>
